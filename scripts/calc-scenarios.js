@@ -579,6 +579,133 @@ async function scenarioWalletNegativeOffset(adminToken, packageId) {
   };
 }
 
+async function scenarioDuplicateProcessGuard(adminToken, packageId) {
+  const sponsorCode = `SCN8S${RUN_SUFFIX}`;
+  const sponsor = await createMember({
+    memberCode: sponsorCode,
+    name: "Scenario Duplicate Process Sponsor",
+    email: `scn8.sponsor.${RUN_SUFFIX}@example.com`,
+    sponsorCode: "ALICE",
+  });
+  await activatePackage(sponsor.memberId, packageId, adminToken);
+
+  const buyer = await createMember({
+    memberCode: `SCN8B${RUN_SUFFIX}`,
+    name: "Scenario Duplicate Process Buyer",
+    email: `scn8.buyer.${RUN_SUFFIX}@example.com`,
+    sponsorCode,
+  });
+
+  await activatePackage(buyer.memberId, packageId, adminToken);
+  const order = await createOrder(buyer.memberId, packageId, adminToken);
+  await approveOrder(order.orderId, adminToken);
+  await processOrder(order.orderId, adminToken);
+
+  const initialCommissions = await prisma.commissionLedger.findMany({
+    where: { orderId: BigInt(order.orderId) },
+    select: { id: true, status: true, commissionType: true },
+  });
+  const initialWalletTxCount = await prisma.walletTransaction.count({
+    where: {
+      refType: "COMMISSION",
+      refId: {
+        in: initialCommissions.map((entry) => entry.id),
+      },
+    },
+  });
+
+  const rerunResult = await processOrder(order.orderId, adminToken);
+
+  const finalCommissions = await prisma.commissionLedger.findMany({
+    where: { orderId: BigInt(order.orderId) },
+    select: { id: true, status: true, commissionType: true },
+  });
+  const finalWalletTxCount = await prisma.walletTransaction.count({
+    where: {
+      refType: "COMMISSION",
+      refId: {
+        in: finalCommissions.map((entry) => entry.id),
+      },
+    },
+  });
+
+  const pass =
+    initialCommissions.length === finalCommissions.length &&
+    initialWalletTxCount === finalWalletTxCount &&
+    rerunResult.orderId === order.orderId;
+
+  return {
+    scenario: "duplicate_process_guard",
+    pass,
+    expected:
+      "reprocessing an approved order reuses existing commission rows and avoids duplicate wallet postings",
+    actual: {
+      orderId: order.orderId,
+      initialCommissionCount: initialCommissions.length,
+      finalCommissionCount: finalCommissions.length,
+      initialWalletTxCount,
+      finalWalletTxCount,
+      directStatus: rerunResult.commissionDrafts.directStatus,
+      uniCount: rerunResult.commissionDrafts.uniCount,
+    },
+  };
+}
+
+async function scenarioDuplicatePoolCloseGuard(adminToken) {
+  const poolDate = toDateOnly(0);
+  const payoutCountBefore = await prisma.dailyPoolPayout.count({
+    where: {
+      cycle: {
+        cycleDate: new Date(`${poolDate}T00:00:00.000Z`),
+      },
+    },
+  });
+  const walletTxCountBefore = await prisma.walletTransaction.count({
+    where: {
+      refType: "POOL",
+    },
+  });
+
+  const rerunResult = await request(`/pool/${poolDate}/close`, {
+    method: "POST",
+    token: adminToken,
+  });
+
+  const payoutCountAfter = await prisma.dailyPoolPayout.count({
+    where: {
+      cycle: {
+        cycleDate: new Date(`${poolDate}T00:00:00.000Z`),
+      },
+    },
+  });
+  const walletTxCountAfter = await prisma.walletTransaction.count({
+    where: {
+      refType: "POOL",
+    },
+  });
+
+  const pass =
+    payoutCountBefore === payoutCountAfter &&
+    walletTxCountBefore === walletTxCountAfter &&
+    Number(rerunResult.eligibleMemberCount) > 0;
+
+  return {
+    scenario: "duplicate_pool_close_guard",
+    pass,
+    expected:
+      "closing the same pool date again returns the existing result without duplicating payouts or wallet credits",
+    actual: {
+      poolDate,
+      payoutCountBefore,
+      payoutCountAfter,
+      walletTxCountBefore,
+      walletTxCountAfter,
+      eligibleMemberCount: rerunResult.eligibleMemberCount,
+      payoutPerMember: rerunResult.payoutPerMember,
+    },
+  };
+}
+
 async function main() {
   const adminToken = await loginAdmin();
   const packageId = await getPackageIdByCode("STARTER");
@@ -591,13 +718,17 @@ async function main() {
   results.push(await scenarioPoolNoEligible(adminToken));
   results.push(await scenarioMultiCycleAllocation(adminToken, packageId));
   results.push(await scenarioWalletNegativeOffset(adminToken, packageId));
+  results.push(await scenarioDuplicateProcessGuard(adminToken, packageId));
+  results.push(await scenarioDuplicatePoolCloseGuard(adminToken));
 
   const passed = results.filter((result) => result.pass).length;
+  const failed = results.length - passed;
 
   process.stdout.write(
     `${JSON.stringify(
       {
         passed,
+        failed,
         total: results.length,
         results,
       },
@@ -605,6 +736,10 @@ async function main() {
       2,
     )}\n`,
   );
+
+  if (failed > 0) {
+    process.exitCode = 1;
+  }
 }
 
 main()
