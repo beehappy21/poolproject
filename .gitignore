@@ -8,3 +8,4 @@ coverage
 .pnpm-store
 prisma/dev.db
 .vscode
+logs
