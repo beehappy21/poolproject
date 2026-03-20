@@ -8,6 +8,18 @@ import {
 } from "../../../../infrastructure/src/prisma/prisma.mappers";
 
 export interface MembersRepository {
+  listMembers(filters?: {
+    sponsorId?: string;
+    memberCode?: string;
+  }): Promise<
+    Array<{
+      memberId: string;
+      memberCode: string;
+      name: string;
+      sponsorId: string | null;
+    }>
+  >;
+
   findMemberById(memberId: string): Promise<{
     memberId: string;
     memberCode: string;
@@ -70,6 +82,25 @@ export interface MembersRepository {
 @Injectable()
 export class PrismaMembersRepository implements MembersRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  async listMembers(filters?: { sponsorId?: string; memberCode?: string }) {
+    const members = await this.prisma.user.findMany({
+      where: {
+        sponsorId: filters?.sponsorId ? BigInt(filters.sponsorId) : undefined,
+        memberCode: filters?.memberCode,
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: 100,
+      select: { id: true, memberCode: true, name: true, sponsorId: true },
+    });
+
+    return members.map((member) => ({
+      memberId: toIdString(member.id),
+      memberCode: member.memberCode,
+      name: member.name,
+      sponsorId: member.sponsorId ? toIdString(member.sponsorId) : null,
+    }));
+  }
 
   async findMemberById(memberId: string): Promise<{
     memberId: string;

@@ -22,6 +22,19 @@ import { MembersService } from "../services/members.service";
 export class MembersController {
   constructor(private readonly membersService: MembersService) {}
 
+  @Get()
+  async listMembers(
+    @Query("sponsorId") sponsorId?: string,
+    @Query("memberCode") memberCode?: string,
+  ) {
+    return this.membersService.listMembers({
+      sponsorId: sponsorId
+        ? requirePositiveIntegerString(sponsorId, "sponsorId")
+        : undefined,
+      memberCode: memberCode ? requireNonEmptyString(memberCode, "memberCode") : undefined,
+    });
+  }
+
   @Get(":memberId")
   async getMember(@Param("memberId") memberId: string) {
     const validatedMemberId = requirePositiveIntegerString(memberId, "memberId");

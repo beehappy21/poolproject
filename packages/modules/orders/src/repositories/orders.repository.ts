@@ -7,6 +7,23 @@ import {
 } from "../../../../infrastructure/src/prisma/prisma.mappers";
 
 export interface OrdersRepository {
+  listOrders(filters?: {
+    userId?: string;
+    approvalStatus?: "pending" | "approved";
+  }): Promise<
+    Array<{
+      orderId: string;
+      orderNo: string;
+      sourceUserId: string;
+      status: string;
+      approvalStatus: string;
+      totalUsdt: string;
+      totalPv: string;
+      approvedAt: string | null;
+      createdAt: string;
+    }>
+  >;
+
   findOrderById(orderId: string): Promise<{
     orderId: string;
     orderNo: string;
@@ -58,6 +75,45 @@ export interface OrdersRepository {
 @Injectable()
 export class PrismaOrdersRepository implements OrdersRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  async listOrders(filters?: {
+    userId?: string;
+    approvalStatus?: "pending" | "approved";
+  }) {
+    const orders = await this.prisma.order.findMany({
+      where: {
+        userId: filters?.userId ? BigInt(filters.userId) : undefined,
+        approvalStatus: filters?.approvalStatus
+          ? filters.approvalStatus.toUpperCase() as "PENDING" | "APPROVED"
+          : undefined,
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: 100,
+      select: {
+        id: true,
+        orderNo: true,
+        userId: true,
+        status: true,
+        approvalStatus: true,
+        totalUsdt: true,
+        totalPv: true,
+        approvedAt: true,
+        createdAt: true,
+      },
+    });
+
+    return orders.map((order) => ({
+      orderId: order.id.toString(),
+      orderNo: order.orderNo,
+      sourceUserId: order.userId.toString(),
+      status: order.status.toLowerCase(),
+      approvalStatus: order.approvalStatus.toLowerCase(),
+      totalUsdt: order.totalUsdt.toString(),
+      totalPv: order.totalPv.toString(),
+      approvedAt: order.approvedAt?.toISOString() ?? null,
+      createdAt: order.createdAt.toISOString(),
+    }));
+  }
 
   async findOrderById(orderId: string) {
     const order = await this.prisma.order.findUnique({

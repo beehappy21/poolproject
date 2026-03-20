@@ -1,6 +1,23 @@
 import { Inject, Injectable, forwardRef } from "@nestjs/common";
 
 export interface OrdersServiceContract {
+  listOrders(filters?: {
+    userId?: string;
+    approvalStatus?: "pending" | "approved";
+  }): Promise<
+    Array<{
+      orderId: string;
+      orderNo: string;
+      sourceUserId: string;
+      status: string;
+      approvalStatus: string;
+      totalUsdt: string;
+      totalPv: string;
+      approvedAt: string | null;
+      createdAt: string;
+    }>
+  >;
+
   getOrder(orderId: string): Promise<{
     orderId: string;
     orderNo: string;
@@ -87,6 +104,13 @@ export class OrdersService implements OrdersServiceContract {
 
   async createOrder(input: { userId: string; packageId: string }) {
     return this.ordersRepository.createOrder(input);
+  }
+
+  async listOrders(filters?: {
+    userId?: string;
+    approvalStatus?: "pending" | "approved";
+  }) {
+    return this.ordersRepository.listOrders(filters);
   }
 
   async getOrder(orderId: string) {

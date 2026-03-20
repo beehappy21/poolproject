@@ -3,6 +3,18 @@ import { Injectable } from "@nestjs/common";
 import { PrismaMembersRepository } from "../repositories/members.repository";
 
 export interface MembersServiceContract {
+  listMembers(filters?: {
+    sponsorId?: string;
+    memberCode?: string;
+  }): Promise<
+    Array<{
+      memberId: string;
+      memberCode: string;
+      name: string;
+      sponsorId: string | null;
+    }>
+  >;
+
   getMemberCycles(
     memberId: string,
     evaluationAt: string,
@@ -82,6 +94,10 @@ export class MembersService implements MembersServiceContract {
   constructor(
     private readonly membersRepository: PrismaMembersRepository,
   ) {}
+
+  async listMembers(filters?: { sponsorId?: string; memberCode?: string }) {
+    return this.membersRepository.listMembers(filters);
+  }
 
   async getMemberCycles(
     memberId: string,
