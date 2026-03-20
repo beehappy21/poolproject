@@ -1,11 +1,16 @@
 const { PrismaClient } = require("@prisma/client");
 const http = require("node:http");
 const https = require("node:https");
+const fs = require("node:fs");
+const path = require("node:path");
 const { URL } = require("node:url");
 
 const prisma = new PrismaClient();
 const API_BASE_URL = process.env.API_BASE_URL || "http://127.0.0.1:3000";
 const RUN_SUFFIX = Date.now().toString().slice(-8);
+const REPORT_PATH =
+  process.env.CALC_SCENARIOS_REPORT_PATH ||
+  path.join(process.cwd(), "runtime", "calc-scenarios-report.json");
 
 async function request(path, options = {}) {
   const target = new URL(`${API_BASE_URL}${path}`);
@@ -707,6 +712,7 @@ async function scenarioDuplicatePoolCloseGuard(adminToken) {
 }
 
 async function main() {
+  const startedAt = new Date();
   const adminToken = await loginAdmin();
   const packageId = await getPackageIdByCode("STARTER");
 
@@ -723,19 +729,26 @@ async function main() {
 
   const passed = results.filter((result) => result.pass).length;
   const failed = results.length - passed;
+  const completedAt = new Date();
+  const report = {
+    apiBaseUrl: API_BASE_URL,
+    startedAt: startedAt.toISOString(),
+    completedAt: completedAt.toISOString(),
+    durationMs: completedAt.getTime() - startedAt.getTime(),
+    passed,
+    failed,
+    total: results.length,
+    results,
+  };
+
+  fs.mkdirSync(path.dirname(REPORT_PATH), { recursive: true });
+  fs.writeFileSync(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`, "utf8");
 
   process.stdout.write(
-    `${JSON.stringify(
-      {
-        passed,
-        failed,
-        total: results.length,
-        results,
-      },
-      null,
-      2,
-    )}\n`,
+    `${JSON.stringify(report, null, 2)}\n`,
   );
+
+  process.stdout.write(`report_path=${REPORT_PATH}\n`);
 
   if (failed > 0) {
     process.exitCode = 1;

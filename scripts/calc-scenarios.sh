@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 API_BASE_URL="${API_BASE_URL:-http://127.0.0.1:3000}"
 DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/poolproject?schema=public}"
+CALC_SCENARIOS_REPORT_PATH="${CALC_SCENARIOS_REPORT_PATH:-$ROOT_DIR/runtime/calc-scenarios-report.json}"
 
 cd "$ROOT_DIR"
 
@@ -39,4 +40,4 @@ for _ in $(seq 1 20); do
 done
 
 curl -s "$API_BASE_URL/health" >/dev/null
-API_BASE_URL="$API_BASE_URL" DATABASE_URL="$DATABASE_URL" node scripts/calc-scenarios.js
+API_BASE_URL="$API_BASE_URL" DATABASE_URL="$DATABASE_URL" CALC_SCENARIOS_REPORT_PATH="$CALC_SCENARIOS_REPORT_PATH" node scripts/calc-scenarios.js
