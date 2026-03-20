@@ -16,7 +16,8 @@
     "prisma:format": "prisma format --schema prisma/schema.prisma",
     "prisma:push": "prisma db push --schema prisma/schema.prisma",
     "db:seed": "node scripts/seed-dev.js",
-    "smoke:local": "bash scripts/local-smoke.sh"
+    "smoke:local": "bash scripts/local-smoke.sh",
+    "calc:scenarios": "bash scripts/calc-scenarios.sh"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.15",
