@@ -10,18 +10,37 @@ export interface OrdersRepository {
   listOrders(filters?: {
     userId?: string;
     approvalStatus?: "pending" | "approved";
+    orderNo?: string;
+    page?: number;
+    pageSize?: number;
   }): Promise<
-    Array<{
-      orderId: string;
-      orderNo: string;
-      sourceUserId: string;
-      status: string;
-      approvalStatus: string;
-      totalUsdt: string;
-      totalPv: string;
-      approvedAt: string | null;
-      createdAt: string;
-    }>
+    | Array<{
+        orderId: string;
+        orderNo: string;
+        sourceUserId: string;
+        status: string;
+        approvalStatus: string;
+        totalUsdt: string;
+        totalPv: string;
+        approvedAt: string | null;
+        createdAt: string;
+      }>
+    | {
+        items: Array<{
+          orderId: string;
+          orderNo: string;
+          sourceUserId: string;
+          status: string;
+          approvalStatus: string;
+          totalUsdt: string;
+          totalPv: string;
+          approvedAt: string | null;
+          createdAt: string;
+        }>;
+        total: number;
+        page: number;
+        pageSize: number;
+      }
   >;
 
   findOrderById(orderId: string): Promise<{
@@ -79,16 +98,27 @@ export class PrismaOrdersRepository implements OrdersRepository {
   async listOrders(filters?: {
     userId?: string;
     approvalStatus?: "pending" | "approved";
+    orderNo?: string;
+    page?: number;
+    pageSize?: number;
   }) {
-    const orders = await this.prisma.order.findMany({
-      where: {
+    const where = {
         userId: filters?.userId ? BigInt(filters.userId) : undefined,
         approvalStatus: filters?.approvalStatus
           ? filters.approvalStatus.toUpperCase() as "PENDING" | "APPROVED"
           : undefined,
-      },
+        orderNo: filters?.orderNo
+          ? { contains: filters.orderNo, mode: "insensitive" as const }
+          : undefined,
+      };
+    const orders = await this.prisma.order.findMany({
+      where,
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: 100,
+      skip:
+        filters?.page && filters?.pageSize
+          ? (filters.page - 1) * filters.pageSize
+          : undefined,
+      take: filters?.pageSize ?? 100,
       select: {
         id: true,
         orderNo: true,
@@ -102,7 +132,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
       },
     });
 
-    return orders.map((order) => ({
+    const items = orders.map((order) => ({
       orderId: order.id.toString(),
       orderNo: order.orderNo,
       sourceUserId: order.userId.toString(),
@@ -113,6 +143,19 @@ export class PrismaOrdersRepository implements OrdersRepository {
       approvedAt: order.approvedAt?.toISOString() ?? null,
       createdAt: order.createdAt.toISOString(),
     }));
+
+    if (!filters?.page || !filters?.pageSize) {
+      return items;
+    }
+
+    const total = await this.prisma.order.count({ where });
+
+    return {
+      items,
+      total,
+      page: filters.page,
+      pageSize: filters.pageSize,
+    };
   }
 
   async findOrderById(orderId: string) {

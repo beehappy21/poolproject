@@ -11,14 +11,55 @@ export interface MembersRepository {
   listMembers(filters?: {
     sponsorId?: string;
     memberCode?: string;
+    query?: string;
+    page?: number;
+    pageSize?: number;
   }): Promise<
-    Array<{
+    | Array<{
+        memberId: string;
+        memberCode: string;
+        name: string;
+        sponsorId: string | null;
+      }>
+    | {
+        items: Array<{
+          memberId: string;
+          memberCode: string;
+          name: string;
+          sponsorId: string | null;
+        }>;
+        total: number;
+        page: number;
+        pageSize: number;
+      }
+  >;
+
+  findMemberNetwork(memberId: string): Promise<{
+    member: {
       memberId: string;
       memberCode: string;
       name: string;
       sponsorId: string | null;
-    }>
-  >;
+    };
+    sponsor: {
+      memberId: string;
+      memberCode: string;
+      name: string;
+      sponsorId: string | null;
+    } | null;
+    directReferrals: Array<{
+      memberId: string;
+      memberCode: string;
+      name: string;
+      sponsorId: string | null;
+    }>;
+    uplineChain: Array<{
+      memberId: string;
+      memberCode: string;
+      name: string;
+      sponsorId: string | null;
+    }>;
+  } | null>;
 
   findMemberById(memberId: string): Promise<{
     memberId: string;
@@ -77,29 +118,64 @@ export interface MembersRepository {
     activatedAt: string;
     activeUntil: string;
   }>;
+
+  updateMemberPassword(
+    memberId: string,
+    newPassword: string,
+  ): Promise<{ memberId: string; passwordUpdated: true }>;
 }
 
 @Injectable()
 export class PrismaMembersRepository implements MembersRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async listMembers(filters?: { sponsorId?: string; memberCode?: string }) {
+  async listMembers(filters?: {
+    sponsorId?: string;
+    memberCode?: string;
+    query?: string;
+    page?: number;
+    pageSize?: number;
+  }) {
+    const where = {
+      sponsorId: filters?.sponsorId ? BigInt(filters.sponsorId) : undefined,
+      memberCode: filters?.memberCode,
+      OR: filters?.query
+        ? [
+            { memberCode: { contains: filters.query, mode: "insensitive" as const } },
+            { name: { contains: filters.query, mode: "insensitive" as const } },
+          ]
+        : undefined,
+    };
     const members = await this.prisma.user.findMany({
-      where: {
-        sponsorId: filters?.sponsorId ? BigInt(filters.sponsorId) : undefined,
-        memberCode: filters?.memberCode,
-      },
+      where,
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: 100,
+      skip:
+        filters?.page && filters?.pageSize
+          ? (filters.page - 1) * filters.pageSize
+          : undefined,
+      take: filters?.pageSize ?? 100,
       select: { id: true, memberCode: true, name: true, sponsorId: true },
     });
 
-    return members.map((member) => ({
+    const items = members.map((member) => ({
       memberId: toIdString(member.id),
       memberCode: member.memberCode,
       name: member.name,
       sponsorId: member.sponsorId ? toIdString(member.sponsorId) : null,
     }));
+
+    if (!filters?.page || !filters?.pageSize) {
+      return items;
+    }
+
+    const total = await this.prisma.user.count({ where });
+
+    return {
+      items,
+      total,
+      page: filters.page,
+      pageSize: filters.pageSize,
+    };
   }
 
   async findMemberById(memberId: string): Promise<{
@@ -121,6 +197,82 @@ export class PrismaMembersRepository implements MembersRepository {
           sponsorId: member.sponsorId ? toIdString(member.sponsorId) : null,
         }
       : null;
+  }
+
+  async findMemberNetwork(memberId: string) {
+    const member = await this.prisma.user.findUnique({
+      where: { id: BigInt(memberId) },
+      select: { id: true, memberCode: true, name: true, sponsorId: true },
+    });
+
+    if (!member) {
+      return null;
+    }
+
+    const sponsor = member.sponsorId
+      ? await this.prisma.user.findUnique({
+          where: { id: member.sponsorId },
+          select: { id: true, memberCode: true, name: true, sponsorId: true },
+        })
+      : null;
+    const directReferrals = await this.prisma.user.findMany({
+      where: { sponsorId: member.id },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: 20,
+      select: { id: true, memberCode: true, name: true, sponsorId: true },
+    });
+    const uplineChain: Array<{
+      memberId: string;
+      memberCode: string;
+      name: string;
+      sponsorId: string | null;
+    }> = [];
+    let currentSponsorId = member.sponsorId;
+
+    while (currentSponsorId && uplineChain.length < 10) {
+      const upline = await this.prisma.user.findUnique({
+        where: { id: currentSponsorId },
+        select: { id: true, memberCode: true, name: true, sponsorId: true },
+      });
+
+      if (!upline) {
+        break;
+      }
+
+      uplineChain.push({
+        memberId: toIdString(upline.id),
+        memberCode: upline.memberCode,
+        name: upline.name,
+        sponsorId: upline.sponsorId ? toIdString(upline.sponsorId) : null,
+      });
+      currentSponsorId = upline.sponsorId;
+    }
+
+    return {
+      member: {
+        memberId: toIdString(member.id),
+        memberCode: member.memberCode,
+        name: member.name,
+        sponsorId: member.sponsorId ? toIdString(member.sponsorId) : null,
+      },
+      sponsor: sponsor
+        ? {
+            memberId: toIdString(sponsor.id),
+            memberCode: sponsor.memberCode,
+            name: sponsor.name,
+            sponsorId: sponsor.sponsorId ? toIdString(sponsor.sponsorId) : null,
+          }
+        : null,
+      directReferrals: directReferrals.map((directReferral) => ({
+        memberId: toIdString(directReferral.id),
+        memberCode: directReferral.memberCode,
+        name: directReferral.name,
+        sponsorId: directReferral.sponsorId
+          ? toIdString(directReferral.sponsorId)
+          : null,
+      })),
+      uplineChain,
+    };
   }
 
   async findActiveDirectReferralCount(
@@ -325,6 +477,19 @@ export class PrismaMembersRepository implements MembersRepository {
       cycleNo: cycle.cycleNo,
       activatedAt: cycle.activatedAt.toISOString(),
       activeUntil: cycle.activeUntil.toISOString(),
+    };
+  }
+
+  async updateMemberPassword(memberId: string, newPassword: string) {
+    await this.prisma.user.update({
+      where: { id: BigInt(memberId) },
+      data: { passwordHash: newPassword },
+      select: { id: true },
+    });
+
+    return {
+      memberId,
+      passwordUpdated: true as const,
     };
   }
 }

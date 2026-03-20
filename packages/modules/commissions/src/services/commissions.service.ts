@@ -49,37 +49,76 @@ export interface CommissionsServiceContract {
   listCommissions(filters?: {
     orderId?: string;
     beneficiaryUserId?: string;
+    commissionType?: string;
+    page?: number;
+    pageSize?: number;
   }): Promise<
-    Array<{
-      commissionId: string;
-      orderId: string | null;
-      sourceUserId: string;
-      beneficiaryUserId: string | null;
-      beneficiaryCycleId: string | null;
-      commissionType: string;
-      levelNo: number | null;
-      rate: string;
-      basePv: string;
-      amount: string;
-      status: string;
-      companyFallbackReason: string | null;
-      createdAt: string;
-    }>
+    | Array<{
+        commissionId: string;
+        orderId: string | null;
+        sourceUserId: string;
+        beneficiaryUserId: string | null;
+        beneficiaryCycleId: string | null;
+        commissionType: string;
+        levelNo: number | null;
+        rate: string;
+        basePv: string;
+        amount: string;
+        status: string;
+        companyFallbackReason: string | null;
+        createdAt: string;
+      }>
+    | {
+        items: Array<{
+          commissionId: string;
+          orderId: string | null;
+          sourceUserId: string;
+          beneficiaryUserId: string | null;
+          beneficiaryCycleId: string | null;
+          commissionType: string;
+          levelNo: number | null;
+          rate: string;
+          basePv: string;
+          amount: string;
+          status: string;
+          companyFallbackReason: string | null;
+          createdAt: string;
+        }>;
+        total: number;
+        page: number;
+        pageSize: number;
+      }
   >;
 
   listCompanyFallbacks(filters?: {
     sourceRefId?: string;
     sourceType?: string;
+    page?: number;
+    pageSize?: number;
   }): Promise<
-    Array<{
-      fallbackId: string;
-      sourceType: string;
-      sourceRefId: string;
-      bonusType: string;
-      amount: string;
-      reason: string;
-      createdAt: string;
-    }>
+    | Array<{
+        fallbackId: string;
+        sourceType: string;
+        sourceRefId: string;
+        bonusType: string;
+        amount: string;
+        reason: string;
+        createdAt: string;
+      }>
+    | {
+        items: Array<{
+          fallbackId: string;
+          sourceType: string;
+          sourceRefId: string;
+          bonusType: string;
+          amount: string;
+          reason: string;
+          createdAt: string;
+        }>;
+        total: number;
+        page: number;
+        pageSize: number;
+      }
   >;
 }
 
@@ -276,6 +315,9 @@ export class CommissionsService implements CommissionsServiceContract {
   async listCommissions(filters?: {
     orderId?: string;
     beneficiaryUserId?: string;
+    commissionType?: string;
+    page?: number;
+    pageSize?: number;
   }) {
     return this.commissionsRepository.listCommissionEntries(filters);
   }
@@ -283,6 +325,8 @@ export class CommissionsService implements CommissionsServiceContract {
   async listCompanyFallbacks(filters?: {
     sourceRefId?: string;
     sourceType?: string;
+    page?: number;
+    pageSize?: number;
   }) {
     return this.commissionsRepository.listCompanyFallbackEntries(filters);
   }

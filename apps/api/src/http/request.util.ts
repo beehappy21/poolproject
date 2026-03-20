@@ -61,6 +61,17 @@ export function requirePositiveInteger(value: unknown, fieldName: string): numbe
   return value;
 }
 
+export function optionalPositiveInteger(
+  value: unknown,
+  fieldName: string,
+): number | undefined {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+
+  return requirePositiveInteger(Number(value), fieldName);
+}
+
 export function requireDateOnlyString(value: unknown, fieldName: string): string {
   const normalized = requireNonEmptyString(value, fieldName);
 

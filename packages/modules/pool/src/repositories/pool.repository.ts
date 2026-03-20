@@ -9,17 +9,36 @@ import {
 import { PrismaService } from "../../../../infrastructure/src/prisma/prisma.service";
 
 export interface PoolRepository {
-  listPoolCycles(): Promise<
-    Array<{
-      poolCycleId: string;
-      poolDate: string;
-      fundingTotalApprovedPv: string;
-      poolFund: string;
-      eligibleMemberCount: number;
-      payoutPerMember: string;
-      companyFallbackAmount: string;
-      status: string;
-    }>
+  listPoolCycles(filters?: {
+    poolDate?: string;
+    page?: number;
+    pageSize?: number;
+  }): Promise<
+    | Array<{
+        poolCycleId: string;
+        poolDate: string;
+        fundingTotalApprovedPv: string;
+        poolFund: string;
+        eligibleMemberCount: number;
+        payoutPerMember: string;
+        companyFallbackAmount: string;
+        status: string;
+      }>
+    | {
+        items: Array<{
+          poolCycleId: string;
+          poolDate: string;
+          fundingTotalApprovedPv: string;
+          poolFund: string;
+          eligibleMemberCount: number;
+          payoutPerMember: string;
+          companyFallbackAmount: string;
+          status: string;
+        }>;
+        total: number;
+        page: number;
+        pageSize: number;
+      }
   >;
 
   findApprovedOrderFunding(poolDate: string): Promise<{
@@ -71,10 +90,24 @@ export interface PoolRepository {
 export class PrismaPoolRepository implements PoolRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async listPoolCycles() {
+  async listPoolCycles(filters?: {
+    poolDate?: string;
+    page?: number;
+    pageSize?: number;
+  }) {
+    const where = {
+      cycleDate: filters?.poolDate
+        ? new Date(`${filters.poolDate}T00:00:00.000Z`)
+        : undefined,
+    };
     const cycles = await this.prisma.dailyPoolCycle.findMany({
+      where,
       orderBy: [{ cycleDate: "desc" }, { id: "desc" }],
-      take: 100,
+      skip:
+        filters?.page && filters?.pageSize
+          ? (filters.page - 1) * filters.pageSize
+          : undefined,
+      take: filters?.pageSize ?? 100,
       select: {
         id: true,
         cycleDate: true,
@@ -87,7 +120,7 @@ export class PrismaPoolRepository implements PoolRepository {
       },
     });
 
-    return cycles.map((cycle) => ({
+    const items = cycles.map((cycle) => ({
       poolCycleId: cycle.id.toString(),
       poolDate: cycle.cycleDate.toISOString().slice(0, 10),
       fundingTotalApprovedPv: cycle.fundingTotalApprovedPv.toString(),
@@ -97,6 +130,19 @@ export class PrismaPoolRepository implements PoolRepository {
       companyFallbackAmount: cycle.companyFallbackAmount.toString(),
       status: cycle.status.toLowerCase(),
     }));
+
+    if (!filters?.page || !filters?.pageSize) {
+      return items;
+    }
+
+    const total = await this.prisma.dailyPoolCycle.count({ where });
+
+    return {
+      items,
+      total,
+      page: filters.page,
+      pageSize: filters.pageSize,
+    };
   }
 
   async findApprovedOrderFunding(poolDate: string): Promise<{

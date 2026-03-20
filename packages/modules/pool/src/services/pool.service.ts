@@ -29,17 +29,36 @@ import { WalletsServiceContract } from "../../../wallets/src/services/wallets.se
 import { PrismaPoolRepository } from "../repositories/pool.repository";
 
 export interface PoolServiceContract {
-  listPoolCycles(): Promise<
-    Array<{
-      poolCycleId: string;
-      poolDate: string;
-      fundingTotalApprovedPv: string;
-      poolFund: string;
-      eligibleMemberCount: number;
-      payoutPerMember: string;
-      companyFallbackAmount: string;
-      status: string;
-    }>
+  listPoolCycles(filters?: {
+    poolDate?: string;
+    page?: number;
+    pageSize?: number;
+  }): Promise<
+    | Array<{
+        poolCycleId: string;
+        poolDate: string;
+        fundingTotalApprovedPv: string;
+        poolFund: string;
+        eligibleMemberCount: number;
+        payoutPerMember: string;
+        companyFallbackAmount: string;
+        status: string;
+      }>
+    | {
+        items: Array<{
+          poolCycleId: string;
+          poolDate: string;
+          fundingTotalApprovedPv: string;
+          poolFund: string;
+          eligibleMemberCount: number;
+          payoutPerMember: string;
+          companyFallbackAmount: string;
+          status: string;
+        }>;
+        total: number;
+        page: number;
+        pageSize: number;
+      }
   >;
 
   computePoolFunding(input: PoolFundingInput): Promise<PoolFundingResult>;
@@ -108,8 +127,12 @@ export class PoolService implements PoolServiceContract {
     };
   }
 
-  async listPoolCycles() {
-    return this.poolRepository.listPoolCycles();
+  async listPoolCycles(filters?: {
+    poolDate?: string;
+    page?: number;
+    pageSize?: number;
+  }) {
+    return this.poolRepository.listPoolCycles(filters);
   }
 
   async evaluatePoolEligibility(

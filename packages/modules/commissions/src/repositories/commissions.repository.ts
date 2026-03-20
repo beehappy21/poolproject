@@ -32,37 +32,76 @@ export interface CommissionsRepository {
   listCommissionEntries(filters?: {
     orderId?: string;
     beneficiaryUserId?: string;
+    commissionType?: string;
+    page?: number;
+    pageSize?: number;
   }): Promise<
-    Array<{
-      commissionId: string;
-      orderId: string | null;
-      sourceUserId: string;
-      beneficiaryUserId: string | null;
-      beneficiaryCycleId: string | null;
-      commissionType: string;
-      levelNo: number | null;
-      rate: string;
-      basePv: string;
-      amount: string;
-      status: string;
-      companyFallbackReason: string | null;
-      createdAt: string;
-    }>
+    | Array<{
+        commissionId: string;
+        orderId: string | null;
+        sourceUserId: string;
+        beneficiaryUserId: string | null;
+        beneficiaryCycleId: string | null;
+        commissionType: string;
+        levelNo: number | null;
+        rate: string;
+        basePv: string;
+        amount: string;
+        status: string;
+        companyFallbackReason: string | null;
+        createdAt: string;
+      }>
+    | {
+        items: Array<{
+          commissionId: string;
+          orderId: string | null;
+          sourceUserId: string;
+          beneficiaryUserId: string | null;
+          beneficiaryCycleId: string | null;
+          commissionType: string;
+          levelNo: number | null;
+          rate: string;
+          basePv: string;
+          amount: string;
+          status: string;
+          companyFallbackReason: string | null;
+          createdAt: string;
+        }>;
+        total: number;
+        page: number;
+        pageSize: number;
+      }
   >;
 
   listCompanyFallbackEntries(filters?: {
     sourceRefId?: string;
     sourceType?: string;
+    page?: number;
+    pageSize?: number;
   }): Promise<
-    Array<{
-      fallbackId: string;
-      sourceType: string;
-      sourceRefId: string;
-      bonusType: string;
-      amount: string;
-      reason: string;
-      createdAt: string;
-    }>
+    | Array<{
+        fallbackId: string;
+        sourceType: string;
+        sourceRefId: string;
+        bonusType: string;
+        amount: string;
+        reason: string;
+        createdAt: string;
+      }>
+    | {
+        items: Array<{
+          fallbackId: string;
+          sourceType: string;
+          sourceRefId: string;
+          bonusType: string;
+          amount: string;
+          reason: string;
+          createdAt: string;
+        }>;
+        total: number;
+        page: number;
+        pageSize: number;
+      }
   >;
 }
 
@@ -176,15 +215,27 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
   async listCommissionEntries(filters?: {
     orderId?: string;
     beneficiaryUserId?: string;
+    commissionType?: string;
+    page?: number;
+    pageSize?: number;
   }) {
-    const entries = await this.prisma.commissionLedger.findMany({
-      where: {
+    const where = {
         orderId: filters?.orderId ? BigInt(filters.orderId) : undefined,
         beneficiaryUserId: filters?.beneficiaryUserId
           ? BigInt(filters.beneficiaryUserId)
           : undefined,
-      },
+        commissionType: filters?.commissionType
+          ? filters.commissionType.toUpperCase() as "DIRECT" | "UNI" | "POOL"
+          : undefined,
+      };
+    const entries = await this.prisma.commissionLedger.findMany({
+      where,
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      skip:
+        filters?.page && filters?.pageSize
+          ? (filters.page - 1) * filters.pageSize
+          : undefined,
+      take: filters?.pageSize ?? undefined,
       select: {
         id: true,
         orderId: true,
@@ -202,7 +253,7 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
       },
     });
 
-    return entries.map((entry) => ({
+    const items = entries.map((entry) => ({
       commissionId: entry.id.toString(),
       orderId: entry.orderId?.toString() ?? null,
       sourceUserId: entry.sourceUserId.toString(),
@@ -217,22 +268,43 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
       companyFallbackReason: entry.companyFallbackReason,
       createdAt: entry.createdAt.toISOString(),
     }));
+
+    if (!filters?.page || !filters?.pageSize) {
+      return items;
+    }
+
+    const total = await this.prisma.commissionLedger.count({ where });
+
+    return {
+      items,
+      total,
+      page: filters.page,
+      pageSize: filters.pageSize,
+    };
   }
 
   async listCompanyFallbackEntries(filters?: {
     sourceRefId?: string;
     sourceType?: string;
+    page?: number;
+    pageSize?: number;
   }) {
-    const entries = await this.prisma.companyBonusLedger.findMany({
-      where: {
+    const where = {
         sourceRefId: filters?.sourceRefId
           ? BigInt(filters.sourceRefId)
           : undefined,
         sourceType: filters?.sourceType
           ? filters.sourceType.toUpperCase() as "DIRECT" | "UNI" | "POOL"
           : undefined,
-      },
+      };
+    const entries = await this.prisma.companyBonusLedger.findMany({
+      where,
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      skip:
+        filters?.page && filters?.pageSize
+          ? (filters.page - 1) * filters.pageSize
+          : undefined,
+      take: filters?.pageSize ?? undefined,
       select: {
         id: true,
         sourceType: true,
@@ -244,7 +316,7 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
       },
     });
 
-    return entries.map((entry) => ({
+    const items = entries.map((entry) => ({
       fallbackId: entry.id.toString(),
       sourceType: entry.sourceType.toLowerCase(),
       sourceRefId: entry.sourceRefId.toString(),
@@ -253,5 +325,18 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
       reason: entry.reason,
       createdAt: entry.createdAt.toISOString(),
     }));
+
+    if (!filters?.page || !filters?.pageSize) {
+      return items;
+    }
+
+    const total = await this.prisma.companyBonusLedger.count({ where });
+
+    return {
+      items,
+      total,
+      page: filters.page,
+      pageSize: filters.pageSize,
+    };
   }
 }

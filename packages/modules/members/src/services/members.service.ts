@@ -6,14 +6,55 @@ export interface MembersServiceContract {
   listMembers(filters?: {
     sponsorId?: string;
     memberCode?: string;
+    query?: string;
+    page?: number;
+    pageSize?: number;
   }): Promise<
-    Array<{
+    | Array<{
+        memberId: string;
+        memberCode: string;
+        name: string;
+        sponsorId: string | null;
+      }>
+    | {
+        items: Array<{
+          memberId: string;
+          memberCode: string;
+          name: string;
+          sponsorId: string | null;
+        }>;
+        total: number;
+        page: number;
+        pageSize: number;
+      }
+  >;
+
+  getMemberNetwork(memberId: string): Promise<{
+    member: {
       memberId: string;
       memberCode: string;
       name: string;
       sponsorId: string | null;
-    }>
-  >;
+    };
+    sponsor: {
+      memberId: string;
+      memberCode: string;
+      name: string;
+      sponsorId: string | null;
+    } | null;
+    directReferrals: Array<{
+      memberId: string;
+      memberCode: string;
+      name: string;
+      sponsorId: string | null;
+    }>;
+    uplineChain: Array<{
+      memberId: string;
+      memberCode: string;
+      name: string;
+      sponsorId: string | null;
+    }>;
+  } | null>;
 
   getMemberCycles(
     memberId: string,
@@ -87,6 +128,11 @@ export interface MembersServiceContract {
     activatedAt: string;
     activeUntil: string;
   }>;
+
+  resetMemberPassword(
+    memberId: string,
+    newPassword: string,
+  ): Promise<{ memberId: string; passwordUpdated: true }>;
 }
 
 @Injectable()
@@ -95,8 +141,18 @@ export class MembersService implements MembersServiceContract {
     private readonly membersRepository: PrismaMembersRepository,
   ) {}
 
-  async listMembers(filters?: { sponsorId?: string; memberCode?: string }) {
+  async listMembers(filters?: {
+    sponsorId?: string;
+    memberCode?: string;
+    query?: string;
+    page?: number;
+    pageSize?: number;
+  }) {
     return this.membersRepository.listMembers(filters);
+  }
+
+  async getMemberNetwork(memberId: string) {
+    return this.membersRepository.findMemberNetwork(memberId);
   }
 
   async getMemberCycles(
@@ -174,5 +230,9 @@ export class MembersService implements MembersServiceContract {
 
   async activatePackageCycle(input: { memberId: string; packageId: string }) {
     return this.membersRepository.activatePackageCycle(input);
+  }
+
+  async resetMemberPassword(memberId: string, newPassword: string) {
+    return this.membersRepository.updateMemberPassword(memberId, newPassword);
   }
 }

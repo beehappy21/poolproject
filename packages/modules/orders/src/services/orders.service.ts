@@ -4,18 +4,37 @@ export interface OrdersServiceContract {
   listOrders(filters?: {
     userId?: string;
     approvalStatus?: "pending" | "approved";
+    orderNo?: string;
+    page?: number;
+    pageSize?: number;
   }): Promise<
-    Array<{
-      orderId: string;
-      orderNo: string;
-      sourceUserId: string;
-      status: string;
-      approvalStatus: string;
-      totalUsdt: string;
-      totalPv: string;
-      approvedAt: string | null;
-      createdAt: string;
-    }>
+    | Array<{
+        orderId: string;
+        orderNo: string;
+        sourceUserId: string;
+        status: string;
+        approvalStatus: string;
+        totalUsdt: string;
+        totalPv: string;
+        approvedAt: string | null;
+        createdAt: string;
+      }>
+    | {
+        items: Array<{
+          orderId: string;
+          orderNo: string;
+          sourceUserId: string;
+          status: string;
+          approvalStatus: string;
+          totalUsdt: string;
+          totalPv: string;
+          approvedAt: string | null;
+          createdAt: string;
+        }>;
+        total: number;
+        page: number;
+        pageSize: number;
+      }
   >;
 
   getOrder(orderId: string): Promise<{
@@ -109,6 +128,9 @@ export class OrdersService implements OrdersServiceContract {
   async listOrders(filters?: {
     userId?: string;
     approvalStatus?: "pending" | "approved";
+    orderNo?: string;
+    page?: number;
+    pageSize?: number;
   }) {
     return this.ordersRepository.listOrders(filters);
   }
@@ -168,8 +190,9 @@ export class OrdersService implements OrdersServiceContract {
     orderId: string,
   ): Promise<ApprovedOrderOrchestrationResult> {
     const approvedOrder = await this.handleApprovedOrderEvent(orderId);
-    const existingCommissionEntries =
-      await this.commissionsService.listCommissions({ orderId });
+    const existingCommissionEntries = this.asCommissionEntryArray(
+      await this.commissionsService.listCommissions({ orderId }),
+    );
 
     if (existingCommissionEntries.length > 0) {
       const walletPostingInputs = await this.postCommissionWalletEntries(orderId);
@@ -198,7 +221,9 @@ export class OrdersService implements OrdersServiceContract {
 
     return this.buildApprovedOrderResultFromEntries(
       approvedOrder,
-      await this.commissionsService.listCommissions({ orderId }),
+      this.asCommissionEntryArray(
+        await this.commissionsService.listCommissions({ orderId }),
+      ),
       walletPostingInputs,
     );
   }
@@ -259,9 +284,11 @@ export class OrdersService implements OrdersServiceContract {
   private async postCommissionWalletEntries(
     orderId: string,
   ): Promise<ApprovedOrderOrchestrationResult["walletPostingInputs"]> {
-    const commissionEntries = await this.commissionsService.listCommissions({
-      orderId,
-    });
+    const commissionEntries = this.asCommissionEntryArray(
+      await this.commissionsService.listCommissions({
+        orderId,
+      }),
+    );
     const approvedEntries = commissionEntries.filter(
       (entry) => entry.status === "approved" && entry.beneficiaryUserId,
     );
@@ -287,5 +314,30 @@ export class OrdersService implements OrdersServiceContract {
     }
 
     return postings;
+  }
+
+  private asCommissionEntryArray(
+    result:
+      | Array<{
+          commissionType: string;
+          status: string;
+          beneficiaryUserId: string | null;
+          commissionId: string;
+          amount: string;
+        }>
+      | {
+          items: Array<{
+            commissionType: string;
+            status: string;
+            beneficiaryUserId: string | null;
+            commissionId: string;
+            amount: string;
+          }>;
+            total: number;
+            page: number;
+            pageSize: number;
+        },
+  ) {
+    return Array.isArray(result) ? result : result.items;
   }
 }

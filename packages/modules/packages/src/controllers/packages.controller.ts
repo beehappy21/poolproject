@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Post } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Param, Post } from "@nestjs/common";
 
 import {
   requireDecimalString,
   requireNonEmptyString,
   requirePositiveInteger,
+  requirePositiveIntegerString,
   rethrowHttpError,
 } from "../../../../../apps/api/src/http/request.util";
 import { PackagesService } from "../services/packages.service";
@@ -41,6 +42,27 @@ export class PackagesController {
           "earningCapAmount",
         ),
       });
+    } catch (error) {
+      rethrowHttpError(error);
+    }
+  }
+
+  @Post(":packageId/status")
+  async updatePackageStatus(
+    @Param("packageId") packageId: string,
+    @Body() body: { status: string },
+  ) {
+    const normalizedStatus = requireNonEmptyString(body.status, "status").toLowerCase();
+
+    if (normalizedStatus !== "active" && normalizedStatus !== "inactive") {
+      throw new BadRequestException("status must be active or inactive.");
+    }
+
+    try {
+      return await this.packagesService.updatePackageStatus(
+        requirePositiveIntegerString(packageId, "packageId"),
+        normalizedStatus as "active" | "inactive",
+      );
     } catch (error) {
       rethrowHttpError(error);
     }

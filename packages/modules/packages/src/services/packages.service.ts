@@ -20,4 +20,8 @@ export class PackagesService {
   async listPackages() {
     return this.packagesRepository.listPackages();
   }
+
+  async updatePackageStatus(packageId: string, status: "active" | "inactive") {
+    return this.packagesRepository.updatePackageStatus(packageId, status);
+  }
 }

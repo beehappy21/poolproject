@@ -41,6 +41,13 @@ state.pages = {
   fallbacks: 1,
   commissions: 1,
 };
+state.totals = {
+  members: 0,
+  orders: 0,
+  pool: 0,
+  fallbacks: 0,
+  commissions: 0,
+};
 state.latestOrderId = "";
 state.latestCommission = null;
 
@@ -111,19 +118,28 @@ function renderTableRows(elementId, rows, renderRow) {
       : `<tr><td colspan="5" class="muted">No data</td></tr>`;
 }
 
+function getListItems(result) {
+  return Array.isArray(result) ? result : result?.items || [];
+}
+
+function getListTotal(result) {
+  return Array.isArray(result) ? result.length : result?.total || 0;
+}
+
 function paginateRows(rows, key) {
-  const totalPages = Math.max(1, Math.ceil(rows.length / state.pageSize));
+  const totalPages = Math.max(
+    1,
+    Math.ceil((state.totals[key] || rows.length) / state.pageSize),
+  );
   state.pages[key] = Math.min(state.pages[key] || 1, totalPages);
   const page = state.pages[key];
-  const start = (page - 1) * state.pageSize;
-  const pagedRows = rows.slice(start, start + state.pageSize);
   const label = document.getElementById(`${key}PageLabel`);
 
   if (label) {
     label.textContent = `Page ${page} / ${totalPages}`;
   }
 
-  return pagedRows;
+  return rows;
 }
 
 function updatePage(key, delta) {
@@ -185,11 +201,15 @@ async function loadDashboard() {
   }
 
   const [members, orders, poolCycles, fallbacks, packages] = await Promise.all([
-    request("/members"),
-    request(`/orders${orderQuery.toString() ? `?${orderQuery.toString()}` : ""}`),
-    request("/pool"),
     request(
-      `/commissions/company-fallbacks${fallbackTypeFilter.value ? `?sourceType=${encodeURIComponent(fallbackTypeFilter.value)}` : ""}`,
+      `/members?page=${state.pages.members}&pageSize=${state.pageSize}${state.memberSearch ? `&query=${encodeURIComponent(state.memberSearch)}` : ""}`,
+    ),
+    request(
+      `/orders?page=${state.pages.orders}&pageSize=${state.pageSize}${orderQuery.toString() ? `&${orderQuery.toString()}` : ""}`,
+    ),
+    request(`/pool?page=${state.pages.pool}&pageSize=${state.pageSize}`),
+    request(
+      `/commissions/company-fallbacks?page=${state.pages.fallbacks}&pageSize=${state.pageSize}${fallbackTypeFilter.value ? `&sourceType=${encodeURIComponent(fallbackTypeFilter.value)}` : ""}`,
     ),
     request("/packages"),
   ]);
@@ -202,32 +222,30 @@ async function loadDashboard() {
     commissionQuery.set("beneficiaryUserId", state.commissionBeneficiaryUserId);
   }
   const commissions = await request(
-    `/commissions${commissionQuery.toString() ? `?${commissionQuery.toString()}` : ""}`,
+    `/commissions?page=${state.pages.commissions}&pageSize=${state.pageSize}${commissionQuery.toString() ? `&${commissionQuery.toString()}` : ""}`,
   );
-  state.latestOrderId = orders[0]?.orderId || "";
-  state.latestCommission = commissions[0] || null;
+  const memberItems = getListItems(members);
+  const orderItems = getListItems(orders);
+  const poolCycleItems = getListItems(poolCycles);
+  const fallbackItems = getListItems(fallbacks);
+  const packageItems = getListItems(packages);
+  const commissionItems = getListItems(commissions);
+  state.totals.members = getListTotal(members);
+  state.totals.orders = getListTotal(orders);
+  state.totals.pool = getListTotal(poolCycles);
+  state.totals.fallbacks = getListTotal(fallbacks);
+  state.totals.commissions = getListTotal(commissions);
+  state.latestOrderId = orderItems[0]?.orderId || "";
+  state.latestCommission = commissionItems[0] || null;
 
-  document.getElementById("membersCount").textContent = String(members.length);
-  document.getElementById("ordersCount").textContent = String(orders.length);
-  document.getElementById("poolCount").textContent = String(poolCycles.length);
-  document.getElementById("fallbackCount").textContent = String(fallbacks.length);
-
-  const visibleMembers = members.filter((member) => {
-    const needle = state.memberSearch.trim().toLowerCase();
-
-    if (!needle) {
-      return true;
-    }
-
-    return (
-      member.memberCode.toLowerCase().includes(needle) ||
-      member.name.toLowerCase().includes(needle)
-    );
-  });
+  document.getElementById("membersCount").textContent = String(state.totals.members);
+  document.getElementById("ordersCount").textContent = String(state.totals.orders);
+  document.getElementById("poolCount").textContent = String(state.totals.pool);
+  document.getElementById("fallbackCount").textContent = String(state.totals.fallbacks);
 
   renderTableRows(
     "membersTable",
-    paginateRows(visibleMembers, "members"),
+    paginateRows(memberItems, "members"),
     (member) => `<tr>
       <td>${member.memberId}</td>
       <td>${member.memberCode}</td>
@@ -239,7 +257,9 @@ async function loadDashboard() {
       <td>
         <div class="table-actions">
           <button type="button" class="secondary" data-action="member-detail" data-member-id="${member.memberId}">Detail</button>
+          <button type="button" class="secondary" data-action="member-network" data-member-id="${member.memberId}">Network</button>
           <button type="button" class="secondary" data-action="member-referral" data-member-code="${member.memberCode}">Referral</button>
+          <button type="button" class="secondary" data-action="member-reset-password" data-member-id="${member.memberId}">Reset PW</button>
           <button type="button" class="secondary" data-action="prefill-activate" data-member-id="${member.memberId}">Activate</button>
           <button type="button" class="secondary" data-action="prefill-order-member" data-member-id="${member.memberId}">New Order</button>
         </div>
@@ -249,7 +269,7 @@ async function loadDashboard() {
 
   renderTableRows(
     "ordersTable",
-    paginateRows(orders, "orders"),
+    paginateRows(orderItems, "orders"),
     (order) => `<tr>
       <td>${order.orderId}</td>
       <td>${order.orderNo}</td>
@@ -268,13 +288,13 @@ async function loadDashboard() {
 
   renderTableRows(
     "packagesTable",
-    packages,
-    (pkg) => `<tr><td>${pkg.packageId}</td><td>${pkg.code}</td><td>${pkg.name}</td><td>${pkg.pv}</td><td>${pkg.priceUsdt}</td><td>${pkg.status}</td><td><button type="button" class="secondary" data-action="prefill-order-package" data-package-id="${pkg.packageId}">Use In Order</button></td></tr>`,
+    packageItems,
+    (pkg) => `<tr><td>${pkg.packageId}</td><td>${pkg.code}</td><td>${pkg.name}</td><td>${pkg.pv}</td><td>${pkg.priceUsdt}</td><td>${pkg.status}</td><td><div class="table-actions"><button type="button" class="secondary" data-action="prefill-order-package" data-package-id="${pkg.packageId}">Use In Order</button><button type="button" class="secondary" data-action="toggle-package-status" data-package-id="${pkg.packageId}" data-package-status="${pkg.status}">${pkg.status === "active" ? "Deactivate" : "Activate"}</button></div></td></tr>`,
   );
 
   const packageOptions = [
     '<option value="">Pick package ID</option>',
-    ...packages.map(
+    ...packageItems.map(
       (pkg) => `<option value="${pkg.packageId}">${pkg.packageId} · ${pkg.code} · PV ${pkg.pv}</option>`,
     ),
   ].join("");
@@ -283,19 +303,19 @@ async function loadDashboard() {
 
   renderTableRows(
     "poolTable",
-    paginateRows(poolCycles, "pool"),
-    (cycle) => `<tr><td>${cycle.poolDate}</td><td>${cycle.poolFund}</td><td>${cycle.eligibleMemberCount}</td><td>${cycle.payoutPerMember}</td><td>${cycle.status}</td></tr>`,
+    paginateRows(poolCycleItems, "pool"),
+    (cycle) => `<tr><td>${cycle.poolDate}</td><td>${cycle.poolFund}</td><td>${cycle.eligibleMemberCount}</td><td>${cycle.payoutPerMember}</td><td>${cycle.status}</td><td><button type="button" class="secondary" data-action="pool-snapshot" data-pool-date="${cycle.poolDate}">Snapshot</button></td></tr>`,
   );
 
   renderTableRows(
     "fallbacksTable",
-    paginateRows(fallbacks, "fallbacks"),
+    paginateRows(fallbackItems, "fallbacks"),
     (fallback) => `<tr><td>${fallback.fallbackId}</td><td>${fallback.sourceType}</td><td>${fallback.sourceRefId}</td><td>${fallback.amount}</td><td>${fallback.reason}</td></tr>`,
   );
 
   renderTableRows(
     "commissionsTable",
-    paginateRows(commissions, "commissions"),
+    paginateRows(commissionItems, "commissions"),
     (commission) =>
       `<tr><td>${commission.commissionId}</td><td><button type="button" class="secondary" data-action="focus-order-commissions" data-order-id="${commission.orderId}">${commission.orderId}</button></td><td><button type="button" class="secondary" data-action="focus-beneficiary-member" data-beneficiary-user-id="${commission.beneficiaryUserId ?? ""}">${commission.beneficiaryUserId ?? "-"}</button></td><td>${commission.commissionType}</td><td>${commission.amount}</td><td>${commission.status}</td></tr>`,
   );
@@ -315,6 +335,13 @@ async function loadMemberDetail(memberId) {
   setStatus(`Loaded member ${memberId}`);
 }
 
+async function loadMemberNetwork(memberId) {
+  setStatus(`Loading member network ${memberId}`);
+  const network = await request(`/members/${memberId}/network`);
+  memberDetailOutput.textContent = JSON.stringify(network, null, 2);
+  setStatus(`Loaded member network ${memberId}`);
+}
+
 async function loadWalletDetail(memberId) {
   if (!memberId) {
     memberDetailOutput.textContent = "Enter a member ID.";
@@ -332,11 +359,8 @@ async function loadWalletDetail(memberId) {
 
 async function loadOrderDetail(orderId) {
   setStatus(`Loading order ${orderId}`);
-  const [order, commissions] = await Promise.all([
-    request(`/orders/${orderId}`),
-    request(`/commissions?orderId=${encodeURIComponent(orderId)}`),
-  ]);
-  setActionOutput(`Order ${orderId} detail`, { order, commissions });
+  const snapshot = await request(`/orders/${orderId}/snapshot`);
+  setActionOutput(`Order ${orderId} detail`, snapshot);
   setStatus(`Loaded order ${orderId}`);
 }
 
@@ -350,6 +374,13 @@ async function loadPoolPayouts(poolDate) {
   const payouts = await request(`/pool/${encodeURIComponent(poolDate)}/payouts`);
   setActionOutput(`Pool payouts ${poolDate}`, payouts);
   setStatus(`Loaded pool payouts ${poolDate}`);
+}
+
+async function loadPoolSnapshot(poolDate) {
+  setStatus(`Loading pool snapshot ${poolDate}`);
+  const snapshot = await request(`/pool/${encodeURIComponent(poolDate)}/snapshot`);
+  setActionOutput(`Pool snapshot ${poolDate}`, snapshot);
+  setStatus(`Loaded pool snapshot ${poolDate}`);
 }
 
 async function loadReferralLink(memberCode) {
@@ -377,6 +408,33 @@ function prefillOrderPackage(packageId) {
     orderPackageSelect.value = packageId;
   }
   setStatus(`Prepared order form for package ${packageId}`);
+}
+
+async function resetMemberPassword(memberId) {
+  const newPassword = window.prompt("New password for member", "dev-password");
+
+  if (!newPassword) {
+    return;
+  }
+
+  const result = await request(`/members/${memberId}/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ newPassword }),
+  });
+  setActionOutput(`Password reset ${memberId}`, result);
+  setStatus(`Password updated for member ${memberId}`);
+}
+
+async function togglePackageStatus(packageId, currentStatus) {
+  const nextStatus = currentStatus === "active" ? "inactive" : "active";
+  const result = await request(`/packages/${packageId}/status`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status: nextStatus }),
+  });
+  setActionOutput(`Package status ${packageId}`, result);
+  await loadDashboard();
 }
 
 async function runOrderAction(orderId, action) {
@@ -454,6 +512,7 @@ if (logoutButton) {
 
 if (orderStatusFilter) {
   orderStatusFilter.addEventListener("change", () => {
+    state.pages.orders = 1;
     loadDashboard().catch((error) => setStatus(error.message));
   });
 }
@@ -461,6 +520,7 @@ if (orderStatusFilter) {
 if (memberSearchInput) {
   memberSearchInput.addEventListener("input", (event) => {
     state.memberSearch = event.target.value || "";
+    state.pages.members = 1;
     loadDashboard().catch((error) => setStatus(error.message));
   });
 }
@@ -576,6 +636,14 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  if (button.dataset.action === "member-network") {
+    loadMemberNetwork(button.dataset.memberId).catch((error) => {
+      memberDetailOutput.textContent = error.message;
+      setStatus(error.message);
+    });
+    return;
+  }
+
   if (button.dataset.action === "wallet-detail") {
     loadWalletDetail(button.dataset.memberId).catch((error) => {
       memberDetailOutput.textContent = error.message;
@@ -588,6 +656,14 @@ document.addEventListener("click", (event) => {
     loadReferralLink(button.dataset.memberCode).catch((error) => {
       setStatus(error.message);
       setActionOutput("Referral link failed", { message: error.message });
+    });
+    return;
+  }
+
+  if (button.dataset.action === "member-reset-password") {
+    resetMemberPassword(button.dataset.memberId).catch((error) => {
+      setStatus(error.message);
+      setActionOutput("Reset password failed", { message: error.message });
     });
     return;
   }
@@ -626,6 +702,24 @@ document.addEventListener("click", (event) => {
 
   if (button.dataset.action === "prefill-order-package") {
     prefillOrderPackage(button.dataset.packageId);
+    return;
+  }
+
+  if (button.dataset.action === "toggle-package-status") {
+    togglePackageStatus(button.dataset.packageId, button.dataset.packageStatus).catch(
+      (error) => {
+        setStatus(error.message);
+        setActionOutput("Package status failed", { message: error.message });
+      },
+    );
+    return;
+  }
+
+  if (button.dataset.action === "pool-snapshot") {
+    loadPoolSnapshot(button.dataset.poolDate).catch((error) => {
+      setStatus(error.message);
+      setActionOutput("Pool snapshot failed", { message: error.message });
+    });
     return;
   }
 

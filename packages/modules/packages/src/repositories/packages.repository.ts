@@ -33,6 +33,14 @@ export interface PackagesRepository {
       status: string;
     }>
   >;
+
+  updatePackageStatus(
+    packageId: string,
+    status: "active" | "inactive",
+  ): Promise<{
+    packageId: string;
+    status: string;
+  }>;
 }
 
 @Injectable()
@@ -87,5 +95,23 @@ export class PrismaPackagesRepository implements PackagesRepository {
       earningCapAmount: pkg.earningCapAmount.toString(),
       status: pkg.status.toLowerCase(),
     }));
+  }
+
+  async updatePackageStatus(packageId: string, status: "active" | "inactive") {
+    const pkg = await this.prisma.package.update({
+      where: { id: BigInt(packageId) },
+      data: {
+        status: status === "active" ? "ACTIVE" : "INACTIVE",
+      },
+      select: {
+        id: true,
+        status: true,
+      },
+    });
+
+    return {
+      packageId: pkg.id.toString(),
+      status: pkg.status.toLowerCase(),
+    };
   }
 }

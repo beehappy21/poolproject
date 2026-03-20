@@ -11,6 +11,7 @@ import {
 
 import {
   requireIsoDateTimeString,
+  optionalPositiveInteger,
   optionalString,
   requireNonEmptyString,
   requirePositiveIntegerString,
@@ -30,12 +31,18 @@ export class MembersController {
   async listMembers(
     @Query("sponsorId") sponsorId?: string,
     @Query("memberCode") memberCode?: string,
+    @Query("query") query?: string,
+    @Query("page") page?: string,
+    @Query("pageSize") pageSize?: string,
   ) {
     return this.membersService.listMembers({
       sponsorId: sponsorId
         ? requirePositiveIntegerString(sponsorId, "sponsorId")
         : undefined,
       memberCode: memberCode ? requireNonEmptyString(memberCode, "memberCode") : undefined,
+      query: optionalString(query),
+      page: optionalPositiveInteger(page, "page"),
+      pageSize: optionalPositiveInteger(pageSize, "pageSize"),
     });
   }
 
@@ -70,6 +77,19 @@ export class MembersController {
       walletSummary,
       activeCycles,
     };
+  }
+
+  @Get(":memberId/network")
+  async getMemberNetwork(@Param("memberId") memberId: string) {
+    const network = await this.membersService.getMemberNetwork(
+      requirePositiveIntegerString(memberId, "memberId"),
+    );
+
+    if (!network) {
+      throw new NotFoundException("Member not found.");
+    }
+
+    return network;
   }
 
   @Get(":memberId/cycles")
@@ -164,6 +184,21 @@ export class MembersController {
         memberId: requirePositiveIntegerString(memberId, "memberId"),
         packageId: requirePositiveIntegerString(body.packageId, "packageId"),
       });
+    } catch (error) {
+      rethrowHttpError(error);
+    }
+  }
+
+  @Post(":memberId/reset-password")
+  async resetPassword(
+    @Param("memberId") memberId: string,
+    @Body() body: { newPassword: string },
+  ) {
+    try {
+      return await this.membersService.resetMemberPassword(
+        requirePositiveIntegerString(memberId, "memberId"),
+        requireNonEmptyString(body.newPassword, "newPassword"),
+      );
     } catch (error) {
       rethrowHttpError(error);
     }
