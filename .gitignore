@@ -9,3 +9,4 @@ coverage
 prisma/dev.db
 .vscode
 logs
+runtime

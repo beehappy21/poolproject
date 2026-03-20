@@ -1,5 +1,7 @@
 import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { AuthSessionResult, AuthUserSummary } from "../domain/auth.types";
 import { PrismaAuthRepository } from "../repositories/auth.repository";
@@ -30,8 +32,15 @@ export class AuthService implements AuthServiceContract {
       .map((value) => value.trim().toUpperCase())
       .filter(Boolean),
   );
+  private readonly sessionStorePath = join(
+    process.cwd(),
+    "runtime",
+    "auth-sessions.json",
+  );
 
-  constructor(private readonly authRepository: PrismaAuthRepository) {}
+  constructor(private readonly authRepository: PrismaAuthRepository) {
+    this.loadSessionsFromDisk();
+  }
 
   async login(input: {
     identifier: string;
@@ -45,6 +54,7 @@ export class AuthService implements AuthServiceContract {
 
     const accessToken = randomUUID();
     this.sessions.set(accessToken, user.userId);
+    this.persistSessionsToDisk();
 
     return {
       accessToken,
@@ -64,6 +74,7 @@ export class AuthService implements AuthServiceContract {
 
   async logout(token: string): Promise<void> {
     this.sessions.delete(token);
+    this.persistSessionsToDisk();
   }
 
   async changePassword(input: {
@@ -89,5 +100,29 @@ export class AuthService implements AuthServiceContract {
     }
 
     return this.adminMemberCodes.has(user.memberCode.trim().toUpperCase());
+  }
+
+  private loadSessionsFromDisk(): void {
+    try {
+      const raw = readFileSync(this.sessionStorePath, "utf8");
+      const parsed = JSON.parse(raw) as Record<string, string>;
+
+      for (const [token, userId] of Object.entries(parsed)) {
+        if (typeof token === "string" && typeof userId === "string") {
+          this.sessions.set(token, userId);
+        }
+      }
+    } catch {
+      // Start with an empty in-memory store when no persisted session file exists.
+    }
+  }
+
+  private persistSessionsToDisk(): void {
+    mkdirSync(join(process.cwd(), "runtime"), { recursive: true });
+    writeFileSync(
+      this.sessionStorePath,
+      JSON.stringify(Object.fromEntries(this.sessions.entries()), null, 2),
+      "utf8",
+    );
   }
 }
