@@ -10,6 +10,7 @@ const orderForm = document.getElementById("orderForm");
 const activatePackageSelect = document.getElementById("activatePackageSelect");
 const orderPackageSelect = document.getElementById("orderPackageSelect");
 const actionOutput = document.getElementById("actionOutput");
+const orderGuide = document.getElementById("orderGuide");
 const orderDetailOutput = document.getElementById("orderDetailOutput");
 const orderTimeline = document.getElementById("orderTimeline");
 const transactionsTable = document.getElementById("transactionsTable");
@@ -99,7 +100,7 @@ function renderOrders(orderResult) {
             (order) => `<tr>
               <td>${order.orderNo}</td>
               <td>${order.status}</td>
-              <td>${order.approvalStatus}</td>
+              <td><span class="status-chip ${getApprovalClassName(order.approvalStatus)}">${order.approvalStatus}</span></td>
               <td>${order.totalPv}</td>
               <td>${order.createdAt}</td>
               <td><button type="button" class="ghost inspect-order-button" data-order-id="${order.orderId}">Detail</button></td>
@@ -107,6 +108,8 @@ function renderOrders(orderResult) {
           )
           .join("")
       : '<tr><td colspan="6" class="muted">No orders</td></tr>';
+
+  renderOrderGuide(rows);
 }
 
 function renderPackageOptions(packages) {
@@ -160,6 +163,39 @@ function renderCommissions(commissionResult) {
           )
           .join("")
       : '<tr><td colspan="5" class="muted">No commissions</td></tr>';
+}
+
+function getApprovalClassName(approvalStatus) {
+  return approvalStatus === "approved" ? "status-ok" : "status-waiting";
+}
+
+function renderOrderGuide(orders) {
+  if (!orders.length) {
+    orderGuide.innerHTML = `<div class="stack-item">
+      <strong>No orders yet</strong>
+      <p class="muted">Create an order after activating a package. Admin approval is still required before commissions and pool effects are processed.</p>
+    </div>`;
+    return;
+  }
+
+  const pendingCount = orders.filter((order) => order.approvalStatus !== "approved").length;
+  const approvedCount = orders.length - pendingCount;
+
+  orderGuide.innerHTML = [
+    `<div class="stack-item">
+      <strong>${approvedCount} approved / ${pendingCount} pending</strong>
+      <p class="muted">Pending orders still need admin approval. Approved orders are ready for downstream processing and earnings allocation.</p>
+    </div>`,
+    pendingCount > 0
+      ? `<div class="stack-item">
+          <strong>Next step</strong>
+          <p class="muted">Wait for admin to approve and process your pending order(s). Use the Detail button to inspect each order snapshot.</p>
+        </div>`
+      : `<div class="stack-item">
+          <strong>All clear</strong>
+          <p class="muted">Your visible orders are approved. Check commissions and wallet activity below for resulting earnings.</p>
+        </div>`,
+  ].join("");
 }
 
 function renderNetwork(network) {
@@ -242,6 +278,10 @@ async function loadOrderDetail(orderId) {
       <strong>${snapshot.order.orderNo}</strong>
       <p class="muted">Status ${snapshot.order.status} • Approval ${snapshot.order.approvalStatus}</p>
       <p class="muted">PV ${snapshot.order.totalPv} • Created ${snapshot.order.createdAt}</p>
+    </div>`,
+    `<div class="stack-item">
+      <strong>Timeline</strong>
+      <p class="muted">${snapshot.order.approvalStatus === "approved" ? "1. Created  2. Approved  3. Ready for processing" : "1. Created  2. Waiting for admin approval  3. Processing will happen after approval"}</p>
     </div>`,
     `<div class="stack-item">
       <strong>Commissions</strong>

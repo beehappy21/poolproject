@@ -143,6 +143,25 @@ p {
   margin-bottom: 6px;
 }
 
+.status-chip {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.status-ok {
+  background: rgba(59, 110, 52, 0.12);
+  color: #355d27;
+}
+
+.status-waiting {
+  background: rgba(148, 98, 22, 0.12);
+  color: #8a5b13;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
