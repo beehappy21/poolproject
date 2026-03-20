@@ -52,11 +52,28 @@ async function request(path, options = {}) {
   const text = await response.text();
   const data = text ? JSON.parse(text) : null;
 
+  if (response.status === 401 || response.status === 403) {
+    handleSessionFailure(data?.message || `Request failed: ${response.status}`);
+    throw new Error(data?.message || `Request failed: ${response.status}`);
+  }
+
   if (!response.ok) {
     throw new Error(data?.message || `Request failed: ${response.status}`);
   }
 
   return data;
+}
+
+function handleSessionFailure(message) {
+  setToken("");
+  renderSession(null);
+  setStatus(message || "Session expired.");
+
+  if (adminView === "dashboard") {
+    window.setTimeout(() => {
+      window.location.href = "/admin";
+    }, 300);
+  }
 }
 
 function renderTableRows(elementId, rows, renderRow) {
@@ -87,8 +104,6 @@ async function loadSession() {
     renderSession(session.user);
     return session.user;
   } catch {
-    setToken("");
-    renderSession(null);
     return null;
   }
 }
