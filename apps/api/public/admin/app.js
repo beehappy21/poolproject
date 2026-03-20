@@ -2,6 +2,7 @@ const state = {
   token: localStorage.getItem("adminAccessToken") || "",
 };
 
+const adminView = document.body.dataset.adminView || "dashboard";
 const sessionCard = document.getElementById("sessionCard");
 const loginForm = document.getElementById("loginForm");
 const refreshButton = document.getElementById("refreshButton");
@@ -21,11 +22,15 @@ const orderPackageSelect = document.getElementById("orderPackageSelect");
 const activatePackageSelect = document.getElementById("activatePackageSelect");
 
 function setStatus(message) {
-  statusLine.textContent = message;
+  if (statusLine) {
+    statusLine.textContent = message;
+  }
 }
 
 function setActionOutput(label, data) {
-  actionOutput.textContent = `${label}\n\n${JSON.stringify(data, null, 2)}`;
+  if (actionOutput) {
+    actionOutput.textContent = `${label}\n\n${JSON.stringify(data, null, 2)}`;
+  }
 }
 
 function setToken(token) {
@@ -56,6 +61,10 @@ async function request(path, options = {}) {
 
 function renderTableRows(elementId, rows, renderRow) {
   const target = document.getElementById(elementId);
+  if (!target) {
+    return;
+  }
+
   target.innerHTML =
     rows.length > 0
       ? rows.map(renderRow).join("")
@@ -63,17 +72,16 @@ function renderTableRows(elementId, rows, renderRow) {
 }
 
 function renderSession(user) {
+  if (!sessionCard) {
+    return;
+  }
+
   sessionCard.innerHTML = user
     ? `<p class="eyebrow">Signed In</p><strong>${user.name}</strong><p class="muted">${user.memberCode}${user.email ? ` · ${user.email}` : ""}</p>`
     : `<p class="muted">Not signed in</p>`;
 }
 
 async function loadSession() {
-  if (!state.token) {
-    renderSession(null);
-    return null;
-  }
-
   try {
     const session = await request("/auth/me");
     renderSession(session.user);
@@ -86,6 +94,10 @@ async function loadSession() {
 }
 
 async function loadDashboard() {
+  if (adminView !== "dashboard") {
+    return;
+  }
+
   setStatus("Loading dashboard");
 
   const [members, orders, poolCycles, fallbacks, packages] = await Promise.all([
@@ -212,51 +224,71 @@ function syncPackageInputs() {
   }
 }
 
-loginForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
+if (loginForm) {
+  loginForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
 
-  try {
-    const data = await request("/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        identifier: document.getElementById("identifierInput").value.trim(),
-        password: document.getElementById("passwordInput").value,
-      }),
-    });
+    try {
+      const data = await request("/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          identifier: document.getElementById("identifierInput").value.trim(),
+          password: document.getElementById("passwordInput").value,
+        }),
+      });
 
-    setToken(data.accessToken);
-    renderSession(data.user);
-    await loadDashboard();
-  } catch (error) {
-    setStatus(error.message);
-  }
-});
+      setToken(data.accessToken);
+      renderSession(data.user);
 
-refreshButton.addEventListener("click", () => {
-  loadDashboard().catch((error) => setStatus(error.message));
-});
+      if (adminView === "login") {
+        window.location.href = "/admin";
+        return;
+      }
 
-logoutButton.addEventListener("click", async () => {
-  try {
-    if (state.token) {
-      await request("/auth/logout", { method: "POST" });
+      await loadDashboard();
+    } catch (error) {
+      setStatus(error.message);
     }
-  } catch {}
+  });
+}
 
-  setToken("");
-  renderSession(null);
-  setStatus("Signed out");
-});
+if (refreshButton) {
+  refreshButton.addEventListener("click", () => {
+    const task = adminView === "dashboard" ? loadDashboard() : loadSession();
+    task.catch((error) => setStatus(error.message));
+  });
+}
 
-orderStatusFilter.addEventListener("change", () => {
-  loadDashboard().catch((error) => setStatus(error.message));
-});
+if (logoutButton) {
+  logoutButton.addEventListener("click", async () => {
+    try {
+      await request("/auth/logout", { method: "POST" });
+    } catch {}
 
-fallbackTypeFilter.addEventListener("change", () => {
-  loadDashboard().catch((error) => setStatus(error.message));
-});
+    setToken("");
+    renderSession(null);
+    setStatus("Signed out");
 
+    if (adminView === "dashboard") {
+      window.location.href = "/admin";
+    }
+  });
+}
+
+if (orderStatusFilter) {
+  orderStatusFilter.addEventListener("change", () => {
+    loadDashboard().catch((error) => setStatus(error.message));
+  });
+}
+
+if (fallbackTypeFilter) {
+  fallbackTypeFilter.addEventListener("change", () => {
+    loadDashboard().catch((error) => setStatus(error.message));
+  });
+}
+
+if (adminView === "dashboard") {
 document.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-action]");
 
@@ -413,11 +445,16 @@ memberDetailForm.addEventListener("submit", (event) => {
 
 orderPackageSelect.addEventListener("change", syncPackageInputs);
 activatePackageSelect.addEventListener("change", syncPackageInputs);
+}
 
 (async function bootstrap() {
   const user = await loadSession();
   if (user) {
-    await loadDashboard().catch((error) => setStatus(error.message));
+    if (adminView === "dashboard") {
+      await loadDashboard().catch((error) => setStatus(error.message));
+    } else {
+      window.location.href = "/admin";
+    }
   } else {
     setStatus("Sign in to load dashboard");
   }
