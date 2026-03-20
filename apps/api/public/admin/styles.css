@@ -177,6 +177,14 @@ button.danger {
   padding: 0 18px 18px;
 }
 
+.filter-panel {
+  padding-bottom: 18px;
+}
+
+.filter-row {
+  padding: 0 18px 18px;
+}
+
 .inner-panel {
   box-shadow: none;
   background: rgba(255, 248, 238, 0.95);

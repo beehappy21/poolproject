@@ -8,6 +8,8 @@ const loginForm = document.getElementById("loginForm");
 const refreshButton = document.getElementById("refreshButton");
 const logoutButton = document.getElementById("logoutButton");
 const statusLine = document.getElementById("statusLine");
+const memberSearchInput = document.getElementById("memberSearchInput");
+const orderUserFilterInput = document.getElementById("orderUserFilterInput");
 const orderStatusFilter = document.getElementById("orderStatusFilter");
 const fallbackTypeFilter = document.getElementById("fallbackTypeFilter");
 const memberDetailForm = document.getElementById("memberDetailForm");
@@ -20,6 +22,8 @@ const activatePackageForm = document.getElementById("activatePackageForm");
 const closePoolForm = document.getElementById("closePoolForm");
 const orderPackageSelect = document.getElementById("orderPackageSelect");
 const activatePackageSelect = document.getElementById("activatePackageSelect");
+state.memberSearch = "";
+state.orderUserId = "";
 
 function setStatus(message) {
   if (statusLine) {
@@ -115,9 +119,17 @@ async function loadDashboard() {
 
   setStatus("Loading dashboard");
 
+  const orderQuery = new URLSearchParams();
+  if (orderStatusFilter.value) {
+    orderQuery.set("approvalStatus", orderStatusFilter.value);
+  }
+  if (state.orderUserId) {
+    orderQuery.set("userId", state.orderUserId);
+  }
+
   const [members, orders, poolCycles, fallbacks, packages] = await Promise.all([
     request("/members"),
-    request(`/orders${orderStatusFilter.value ? `?approvalStatus=${encodeURIComponent(orderStatusFilter.value)}` : ""}`),
+    request(`/orders${orderQuery.toString() ? `?${orderQuery.toString()}` : ""}`),
     request("/pool"),
     request(
       `/commissions/company-fallbacks${fallbackTypeFilter.value ? `?sourceType=${encodeURIComponent(fallbackTypeFilter.value)}` : ""}`,
@@ -130,14 +142,30 @@ async function loadDashboard() {
   document.getElementById("poolCount").textContent = String(poolCycles.length);
   document.getElementById("fallbackCount").textContent = String(fallbacks.length);
 
+  const visibleMembers = members.filter((member) => {
+    const needle = state.memberSearch.trim().toLowerCase();
+
+    if (!needle) {
+      return true;
+    }
+
+    return (
+      member.memberCode.toLowerCase().includes(needle) ||
+      member.name.toLowerCase().includes(needle)
+    );
+  });
+
   renderTableRows(
     "membersTable",
-    members,
+    visibleMembers,
     (member) => `<tr>
       <td>${member.memberId}</td>
       <td>${member.memberCode}</td>
       <td>${member.name}</td>
       <td>${member.sponsorId ?? "-"}</td>
+      <td>
+        <button type="button" class="secondary" data-action="wallet-detail" data-member-id="${member.memberId}">Wallet</button>
+      </td>
       <td>
         <div class="table-actions">
           <button type="button" class="secondary" data-action="member-detail" data-member-id="${member.memberId}">Detail</button>
@@ -206,6 +234,21 @@ async function loadMemberDetail(memberId) {
   const detail = await request(`/members/${memberId}/detail`);
   memberDetailOutput.textContent = JSON.stringify(detail, null, 2);
   setStatus(`Loaded member ${memberId}`);
+}
+
+async function loadWalletDetail(memberId) {
+  if (!memberId) {
+    memberDetailOutput.textContent = "Enter a member ID.";
+    return;
+  }
+
+  setStatus(`Loading wallet ${memberId}`);
+  const [wallet, transactions] = await Promise.all([
+    request(`/wallets/${memberId}`),
+    request(`/wallets/${memberId}/transactions`),
+  ]);
+  memberDetailOutput.textContent = JSON.stringify({ wallet, transactions }, null, 2);
+  setStatus(`Loaded wallet ${memberId}`);
 }
 
 async function loadOrderDetail(orderId) {
@@ -297,6 +340,20 @@ if (orderStatusFilter) {
   });
 }
 
+if (memberSearchInput) {
+  memberSearchInput.addEventListener("input", (event) => {
+    state.memberSearch = event.target.value || "";
+    loadDashboard().catch((error) => setStatus(error.message));
+  });
+}
+
+if (orderUserFilterInput) {
+  orderUserFilterInput.addEventListener("change", (event) => {
+    state.orderUserId = (event.target.value || "").trim();
+    loadDashboard().catch((error) => setStatus(error.message));
+  });
+}
+
 if (fallbackTypeFilter) {
   fallbackTypeFilter.addEventListener("change", () => {
     loadDashboard().catch((error) => setStatus(error.message));
@@ -313,6 +370,14 @@ document.addEventListener("click", (event) => {
 
   if (button.dataset.action === "member-detail") {
     loadMemberDetail(button.dataset.memberId).catch((error) => {
+      memberDetailOutput.textContent = error.message;
+      setStatus(error.message);
+    });
+    return;
+  }
+
+  if (button.dataset.action === "wallet-detail") {
+    loadWalletDetail(button.dataset.memberId).catch((error) => {
       memberDetailOutput.textContent = error.message;
       setStatus(error.message);
     });
