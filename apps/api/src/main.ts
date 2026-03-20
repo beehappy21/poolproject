@@ -4,13 +4,41 @@ import { NestExpressApplication } from "@nestjs/platform-express";
 import { AuthService } from "../../../packages/modules/auth";
 import { ApiAppModule } from "./app.module";
 import { apiConfig } from "./config/api.config";
+import { shouldAuditRequest, writeAuditEntry } from "./http/audit.util";
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(ApiAppModule);
   const authService = app.get(AuthService);
 
   app.use(async (request: any, response: any, next: () => void) => {
+    const startedAt = Date.now();
     const access = resolveRouteAccess(request.method, request.path);
+    const shouldAudit = shouldAuditRequest(request.method, request.path);
+
+    response.on("finish", () => {
+      if (!shouldAudit) {
+        return;
+      }
+
+      const actor = request.authUser ?? null;
+      writeAuditEntry({
+        at: new Date().toISOString(),
+        method: request.method,
+        path: request.path,
+        statusCode: response.statusCode,
+        durationMs: Date.now() - startedAt,
+        access,
+        actorUserId: actor?.userId ?? null,
+        actorMemberCode: actor?.memberCode ?? null,
+        actorRole:
+          access === "admin" && actor
+            ? "admin"
+            : actor
+              ? "member"
+              : "public",
+        ip: request.ip ?? request.socket?.remoteAddress ?? null,
+      });
+    });
 
     if (access === "public") {
       next();
@@ -38,6 +66,7 @@ async function bootstrap(): Promise<void> {
       return;
     }
 
+    request.authUser = user;
     next();
   });
 
