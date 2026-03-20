@@ -18,6 +18,12 @@ export interface AuthServiceContract {
 @Injectable()
 export class AuthService implements AuthServiceContract {
   private readonly sessions = new Map<string, string>();
+  private readonly adminMemberCodes = new Set(
+    (process.env.ADMIN_MEMBER_CODES || "ALICE")
+      .split(",")
+      .map((value) => value.trim().toUpperCase())
+      .filter(Boolean),
+  );
 
   constructor(private readonly authRepository: PrismaAuthRepository) {}
 
@@ -52,5 +58,13 @@ export class AuthService implements AuthServiceContract {
 
   async logout(token: string): Promise<void> {
     this.sessions.delete(token);
+  }
+
+  isAdminUser(user: AuthUserSummary | null | undefined): boolean {
+    if (!user) {
+      return false;
+    }
+
+    return this.adminMemberCodes.has(user.memberCode.trim().toUpperCase());
   }
 }
