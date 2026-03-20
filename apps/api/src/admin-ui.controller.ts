@@ -7,11 +7,21 @@ function readAdminFile(fileName: string): string {
   return readFileSync(join(process.cwd(), "apps/api/public/admin", fileName), "utf8");
 }
 
-@Controller("admin")
+function readSignupFile(fileName: string): string {
+  return readFileSync(join(process.cwd(), "apps/api/public/signup", fileName), "utf8");
+}
+
+@Controller()
 export class AdminUiController {
   constructor(private readonly authService: AuthService) {}
 
   @Get()
+  @Header("Content-Type", "text/html; charset=utf-8")
+  getRoot() {
+    return readSignupFile("index.html");
+  }
+
+  @Get("admin")
   @Header("Content-Type", "text/html; charset=utf-8")
   async getAdminRoot(
     @Headers("authorization") authorization?: string,
@@ -22,22 +32,46 @@ export class AdminUiController {
     return user ? readAdminFile("index.html") : this.renderLoginShell();
   }
 
-  @Get("index.html")
+  @Get("admin/index.html")
   @Header("Content-Type", "text/html; charset=utf-8")
   getAdminIndex() {
     return readAdminFile("index.html");
   }
 
-  @Get("styles.css")
+  @Get("admin/styles.css")
   @Header("Content-Type", "text/css; charset=utf-8")
   getAdminStyles() {
     return readAdminFile("styles.css");
   }
 
-  @Get("app.js")
+  @Get("admin/app.js")
   @Header("Content-Type", "application/javascript; charset=utf-8")
   getAdminScript() {
     return readAdminFile("app.js");
+  }
+
+  @Get("signup")
+  @Header("Content-Type", "text/html; charset=utf-8")
+  getSignupRoot() {
+    return readSignupFile("index.html");
+  }
+
+  @Get("signup/index.html")
+  @Header("Content-Type", "text/html; charset=utf-8")
+  getSignupIndex() {
+    return readSignupFile("index.html");
+  }
+
+  @Get("signup/styles.css")
+  @Header("Content-Type", "text/css; charset=utf-8")
+  getSignupStyles() {
+    return readSignupFile("styles.css");
+  }
+
+  @Get("signup/app.js")
+  @Header("Content-Type", "application/javascript; charset=utf-8")
+  getSignupScript() {
+    return readSignupFile("app.js");
   }
 
   private extractToken(authorization?: string, cookieHeader?: string): string | null {

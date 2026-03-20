@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Join PoolProject</title>
+    <link rel="stylesheet" href="/signup/styles.css" />
+  </head>
+  <body>
+    <main class="page-shell">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Referral Signup</p>
+          <h1>Join the network with a live sponsor link.</h1>
+          <p class="lede">
+            Enter a referral code or open a shared link to prefill your sponsor and create your member account.
+          </p>
+        </div>
+        <div class="hero-card">
+          <p class="eyebrow">Sponsor</p>
+          <div id="sponsorCard" class="sponsor-card">
+            <p class="muted">No sponsor loaded yet.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid two-up">
+        <article class="panel">
+          <div class="section-head">
+            <h2>Join Now</h2>
+            <span id="statusLine" class="muted">Waiting for input</span>
+          </div>
+          <form id="signupForm" class="stacked-form">
+            <input id="refInput" type="text" placeholder="Referral code" />
+            <input id="memberCodeInput" type="text" placeholder="Your member code" required />
+            <input id="nameInput" type="text" placeholder="Your name" required />
+            <input id="emailInput" type="email" placeholder="Email" />
+            <button type="submit">Create Member</button>
+          </form>
+          <pre id="resultOutput" class="result-panel">Submit the form to create your member account.</pre>
+        </article>
+
+        <article class="panel">
+          <div class="section-head">
+            <h2>Package Preview</h2>
+            <span class="muted">Current active catalog</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Name</th>
+                  <th>PV</th>
+                  <th>Price</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="packagesTable"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <script src="/signup/app.js"></script>
+  </body>
+</html>

@@ -47,6 +47,11 @@ function requiresAdminSession(method: string, path: string): boolean {
 
   if (
     path === "/health" ||
+    path === "/" ||
+    path === "/signup" ||
+    path === "/signup/index.html" ||
+    path === "/signup/styles.css" ||
+    path === "/signup/app.js" ||
     path === "/auth/login" ||
     path === "/auth/me" ||
     path === "/auth/logout" ||
@@ -59,6 +64,10 @@ function requiresAdminSession(method: string, path: string): boolean {
   }
 
   if (method === "POST" && path === "/members") {
+    return false;
+  }
+
+  if (method === "GET" && path === "/packages") {
     return false;
   }
 
