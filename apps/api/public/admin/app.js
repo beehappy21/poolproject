@@ -27,6 +27,11 @@ const memberDetailOutput = document.getElementById("memberDetailOutput");
 const actionOutput = document.getElementById("actionOutput");
 const historyList = document.getElementById("historyList");
 const clearHistoryButton = document.getElementById("clearHistoryButton");
+const commissionSettingsForm = document.getElementById("commissionSettingsForm");
+const directRateInput = document.getElementById("directRateInput");
+const poolRateSettingsInput = document.getElementById("poolRateSettingsInput");
+const uniLevelsList = document.getElementById("uniLevelsList");
+const addUniLevelButton = document.getElementById("addUniLevelButton");
 const createPackageForm = document.getElementById("createPackageForm");
 const createMemberForm = document.getElementById("createMemberForm");
 const createOrderForm = document.getElementById("createOrderForm");
@@ -58,6 +63,11 @@ state.latestCommission = null;
 state.memberSort = "created_desc";
 state.orderSort = "created_desc";
 state.actionHistory = JSON.parse(localStorage.getItem("adminActionHistory") || "[]");
+state.settings = {
+  directRate: "0.2",
+  uniLevelRates: ["0.05", "0.05", "0.05", "0.05", "0.05"],
+  poolRate: "0.5",
+};
 
 function setStatus(message) {
   if (statusLine) {
@@ -107,6 +117,64 @@ function pushHistory(label, message) {
 
 function confirmAction(message) {
   return window.confirm(message);
+}
+
+function renderCommissionSettings() {
+  if (!directRateInput || !poolRateSettingsInput || !uniLevelsList) {
+    return;
+  }
+
+  directRateInput.value = state.settings.directRate;
+  poolRateSettingsInput.value = state.settings.poolRate;
+  uniLevelsList.innerHTML = state.settings.uniLevelRates
+    .map(
+      (rate, index) => `<label class="settings-level-row">
+        <span>Level ${index + 1}</span>
+        <input type="text" data-uni-level-rate="${index}" value="${rate}" required />
+        <button type="button" class="ghost" data-action="remove-uni-level" data-level-index="${index}">Remove</button>
+      </label>`,
+    )
+    .join("");
+}
+
+function collectUniLevelRates() {
+  return Array.from(
+    document.querySelectorAll("[data-uni-level-rate]"),
+  ).map((input) => input.value.trim());
+}
+
+async function loadCommissionSettings() {
+  const settings = await request("/settings/commissions");
+  state.settings = {
+    directRate: settings.directRate,
+    uniLevelRates: settings.uniLevelRates,
+    poolRate: settings.poolRate,
+  };
+  renderCommissionSettings();
+}
+
+async function saveCommissionSettings() {
+  const result = await request("/settings/commissions", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      directRate: directRateInput.value.trim(),
+      uniLevelRates: collectUniLevelRates(),
+      poolRate: poolRateSettingsInput.value.trim(),
+    }),
+  });
+
+  state.settings = {
+    directRate: result.directRate,
+    uniLevelRates: result.uniLevelRates,
+    poolRate: result.poolRate,
+  };
+  renderCommissionSettings();
+  setActionOutput("Commission settings saved", result);
+  pushHistory(
+    "Commission Settings",
+    `Saved direct ${result.directRate}, ${result.uniLevels} uni levels, pool ${result.poolRate}`,
+  );
 }
 
 function setToken(token) {
@@ -258,6 +326,7 @@ async function loadDashboard() {
       `/commissions/company-fallbacks?page=${state.pages.fallbacks}&pageSize=${state.pageSize}${fallbackTypeFilter.value ? `&sourceType=${encodeURIComponent(fallbackTypeFilter.value)}` : ""}`,
     ),
     request("/packages"),
+    loadCommissionSettings(),
   ]);
 
   const commissionQuery = new URLSearchParams();
@@ -841,6 +910,18 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  if (button.dataset.action === "remove-uni-level") {
+    const levelIndex = Number(button.dataset.levelIndex);
+    if (state.settings.uniLevelRates.length <= 1) {
+      setStatus("At least one unilevel rate is required.");
+      return;
+    }
+
+    state.settings.uniLevelRates.splice(levelIndex, 1);
+    renderCommissionSettings();
+    return;
+  }
+
   if (button.dataset.action === "pool-snapshot") {
     loadPoolSnapshot(button.dataset.poolDate).catch((error) => {
       setStatus(error.message);
@@ -984,6 +1065,28 @@ memberDetailForm.addEventListener("submit", (event) => {
 
 orderPackageSelect.addEventListener("change", syncPackageInputs);
 activatePackageSelect.addEventListener("change", syncPackageInputs);
+
+if (addUniLevelButton) {
+  addUniLevelButton.addEventListener("click", () => {
+    const lastRate =
+      state.settings.uniLevelRates[state.settings.uniLevelRates.length - 1] || "0.05";
+    state.settings.uniLevelRates.push(lastRate);
+    renderCommissionSettings();
+  });
+}
+
+if (commissionSettingsForm) {
+  commissionSettingsForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    try {
+      await saveCommissionSettings();
+    } catch (error) {
+      setStatus(error.message);
+      setActionOutput("Commission settings failed", { message: error.message });
+    }
+  });
+}
 }
 
 (async function bootstrap() {

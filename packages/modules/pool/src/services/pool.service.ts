@@ -16,6 +16,7 @@ import {
   divideDecimalStringByInt,
   multiplyDecimalStrings,
 } from "../../../../shared/utils/src/money.util";
+import { readCommissionSettings } from "../../../../shared/utils/src/commission-settings.util";
 import { CommissionsService } from "../../../commissions/src/services/commissions.service";
 import { CommissionsServiceContract } from "../../../commissions/src/services/commissions.service";
 import { MembersService } from "../../../members/src/services/members.service";
@@ -168,11 +169,12 @@ export class PoolService implements PoolServiceContract {
 
     const approvedOrders =
       await this.ordersService.listApprovedOrdersForPoolDate(poolDate);
+    const { poolRate } = readCommissionSettings();
     const funding = await this.computePoolFunding({
       poolDate,
       approvedOrderCount: approvedOrders.length,
       fundingTotalApprovedPv: this.sumApprovedOrderPv(approvedOrders),
-      poolRate: "0.5",
+      poolRate,
     });
     const uniqueUserIds = await this.membersService.getMemberIdsWithActiveCycles(
       `${poolDate}T00:00:00.000Z`,
@@ -211,12 +213,13 @@ export class PoolService implements PoolServiceContract {
   async loadApprovedOrderFunding(poolDate: string): Promise<PoolFundingInput> {
     const approvedOrders =
       await this.ordersService.listApprovedOrdersForPoolDate(poolDate);
+    const { poolRate } = readCommissionSettings();
 
     return {
       poolDate,
       approvedOrderCount: approvedOrders.length,
       fundingTotalApprovedPv: this.sumApprovedOrderPv(approvedOrders),
-      poolRate: "0.5",
+      poolRate,
     };
   }
 
@@ -234,11 +237,12 @@ export class PoolService implements PoolServiceContract {
   ): Promise<DailyPoolFlowResult> {
     const approvedOrders =
       await this.ordersService.listApprovedOrdersForPoolDate(poolDate);
+    const { poolRate } = readCommissionSettings();
     const funding = await this.computePoolFunding({
       poolDate,
       approvedOrderCount: approvedOrders.length,
       fundingTotalApprovedPv: this.sumApprovedOrderPv(approvedOrders),
-      poolRate: "0.5",
+      poolRate,
     });
     const eligibilityDecisions = await this.evaluatePoolEligibility(snapshots);
     const eligibleUserIds = eligibilityDecisions

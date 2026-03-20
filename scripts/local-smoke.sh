@@ -26,6 +26,8 @@ if [[ -n "$EXISTING_PIDS" ]]; then
   sleep 1
 fi
 
+rm -f "$ROOT_DIR/runtime/commission-settings.json"
+
 docker compose up -d postgres >/dev/null
 sleep 3
 DATABASE_URL="$DATABASE_URL" npm run prisma:push >/dev/null

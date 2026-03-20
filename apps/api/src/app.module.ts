@@ -5,6 +5,7 @@ import { OrdersModule } from "../../../packages/modules/orders";
 import { PackagesModule } from "../../../packages/modules/packages";
 import { PoolModule } from "../../../packages/modules/pool";
 import { WalletsModule } from "../../../packages/modules/wallets";
+import { AdminSettingsController } from "./admin-settings.controller";
 import { AdminUiController } from "./admin-ui.controller";
 import { HealthController } from "./health.controller";
 
@@ -17,7 +18,7 @@ import { HealthController } from "./health.controller";
     PoolModule,
     WalletsModule,
   ],
-  controllers: [HealthController, AdminUiController],
+  controllers: [HealthController, AdminUiController, AdminSettingsController],
   providers: [],
 })
 export class ApiAppModule {}

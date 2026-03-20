@@ -101,6 +101,35 @@
           </div>
         </section>
 
+        <section class="panel">
+          <div class="section-head">
+            <h3>Commission Settings</h3>
+            <span class="muted">Direct, unilevel, and pool rates</span>
+          </div>
+          <form id="commissionSettingsForm" class="settings-form">
+            <div class="settings-grid">
+              <label>
+                <span>Direct Rate</span>
+                <input id="directRateInput" type="text" value="0.2" required />
+              </label>
+              <label>
+                <span>Pool Rate</span>
+                <input id="poolRateSettingsInput" type="text" value="0.5" required />
+              </label>
+            </div>
+            <div class="settings-level-header">
+              <strong>Unilevel Rates</strong>
+              <div class="table-actions">
+                <button type="button" class="ghost" id="addUniLevelButton">Add Level</button>
+              </div>
+            </div>
+            <div id="uniLevelsList" class="settings-level-list"></div>
+            <div class="table-actions">
+              <button type="submit">Save Settings</button>
+            </div>
+          </form>
+        </section>
+
         <section class="grid two-up">
           <article class="panel filter-panel">
             <div class="section-head">

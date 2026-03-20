@@ -10,6 +10,7 @@ import {
   DirectCommissionFinalizationResult,
 } from "../domain/commissions.types";
 import { multiplyDecimalStrings } from "../../../../shared/utils/src/money.util";
+import { readCommissionSettings } from "../../../../shared/utils/src/commission-settings.util";
 import { MembersService } from "../../../members/src/services/members.service";
 import { MembersServiceContract } from "../../../members/src/services/members.service";
 import { OrdersService } from "../../../orders/src/services/orders.service";
@@ -203,6 +204,7 @@ export class CommissionsService implements CommissionsServiceContract {
   async resolveUniBonusCandidatePath(
     input: CommissionCandidatePath,
   ): Promise<string[]> {
+    const maxLevels = readCommissionSettings().uniLevelRates.length;
     const activeCandidateUserIds: string[] = [];
 
     for (const candidateUserId of input.candidateUserIds) {
@@ -221,7 +223,7 @@ export class CommissionsService implements CommissionsServiceContract {
         activeCandidateUserIds.push(candidateUserId);
       }
 
-      if (activeCandidateUserIds.length >= 5) {
+      if (activeCandidateUserIds.length >= maxLevels) {
         break;
       }
     }
@@ -340,7 +342,7 @@ export class CommissionsService implements CommissionsServiceContract {
     candidateUserId: string | null,
   ) {
     const basePv = totalPv;
-    const rate = "0.2";
+    const rate = readCommissionSettings().directRate;
     const amount = multiplyDecimalStrings(basePv, rate);
     const rollupDepth = candidateUserId
       ? Math.max(candidateUserIds.indexOf(candidateUserId), 0)
@@ -467,9 +469,9 @@ export class CommissionsService implements CommissionsServiceContract {
     candidateUserIds: string[],
     candidateUserId: string | null,
     levelNo: number,
+    rate: string,
   ) {
     const basePv = totalPv;
-    const rate = "0.05";
     const amount = multiplyDecimalStrings(basePv, rate);
     const candidateIndex = candidateUserId
       ? candidateUserIds.indexOf(candidateUserId)
@@ -526,7 +528,8 @@ export class CommissionsService implements CommissionsServiceContract {
     candidateUserIds: string[],
     uniCandidateUserIds: string[],
   ) {
-    const maxLevels = 5;
+    const uniLevelRates = readCommissionSettings().uniLevelRates;
+    const maxLevels = uniLevelRates.length;
     const drafts = await Promise.all(
       uniCandidateUserIds.slice(0, maxLevels).map((candidateUserId, index) =>
         this.buildUniDraft(
@@ -537,6 +540,7 @@ export class CommissionsService implements CommissionsServiceContract {
           candidateUserIds,
           candidateUserId,
           index + 1,
+          uniLevelRates[index],
         ),
       ),
     );
@@ -556,6 +560,7 @@ export class CommissionsService implements CommissionsServiceContract {
         candidateUserIds,
         null,
         drafts.length + index + 1,
+        uniLevelRates[drafts.length + index],
       ),
     );
 
