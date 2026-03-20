@@ -10,6 +10,13 @@ export interface AuthRepository {
   }): Promise<AuthUserSummary | null>;
 
   findUserById(userId: string): Promise<AuthUserSummary | null>;
+
+  verifyUserPassword(userId: string, password: string): Promise<boolean>;
+
+  updateUserPassword(
+    userId: string,
+    newPassword: string,
+  ): Promise<{ userId: string; passwordUpdated: true }>;
 }
 
 @Injectable()
@@ -65,5 +72,33 @@ export class PrismaAuthRepository implements AuthRepository {
           email: user.email,
         }
       : null;
+  }
+
+  async verifyUserPassword(userId: string, password: string): Promise<boolean> {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: BigInt(userId),
+        passwordHash: password,
+      },
+      select: { id: true },
+    });
+
+    return Boolean(user);
+  }
+
+  async updateUserPassword(
+    userId: string,
+    newPassword: string,
+  ): Promise<{ userId: string; passwordUpdated: true }> {
+    await this.prisma.user.update({
+      where: { id: BigInt(userId) },
+      data: { passwordHash: newPassword },
+      select: { id: true },
+    });
+
+    return {
+      userId,
+      passwordUpdated: true,
+    };
   }
 }

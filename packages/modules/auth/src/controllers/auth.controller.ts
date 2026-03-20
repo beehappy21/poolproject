@@ -117,6 +117,15 @@ export class AuthController {
     });
   }
 
+  @Get("network")
+  async network(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+    return this.membersService.getMemberNetwork(user.userId);
+  }
+
   @Post("activate-package")
   async activatePackage(
     @Headers("authorization") authorization?: string,
@@ -181,6 +190,21 @@ export class AuthController {
     await this.authService.logout(token);
     response?.setHeader("Set-Cookie", this.clearSessionCookie());
     return { success: true };
+  }
+
+  @Post("change-password")
+  async changePassword(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+    @Body() body?: { currentPassword?: string; newPassword?: string },
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+
+    return this.authService.changePassword({
+      userId: user.userId,
+      currentPassword: requireNonEmptyString(body?.currentPassword, "currentPassword"),
+      newPassword: requireNonEmptyString(body?.newPassword, "newPassword"),
+    });
   }
 
   private extractToken(authorization?: string, cookieHeader?: string): string {

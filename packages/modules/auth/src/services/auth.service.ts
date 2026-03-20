@@ -13,6 +13,12 @@ export interface AuthServiceContract {
   getSessionUser(token: string): Promise<AuthUserSummary | null>;
 
   logout(token: string): Promise<void>;
+
+  changePassword(input: {
+    userId: string;
+    currentPassword: string;
+    newPassword: string;
+  }): Promise<{ userId: string; passwordUpdated: true }>;
 }
 
 @Injectable()
@@ -58,6 +64,23 @@ export class AuthService implements AuthServiceContract {
 
   async logout(token: string): Promise<void> {
     this.sessions.delete(token);
+  }
+
+  async changePassword(input: {
+    userId: string;
+    currentPassword: string;
+    newPassword: string;
+  }): Promise<{ userId: string; passwordUpdated: true }> {
+    const valid = await this.authRepository.verifyUserPassword(
+      input.userId,
+      input.currentPassword,
+    );
+
+    if (!valid) {
+      throw new UnauthorizedException("Current password is invalid.");
+    }
+
+    return this.authRepository.updateUserPassword(input.userId, input.newPassword);
   }
 
   isAdminUser(user: AuthUserSummary | null | undefined): boolean {

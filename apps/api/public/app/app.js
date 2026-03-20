@@ -5,6 +5,7 @@ const statusLine = document.getElementById("statusLine");
 const dashboard = document.getElementById("dashboard");
 const authPanel = document.getElementById("authPanel");
 const activateForm = document.getElementById("activateForm");
+const passwordForm = document.getElementById("passwordForm");
 const orderForm = document.getElementById("orderForm");
 const activatePackageSelect = document.getElementById("activatePackageSelect");
 const orderPackageSelect = document.getElementById("orderPackageSelect");
@@ -12,6 +13,7 @@ const actionOutput = document.getElementById("actionOutput");
 const orderDetailOutput = document.getElementById("orderDetailOutput");
 const transactionsTable = document.getElementById("transactionsTable");
 const commissionsTable = document.getElementById("commissionsTable");
+const networkSummary = document.getElementById("networkSummary");
 
 let packageCatalog = [];
 
@@ -158,7 +160,21 @@ function renderCommissions(commissionResult) {
       : '<tr><td colspan="5" class="muted">No commissions</td></tr>';
 }
 
-function renderDashboard(data, orders, transactions, commissions) {
+function renderNetwork(network) {
+  if (!network) {
+    networkSummary.innerHTML =
+      '<div class="stack-item"><p class="muted">No network data.</p></div>';
+    return;
+  }
+
+  networkSummary.innerHTML = [
+    `<div class="stack-item"><strong>Sponsor</strong><p class="muted">${network.sponsor ? `${network.sponsor.name} • ${network.sponsor.memberCode}` : "No sponsor"}</p></div>`,
+    `<div class="stack-item"><strong>Direct Referrals</strong><p class="muted">${network.directReferrals.length} members</p></div>`,
+    `<div class="stack-item"><strong>Upline Chain</strong><p class="muted">${network.uplineChain.length} levels tracked</p></div>`,
+  ].join("");
+}
+
+function renderDashboard(data, orders, transactions, commissions, network) {
   document.getElementById("memberName").textContent = data.user.name;
   document.getElementById("memberMeta").textContent =
     `${data.user.memberCode}${data.user.email ? ` • ${data.user.email}` : ""}`;
@@ -173,23 +189,25 @@ function renderDashboard(data, orders, transactions, commissions) {
   renderOrders(orders);
   renderTransactions(transactions);
   renderCommissions(commissions);
+  renderNetwork(network);
   renderSignedIn();
 }
 
 async function loadDashboard() {
   setStatus("Loading dashboard");
 
-  const [dashboardData, orders, packages, transactions, commissions] = await Promise.all([
+  const [dashboardData, orders, packages, transactions, commissions, network] = await Promise.all([
     request("/auth/dashboard"),
     request("/auth/orders"),
     request("/packages"),
     request("/auth/transactions"),
     request("/auth/commissions"),
+    request("/auth/network"),
   ]);
 
   packageCatalog = packages.filter((pkg) => pkg.status === "active");
   renderPackageOptions(packageCatalog);
-  renderDashboard(dashboardData, orders, transactions, commissions);
+  renderDashboard(dashboardData, orders, transactions, commissions, network);
   setStatus("Dashboard loaded");
 }
 
@@ -255,6 +273,28 @@ activateForm.addEventListener("submit", async (event) => {
   } catch (error) {
     setStatus(error.message);
     setActionResult("Activate failed", { message: error.message });
+  }
+});
+
+passwordForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  try {
+    setStatus("Updating password");
+    const result = await request("/auth/change-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        currentPassword: document.getElementById("currentPasswordInput").value,
+        newPassword: document.getElementById("newPasswordInput").value,
+      }),
+    });
+    setActionResult("Password updated", result);
+    passwordForm.reset();
+    setStatus("Password updated");
+  } catch (error) {
+    setStatus(error.message);
+    setActionResult("Password update failed", { message: error.message });
   }
 });
 
