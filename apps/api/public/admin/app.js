@@ -9,7 +9,9 @@ const refreshButton = document.getElementById("refreshButton");
 const logoutButton = document.getElementById("logoutButton");
 const statusLine = document.getElementById("statusLine");
 const memberSearchInput = document.getElementById("memberSearchInput");
+const memberSortSelect = document.getElementById("memberSortSelect");
 const orderUserFilterInput = document.getElementById("orderUserFilterInput");
+const orderSortSelect = document.getElementById("orderSortSelect");
 const commissionOrderFilterInput = document.getElementById("commissionOrderFilterInput");
 const commissionBeneficiaryFilterInput = document.getElementById("commissionBeneficiaryFilterInput");
 const poolPayoutDateInput = document.getElementById("poolPayoutDateInput");
@@ -22,6 +24,8 @@ const fallbackTypeFilter = document.getElementById("fallbackTypeFilter");
 const memberDetailForm = document.getElementById("memberDetailForm");
 const memberDetailOutput = document.getElementById("memberDetailOutput");
 const actionOutput = document.getElementById("actionOutput");
+const historyList = document.getElementById("historyList");
+const clearHistoryButton = document.getElementById("clearHistoryButton");
 const createPackageForm = document.getElementById("createPackageForm");
 const createMemberForm = document.getElementById("createMemberForm");
 const createOrderForm = document.getElementById("createOrderForm");
@@ -50,6 +54,9 @@ state.totals = {
 };
 state.latestOrderId = "";
 state.latestCommission = null;
+state.memberSort = "created_desc";
+state.orderSort = "created_desc";
+state.actionHistory = JSON.parse(localStorage.getItem("adminActionHistory") || "[]");
 
 function setStatus(message) {
   if (statusLine) {
@@ -61,6 +68,44 @@ function setActionOutput(label, data) {
   if (actionOutput) {
     actionOutput.textContent = `${label}\n\n${JSON.stringify(data, null, 2)}`;
   }
+}
+
+function renderHistory() {
+  if (!historyList) {
+    return;
+  }
+
+  if (!state.actionHistory.length) {
+    historyList.innerHTML = '<p class="muted">No actions yet.</p>';
+    return;
+  }
+
+  historyList.innerHTML = state.actionHistory
+    .map(
+      (item) => `<article class="history-item">
+        <strong>${item.label}</strong>
+        <div class="muted">${item.message}</div>
+        <div class="muted">${item.at}</div>
+      </article>`,
+    )
+    .join("");
+}
+
+function pushHistory(label, message) {
+  state.actionHistory = [
+    {
+      label,
+      message,
+      at: new Date().toISOString(),
+    },
+    ...state.actionHistory,
+  ].slice(0, 12);
+  localStorage.setItem("adminActionHistory", JSON.stringify(state.actionHistory));
+  renderHistory();
+}
+
+function confirmAction(message) {
+  return window.confirm(message);
 }
 
 function setToken(token) {
@@ -280,6 +325,7 @@ async function loadDashboard() {
         <div class="table-actions">
           <button type="button" data-action="approve-order" data-order-id="${order.orderId}">Approve</button>
           <button type="button" data-action="process-order" data-order-id="${order.orderId}">Process</button>
+          <button type="button" class="secondary" data-action="reprocess-order" data-order-id="${order.orderId}">Reprocess</button>
           <button type="button" class="secondary" data-action="order-detail" data-order-id="${order.orderId}">Detail</button>
         </div>
       </td>
@@ -362,6 +408,7 @@ async function loadOrderDetail(orderId) {
   const snapshot = await request(`/orders/${orderId}/snapshot`);
   setActionOutput(`Order ${orderId} detail`, snapshot);
   setStatus(`Loaded order ${orderId}`);
+  pushHistory("Order Detail", `Loaded snapshot for order ${orderId}`);
 }
 
 async function loadPoolPayouts(poolDate) {
@@ -374,6 +421,7 @@ async function loadPoolPayouts(poolDate) {
   const payouts = await request(`/pool/${encodeURIComponent(poolDate)}/payouts`);
   setActionOutput(`Pool payouts ${poolDate}`, payouts);
   setStatus(`Loaded pool payouts ${poolDate}`);
+  pushHistory("Pool Payouts", `Loaded payouts for ${poolDate}`);
 }
 
 async function loadPoolSnapshot(poolDate) {
@@ -381,6 +429,7 @@ async function loadPoolSnapshot(poolDate) {
   const snapshot = await request(`/pool/${encodeURIComponent(poolDate)}/snapshot`);
   setActionOutput(`Pool snapshot ${poolDate}`, snapshot);
   setStatus(`Loaded pool snapshot ${poolDate}`);
+  pushHistory("Pool Snapshot", `Loaded snapshot for ${poolDate}`);
 }
 
 async function loadReferralLink(memberCode) {
@@ -395,6 +444,7 @@ async function loadReferralLink(memberCode) {
   );
   setActionOutput(`Referral link ${memberCode}`, result);
   setStatus(`Loaded referral link ${memberCode}`);
+  pushHistory("Referral Link", `Loaded referral link for ${memberCode}`);
 }
 
 function prefillOrderMember(memberId) {
@@ -411,6 +461,10 @@ function prefillOrderPackage(packageId) {
 }
 
 async function resetMemberPassword(memberId) {
+  if (!confirmAction(`Reset password for member ${memberId}?`)) {
+    return;
+  }
+
   const newPassword = window.prompt("New password for member", "dev-password");
 
   if (!newPassword) {
@@ -424,27 +478,47 @@ async function resetMemberPassword(memberId) {
   });
   setActionOutput(`Password reset ${memberId}`, result);
   setStatus(`Password updated for member ${memberId}`);
+  pushHistory("Reset Password", `Updated password for member ${memberId}`);
 }
 
 async function togglePackageStatus(packageId, currentStatus) {
   const nextStatus = currentStatus === "active" ? "inactive" : "active";
+  if (!confirmAction(`Change package ${packageId} to ${nextStatus}?`)) {
+    return;
+  }
+
   const result = await request(`/packages/${packageId}/status`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ status: nextStatus }),
   });
   setActionOutput(`Package status ${packageId}`, result);
+  pushHistory("Package Status", `Changed package ${packageId} to ${nextStatus}`);
   await loadDashboard();
 }
 
 async function runOrderAction(orderId, action) {
+  if (
+    (action === "approve-order" &&
+      !confirmAction(`Approve order ${orderId}?`)) ||
+    (action === "process-order" &&
+      !confirmAction(`Process approved order ${orderId}?`)) ||
+    (action === "reprocess-order" &&
+      !confirmAction(`Reprocess order ${orderId}?`))
+  ) {
+    return;
+  }
+
   setStatus(`${action} order ${orderId}`);
   const path =
     action === "approve-order"
       ? `/orders/${orderId}/approve`
-      : `/orders/${orderId}/process-approved`;
+      : action === "reprocess-order"
+        ? `/orders/${orderId}/reprocess`
+        : `/orders/${orderId}/process-approved`;
   const result = await request(path, { method: "POST" });
   setActionOutput(`${action} result`, result);
+  pushHistory(action, `Ran ${action} for order ${orderId}`);
   await loadDashboard();
 }
 
@@ -494,6 +568,18 @@ if (refreshButton) {
   });
 }
 
+if (clearHistoryButton) {
+  clearHistoryButton.addEventListener("click", () => {
+    if (!confirmAction("Clear local action history?")) {
+      return;
+    }
+
+    state.actionHistory = [];
+    localStorage.removeItem("adminActionHistory");
+    renderHistory();
+  });
+}
+
 if (logoutButton) {
   logoutButton.addEventListener("click", async () => {
     try {
@@ -525,10 +611,24 @@ if (memberSearchInput) {
   });
 }
 
+if (memberSortSelect) {
+  memberSortSelect.addEventListener("change", (event) => {
+    state.memberSort = event.target.value;
+    loadDashboard().catch((error) => setStatus(error.message));
+  });
+}
+
 if (orderUserFilterInput) {
   orderUserFilterInput.addEventListener("change", (event) => {
     state.orderUserId = (event.target.value || "").trim();
     state.pages.orders = 1;
+    loadDashboard().catch((error) => setStatus(error.message));
+  });
+}
+
+if (orderSortSelect) {
+  orderSortSelect.addEventListener("change", (event) => {
+    state.orderSort = event.target.value;
     loadDashboard().catch((error) => setStatus(error.message));
   });
 }
@@ -861,6 +961,7 @@ activatePackageSelect.addEventListener("change", syncPackageInputs);
 }
 
 (async function bootstrap() {
+  renderHistory();
   const user = await loadSession();
   if (user) {
     if (adminView === "dashboard") {
@@ -872,3 +973,22 @@ activatePackageSelect.addEventListener("change", syncPackageInputs);
     setStatus("Sign in to load dashboard");
   }
 })();
+  memberItems.sort((left, right) => {
+    if (state.memberSort === "code_asc") {
+      return left.memberCode.localeCompare(right.memberCode);
+    }
+    if (state.memberSort === "name_asc") {
+      return left.name.localeCompare(right.name);
+    }
+    return Number(right.memberId) - Number(left.memberId);
+  });
+
+  orderItems.sort((left, right) => {
+    if (state.orderSort === "order_no_asc") {
+      return left.orderNo.localeCompare(right.orderNo);
+    }
+    if (state.orderSort === "pv_desc") {
+      return Number(right.totalPv) - Number(left.totalPv);
+    }
+    return Number(right.orderId) - Number(left.orderId);
+  });

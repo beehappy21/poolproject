@@ -211,11 +211,25 @@
           </article>
         </section>
 
+        <section class="panel detail-panel">
+          <div class="section-head">
+            <h3>Action History</h3>
+            <button type="button" class="ghost" id="clearHistoryButton">Clear</button>
+          </div>
+          <div id="historyList" class="history-list">
+            <p class="muted">No actions yet.</p>
+          </div>
+        </section>
+
         <section class="grid two-up">
           <article class="panel">
             <div class="section-head">
               <h3>Members</h3>
-              <span class="muted">Latest 100</span>
+              <select id="memberSortSelect">
+                <option value="created_desc">Newest</option>
+                <option value="code_asc">Code A-Z</option>
+                <option value="name_asc">Name A-Z</option>
+              </select>
             </div>
             <div class="table-wrap">
               <table>
@@ -242,11 +256,18 @@
           <article class="panel">
             <div class="section-head">
               <h3>Orders</h3>
-              <select id="orderStatusFilter">
-                <option value="">All</option>
-                <option value="approved">Approved</option>
-                <option value="pending">Pending</option>
-              </select>
+              <div class="section-controls">
+                <select id="orderStatusFilter">
+                  <option value="">All</option>
+                  <option value="approved">Approved</option>
+                  <option value="pending">Pending</option>
+                </select>
+                <select id="orderSortSelect">
+                  <option value="created_desc">Newest</option>
+                  <option value="order_no_asc">Order No A-Z</option>
+                  <option value="pv_desc">PV High-Low</option>
+                </select>
+              </div>
             </div>
             <div class="table-wrap">
               <table>
