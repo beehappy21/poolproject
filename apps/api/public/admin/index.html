@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PoolProject Admin</title>
+    <link rel="stylesheet" href="/admin/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <p class="eyebrow">Internal Console</p>
+          <h1>PoolProject Admin</h1>
+        </div>
+
+        <div class="session-card" id="sessionCard">
+          <p class="muted">Not signed in</p>
+        </div>
+
+        <form class="login-form panel" id="loginForm">
+          <label>
+            <span>Member Code or Email</span>
+            <input id="identifierInput" type="text" placeholder="ALICE or alice@example.com" required />
+          </label>
+          <label>
+            <span>Password</span>
+            <input id="passwordInput" type="password" placeholder="dev-password" required />
+          </label>
+          <button type="submit">Sign In</button>
+          <p class="form-hint">Default dev login: <code>ALICE / dev-password</code></p>
+        </form>
+
+        <div class="panel action-panel">
+          <button id="refreshButton" class="ghost">Refresh Dashboard</button>
+          <button id="logoutButton" class="ghost danger">Sign Out</button>
+          <p class="muted" id="statusLine">Waiting for login</p>
+        </div>
+      </aside>
+
+      <main class="content">
+        <section class="hero panel">
+          <div>
+            <p class="eyebrow">MVP Operations</p>
+            <h2>Live overview for members, orders, commissions, pool, and wallets.</h2>
+          </div>
+          <div class="hero-badge">/admin</div>
+        </section>
+
+        <section class="stats-grid">
+          <article class="stat-card panel">
+            <span>Members</span>
+            <strong id="membersCount">0</strong>
+          </article>
+          <article class="stat-card panel">
+            <span>Orders</span>
+            <strong id="ordersCount">0</strong>
+          </article>
+          <article class="stat-card panel">
+            <span>Pool Cycles</span>
+            <strong id="poolCount">0</strong>
+          </article>
+          <article class="stat-card panel">
+            <span>Fallbacks</span>
+            <strong id="fallbackCount">0</strong>
+          </article>
+        </section>
+
+        <section class="grid two-up">
+          <article class="panel">
+            <div class="section-head">
+              <h3>Members</h3>
+              <span class="muted">Latest 100</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th>Sponsor</th>
+                  </tr>
+                </thead>
+                <tbody id="membersTable"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="section-head">
+              <h3>Orders</h3>
+              <select id="orderStatusFilter">
+                <option value="">All</option>
+                <option value="approved">Approved</option>
+                <option value="pending">Pending</option>
+              </select>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Order No</th>
+                    <th>User</th>
+                    <th>Status</th>
+                    <th>PV</th>
+                  </tr>
+                </thead>
+                <tbody id="ordersTable"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+
+        <section class="grid two-up">
+          <article class="panel">
+            <div class="section-head">
+              <h3>Pool Cycles</h3>
+              <span class="muted">Latest close snapshots</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Fund</th>
+                    <th>Eligible</th>
+                    <th>Payout</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="poolTable"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="section-head">
+              <h3>Company Fallbacks</h3>
+              <select id="fallbackTypeFilter">
+                <option value="">All</option>
+                <option value="direct">Direct</option>
+                <option value="uni">Uni</option>
+                <option value="pool">Pool</option>
+              </select>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Type</th>
+                    <th>Source Ref</th>
+                    <th>Amount</th>
+                    <th>Reason</th>
+                  </tr>
+                </thead>
+                <tbody id="fallbacksTable"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+
+        <section class="panel detail-panel">
+          <div class="section-head">
+            <h3>Member Detail</h3>
+            <form id="memberDetailForm" class="inline-form">
+              <input id="memberDetailInput" type="text" placeholder="Enter member ID" />
+              <button type="submit">Load Detail</button>
+            </form>
+          </div>
+          <pre id="memberDetailOutput" class="detail-output">Load a member detail to inspect wallet summary and active cycles.</pre>
+        </section>
+      </main>
+    </div>
+
+    <script src="/admin/app.js"></script>
+  </body>
+</html>

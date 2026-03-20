@@ -5,6 +5,7 @@ import { OrdersModule } from "../../../packages/modules/orders";
 import { PackagesModule } from "../../../packages/modules/packages";
 import { PoolModule } from "../../../packages/modules/pool";
 import { WalletsModule } from "../../../packages/modules/wallets";
+import { AdminUiController } from "./admin-ui.controller";
 import { HealthController } from "./health.controller";
 
 @Module({
@@ -16,7 +17,7 @@ import { HealthController } from "./health.controller";
     PoolModule,
     WalletsModule,
   ],
-  controllers: [HealthController],
+  controllers: [HealthController, AdminUiController],
   providers: [],
 })
 export class ApiAppModule {}

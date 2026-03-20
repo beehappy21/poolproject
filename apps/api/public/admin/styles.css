@@ -1,0 +1,260 @@
+:root {
+  --bg: #f3efe5;
+  --panel: rgba(255, 250, 240, 0.9);
+  --panel-strong: #fff8ee;
+  --ink: #1f2a1f;
+  --muted: #5f655b;
+  --line: rgba(31, 42, 31, 0.14);
+  --accent: #1b6b52;
+  --accent-soft: #d8efe4;
+  --danger: #9a3a2b;
+  --shadow: 0 18px 50px rgba(29, 34, 29, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at top left, rgba(27, 107, 82, 0.16), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(154, 58, 43, 0.14), transparent 22%),
+    var(--bg);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 320px 1fr;
+}
+
+.sidebar {
+  padding: 28px;
+  border-right: 1px solid var(--line);
+  background: rgba(249, 244, 233, 0.86);
+  backdrop-filter: blur(14px);
+}
+
+.content {
+  padding: 28px;
+  display: grid;
+  gap: 20px;
+}
+
+.brand h1,
+.hero h2,
+.section-head h3,
+.stat-card strong {
+  margin: 0;
+  font-weight: 700;
+}
+
+.brand h1 {
+  font-size: 2rem;
+  line-height: 0.95;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  box-shadow: var(--shadow);
+}
+
+.login-form,
+.action-panel,
+.session-card {
+  padding: 18px;
+  margin-top: 18px;
+}
+
+.login-form {
+  display: grid;
+  gap: 14px;
+}
+
+.login-form label,
+.inline-form {
+  display: grid;
+  gap: 8px;
+}
+
+input,
+select {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--panel-strong);
+}
+
+button {
+  border: 0;
+  border-radius: 999px;
+  padding: 12px 16px;
+  background: var(--accent);
+  color: white;
+  cursor: pointer;
+}
+
+button.ghost {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+button.danger {
+  color: var(--danger);
+}
+
+.hero {
+  padding: 26px 28px;
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 16px;
+  background:
+    linear-gradient(135deg, rgba(27, 107, 82, 0.14), rgba(255, 248, 238, 0.9)),
+    var(--panel);
+}
+
+.hero h2 {
+  max-width: 700px;
+  font-size: clamp(1.6rem, 3vw, 2.7rem);
+  line-height: 1;
+}
+
+.hero-badge {
+  padding: 12px 16px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  font-size: 0.85rem;
+}
+
+.stats-grid,
+.grid.two-up {
+  display: grid;
+  gap: 20px;
+}
+
+.stats-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.grid.two-up {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.stat-card {
+  padding: 18px;
+}
+
+.stat-card span {
+  display: block;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+.stat-card strong {
+  font-size: 2.2rem;
+}
+
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.panel .section-head,
+.detail-panel {
+  padding: 18px 18px 0;
+}
+
+.table-wrap {
+  overflow: auto;
+  padding: 0 18px 18px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+th,
+td {
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.detail-panel {
+  padding-bottom: 18px;
+}
+
+.inline-form {
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr auto;
+  align-items: center;
+}
+
+.detail-output {
+  margin: 18px;
+  min-height: 220px;
+  padding: 16px;
+  border-radius: 18px;
+  background: #18221c;
+  color: #eef5ef;
+  overflow: auto;
+  font-size: 0.88rem;
+}
+
+.form-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+@media (max-width: 1100px) {
+  .app-shell,
+  .stats-grid,
+  .grid.two-up {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+}
