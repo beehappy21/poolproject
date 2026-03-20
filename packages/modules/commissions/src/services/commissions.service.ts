@@ -75,6 +75,7 @@ export class CommissionsService implements CommissionsServiceContract {
 
     const directDraft = await this.buildDirectDraft(
       sourceOrder.orderId,
+      sourceOrder.sourceUserId,
       sourceOrder.approvedAt,
       sourceOrder.totalPv,
       candidateUserIds,
@@ -238,6 +239,7 @@ export class CommissionsService implements CommissionsServiceContract {
 
   private async buildDirectDraft(
     sourceOrderId: string,
+    sourceUserId: string,
     evaluationAt: string,
     totalPv: string,
     candidateUserIds: string[],
@@ -252,6 +254,18 @@ export class CommissionsService implements CommissionsServiceContract {
     const rollupApplied = rollupDepth > 0;
 
     if (!candidateUserId) {
+      const finalization = this.buildDirectFallbackFinalization("no_active_sponsor");
+      await this.persistCommissionItem({
+        sourceType: "direct",
+        sourceRefId: sourceOrderId,
+        sourceUserId,
+        beneficiaryUserId: null,
+        evaluationAt,
+        basePv,
+        rate,
+        amount,
+      }, finalization);
+
       return {
         sourceType: "direct" as const,
         sourceOrderId,
@@ -262,7 +276,7 @@ export class CommissionsService implements CommissionsServiceContract {
         rollupApplied: false,
         rollupDepth: 0,
         allocation: null,
-        finalization: this.buildDirectFallbackFinalization("no_active_sponsor"),
+        finalization,
       };
     }
 
@@ -273,6 +287,19 @@ export class CommissionsService implements CommissionsServiceContract {
       candidateCycles: [],
     });
     const finalization = this.buildDirectFinalizationFromAllocation(allocation);
+    await this.persistCommissionItem(
+      {
+        sourceType: "direct",
+        sourceRefId: sourceOrderId,
+        sourceUserId,
+        beneficiaryUserId: candidateUserId,
+        evaluationAt,
+        basePv,
+        rate,
+        amount,
+      },
+      finalization,
+    );
 
     return {
       sourceType: "direct" as const,
@@ -366,6 +393,20 @@ export class CommissionsService implements CommissionsServiceContract {
       candidateUserId && allocation
         ? this.buildFinalizationFromAllocation(allocation)
         : this.buildUniMissingBeneficiaryFinalization();
+    await this.persistCommissionItem(
+      {
+        sourceType: "uni",
+        sourceRefId: sourceOrderId,
+        sourceUserId,
+        beneficiaryUserId: candidateUserId,
+        evaluationAt,
+        basePv,
+        rate,
+        amount,
+        levelNo,
+      },
+      finalization,
+    );
 
     return {
       sourceType: "uni" as const,
@@ -433,5 +474,27 @@ export class CommissionsService implements CommissionsServiceContract {
       beneficiaryCycleId: null,
       fallbackReason: "no_active_upline",
     };
+  }
+
+  private async persistCommissionItem(
+    input: CommissionFinalizationInput,
+    finalization: CommissionFinalizationResult,
+  ): Promise<void> {
+    const { commissionId } =
+      await this.commissionsRepository.createCommissionDraft(input);
+
+    await this.commissionsRepository.finalizeCommissionEntry(
+      commissionId,
+      finalization,
+    );
+
+    if (finalization.commissionStatus === "fallback" && finalization.fallbackReason) {
+      await this.createCompanyFallback({
+        sourceType: input.sourceType,
+        sourceRefId: input.sourceRefId,
+        amount: input.amount,
+        reasonCode: finalization.fallbackReason,
+      });
+    }
   }
 }

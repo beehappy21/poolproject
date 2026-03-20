@@ -63,17 +63,58 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
   async createCommissionDraft(
     input: CommissionFinalizationInput,
   ): Promise<{ commissionId: string }> {
-    void input;
+    const commission = await this.prisma.commissionLedger.create({
+      data: {
+        beneficiaryUserId: input.beneficiaryUserId
+          ? BigInt(input.beneficiaryUserId)
+          : null,
+        sourceUserId: BigInt(input.sourceUserId),
+        orderId: BigInt(input.sourceRefId),
+        commissionType: input.sourceType.toUpperCase() as
+          | "DIRECT"
+          | "UNI"
+          | "POOL",
+        levelNo: input.levelNo ?? null,
+        tierNo: input.tierNo ?? null,
+        rate: input.rate,
+        basePv: input.basePv,
+        commissionAmount: input.amount,
+        evaluationAt: new Date(input.evaluationAt),
+        status: "PENDING",
+      },
+      select: { id: true },
+    });
 
-    return { commissionId: "draft" };
+    return { commissionId: commission.id.toString() };
   }
 
   async finalizeCommissionEntry(
     commissionId: string,
     result: CommissionFinalizationResult,
   ): Promise<void> {
-    void commissionId;
-    void result;
+    await this.prisma.commissionLedger.update({
+      where: { id: BigInt(commissionId) },
+      data: {
+        beneficiaryCycleId: result.beneficiaryCycleId
+          ? BigInt(result.beneficiaryCycleId)
+          : null,
+        finalizedAt: new Date(),
+        finalizeCheckedAt: new Date(),
+        status:
+          result.commissionStatus === "approved"
+            ? "APPROVED"
+            : result.commissionStatus === "held"
+              ? "HELD"
+              : result.commissionStatus === "withdrawable"
+                ? "WITHDRAWABLE"
+                : "FALLBACK",
+        fallbackToCompany: result.commissionStatus === "fallback",
+        companyFallbackReason:
+          result.commissionStatus === "fallback" ? result.fallbackReason : null,
+        blockReason:
+          result.commissionStatus === "fallback" ? result.fallbackReason : null,
+      },
+    });
   }
 
   async createCompanyFallbackEntry(input: {
@@ -82,6 +123,17 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
     amount: string;
     reasonCode: string;
   }): Promise<void> {
-    void input;
+    await this.prisma.companyBonusLedger.create({
+      data: {
+        sourceType: input.sourceType.toUpperCase() as
+          | "DIRECT"
+          | "UNI"
+          | "POOL",
+        sourceRefId: BigInt(input.sourceRefId),
+        bonusType: input.sourceType.toUpperCase() as "DIRECT" | "UNI" | "POOL",
+        amount: input.amount,
+        reason: input.reasonCode,
+      },
+    });
   }
 }

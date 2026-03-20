@@ -17,6 +17,17 @@ export class MembersController {
     return member;
   }
 
+  @Get("by-code/:memberCode")
+  async getMemberByCode(@Param("memberCode") memberCode: string) {
+    const member = await this.membersService.getMemberByCode(memberCode);
+
+    if (!member) {
+      throw new NotFoundException("Member not found.");
+    }
+
+    return member;
+  }
+
   @Post()
   async createMember(
     @Body()
@@ -26,6 +37,7 @@ export class MembersController {
       email?: string;
       phone?: string;
       sponsorId?: string | null;
+      sponsorCode?: string | null;
     },
   ) {
     return this.membersService.createMember(body);

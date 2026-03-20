@@ -24,6 +24,7 @@ import { OrdersService } from "../../../orders/src/services/orders.service";
 import { OrdersServiceContract } from "../../../orders/src/services/orders.service";
 import { QualificationService } from "../../../qualification/src/services/qualification.service";
 import { QualificationServiceContract } from "../../../qualification/src/services/qualification.service";
+import { PrismaPoolRepository } from "../repositories/pool.repository";
 
 export interface PoolServiceContract {
   computePoolFunding(input: PoolFundingInput): Promise<PoolFundingResult>;
@@ -51,6 +52,7 @@ export class PoolService implements PoolServiceContract {
     private readonly membersService: MembersService,
     @Inject(forwardRef(() => CommissionsService))
     private readonly commissionsService: CommissionsService,
+    private readonly poolRepository: PrismaPoolRepository,
   ) {}
 
   async computePoolFunding(input: PoolFundingInput): Promise<PoolFundingResult> {
@@ -106,6 +108,16 @@ export class PoolService implements PoolServiceContract {
         poolDate,
       })),
     );
+    const { poolCycleId } = await this.poolRepository.createOrUpdatePoolCycle({
+      ...funding,
+      eligibleMemberCount: flow.eligibleRecipientCount,
+      payoutPerMember: flow.payoutPerMember,
+      companyFallbackAmount: flow.companyFallback.amount,
+    });
+    await this.poolRepository.createPoolPayoutDrafts({
+      poolCycleId,
+      recipientDrafts: flow.recipientDrafts,
+    });
 
     return {
       poolDate,

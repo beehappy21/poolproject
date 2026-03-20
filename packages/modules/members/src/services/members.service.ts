@@ -37,12 +37,20 @@ export interface MembersServiceContract {
     sponsorId: string | null;
   } | null>;
 
+  getMemberByCode(memberCode: string): Promise<{
+    memberId: string;
+    memberCode: string;
+    name: string;
+    sponsorId: string | null;
+  } | null>;
+
   createMember(input: {
     memberCode: string;
     name: string;
     email?: string;
     phone?: string;
     sponsorId?: string | null;
+    sponsorCode?: string | null;
   }): Promise<{
     memberId: string;
     memberCode: string;
@@ -111,12 +119,17 @@ export class MembersService implements MembersServiceContract {
     return this.membersRepository.findMemberById(memberId);
   }
 
+  async getMemberByCode(memberCode: string) {
+    return this.membersRepository.findMemberByCode(memberCode);
+  }
+
   async createMember(input: {
     memberCode: string;
     name: string;
     email?: string;
     phone?: string;
     sponsorId?: string | null;
+    sponsorCode?: string | null;
   }) {
     return this.membersRepository.createMember(input);
   }
