@@ -415,6 +415,170 @@ async function scenarioPoolNoEligible(adminToken) {
   };
 }
 
+async function scenarioMultiCycleAllocation(adminToken, packageId) {
+  const sponsor = await createMember({
+    memberCode: `SCN6S${RUN_SUFFIX}`,
+    name: "Scenario Multi Cycle Sponsor",
+    email: `scn6.sponsor.${RUN_SUFFIX}@example.com`,
+    sponsorCode: "ALICE",
+  });
+  await activatePackage(sponsor.memberId, packageId, adminToken);
+  await activatePackage(sponsor.memberId, packageId, adminToken);
+
+  const cycles = await prisma.memberPackageCycle.findMany({
+    where: { userId: BigInt(sponsor.memberId) },
+    orderBy: [{ cycleNo: "asc" }],
+    select: {
+      id: true,
+      cycleNo: true,
+      earningCap: true,
+      activatedAt: true,
+    },
+  });
+
+  await prisma.memberPackageCycle.update({
+    where: { id: cycles[0].id },
+    data: {
+      earnedTotalInCycle: cycles[0].earningCap,
+    },
+  });
+
+  const buyer = await createMember({
+    memberCode: `SCN6B${RUN_SUFFIX}`,
+    name: "Scenario Multi Cycle Buyer",
+    email: `scn6.buyer.${RUN_SUFFIX}@example.com`,
+    sponsorCode: sponsor.memberCode,
+  });
+  const orderId = await createProcessedOrder(buyer.memberId, packageId, adminToken);
+
+  const direct = await prisma.commissionLedger.findFirst({
+    where: {
+      orderId: BigInt(orderId),
+      commissionType: "DIRECT",
+    },
+    select: {
+      status: true,
+      beneficiaryCycleId: true,
+      beneficiaryCycle: {
+        select: {
+          cycleNo: true,
+        },
+      },
+      companyFallbackReason: true,
+    },
+  });
+
+  const pass =
+    direct?.status === "APPROVED" &&
+    direct?.beneficiaryCycle?.cycleNo === 2;
+
+  return {
+    scenario: "multi_cycle_allocation",
+    pass,
+    expected: "when oldest cycle is capped, allocation moves to the next receivable cycle",
+    actual: {
+      orderId,
+      status: direct?.status || null,
+      beneficiaryCycleNo: direct?.beneficiaryCycle?.cycleNo || null,
+      fallbackReason: direct?.companyFallbackReason || null,
+    },
+  };
+}
+
+async function scenarioWalletNegativeOffset(adminToken, packageId) {
+  const sponsorCode = `SCN7S${RUN_SUFFIX}`;
+  const sponsor = await createMember({
+    memberCode: sponsorCode,
+    name: "Scenario Wallet Offset Sponsor",
+    email: `scn7.sponsor.${RUN_SUFFIX}@example.com`,
+    sponsorCode: "ALICE",
+  });
+  await activatePackage(sponsor.memberId, packageId, adminToken);
+
+  await prisma.wallet.upsert({
+    where: { userId: BigInt(sponsor.memberId) },
+    update: {
+      approvedBalance: "0",
+      heldBalance: "0",
+      withdrawableBalance: "0",
+      negativeOffsetBalance: "15",
+    },
+    create: {
+      userId: BigInt(sponsor.memberId),
+      approvedBalance: "0",
+      heldBalance: "0",
+      withdrawableBalance: "0",
+      negativeOffsetBalance: "15",
+    },
+  });
+
+  const buyer = await createMember({
+    memberCode: `SCN7B${RUN_SUFFIX}`,
+    name: "Scenario Wallet Offset Buyer",
+    email: `scn7.buyer.${RUN_SUFFIX}@example.com`,
+    sponsorCode,
+  });
+  const orderId = await createProcessedOrder(buyer.memberId, packageId, adminToken);
+
+  const wallet = await prisma.wallet.findUnique({
+    where: { userId: BigInt(sponsor.memberId) },
+    select: {
+      withdrawableBalance: true,
+      negativeOffsetBalance: true,
+      approvedBalance: true,
+    },
+  });
+  const approvedCommissions = await prisma.commissionLedger.findMany({
+    where: {
+      orderId: BigInt(orderId),
+      beneficiaryUserId: BigInt(sponsor.memberId),
+      status: "APPROVED",
+    },
+    select: {
+      id: true,
+      commissionAmount: true,
+      commissionType: true,
+    },
+  });
+  const offsetTx = await prisma.walletTransaction.findFirst({
+    where: {
+      userId: BigInt(sponsor.memberId),
+      txType: "NEGATIVE_OFFSET_APPLY",
+      refType: "COMMISSION",
+      refId: {
+        in: approvedCommissions.map((entry) => entry.id),
+      },
+    },
+    select: {
+      amount: true,
+      status: true,
+    },
+  });
+
+  const pass =
+    wallet?.negativeOffsetBalance?.toString() === "0" &&
+    wallet?.withdrawableBalance?.toString() === "10" &&
+    offsetTx?.amount?.toString() === "15";
+
+  return {
+    scenario: "wallet_negative_offset",
+    pass,
+    expected: "combined commission credits first clear negative offset and only residual remains withdrawable",
+    actual: {
+      orderId,
+      withdrawableBalance: wallet?.withdrawableBalance?.toString() || null,
+      approvedBalance: wallet?.approvedBalance?.toString() || null,
+      negativeOffsetBalance: wallet?.negativeOffsetBalance?.toString() || null,
+      offsetAppliedAmount: offsetTx?.amount?.toString() || null,
+      offsetTxStatus: offsetTx?.status || null,
+      approvedCommissionTypes: approvedCommissions.map((entry) => ({
+        type: entry.commissionType,
+        amount: entry.commissionAmount.toString(),
+      })),
+    },
+  };
+}
+
 async function main() {
   const adminToken = await loginAdmin();
   const packageId = await getPackageIdByCode("STARTER");
@@ -425,6 +589,8 @@ async function main() {
   results.push(await scenarioCapFallback(adminToken, packageId));
   results.push(await scenarioPoolPositive(adminToken));
   results.push(await scenarioPoolNoEligible(adminToken));
+  results.push(await scenarioMultiCycleAllocation(adminToken, packageId));
+  results.push(await scenarioWalletNegativeOffset(adminToken, packageId));
 
   const passed = results.filter((result) => result.pass).length;
 
