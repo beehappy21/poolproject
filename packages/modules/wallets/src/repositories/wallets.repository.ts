@@ -150,6 +150,22 @@ export class PrismaWalletsRepository implements WalletsRepository {
     input: WalletPostingInput,
     result: WalletPostingResult,
   ): Promise<WalletPostingResult> {
+    const transactionType = this.resolveTransactionType(input);
+    const existingTransaction = await this.prisma.walletTransaction.findFirst({
+      where: {
+        userId: BigInt(input.userId),
+        txType: transactionType,
+        refType: input.refType.toUpperCase(),
+        refId: BigInt(input.refId),
+        status: "POSTED",
+      },
+      select: { id: true },
+    });
+
+    if (existingTransaction) {
+      return result;
+    }
+
     await this.prisma.$transaction(async (tx) => {
       const existingWallet = await tx.wallet.upsert({
         where: { userId: BigInt(input.userId) },
@@ -233,7 +249,7 @@ export class PrismaWalletsRepository implements WalletsRepository {
         await tx.walletTransaction.create({
           data: {
             userId: BigInt(input.userId),
-            txType: this.resolveTransactionType(input),
+            txType: transactionType,
             direction: input.direction === "debit" ? "DEBIT" : "CREDIT",
             balanceBucket:
               input.direction === "debit"

@@ -144,6 +144,18 @@ export class OrdersService implements OrdersServiceContract {
     orderId: string,
   ): Promise<ApprovedOrderOrchestrationResult> {
     const approvedOrder = await this.handleApprovedOrderEvent(orderId);
+    const existingCommissionEntries =
+      await this.commissionsService.listCommissions({ orderId });
+
+    if (existingCommissionEntries.length > 0) {
+      const walletPostingInputs = await this.postCommissionWalletEntries(orderId);
+
+      return this.buildApprovedOrderResultFromEntries(
+        approvedOrder,
+        existingCommissionEntries,
+        walletPostingInputs,
+      );
+    }
 
     await this.qualificationService.evaluateMemberQualification({
       userId: approvedOrder.sourceUserId,
@@ -160,6 +172,38 @@ export class OrdersService implements OrdersServiceContract {
 
     const walletPostingInputs = await this.postCommissionWalletEntries(orderId);
 
+    return this.buildApprovedOrderResultFromEntries(
+      approvedOrder,
+      await this.commissionsService.listCommissions({ orderId }),
+      walletPostingInputs,
+    );
+  }
+
+  private buildApprovedOrderResultFromEntries(
+    approvedOrder: {
+      orderId: string;
+      sourceUserId: string;
+      approvedAt: string;
+      approvalFinalInNormalFlow: true;
+      includedInPoolFundingSource: true;
+      totalPv: string;
+    },
+    commissionEntries: Array<{
+      commissionType: string;
+      status: string;
+      beneficiaryUserId: string | null;
+      commissionId: string;
+      amount: string;
+    }>,
+    walletPostingInputs: ApprovedOrderOrchestrationResult["walletPostingInputs"],
+  ): ApprovedOrderOrchestrationResult {
+    const directEntry = commissionEntries.find(
+      (entry) => entry.commissionType === "direct",
+    );
+    const uniEntries = commissionEntries.filter(
+      (entry) => entry.commissionType === "uni",
+    );
+
     return {
       orderId: approvedOrder.orderId,
       sourceUserId: approvedOrder.sourceUserId,
@@ -175,51 +219,17 @@ export class OrdersService implements OrdersServiceContract {
         { step: "evaluate_risk_holds", status: "completed" },
       ],
       commissionDrafts: {
-        directStatus: commissionFlow.directDraft.finalization.commissionStatus,
-        uniCount: commissionFlow.uniDrafts.length,
-        hasFallback:
-          commissionFlow.directDraft.finalization.commissionStatus ===
-            "fallback" ||
-          commissionFlow.uniDrafts.some(
-            (draft) => draft.finalization.commissionStatus === "fallback",
-          ),
+        directStatus:
+          (directEntry?.status as
+            | "approved"
+            | "held"
+            | "fallback"
+            | "withdrawable") ?? "fallback",
+        uniCount: uniEntries.length,
+        hasFallback: commissionEntries.some((entry) => entry.status === "fallback"),
       },
       walletPostingInputs,
     };
-  }
-
-  private async buildWalletPostingInputs(
-    commissionFlow: ApprovedOrderCommissionFlowResult,
-  ): Promise<ApprovedOrderOrchestrationResult["walletPostingInputs"]> {
-    const drafts = [
-      commissionFlow.directDraft,
-      ...commissionFlow.uniDrafts,
-    ].filter((draft) => draft.candidateUserId);
-
-    const inputs: ApprovedOrderOrchestrationResult["walletPostingInputs"] = [];
-
-    for (const draft of drafts) {
-      const userId = draft.candidateUserId;
-
-      if (!userId) {
-        continue;
-      }
-
-      const holdDecision = await this.riskService.decidePayoutHold(userId);
-
-      inputs.push({
-        userId,
-        refType: "commission",
-        refId: draft.sourceOrderId,
-        amount: draft.amount,
-        holdRequired:
-          holdDecision.placePayoutHold ||
-          draft.finalization.commissionStatus === "held" ||
-          draft.finalization.commissionStatus === "fallback",
-      });
-    }
-
-    return inputs;
   }
 
   private async postCommissionWalletEntries(
@@ -239,9 +249,8 @@ export class OrdersService implements OrdersServiceContract {
         refType: "commission",
         refId: entry.commissionId,
         amount: entry.amount,
-        holdRequired: false,
-        earningType:
-          entry.commissionType === "uni" ? "uni" : "direct",
+        holdRequired: entry.status === "held",
+        earningType: entry.commissionType === "uni" ? "uni" : "direct",
       });
 
       postings.push({

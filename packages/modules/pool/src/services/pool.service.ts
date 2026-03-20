@@ -113,6 +113,19 @@ export class PoolService implements PoolServiceContract {
   }
 
   async closePool(poolDate: string): Promise<PoolCloseResult> {
+    const existingCycle = await this.poolRepository.getPoolCycle(poolDate);
+
+    if (existingCycle) {
+      return {
+        poolDate: existingCycle.poolDate,
+        fundingTotalApprovedPv: existingCycle.fundingTotalApprovedPv,
+        poolFund: existingCycle.poolFund,
+        eligibleMemberCount: existingCycle.eligibleMemberCount,
+        payoutPerMember: existingCycle.payoutPerMember,
+        companyFallbackAmount: existingCycle.companyFallbackAmount,
+      };
+    }
+
     const approvedOrders =
       await this.ordersService.listApprovedOrdersForPoolDate(poolDate);
     const funding = await this.computePoolFunding({
