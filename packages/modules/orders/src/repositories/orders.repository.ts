@@ -7,6 +7,18 @@ import {
 } from "../../../../infrastructure/src/prisma/prisma.mappers";
 
 export interface OrdersRepository {
+  findOrderById(orderId: string): Promise<{
+    orderId: string;
+    orderNo: string;
+    sourceUserId: string;
+    status: string;
+    approvalStatus: string;
+    totalUsdt: string;
+    totalPv: string;
+    approvedAt: string | null;
+    createdAt: string;
+  } | null>;
+
   createOrder(input: {
     userId: string;
     packageId: string;
@@ -46,6 +58,37 @@ export interface OrdersRepository {
 @Injectable()
 export class PrismaOrdersRepository implements OrdersRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  async findOrderById(orderId: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: BigInt(orderId) },
+      select: {
+        id: true,
+        orderNo: true,
+        userId: true,
+        status: true,
+        approvalStatus: true,
+        totalUsdt: true,
+        totalPv: true,
+        approvedAt: true,
+        createdAt: true,
+      },
+    });
+
+    return order
+      ? {
+          orderId: order.id.toString(),
+          orderNo: order.orderNo,
+          sourceUserId: order.userId.toString(),
+          status: order.status.toLowerCase(),
+          approvalStatus: order.approvalStatus.toLowerCase(),
+          totalUsdt: order.totalUsdt.toString(),
+          totalPv: order.totalPv.toString(),
+          approvedAt: order.approvedAt?.toISOString() ?? null,
+          createdAt: order.createdAt.toISOString(),
+        }
+      : null;
+  }
 
   async createOrder(input: { userId: string; packageId: string }) {
     const pkg = await this.prisma.package.findUnique({

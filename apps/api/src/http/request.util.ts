@@ -71,6 +71,20 @@ export function requireDateOnlyString(value: unknown, fieldName: string): string
   return normalized;
 }
 
+export function requireIsoDateTimeString(
+  value: unknown,
+  fieldName: string,
+): string {
+  const normalized = requireNonEmptyString(value, fieldName);
+  const parsed = new Date(normalized);
+
+  if (Number.isNaN(parsed.getTime())) {
+    throw new BadRequestException(`${fieldName} must be a valid ISO datetime.`);
+  }
+
+  return parsed.toISOString();
+}
+
 export function rethrowHttpError(error: unknown): never {
   if (
     error instanceof BadRequestException ||

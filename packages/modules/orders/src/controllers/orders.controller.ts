@@ -36,13 +36,13 @@ export class OrdersController {
   }
 
   @Get(":orderId")
-  async getApprovedOrder(@Param("orderId") orderId: string) {
-    const order = await this.ordersService.getApprovedOrder(
+  async getOrder(@Param("orderId") orderId: string) {
+    const order = await this.ordersService.getOrder(
       requirePositiveIntegerString(orderId, "orderId"),
     );
 
     if (!order) {
-      throw new NotFoundException("Approved order not found.");
+      throw new NotFoundException("Order not found.");
     }
 
     return order;

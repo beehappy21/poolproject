@@ -10,6 +10,7 @@ import {
 } from "@nestjs/common";
 
 import {
+  requireIsoDateTimeString,
   optionalString,
   requireNonEmptyString,
   requirePositiveIntegerString,
@@ -31,6 +32,21 @@ export class MembersController {
     }
 
     return member;
+  }
+
+  @Get(":memberId/cycles")
+  async getMemberCycles(
+    @Param("memberId") memberId: string,
+    @Query("at") at?: string,
+  ) {
+    const evaluationAt = at
+      ? requireIsoDateTimeString(at, "at")
+      : new Date().toISOString();
+
+    return this.membersService.getMemberCycles(
+      requirePositiveIntegerString(memberId, "memberId"),
+      evaluationAt,
+    );
   }
 
   @Get("by-code/:memberCode")
