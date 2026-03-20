@@ -4,6 +4,10 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 API_BASE_URL="${API_BASE_URL:-http://127.0.0.1:3000}"
 DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/poolproject?schema=public}"
+RUN_SUFFIX="$(date +%s)"
+PACKAGE_CODE="SMOKE${RUN_SUFFIX}"
+MEMBER_CODE="SMOKEUSER${RUN_SUFFIX}"
+MEMBER_EMAIL="smoke.${RUN_SUFFIX}@example.com"
 
 cd "$ROOT_DIR"
 
@@ -27,12 +31,12 @@ sleep 5
 
 PACKAGE_JSON="$(curl -s -X POST "$API_BASE_URL/packages" \
   -H 'content-type: application/json' \
-  -d '{"code":"SMOKE1","name":"Smoke Package","priceUsdt":"150","pv":"150","activeDays":30,"earningCapAmount":"450"}')"
+  -d "{\"code\":\"$PACKAGE_CODE\",\"name\":\"Smoke Package\",\"priceUsdt\":\"150\",\"pv\":\"150\",\"activeDays\":30,\"earningCapAmount\":\"450\"}")"
 PACKAGE_ID="$(node -e 'const data = JSON.parse(process.argv[1]); process.stdout.write(data.packageId);' "$PACKAGE_JSON")"
 
 MEMBER_JSON="$(curl -s -X POST "$API_BASE_URL/members" \
   -H 'content-type: application/json' \
-  -d '{"memberCode":"SMOKEUSER","name":"Smoke User","email":"smoke@example.com","ref":"BOB"}')"
+  -d "{\"memberCode\":\"$MEMBER_CODE\",\"name\":\"Smoke User\",\"email\":\"$MEMBER_EMAIL\",\"ref\":\"BOB\"}")"
 MEMBER_ID="$(node -e 'const data = JSON.parse(process.argv[1]); process.stdout.write(data.memberId);' "$MEMBER_JSON")"
 
 curl -s -X POST "$API_BASE_URL/members/$MEMBER_ID/activate-package" \

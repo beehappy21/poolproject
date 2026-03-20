@@ -5,6 +5,7 @@ import { CommissionsModule } from "../../commissions";
 import { MembersModule } from "../../members";
 import { OrdersModule } from "../../orders";
 import { QualificationModule } from "../../qualification";
+import { WalletsModule } from "../../wallets";
 import { PoolController } from "./controllers/pool.controller";
 import { PrismaPoolRepository } from "./repositories/pool.repository";
 import { PoolService } from "./services/pool.service";
@@ -14,6 +15,7 @@ import { PoolService } from "./services/pool.service";
     PrismaModule,
     MembersModule,
     QualificationModule,
+    WalletsModule,
     forwardRef(() => OrdersModule),
     forwardRef(() => CommissionsModule),
   ],

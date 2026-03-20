@@ -55,6 +55,8 @@ import { QualificationService } from "../../../qualification/src/services/qualif
 import { QualificationServiceContract } from "../../../qualification/src/services/qualification.service";
 import { RiskService } from "../../../risk/src/services/risk.service";
 import { RiskServiceContract } from "../../../risk/src/services/risk.service";
+import { WalletsService } from "../../../wallets/src/services/wallets.service";
+import { WalletsServiceContract } from "../../../wallets/src/services/wallets.service";
 import { ApprovedOrderOrchestrationResult } from "../domain/orders.types";
 import { PrismaOrdersRepository } from "../repositories/orders.repository";
 
@@ -68,6 +70,7 @@ export class OrdersService implements OrdersServiceContract {
     @Inject(forwardRef(() => PoolService))
     private readonly poolService: PoolService,
     private readonly riskService: RiskService,
+    private readonly walletsService: WalletsService,
   ) {}
 
   async createOrder(input: { userId: string; packageId: string }) {
@@ -139,9 +142,7 @@ export class OrdersService implements OrdersServiceContract {
       approvedOrder.approvedAt.slice(0, 10),
     );
 
-    const walletPostingInputs = await this.buildWalletPostingInputs(
-      commissionFlow,
-    );
+    const walletPostingInputs = await this.postCommissionWalletEntries(orderId);
 
     return {
       orderId: approvedOrder.orderId,
@@ -194,7 +195,7 @@ export class OrdersService implements OrdersServiceContract {
         userId,
         refType: "commission",
         refId: draft.sourceOrderId,
-        amount: "0",
+        amount: draft.amount,
         holdRequired:
           holdDecision.placePayoutHold ||
           draft.finalization.commissionStatus === "held" ||
@@ -203,5 +204,39 @@ export class OrdersService implements OrdersServiceContract {
     }
 
     return inputs;
+  }
+
+  private async postCommissionWalletEntries(
+    orderId: string,
+  ): Promise<ApprovedOrderOrchestrationResult["walletPostingInputs"]> {
+    const commissionEntries = await this.commissionsService.listCommissions({
+      orderId,
+    });
+    const approvedEntries = commissionEntries.filter(
+      (entry) => entry.status === "approved" && entry.beneficiaryUserId,
+    );
+    const postings: ApprovedOrderOrchestrationResult["walletPostingInputs"] = [];
+
+    for (const entry of approvedEntries) {
+      const posting = await this.walletsService.postApprovedEarning({
+        userId: entry.beneficiaryUserId!,
+        refType: "commission",
+        refId: entry.commissionId,
+        amount: entry.amount,
+        holdRequired: false,
+        earningType:
+          entry.commissionType === "uni" ? "uni" : "direct",
+      });
+
+      postings.push({
+        userId: entry.beneficiaryUserId!,
+        refType: "commission",
+        refId: entry.commissionId,
+        amount: entry.amount,
+        holdRequired: posting.creditedBucket === "held",
+      });
+    }
+
+    return postings;
   }
 }

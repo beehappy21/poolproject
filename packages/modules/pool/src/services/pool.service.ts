@@ -24,6 +24,8 @@ import { OrdersService } from "../../../orders/src/services/orders.service";
 import { OrdersServiceContract } from "../../../orders/src/services/orders.service";
 import { QualificationService } from "../../../qualification/src/services/qualification.service";
 import { QualificationServiceContract } from "../../../qualification/src/services/qualification.service";
+import { WalletsService } from "../../../wallets/src/services/wallets.service";
+import { WalletsServiceContract } from "../../../wallets/src/services/wallets.service";
 import { PrismaPoolRepository } from "../repositories/pool.repository";
 
 export interface PoolServiceContract {
@@ -75,6 +77,7 @@ export class PoolService implements PoolServiceContract {
     @Inject(forwardRef(() => CommissionsService))
     private readonly commissionsService: CommissionsService,
     private readonly poolRepository: PrismaPoolRepository,
+    private readonly walletsService: WalletsService,
   ) {}
 
   async computePoolFunding(input: PoolFundingInput): Promise<PoolFundingResult> {
@@ -140,6 +143,7 @@ export class PoolService implements PoolServiceContract {
       poolCycleId,
       recipientDrafts: flow.recipientDrafts,
     });
+    await this.postPoolWalletEntries(poolDate);
 
     return {
       poolDate,
@@ -289,5 +293,24 @@ export class PoolService implements PoolServiceContract {
       (total, order) => addDecimalStrings(total, order.totalPv || "0"),
       "0",
     );
+  }
+
+  private async postPoolWalletEntries(poolDate: string): Promise<void> {
+    const payouts = await this.poolRepository.listPoolPayouts(poolDate);
+
+    for (const payout of payouts) {
+      if (payout.status !== "approved") {
+        continue;
+      }
+
+      await this.walletsService.postApprovedEarning({
+        userId: payout.userId,
+        refType: "pool",
+        refId: payout.payoutId,
+        amount: payout.payoutAmount,
+        holdRequired: false,
+        earningType: "pool",
+      });
+    }
   }
 }

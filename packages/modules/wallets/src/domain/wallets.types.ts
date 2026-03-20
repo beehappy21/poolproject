@@ -1,5 +1,11 @@
 export interface WalletSummary {
   walletId: string;
+  userId: string;
+  approvedBalance: string;
+  heldBalance: string;
+  withdrawableBalance: string;
+  negativeOffsetBalance: string;
+  payoutLockStatus: "unlocked" | "hold" | "locked";
 }
 
 export interface WalletPostingInput {
@@ -9,6 +15,7 @@ export interface WalletPostingInput {
   amount: string;
   holdRequired: boolean;
   direction?: "credit" | "debit";
+  earningType?: "direct" | "uni" | "pool";
 }
 
 export interface WalletPostingResult {
@@ -59,4 +66,16 @@ export interface WalletBalanceReleaseResult {
 export interface WalletReservationReleaseInput {
   userId: string;
   batchId?: string;
+}
+
+export interface WalletTransactionSummary {
+  transactionId: string;
+  txType: string;
+  direction: string;
+  balanceBucket: string;
+  refType: string;
+  refId: string;
+  amount: string;
+  status: string;
+  createdAt: string;
 }

@@ -1,3 +1,5 @@
+import { Injectable } from "@nestjs/common";
+
 import {
   WalletBalanceReleaseResult,
   WalletBalanceReservationInput,
@@ -8,6 +10,8 @@ import {
   WalletPostingInput,
   WalletPostingResult,
   WalletReservationReleaseInput,
+  WalletSummary,
+  WalletTransactionSummary,
 } from "../domain/wallets.types";
 import {
   compareDecimalStrings,
@@ -15,10 +19,14 @@ import {
   minDecimalString,
   subtractDecimalStrings,
 } from "../../../../shared/utils/src/money.util";
-import { RiskServiceContract } from "../../../risk/src/services/risk.service";
-import { WalletsRepository } from "../repositories/wallets.repository";
+import { RiskService } from "../../../risk/src/services/risk.service";
+import { PrismaWalletsRepository } from "../repositories/wallets.repository";
 
 export interface WalletsServiceContract {
+  getWalletSummary(userId: string): Promise<WalletSummary>;
+
+  listWalletTransactions(userId: string): Promise<WalletTransactionSummary[]>;
+
   postLedgerEntry(input: WalletPostingInput): Promise<WalletPostingResult>;
 
   postApprovedEarning(input: WalletPostingInput): Promise<WalletPostingResult>;
@@ -40,11 +48,22 @@ export interface WalletsServiceContract {
   ): Promise<WalletBalanceReleaseResult>;
 }
 
+@Injectable()
 export class WalletsService implements WalletsServiceContract {
   constructor(
-    private readonly walletsRepository: WalletsRepository,
-    private readonly riskService: RiskServiceContract,
+    private readonly walletsRepository: PrismaWalletsRepository,
+    private readonly riskService: RiskService,
   ) {}
+
+  async getWalletSummary(userId: string): Promise<WalletSummary> {
+    return this.walletsRepository.getWalletSummary(userId);
+  }
+
+  async listWalletTransactions(
+    userId: string,
+  ): Promise<WalletTransactionSummary[]> {
+    return this.walletsRepository.listWalletTransactions(userId);
+  }
 
   async postLedgerEntry(input: WalletPostingInput): Promise<WalletPostingResult> {
     if (input.direction === "debit") {
@@ -55,7 +74,7 @@ export class WalletsService implements WalletsServiceContract {
         "0",
       );
 
-      return {
+      const result = {
         userId: input.userId,
         creditedBucket: null,
         negativeOffsetApplied: "0",
@@ -63,6 +82,8 @@ export class WalletsService implements WalletsServiceContract {
         residualCreditedAmount: "0",
         payoutEligible: false,
       };
+
+      return this.walletsRepository.recordWalletPosting(input, result);
     }
 
     return this.postApprovedEarning(input);
@@ -77,7 +98,7 @@ export class WalletsService implements WalletsServiceContract {
       amount: input.amount,
     });
 
-    return {
+    const result: WalletPostingResult = {
       userId: input.userId,
       creditedBucket:
         holdDecision.holdRequired || input.holdRequired ? "held" : "withdrawable",
@@ -92,6 +113,8 @@ export class WalletsService implements WalletsServiceContract {
         !input.holdRequired &&
         compareDecimalStrings(input.amount, negativeOffset.appliedAmount) > 0,
     };
+
+    return this.walletsRepository.recordWalletPosting(input, result);
   }
 
   async applyNegativeOffset(
