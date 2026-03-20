@@ -3,6 +3,8 @@ const http = require("node:http");
 const https = require("node:https");
 const fs = require("node:fs");
 const path = require("node:path");
+const ts = require("typescript");
+const vm = require("node:vm");
 const { URL } = require("node:url");
 
 const prisma = new PrismaClient();
@@ -11,6 +13,8 @@ const RUN_SUFFIX = Date.now().toString().slice(-8);
 const REPORT_PATH =
   process.env.CALC_SCENARIOS_REPORT_PATH ||
   path.join(process.cwd(), "runtime", "calc-scenarios-report.json");
+
+let payoutsServiceClass = null;
 
 async function request(path, options = {}) {
   const target = new URL(`${API_BASE_URL}${path}`);
@@ -148,6 +152,37 @@ async function createProcessedOrder(memberId, packageId, adminToken) {
   await approveOrder(order.orderId, adminToken);
   await processOrder(order.orderId, adminToken);
   return order.orderId;
+}
+
+function getPayoutsServiceClass() {
+  if (payoutsServiceClass) {
+    return payoutsServiceClass;
+  }
+
+  const source = fs.readFileSync(
+    path.join(
+      process.cwd(),
+      "packages/modules/payouts/src/services/payouts.service.ts",
+    ),
+    "utf8",
+  );
+  const output = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2020,
+    },
+  }).outputText;
+  const moduleRef = { exports: {} };
+
+  vm.runInNewContext(output, {
+    exports: moduleRef.exports,
+    module: moduleRef,
+    require,
+    console,
+  });
+
+  payoutsServiceClass = moduleRef.exports.PayoutsService;
+  return payoutsServiceClass;
 }
 
 function toDateOnly(offsetDays) {
@@ -711,6 +746,83 @@ async function scenarioDuplicatePoolCloseGuard(adminToken) {
   };
 }
 
+async function scenarioPayoutSelectionExclusion() {
+  const PayoutsService = getPayoutsServiceClass();
+  const service = new PayoutsService(
+    {
+      findPayoutSelectionCandidates: async () => [],
+      createPayoutBatchDraft: async () => ({ batchId: "draft-1" }),
+      reservePayoutItems: async () => undefined,
+    },
+    {
+      reserveBalanceForPayout: async () => ({ reserved: true, reasonCode: null }),
+      releaseReservedBalance: async () => ({ released: true, reasonCode: null }),
+    },
+    {
+      decidePayoutHold: async (userId) => ({
+        userId,
+        placePayoutHold: userId === "risk-held",
+        holdReasonCode: userId === "risk-held" ? "manual_review" : null,
+        manualReviewRequired: userId === "risk-held",
+      }),
+    },
+  );
+  const selection = await service.selectPayoutCandidates([
+    {
+      userId: "open-user",
+      refType: "commission",
+      refId: "open-ref",
+      amount: "10",
+      holdStatus: "none",
+      payoutLockStatus: "unlocked",
+    },
+    {
+      userId: "locked-user",
+      refType: "commission",
+      refId: "locked-ref",
+      amount: "10",
+      holdStatus: "none",
+      payoutLockStatus: "locked",
+    },
+    {
+      userId: "held-user",
+      refType: "pool",
+      refId: "held-ref",
+      amount: "10",
+      holdStatus: "held",
+      payoutLockStatus: "unlocked",
+    },
+    {
+      userId: "risk-held",
+      refType: "commission",
+      refId: "risk-ref",
+      amount: "10",
+      holdStatus: "none",
+      payoutLockStatus: "unlocked",
+    },
+  ]);
+
+  const selectedRefIds = selection.selected.map((candidate) => candidate.refId);
+  const excludedRefIds = selection.excluded.map((candidate) => candidate.refId);
+  const pass =
+    selectedRefIds.length === 1 &&
+    selectedRefIds[0] === "open-ref" &&
+    excludedRefIds.includes("locked-ref") &&
+    excludedRefIds.includes("held-ref") &&
+    excludedRefIds.includes("risk-ref");
+
+  return {
+    scenario: "payout_selection_exclusion",
+    pass,
+    expected:
+      "payout selection keeps only unlocked candidates with no hold and excludes lock, hold, and risk-held entries",
+    actual: {
+      selectedRefIds,
+      excluded: selection.excluded,
+    },
+  };
+}
+
 async function main() {
   const startedAt = new Date();
   const adminToken = await loginAdmin();
@@ -726,6 +838,7 @@ async function main() {
   results.push(await scenarioWalletNegativeOffset(adminToken, packageId));
   results.push(await scenarioDuplicateProcessGuard(adminToken, packageId));
   results.push(await scenarioDuplicatePoolCloseGuard(adminToken));
+  results.push(await scenarioPayoutSelectionExclusion());
 
   const passed = results.filter((result) => result.pass).length;
   const failed = results.length - passed;
