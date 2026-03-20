@@ -1,0 +1,662 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+  PENDING
+}
+
+enum RiskLevel {
+  NORMAL
+  WATCH
+  HIGH
+  CRITICAL
+}
+
+enum PayoutStatus {
+  ACTIVE
+  HOLD
+  LOCKED
+}
+
+enum PackageStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum EarningCapType {
+  FIXED_AMOUNT
+  PRICE_MULTIPLE
+}
+
+enum CycleStatus {
+  ACTIVE
+  EXPIRED
+  CLOSED
+}
+
+enum EarningStatus {
+  ACTIVE
+  CAPPED
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  APPROVED
+  CANCELLED
+  VOIDED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  VOIDED
+}
+
+enum ExceptionalReversalStatus {
+  NONE
+  REQUESTED
+  APPROVED
+  APPLIED
+}
+
+enum CommissionType {
+  DIRECT
+  UNI
+  POOL
+}
+
+enum CommissionStatus {
+  PENDING
+  APPROVED
+  HELD
+  WITHDRAWABLE
+  RESERVED_FOR_PAYOUT
+  PAID_OUT
+  REVERSED
+  FALLBACK
+}
+
+enum HoldStatus {
+  NONE
+  HELD
+  RELEASED
+}
+
+enum CompanyBonusSourceType {
+  DIRECT
+  UNI
+  POOL
+  REVERSAL
+}
+
+enum DailyPoolCycleStatus {
+  OPEN
+  CLOSED
+  ADJUSTED
+}
+
+enum WalletTransactionType {
+  DIRECT_CREDIT
+  UNI_CREDIT
+  POOL_CREDIT
+  HOLD_RELEASE
+  REVERSAL_DEBIT
+  NEGATIVE_OFFSET_APPLY
+  PAYOUT_RESERVATION
+  PAYOUT_SENT
+  PAYOUT_FAILED_REVERT
+  MANUAL_ADJUSTMENT
+}
+
+enum WalletTransactionDirection {
+  CREDIT
+  DEBIT
+}
+
+enum WalletBalanceBucket {
+  APPROVED
+  HELD
+  WITHDRAWABLE
+  PAID_OUT
+  NEGATIVE_OFFSET
+}
+
+enum WalletTransactionStatus {
+  POSTED
+  REVERSED
+}
+
+enum PayoutLockStatus {
+  UNLOCKED
+  HOLD
+  LOCKED
+}
+
+enum PayoutBatchStatus {
+  DRAFT
+  APPROVED
+  SUBMITTED
+  CONFIRMED
+  FAILED
+}
+
+enum PayoutBatchItemStatus {
+  RESERVED
+  SENT
+  CONFIRMED
+  FAILED
+  EXCLUDED
+}
+
+enum WalletBindingActionType {
+  BIND
+  REBIND
+  UNBIND
+}
+
+enum WalletBindingActionStatus {
+  REQUESTED
+  VERIFIED
+  EFFECTIVE
+  REJECTED
+  ENDED
+}
+
+enum RiskFlagSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum RiskFlagStatus {
+  OPEN
+  REVIEWING
+  CLEARED
+  SUPPRESSED
+}
+
+enum PayoutHoldScopeType {
+  MEMBER
+  COMMISSION_ITEM
+  POOL_ITEM
+  WALLET
+}
+
+enum PayoutHoldStatus {
+  ACTIVE
+  RELEASED
+  EXPIRED
+  CANCELLED
+}
+
+enum ReviewCaseType {
+  RISK_REVIEW
+  WALLET_REBIND
+  PAYOUT_HOLD
+  EXCEPTIONAL_REVERSAL
+}
+
+enum ReviewCaseStatus {
+  OPEN
+  ASSIGNED
+  RESOLVED
+  REJECTED
+}
+
+enum ReviewCasePriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+model User {
+  id                   BigInt          @id @default(autoincrement())
+  memberCode           String          @unique @db.VarChar(50)
+  name                 String          @db.VarChar(255)
+  email                String?         @unique @db.VarChar(255)
+  phone                String?         @unique @db.VarChar(50)
+  passwordHash         String          @db.VarChar(255)
+  walletAddress        String?         @db.VarChar(255)
+  walletVerifiedAt     DateTime?
+  sponsorId            BigInt?
+  status               UserStatus      @default(ACTIVE)
+  riskLevel            RiskLevel       @default(NORMAL)
+  payoutStatus         PayoutStatus    @default(ACTIVE)
+  manualReviewRequired Boolean         @default(false)
+  manualReviewReason   String?         @db.VarChar(255)
+  lastRiskReviewedAt   DateTime?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  sponsor             User?                          @relation("UserSponsorTree", fields: [sponsorId], references: [id])
+  directReferrals     User[]                         @relation("UserSponsorTree")
+  packageCycles       MemberPackageCycle[]
+  orders              Order[]
+  beneficiaryCommissions CommissionLedger[]          @relation("CommissionBeneficiaryUser")
+  sourceCommissions   CommissionLedger[]             @relation("CommissionSourceUser")
+  originalTargetCommissions CommissionLedger[]       @relation("CommissionOriginalTargetUser")
+  rollupFromCommissions CommissionLedger[]           @relation("CommissionRollupFromUser")
+  companyBonusLedgers CompanyBonusLedger[]          @relation("CompanyBonusCreatedByUser")
+  dailyPoolEligibilitySnapshots DailyPoolEligibilitySnapshot[]
+  dailyPoolPayouts    DailyPoolPayout[]
+  wallet              Wallet?
+  walletTransactions  WalletTransaction[]            @relation("WalletTransactionUser")
+  counterpartyWalletTransactions WalletTransaction[] @relation("WalletTransactionCounterpartyUser")
+  payoutBatchApprovals PayoutBatch[]                 @relation("PayoutBatchApprovedByUser")
+  payoutBatchSubmissions PayoutBatch[]               @relation("PayoutBatchSubmittedByUser")
+  payoutBatchReconciliations PayoutBatch[]           @relation("PayoutBatchReconciledByUser")
+  payoutBatchItems    PayoutBatchItem[]
+  walletBindingHistory WalletBindingHistory[]        @relation("WalletBindingUser")
+  walletBindingRequests WalletBindingHistory[]       @relation("WalletBindingRequestedByUser")
+  riskFlags           MemberRiskFlag[]
+  payoutHolds         PayoutHold[]                   @relation("PayoutHoldUser")
+  placedPayoutHolds   PayoutHold[]                   @relation("PayoutHoldPlacedByUser")
+  releasedPayoutHolds PayoutHold[]                   @relation("PayoutHoldReleasedByUser")
+  reviewCases         ManualReviewCase[]             @relation("ManualReviewSubjectUser")
+  assignedReviewCases ManualReviewCase[]             @relation("ManualReviewAssignedUser")
+}
+
+model Package {
+  id               BigInt           @id @default(autoincrement())
+  code             String           @unique @db.VarChar(50)
+  name             String           @db.VarChar(255)
+  priceUsdt        Decimal          @db.Decimal(18, 8)
+  pv               Decimal          @db.Decimal(18, 8)
+  activeDays       Int
+  earningCapType   EarningCapType
+  earningCapAmount Decimal          @db.Decimal(18, 8)
+  status           PackageStatus    @default(ACTIVE)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  memberPackageCycles MemberPackageCycle[]
+  orderItems          OrderItem[]
+}
+
+model MemberPackageCycle {
+  id                  BigInt         @id @default(autoincrement())
+  userId              BigInt
+  packageId           BigInt
+  cycleNo             Int
+  activatedAt         DateTime
+  activeUntil         DateTime
+  earningCap          Decimal        @db.Decimal(18, 8)
+  earnedTotalInCycle  Decimal        @default(0) @db.Decimal(18, 8)
+  earningStatus       EarningStatus  @default(ACTIVE)
+  repurchaseRequired  Boolean        @default(false)
+  isReceivable        Boolean        @default(true)
+  status              CycleStatus    @default(ACTIVE)
+  cappedAt            DateTime?
+  closedAt            DateTime?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  user                User             @relation(fields: [userId], references: [id])
+  package             Package          @relation(fields: [packageId], references: [id])
+  commissionLedgers   CommissionLedger[]
+  dailyPoolPayouts    DailyPoolPayout[]
+
+  @@unique([userId, cycleNo])
+  @@index([userId, status, activatedAt])
+  @@index([userId, earningStatus, activeUntil])
+  @@index([userId, isReceivable, activatedAt])
+}
+
+model Order {
+  id                        BigInt                    @id @default(autoincrement())
+  orderNo                   String                    @unique @db.VarChar(50)
+  userId                    BigInt
+  subtotalUsdt              Decimal                   @default(0) @db.Decimal(18, 8)
+  totalUsdt                 Decimal                   @default(0) @db.Decimal(18, 8)
+  totalPv                   Decimal                   @default(0) @db.Decimal(18, 8)
+  paidAt                    DateTime?
+  approvedAt                DateTime?
+  refundWindowEndsAt        DateTime?
+  approvalBatchRef          String?                   @db.VarChar(100)
+  approvalStatus            ApprovalStatus            @default(PENDING)
+  exceptionalReversalStatus ExceptionalReversalStatus @default(NONE)
+  status                    OrderStatus               @default(PENDING)
+  createdAt                 DateTime                  @default(now())
+  updatedAt                 DateTime                  @updatedAt
+
+  user               User                 @relation(fields: [userId], references: [id])
+  orderItems         OrderItem[]
+  commissionLedgers  CommissionLedger[]
+
+  @@index([userId, status])
+  @@index([approvedAt])
+  @@index([approvalStatus])
+}
+
+model OrderItem {
+  id            BigInt   @id @default(autoincrement())
+  orderId       BigInt
+  packageId     BigInt?
+  productId     String?  @db.VarChar(100)
+  qty           Int      @default(1)
+  unitPriceUsdt Decimal  @default(0) @db.Decimal(18, 8)
+  unitPv        Decimal  @default(0) @db.Decimal(18, 8)
+  lineTotalUsdt Decimal  @default(0) @db.Decimal(18, 8)
+  lineTotalPv   Decimal  @default(0) @db.Decimal(18, 8)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  order   Order    @relation(fields: [orderId], references: [id])
+  package Package? @relation(fields: [packageId], references: [id])
+
+  @@index([orderId])
+}
+
+model CommissionLedger {
+  id                    BigInt           @id @default(autoincrement())
+  beneficiaryUserId     BigInt?
+  beneficiaryCycleId    BigInt?
+  sourceUserId          BigInt
+  orderId               BigInt?
+  commissionType        CommissionType
+  tierNo                Int?
+  levelNo               Int?
+  rate                  Decimal          @default(0) @db.Decimal(10, 8)
+  basePv                Decimal          @default(0) @db.Decimal(18, 8)
+  commissionAmount      Decimal          @default(0) @db.Decimal(18, 8)
+  originalTargetUserId  BigInt?
+  rollupFromUserId      BigInt?
+  rollupDepth           Int              @default(0)
+  cycleRefId            BigInt?
+  evaluationAt          DateTime
+  finalizeCheckedAt     DateTime?
+  finalizedAt           DateTime?
+  status                CommissionStatus @default(PENDING)
+  fallbackToCompany     Boolean          @default(false)
+  blockReason           String?          @db.VarChar(100)
+  companyFallbackReason String?          @db.VarChar(100)
+  holdStatus            HoldStatus       @default(NONE)
+  holdReason            String?          @db.VarChar(100)
+  releasedToWithdrawableAt DateTime?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  beneficiaryUser    User?               @relation("CommissionBeneficiaryUser", fields: [beneficiaryUserId], references: [id])
+  beneficiaryCycle   MemberPackageCycle? @relation(fields: [beneficiaryCycleId], references: [id])
+  sourceUser         User                @relation("CommissionSourceUser", fields: [sourceUserId], references: [id])
+  order              Order?              @relation(fields: [orderId], references: [id])
+  originalTargetUser User?               @relation("CommissionOriginalTargetUser", fields: [originalTargetUserId], references: [id])
+  rollupFromUser     User?               @relation("CommissionRollupFromUser", fields: [rollupFromUserId], references: [id])
+  dailyPoolPayouts   DailyPoolPayout[]
+
+  @@index([beneficiaryUserId, status])
+  @@index([beneficiaryCycleId, status])
+  @@index([orderId, commissionType])
+  @@index([status, holdStatus])
+  @@index([cycleRefId])
+}
+
+model CompanyBonusLedger {
+  id            BigInt                 @id @default(autoincrement())
+  sourceType    CompanyBonusSourceType
+  sourceRefId   BigInt
+  bonusType     CommissionType
+  amount        Decimal                @default(0) @db.Decimal(18, 8)
+  reason        String                 @db.VarChar(100)
+  createdByUserId BigInt?
+  createdAt     DateTime               @default(now())
+
+  createdByUser User? @relation("CompanyBonusCreatedByUser", fields: [createdByUserId], references: [id])
+
+  @@index([sourceType, sourceRefId])
+  @@index([reason])
+}
+
+model DailyPoolCycle {
+  id                       BigInt               @id @default(autoincrement())
+  cycleDate                DateTime             @db.Date
+  snapshotAt               DateTime
+  totalPv                  Decimal              @default(0) @db.Decimal(18, 8)
+  fundingApprovedOrderCount Int                 @default(0)
+  fundingTotalApprovedPv   Decimal              @default(0) @db.Decimal(18, 8)
+  poolRate                 Decimal              @default(0.5) @db.Decimal(10, 8)
+  poolFund                 Decimal              @default(0) @db.Decimal(18, 8)
+  eligibleMemberCount      Int                  @default(0)
+  payoutPerMember          Decimal              @default(0) @db.Decimal(18, 8)
+  companyFallbackAmount    Decimal              @default(0) @db.Decimal(18, 8)
+  status                   DailyPoolCycleStatus @default(OPEN)
+  createdAt                DateTime             @default(now())
+  updatedAt                DateTime             @updatedAt
+
+  eligibilitySnapshots DailyPoolEligibilitySnapshot[]
+  dailyPoolPayouts     DailyPoolPayout[]
+
+  @@unique([cycleDate])
+  @@index([status])
+}
+
+model DailyPoolEligibilitySnapshot {
+  id                        BigInt    @id @default(autoincrement())
+  cycleId                   BigInt
+  userId                    BigInt
+  isMemberActive            Boolean   @default(false)
+  activeDirectReferralCount Int       @default(0)
+  isEligible                Boolean   @default(false)
+  reason                    String?   @db.VarChar(100)
+  createdAt                 DateTime  @default(now())
+
+  cycle DailyPoolCycle @relation(fields: [cycleId], references: [id])
+  user  User           @relation(fields: [userId], references: [id])
+
+  @@unique([cycleId, userId])
+  @@index([cycleId, isEligible])
+}
+
+model DailyPoolPayout {
+  id                 BigInt           @id @default(autoincrement())
+  cycleId            BigInt
+  userId             BigInt
+  beneficiaryCycleId BigInt?
+  commissionLedgerId BigInt?
+  payoutAmount       Decimal          @default(0) @db.Decimal(18, 8)
+  status             CommissionStatus @default(PENDING)
+  blockReason        String?          @db.VarChar(100)
+  holdStatus         HoldStatus       @default(NONE)
+  holdReason         String?          @db.VarChar(100)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  cycle            DailyPoolCycle      @relation(fields: [cycleId], references: [id])
+  user             User                @relation(fields: [userId], references: [id])
+  beneficiaryCycle MemberPackageCycle? @relation(fields: [beneficiaryCycleId], references: [id])
+  commissionLedger CommissionLedger?   @relation(fields: [commissionLedgerId], references: [id])
+
+  @@index([cycleId, status])
+  @@index([userId, status])
+}
+
+model Wallet {
+  id                    BigInt           @id @default(autoincrement())
+  userId                BigInt           @unique
+  approvedBalance       Decimal          @default(0) @db.Decimal(18, 8)
+  heldBalance           Decimal          @default(0) @db.Decimal(18, 8)
+  withdrawableBalance   Decimal          @default(0) @db.Decimal(18, 8)
+  paidOutBalance        Decimal          @default(0) @db.Decimal(18, 8)
+  negativeOffsetBalance Decimal          @default(0) @db.Decimal(18, 8)
+  payoutLockStatus      PayoutLockStatus @default(UNLOCKED)
+  payoutLockReason      String?          @db.VarChar(255)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model WalletTransaction {
+  id                 BigInt                   @id @default(autoincrement())
+  userId             BigInt
+  txType             WalletTransactionType
+  direction          WalletTransactionDirection
+  balanceBucket      WalletBalanceBucket
+  refType            String                   @db.VarChar(50)
+  refId              BigInt
+  counterpartyUserId BigInt?
+  amount             Decimal                  @default(0) @db.Decimal(18, 8)
+  status             WalletTransactionStatus  @default(POSTED)
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  user             User              @relation("WalletTransactionUser", fields: [userId], references: [id])
+  counterpartyUser User?             @relation("WalletTransactionCounterpartyUser", fields: [counterpartyUserId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([refType, refId])
+  @@index([balanceBucket, status])
+}
+
+model PayoutBatch {
+  id                 BigInt            @id @default(autoincrement())
+  batchNo            String            @unique @db.VarChar(50)
+  totalAmount        Decimal           @default(0) @db.Decimal(18, 8)
+  itemCount          Int               @default(0)
+  chainId            String            @db.VarChar(50)
+  tokenAddress       String            @db.VarChar(255)
+  approvedByUserId   BigInt?
+  submittedByUserId  BigInt?
+  reconciledByUserId BigInt?
+  riskSnapshotRef    String?           @db.VarChar(100)
+  submittedTxHash    String?           @db.VarChar(255)
+  submittedAt        DateTime?
+  confirmedAt        DateTime?
+  status             PayoutBatchStatus @default(DRAFT)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  approvedByUser   User?             @relation("PayoutBatchApprovedByUser", fields: [approvedByUserId], references: [id])
+  submittedByUser  User?             @relation("PayoutBatchSubmittedByUser", fields: [submittedByUserId], references: [id])
+  reconciledByUser User?             @relation("PayoutBatchReconciledByUser", fields: [reconciledByUserId], references: [id])
+  payoutBatchItems PayoutBatchItem[]
+
+  @@index([status])
+}
+
+model PayoutBatchItem {
+  id                 BigInt                @id @default(autoincrement())
+  batchId            BigInt
+  userId             BigInt
+  walletAddress      String                @db.VarChar(255)
+  amount             Decimal               @default(0) @db.Decimal(18, 8)
+  refType            String                @db.VarChar(50)
+  refId              BigInt
+  holdClearedAt      DateTime?
+  excludedReason     String?               @db.VarChar(100)
+  txHash             String?               @db.VarChar(255)
+  status             PayoutBatchItemStatus @default(RESERVED)
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  batch            PayoutBatch       @relation(fields: [batchId], references: [id])
+  user             User              @relation(fields: [userId], references: [id])
+
+  @@index([batchId, status])
+  @@index([userId, status])
+}
+
+model WalletBindingHistory {
+  id                   BigInt                    @id @default(autoincrement())
+  userId               BigInt
+  walletAddress        String                    @db.VarChar(255)
+  actionType           WalletBindingActionType
+  actionStatus         WalletBindingActionStatus
+  signatureNonce       String?                   @db.VarChar(255)
+  signaturePayloadHash String?                   @db.VarChar(255)
+  requestedAt          DateTime
+  verifiedAt           DateTime?
+  effectiveAt          DateTime?
+  endedAt              DateTime?
+  requestedByUserId    BigInt?
+  reviewCaseId         BigInt?
+  reason               String?                   @db.VarChar(255)
+  createdAt            DateTime                  @default(now())
+
+  user            User              @relation("WalletBindingUser", fields: [userId], references: [id])
+  requestedByUser User?             @relation("WalletBindingRequestedByUser", fields: [requestedByUserId], references: [id])
+  reviewCase      ManualReviewCase? @relation(fields: [reviewCaseId], references: [id])
+
+  @@index([userId])
+  @@index([walletAddress])
+  @@index([actionStatus])
+}
+
+model MemberRiskFlag {
+  id          BigInt           @id @default(autoincrement())
+  userId      BigInt
+  flagType    String           @db.VarChar(50)
+  severity    RiskFlagSeverity
+  status      RiskFlagStatus   @default(OPEN)
+  score       Decimal?         @db.Decimal(10, 2)
+  detectedAt  DateTime
+  clearedAt   DateTime?
+  source      String           @db.VarChar(50)
+  detailsJson Json
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, status])
+  @@index([flagType, status])
+  @@index([severity, status])
+}
+
+model PayoutHold {
+  id               BigInt            @id @default(autoincrement())
+  userId           BigInt
+  scopeType        PayoutHoldScopeType
+  scopeRefId       BigInt?
+  reasonCode       String            @db.VarChar(100)
+  status           PayoutHoldStatus  @default(ACTIVE)
+  placedAt         DateTime
+  releasedAt       DateTime?
+  placedByUserId   BigInt
+  releasedByUserId BigInt?
+  reviewCaseId     BigInt?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  user           User              @relation("PayoutHoldUser", fields: [userId], references: [id])
+  placedByUser   User              @relation("PayoutHoldPlacedByUser", fields: [placedByUserId], references: [id])
+  releasedByUser User?             @relation("PayoutHoldReleasedByUser", fields: [releasedByUserId], references: [id])
+  reviewCase     ManualReviewCase? @relation(fields: [reviewCaseId], references: [id])
+
+  @@index([userId, status])
+  @@index([scopeType, scopeRefId])
+}
+
+model ManualReviewCase {
+  id               BigInt             @id @default(autoincrement())
+  caseType         ReviewCaseType
+  userId           BigInt
+  status           ReviewCaseStatus   @default(OPEN)
+  priority         ReviewCasePriority @default(NORMAL)
+  openedAt         DateTime
+  assignedToUserId BigInt?
+  resolvedAt       DateTime?
+  resolutionCode   String?            @db.VarChar(100)
+  resolutionNotes  String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  user                 User                   @relation("ManualReviewSubjectUser", fields: [userId], references: [id])
+  assignedToUser       User?                  @relation("ManualReviewAssignedUser", fields: [assignedToUserId], references: [id])
+  walletBindingHistory WalletBindingHistory[]
+  payoutHolds          PayoutHold[]
+
+  @@index([userId, status])
+  @@index([caseType, status])
+}
