@@ -20,6 +20,12 @@ cleanup() {
 
 trap cleanup EXIT
 
+EXISTING_PIDS="$(lsof -ti tcp:3000 2>/dev/null || true)"
+if [[ -n "$EXISTING_PIDS" ]]; then
+  xargs kill <<<"$EXISTING_PIDS" >/dev/null 2>&1 || true
+  sleep 1
+fi
+
 docker compose up -d postgres >/dev/null
 sleep 3
 DATABASE_URL="$DATABASE_URL" npm run prisma:push >/dev/null

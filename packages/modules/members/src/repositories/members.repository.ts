@@ -6,6 +6,7 @@ import {
   toIdString,
   toQualificationCycleSnapshot,
 } from "../../../../infrastructure/src/prisma/prisma.mappers";
+import { hashPassword } from "../../../../shared/utils/src/password.util";
 
 export interface MembersRepository {
   listMembers(filters?: {
@@ -415,7 +416,7 @@ export class PrismaMembersRepository implements MembersRepository {
         name: input.name,
         email: input.email ?? null,
         phone: input.phone ?? null,
-        passwordHash: "dev-password",
+        passwordHash: hashPassword("dev-password"),
         sponsorId,
         status: "ACTIVE",
         riskLevel: "NORMAL",
@@ -483,7 +484,7 @@ export class PrismaMembersRepository implements MembersRepository {
   async updateMemberPassword(memberId: string, newPassword: string) {
     await this.prisma.user.update({
       where: { id: BigInt(memberId) },
-      data: { passwordHash: newPassword },
+      data: { passwordHash: hashPassword(newPassword) },
       select: { id: true },
     });
 

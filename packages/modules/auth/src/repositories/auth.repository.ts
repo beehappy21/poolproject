@@ -1,6 +1,11 @@
 import { Injectable } from "@nestjs/common";
 
 import { PrismaService } from "../../../../infrastructure/src/prisma/prisma.service";
+import {
+  hashPassword,
+  isHashedPassword,
+  verifyPassword,
+} from "../../../../shared/utils/src/password.util";
 import { AuthUserSummary } from "../domain/auth.types";
 
 export interface AuthRepository {
@@ -29,7 +34,6 @@ export class PrismaAuthRepository implements AuthRepository {
   }): Promise<AuthUserSummary | null> {
     const user = await this.prisma.user.findFirst({
       where: {
-        passwordHash: input.password,
         OR: [
           { memberCode: input.identifier },
           { email: input.identifier.toLowerCase() },
@@ -40,8 +44,20 @@ export class PrismaAuthRepository implements AuthRepository {
         memberCode: true,
         name: true,
         email: true,
+        passwordHash: true,
       },
     });
+
+    if (!user || !verifyPassword(input.password, user.passwordHash)) {
+      return null;
+    }
+
+    if (!isHashedPassword(user.passwordHash)) {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { passwordHash: hashPassword(input.password) },
+      });
+    }
 
     return user
       ? {
@@ -78,12 +94,22 @@ export class PrismaAuthRepository implements AuthRepository {
     const user = await this.prisma.user.findFirst({
       where: {
         id: BigInt(userId),
-        passwordHash: password,
       },
-      select: { id: true },
+      select: { id: true, passwordHash: true },
     });
 
-    return Boolean(user);
+    if (!user || !verifyPassword(password, user.passwordHash)) {
+      return false;
+    }
+
+    if (!isHashedPassword(user.passwordHash)) {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { passwordHash: hashPassword(password) },
+      });
+    }
+
+    return true;
   }
 
   async updateUserPassword(
@@ -92,7 +118,7 @@ export class PrismaAuthRepository implements AuthRepository {
   ): Promise<{ userId: string; passwordUpdated: true }> {
     await this.prisma.user.update({
       where: { id: BigInt(userId) },
-      data: { passwordHash: newPassword },
+      data: { passwordHash: hashPassword(newPassword) },
       select: { id: true },
     });
 

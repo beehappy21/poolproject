@@ -1,10 +1,17 @@
 const { PrismaClient } = require("@prisma/client");
+const { randomBytes, scryptSync } = require("node:crypto");
 
 process.env.DATABASE_URL =
   process.env.DATABASE_URL ||
   "postgresql://postgres:postgres@localhost:5432/poolproject?schema=public";
 
 const prisma = new PrismaClient();
+
+function hashPassword(password) {
+  const salt = randomBytes(16).toString("hex");
+  const hash = scryptSync(password, salt, 64).toString("hex");
+  return `scrypt$${salt}$${hash}`;
+}
 
 async function upsertUser(input) {
   return prisma.user.upsert({
@@ -59,35 +66,35 @@ async function main() {
     memberCode: "ALICE",
     name: "Alice Root",
     email: "alice@example.com",
-    passwordHash: "dev-password",
+    passwordHash: hashPassword("dev-password"),
     sponsorId: null,
   });
   const bob = await upsertUser({
     memberCode: "BOB",
     name: "Bob Sponsor",
     email: "bob@example.com",
-    passwordHash: "dev-password",
+    passwordHash: hashPassword("dev-password"),
     sponsorId: alice.id,
   });
   const carol = await upsertUser({
     memberCode: "CAROL",
     name: "Carol Direct",
     email: "carol@example.com",
-    passwordHash: "dev-password",
+    passwordHash: hashPassword("dev-password"),
     sponsorId: alice.id,
   });
   const dave = await upsertUser({
     memberCode: "DAVE",
     name: "Dave Buyer",
     email: "dave@example.com",
-    passwordHash: "dev-password",
+    passwordHash: hashPassword("dev-password"),
     sponsorId: bob.id,
   });
   const eve = await upsertUser({
     memberCode: "EVE",
     name: "Eve Direct",
     email: "eve@example.com",
-    passwordHash: "dev-password",
+    passwordHash: hashPassword("dev-password"),
     sponsorId: bob.id,
   });
 
