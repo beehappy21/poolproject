@@ -11,11 +11,19 @@ import {
 import {
   requireNonEmptyString,
 } from "../../../../../apps/api/src/http/request.util";
+import { MembersService } from "../../../members";
+import { OrdersService } from "../../../orders";
+import { WalletsService } from "../../../wallets";
 import { AuthService } from "../services/auth.service";
 
 @Controller("auth")
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly membersService: MembersService,
+    private readonly ordersService: OrdersService,
+    private readonly walletsService: WalletsService,
+  ) {}
 
   @Post("login")
   async login(
@@ -40,14 +48,46 @@ export class AuthController {
     @Headers("authorization") authorization?: string,
     @Headers("cookie") cookieHeader?: string,
   ) {
-    const token = this.extractToken(authorization, cookieHeader);
-    const user = await this.authService.getSessionUser(token);
-
-    if (!user) {
-      throw new UnauthorizedException("Invalid session.");
-    }
-
+    const user = await this.requireSessionUser(authorization, cookieHeader);
     return { user };
+  }
+
+  @Get("dashboard")
+  async dashboard(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+    const evaluationAt = new Date().toISOString();
+    const [wallet, cycles, referral] = await Promise.all([
+      this.walletsService.getWalletSummary(user.userId),
+      this.membersService.getMemberCycles(user.userId, evaluationAt),
+      this.membersService.getReferralLink(
+        user.memberCode,
+        process.env.APP_BASE_URL || "http://127.0.0.1:3000",
+      ),
+    ]);
+
+    return {
+      user,
+      wallet,
+      cycles,
+      referral,
+    };
+  }
+
+  @Get("orders")
+  async orders(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+
+    return this.ordersService.listOrders({
+      userId: user.userId,
+      page: 1,
+      pageSize: 10,
+    });
   }
 
   @Post("logout")
@@ -82,6 +122,20 @@ export class AuthController {
     }
 
     return cookieToken;
+  }
+
+  private async requireSessionUser(
+    authorization?: string,
+    cookieHeader?: string,
+  ) {
+    const token = this.extractToken(authorization, cookieHeader);
+    const user = await this.authService.getSessionUser(token);
+
+    if (!user) {
+      throw new UnauthorizedException("Invalid session.");
+    }
+
+    return user;
   }
 
   private readCookie(cookieHeader: string | undefined, name: string): string | null {

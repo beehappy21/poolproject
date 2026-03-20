@@ -11,6 +11,10 @@ function readSignupFile(fileName: string): string {
   return readFileSync(join(process.cwd(), "apps/api/public/signup", fileName), "utf8");
 }
 
+function readMemberAppFile(fileName: string): string {
+  return readFileSync(join(process.cwd(), "apps/api/public/app", fileName), "utf8");
+}
+
 @Controller()
 export class AdminUiController {
   constructor(private readonly authService: AuthService) {}
@@ -72,6 +76,30 @@ export class AdminUiController {
   @Header("Content-Type", "application/javascript; charset=utf-8")
   getSignupScript() {
     return readSignupFile("app.js");
+  }
+
+  @Get("app")
+  @Header("Content-Type", "text/html; charset=utf-8")
+  getMemberAppRoot() {
+    return readMemberAppFile("index.html");
+  }
+
+  @Get("app/index.html")
+  @Header("Content-Type", "text/html; charset=utf-8")
+  getMemberAppIndex() {
+    return readMemberAppFile("index.html");
+  }
+
+  @Get("app/styles.css")
+  @Header("Content-Type", "text/css; charset=utf-8")
+  getMemberAppStyles() {
+    return readMemberAppFile("styles.css");
+  }
+
+  @Get("app/app.js")
+  @Header("Content-Type", "application/javascript; charset=utf-8")
+  getMemberAppScript() {
+    return readMemberAppFile("app.js");
   }
 
   private extractToken(authorization?: string, cookieHeader?: string): string | null {

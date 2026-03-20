@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PoolProject Member App</title>
+    <link rel="stylesheet" href="/app/styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Member Portal</p>
+          <h1>PoolProject</h1>
+        </div>
+        <a class="ghost-link" href="/signup">Create account</a>
+      </header>
+
+      <section class="panel auth-panel" id="authPanel">
+        <div>
+          <p class="eyebrow">Session</p>
+          <h2>Sign in</h2>
+        </div>
+        <form id="loginForm" class="login-form">
+          <label>
+            <span>Member Code or Email</span>
+            <input id="identifierInput" type="text" placeholder="ALICE or alice@example.com" required />
+          </label>
+          <label>
+            <span>Password</span>
+            <input id="passwordInput" type="password" placeholder="dev-password" required />
+          </label>
+          <div class="button-row">
+            <button type="submit">Sign In</button>
+            <button id="logoutButton" type="button" class="ghost">Sign Out</button>
+          </div>
+          <p class="muted" id="statusLine">Waiting for session</p>
+        </form>
+      </section>
+
+      <main id="dashboard" class="dashboard hidden">
+        <section class="panel summary-grid">
+          <article>
+            <p class="eyebrow">Profile</p>
+            <h2 id="memberName">-</h2>
+            <p class="muted" id="memberMeta">-</p>
+          </article>
+          <article>
+            <p class="eyebrow">Wallet</p>
+            <h2 id="withdrawableBalance">0</h2>
+            <p class="muted" id="walletMeta">-</p>
+          </article>
+          <article>
+            <p class="eyebrow">Referral</p>
+            <h2 id="referralCode">-</h2>
+            <p class="muted" id="referralLink">-</p>
+          </article>
+        </section>
+
+        <section class="content-grid">
+          <article class="panel">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Cycles</p>
+                <h3>Active Receivable Cycles</h3>
+              </div>
+              <button id="refreshButton" class="ghost" type="button">Refresh</button>
+            </div>
+            <div id="cyclesList" class="stack-list"></div>
+          </article>
+
+          <article class="panel">
+            <p class="eyebrow">Orders</p>
+            <h3>Recent Orders</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Order</th>
+                  <th>Status</th>
+                  <th>Approval</th>
+                  <th>PV</th>
+                  <th>Created</th>
+                </tr>
+              </thead>
+              <tbody id="ordersTable"></tbody>
+            </table>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <script src="/app/app.js"></script>
+  </body>
+</html>

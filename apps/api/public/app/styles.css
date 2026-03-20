@@ -1,0 +1,162 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  background:
+    radial-gradient(circle at top, rgba(187, 160, 93, 0.18), transparent 35%),
+    linear-gradient(180deg, #f5efe1 0%, #ece2cd 100%);
+  color: #2c2417;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.page-shell {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 32px 20px 56px;
+}
+
+.hero,
+.summary-grid,
+.content-grid,
+.button-row,
+.section-head {
+  display: flex;
+  gap: 16px;
+}
+
+.hero,
+.section-head {
+  justify-content: space-between;
+  align-items: center;
+}
+
+.summary-grid,
+.content-grid {
+  align-items: stretch;
+}
+
+.summary-grid > *,
+.content-grid > * {
+  flex: 1;
+}
+
+.content-grid {
+  margin-top: 20px;
+}
+
+.panel {
+  background: rgba(255, 250, 241, 0.92);
+  border: 1px solid rgba(85, 62, 22, 0.16);
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 18px 40px rgba(70, 47, 10, 0.08);
+}
+
+.auth-panel {
+  margin-top: 20px;
+}
+
+.login-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+label {
+  display: grid;
+  gap: 6px;
+}
+
+input {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(85, 62, 22, 0.22);
+  padding: 12px 14px;
+  background: #fffdf8;
+}
+
+button,
+.ghost-link {
+  border-radius: 999px;
+  border: 0;
+  padding: 12px 18px;
+  background: #6d4b1c;
+  color: #fff8ec;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+button.ghost,
+.ghost-link {
+  background: transparent;
+  color: #6d4b1c;
+  border: 1px solid rgba(109, 75, 28, 0.3);
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 12px;
+  color: #7a5d2d;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+.muted {
+  color: #6e624d;
+}
+
+.stack-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.stack-item {
+  padding: 14px;
+  border-radius: 14px;
+  background: #fffdf8;
+  border: 1px solid rgba(85, 62, 22, 0.12);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 14px;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 10px 8px;
+  border-bottom: 1px solid rgba(85, 62, 22, 0.12);
+  font-size: 14px;
+}
+
+.hidden {
+  display: none;
+}
+
+@media (max-width: 840px) {
+  .hero,
+  .summary-grid,
+  .content-grid,
+  .button-row,
+  .section-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

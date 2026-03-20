@@ -48,6 +48,10 @@ function requiresAdminSession(method: string, path: string): boolean {
   if (
     path === "/health" ||
     path === "/" ||
+    path === "/app" ||
+    path === "/app/index.html" ||
+    path === "/app/styles.css" ||
+    path === "/app/app.js" ||
     path === "/signup" ||
     path === "/signup/index.html" ||
     path === "/signup/styles.css" ||
