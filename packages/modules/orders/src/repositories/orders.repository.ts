@@ -7,6 +7,25 @@ import {
 } from "../../../../infrastructure/src/prisma/prisma.mappers";
 
 export interface OrdersRepository {
+  createOrder(input: {
+    userId: string;
+    packageId: string;
+  }): Promise<{
+    orderId: string;
+    orderNo: string;
+    status: string;
+    approvalStatus: string;
+    totalUsdt: string;
+    totalPv: string;
+  }>;
+
+  approveOrder(orderId: string): Promise<{
+    orderId: string;
+    sourceUserId: string;
+    approvedAt: string;
+    totalPv: string;
+  } | null>;
+
   findApprovedOrderById(orderId: string): Promise<{
     orderId: string;
     sourceUserId: string;
@@ -27,6 +46,75 @@ export interface OrdersRepository {
 @Injectable()
 export class PrismaOrdersRepository implements OrdersRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  async createOrder(input: { userId: string; packageId: string }) {
+    const pkg = await this.prisma.package.findUnique({
+      where: { id: BigInt(input.packageId) },
+      select: {
+        id: true,
+        priceUsdt: true,
+        pv: true,
+      },
+    });
+
+    if (!pkg) {
+      throw new Error("Package not found.");
+    }
+
+    const order = await this.prisma.order.create({
+      data: {
+        orderNo: `ORD-${Date.now()}`,
+        userId: BigInt(input.userId),
+        subtotalUsdt: pkg.priceUsdt,
+        totalUsdt: pkg.priceUsdt,
+        totalPv: pkg.pv,
+        approvalStatus: "PENDING",
+        status: "PENDING",
+        orderItems: {
+          create: [
+            {
+              packageId: pkg.id,
+              qty: 1,
+              unitPriceUsdt: pkg.priceUsdt,
+              unitPv: pkg.pv,
+              lineTotalUsdt: pkg.priceUsdt,
+              lineTotalPv: pkg.pv,
+            },
+          ],
+        },
+      },
+    });
+
+    return {
+      orderId: order.id.toString(),
+      orderNo: order.orderNo,
+      status: order.status.toLowerCase(),
+      approvalStatus: order.approvalStatus.toLowerCase(),
+      totalUsdt: order.totalUsdt.toString(),
+      totalPv: order.totalPv.toString(),
+    };
+  }
+
+  async approveOrder(orderId: string) {
+    const approvedAt = new Date();
+    const order = await this.prisma.order.update({
+      where: { id: BigInt(orderId) },
+      data: {
+        paidAt: approvedAt,
+        approvedAt,
+        approvalStatus: "APPROVED",
+        status: "APPROVED",
+      },
+      select: {
+        id: true,
+        userId: true,
+        approvedAt: true,
+        totalPv: true,
+      },
+    });
+
+    return order ? toApprovedOrderSummary(order) : null;
+  }
 
   async findApprovedOrderById(orderId: string): Promise<{
     orderId: string;

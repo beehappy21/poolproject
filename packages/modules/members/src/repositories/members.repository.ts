@@ -8,7 +8,12 @@ import {
 } from "../../../../infrastructure/src/prisma/prisma.mappers";
 
 export interface MembersRepository {
-  findMemberById(memberId: string): Promise<{ memberId: string } | null>;
+  findMemberById(memberId: string): Promise<{
+    memberId: string;
+    memberCode: string;
+    name: string;
+    sponsorId: string | null;
+  } | null>;
 
   findActiveDirectReferralCount(
     memberId: string,
@@ -26,19 +31,56 @@ export interface MembersRepository {
   ): Promise<string[]>;
 
   findMemberIdsWithActiveCycles(evaluationAt: string): Promise<string[]>;
+
+  createMember(input: {
+    memberCode: string;
+    name: string;
+    email?: string;
+    phone?: string;
+    sponsorId?: string | null;
+  }): Promise<{
+    memberId: string;
+    memberCode: string;
+    name: string;
+    sponsorId: string | null;
+  }>;
+
+  activatePackageCycle(input: {
+    memberId: string;
+    packageId: string;
+  }): Promise<{
+    cycleId: string;
+    memberId: string;
+    packageId: string;
+    cycleNo: number;
+    activatedAt: string;
+    activeUntil: string;
+  }>;
 }
 
 @Injectable()
 export class PrismaMembersRepository implements MembersRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findMemberById(memberId: string): Promise<{ memberId: string } | null> {
+  async findMemberById(memberId: string): Promise<{
+    memberId: string;
+    memberCode: string;
+    name: string;
+    sponsorId: string | null;
+  } | null> {
     const member = await this.prisma.user.findUnique({
       where: { id: BigInt(memberId) },
-      select: { id: true },
+      select: { id: true, memberCode: true, name: true, sponsorId: true },
     });
 
-    return member ? { memberId: toIdString(member.id) } : null;
+    return member
+      ? {
+          memberId: toIdString(member.id),
+          memberCode: member.memberCode,
+          name: member.name,
+          sponsorId: member.sponsorId ? toIdString(member.sponsorId) : null,
+        }
+      : null;
   }
 
   async findActiveDirectReferralCount(
@@ -132,5 +174,83 @@ export class PrismaMembersRepository implements MembersRepository {
     });
 
     return cycles.map((cycle) => toIdString(cycle.userId));
+  }
+
+  async createMember(input: {
+    memberCode: string;
+    name: string;
+    email?: string;
+    phone?: string;
+    sponsorId?: string | null;
+  }) {
+    const member = await this.prisma.user.create({
+      data: {
+        memberCode: input.memberCode,
+        name: input.name,
+        email: input.email ?? null,
+        phone: input.phone ?? null,
+        passwordHash: "dev-password",
+        sponsorId: input.sponsorId ? BigInt(input.sponsorId) : null,
+        status: "ACTIVE",
+        riskLevel: "NORMAL",
+        payoutStatus: "ACTIVE",
+      },
+    });
+
+    return {
+      memberId: toIdString(member.id),
+      memberCode: member.memberCode,
+      name: member.name,
+      sponsorId: member.sponsorId ? toIdString(member.sponsorId) : null,
+    };
+  }
+
+  async activatePackageCycle(input: { memberId: string; packageId: string }) {
+    const pkg = await this.prisma.package.findUnique({
+      where: { id: BigInt(input.packageId) },
+      select: {
+        id: true,
+        activeDays: true,
+        earningCapAmount: true,
+      },
+    });
+
+    if (!pkg) {
+      throw new Error("Package not found.");
+    }
+
+    const lastCycle = await this.prisma.memberPackageCycle.findFirst({
+      where: { userId: BigInt(input.memberId) },
+      orderBy: [{ cycleNo: "desc" }],
+      select: { cycleNo: true },
+    });
+
+    const activatedAt = new Date();
+    const activeUntil = new Date(activatedAt);
+    activeUntil.setUTCDate(activeUntil.getUTCDate() + pkg.activeDays);
+
+    const cycle = await this.prisma.memberPackageCycle.create({
+      data: {
+        userId: BigInt(input.memberId),
+        packageId: pkg.id,
+        cycleNo: (lastCycle?.cycleNo ?? 0) + 1,
+        activatedAt,
+        activeUntil,
+        earningCap: pkg.earningCapAmount,
+        earnedTotalInCycle: "0",
+        earningStatus: "ACTIVE",
+        isReceivable: true,
+        status: "ACTIVE",
+      },
+    });
+
+    return {
+      cycleId: toIdString(cycle.id),
+      memberId: input.memberId,
+      packageId: input.packageId,
+      cycleNo: cycle.cycleNo,
+      activatedAt: cycle.activatedAt.toISOString(),
+      activeUntil: cycle.activeUntil.toISOString(),
+    };
   }
 }

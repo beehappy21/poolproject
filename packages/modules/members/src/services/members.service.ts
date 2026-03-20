@@ -29,6 +29,38 @@ export interface MembersServiceContract {
   ): Promise<string[]>;
 
   getMemberIdsWithActiveCycles(evaluationAt: string): Promise<string[]>;
+
+  getMember(memberId: string): Promise<{
+    memberId: string;
+    memberCode: string;
+    name: string;
+    sponsorId: string | null;
+  } | null>;
+
+  createMember(input: {
+    memberCode: string;
+    name: string;
+    email?: string;
+    phone?: string;
+    sponsorId?: string | null;
+  }): Promise<{
+    memberId: string;
+    memberCode: string;
+    name: string;
+    sponsorId: string | null;
+  }>;
+
+  activatePackageCycle(input: {
+    memberId: string;
+    packageId: string;
+  }): Promise<{
+    cycleId: string;
+    memberId: string;
+    packageId: string;
+    cycleNo: number;
+    activatedAt: string;
+    activeUntil: string;
+  }>;
 }
 
 @Injectable()
@@ -73,5 +105,23 @@ export class MembersService implements MembersServiceContract {
 
   async getMemberIdsWithActiveCycles(evaluationAt: string): Promise<string[]> {
     return this.membersRepository.findMemberIdsWithActiveCycles(evaluationAt);
+  }
+
+  async getMember(memberId: string) {
+    return this.membersRepository.findMemberById(memberId);
+  }
+
+  async createMember(input: {
+    memberCode: string;
+    name: string;
+    email?: string;
+    phone?: string;
+    sponsorId?: string | null;
+  }) {
+    return this.membersRepository.createMember(input);
+  }
+
+  async activatePackageCycle(input: { memberId: string; packageId: string }) {
+    return this.membersRepository.activatePackageCycle(input);
   }
 }
