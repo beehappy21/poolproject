@@ -214,7 +214,9 @@ async function loadDashboard() {
       <td>
         <div class="table-actions">
           <button type="button" class="secondary" data-action="member-detail" data-member-id="${member.memberId}">Detail</button>
+          <button type="button" class="secondary" data-action="member-referral" data-member-code="${member.memberCode}">Referral</button>
           <button type="button" class="secondary" data-action="prefill-activate" data-member-id="${member.memberId}">Activate</button>
+          <button type="button" class="secondary" data-action="prefill-order-member" data-member-id="${member.memberId}">New Order</button>
         </div>
       </td>
     </tr>`,
@@ -242,7 +244,7 @@ async function loadDashboard() {
   renderTableRows(
     "packagesTable",
     packages,
-    (pkg) => `<tr><td>${pkg.packageId}</td><td>${pkg.code}</td><td>${pkg.name}</td><td>${pkg.pv}</td><td>${pkg.priceUsdt}</td><td>${pkg.status}</td></tr>`,
+    (pkg) => `<tr><td>${pkg.packageId}</td><td>${pkg.code}</td><td>${pkg.name}</td><td>${pkg.pv}</td><td>${pkg.priceUsdt}</td><td>${pkg.status}</td><td><button type="button" class="secondary" data-action="prefill-order-package" data-package-id="${pkg.packageId}">Use In Order</button></td></tr>`,
   );
 
   const packageOptions = [
@@ -323,6 +325,33 @@ async function loadPoolPayouts(poolDate) {
   const payouts = await request(`/pool/${encodeURIComponent(poolDate)}/payouts`);
   setActionOutput(`Pool payouts ${poolDate}`, payouts);
   setStatus(`Loaded pool payouts ${poolDate}`);
+}
+
+async function loadReferralLink(memberCode) {
+  if (!memberCode) {
+    setActionOutput("Referral link failed", { message: "memberCode is required" });
+    return;
+  }
+
+  setStatus(`Loading referral link ${memberCode}`);
+  const result = await request(
+    `/members/by-code/${encodeURIComponent(memberCode)}/referral-link?baseUrl=${encodeURIComponent(window.location.origin)}`,
+  );
+  setActionOutput(`Referral link ${memberCode}`, result);
+  setStatus(`Loaded referral link ${memberCode}`);
+}
+
+function prefillOrderMember(memberId) {
+  document.getElementById("orderUserIdInput").value = memberId;
+  setStatus(`Prepared order form for member ${memberId}`);
+}
+
+function prefillOrderPackage(packageId) {
+  document.getElementById("orderPackageIdInput").value = packageId;
+  if (orderPackageSelect) {
+    orderPackageSelect.value = packageId;
+  }
+  setStatus(`Prepared order form for package ${packageId}`);
 }
 
 async function runOrderAction(orderId, action) {
@@ -493,9 +522,27 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  if (button.dataset.action === "member-referral") {
+    loadReferralLink(button.dataset.memberCode).catch((error) => {
+      setStatus(error.message);
+      setActionOutput("Referral link failed", { message: error.message });
+    });
+    return;
+  }
+
   if (button.dataset.action === "prefill-activate") {
     document.getElementById("activateMemberIdInput").value = button.dataset.memberId;
     setStatus(`Prepared activate form for member ${button.dataset.memberId}`);
+    return;
+  }
+
+  if (button.dataset.action === "prefill-order-member") {
+    prefillOrderMember(button.dataset.memberId);
+    return;
+  }
+
+  if (button.dataset.action === "prefill-order-package") {
+    prefillOrderPackage(button.dataset.packageId);
     return;
   }
 
