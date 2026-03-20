@@ -1,4 +1,6 @@
-import { MembersRepository } from "../repositories/members.repository";
+import { Injectable } from "@nestjs/common";
+
+import { PrismaMembersRepository } from "../repositories/members.repository";
 
 export interface MembersServiceContract {
   getMemberCycles(
@@ -27,8 +29,11 @@ export interface MembersServiceContract {
   ): Promise<string[]>;
 }
 
+@Injectable()
 export class MembersService implements MembersServiceContract {
-  constructor(private readonly membersRepository: MembersRepository) {}
+  constructor(
+    private readonly membersRepository: PrismaMembersRepository,
+  ) {}
 
   async getMemberCycles(
     memberId: string,

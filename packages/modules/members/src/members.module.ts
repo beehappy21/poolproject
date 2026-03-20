@@ -5,15 +5,7 @@ import { MembersService } from "./services/members.service";
 
 @Module({
   imports: [PrismaModule],
-  providers: [
-    PrismaMembersRepository,
-    {
-      provide: MembersService,
-      useFactory: (membersRepository: PrismaMembersRepository) =>
-        new MembersService(membersRepository),
-      inject: [PrismaMembersRepository],
-    },
-  ],
+  providers: [PrismaMembersRepository, MembersService],
   exports: [MembersService, PrismaMembersRepository],
 })
 export class MembersModule {}

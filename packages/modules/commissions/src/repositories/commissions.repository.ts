@@ -1,3 +1,5 @@
+import { Injectable } from "@nestjs/common";
+
 import {
   BonusToCycleAllocationInput,
   CommissionFinalizationInput,
@@ -28,6 +30,7 @@ export interface CommissionsRepository {
   }): Promise<void>;
 }
 
+@Injectable()
 export class PrismaCommissionsRepository implements CommissionsRepository {
   constructor(private readonly prisma: PrismaService) {}
 

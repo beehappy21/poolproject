@@ -1,3 +1,5 @@
+import { Inject, Injectable, forwardRef } from "@nestjs/common";
+
 import {
   ApprovedOrderCommissionFlowResult,
   BonusToCycleAllocationInput,
@@ -8,10 +10,13 @@ import {
   DirectCommissionFinalizationResult,
 } from "../domain/commissions.types";
 import { multiplyDecimalStrings } from "../../../../shared/utils/src/money.util";
+import { MembersService } from "../../../members/src/services/members.service";
 import { MembersServiceContract } from "../../../members/src/services/members.service";
+import { OrdersService } from "../../../orders/src/services/orders.service";
 import { OrdersServiceContract } from "../../../orders/src/services/orders.service";
+import { QualificationService } from "../../../qualification/src/services/qualification.service";
 import { QualificationServiceContract } from "../../../qualification/src/services/qualification.service";
-import { CommissionsRepository } from "../repositories/commissions.repository";
+import { PrismaCommissionsRepository } from "../repositories/commissions.repository";
 
 export interface CommissionsServiceContract {
   handleApprovedOrderCommissionSource(
@@ -42,12 +47,14 @@ export interface CommissionsServiceContract {
   }): Promise<void>;
 }
 
+@Injectable()
 export class CommissionsService implements CommissionsServiceContract {
   constructor(
-    private readonly ordersService: OrdersServiceContract,
-    private readonly membersService: MembersServiceContract,
-    private readonly qualificationService: QualificationServiceContract,
-    private readonly commissionsRepository: CommissionsRepository,
+    @Inject(forwardRef(() => OrdersService))
+    private readonly ordersService: OrdersService,
+    private readonly membersService: MembersService,
+    private readonly qualificationService: QualificationService,
+    private readonly commissionsRepository: PrismaCommissionsRepository,
   ) {}
 
   async handleApprovedOrderCommissionSource(

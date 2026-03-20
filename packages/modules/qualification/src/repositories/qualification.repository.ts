@@ -1,3 +1,5 @@
+import { Injectable } from "@nestjs/common";
+
 import {
   QualificationCycleSnapshot,
   QualificationDecisionInput,
@@ -21,6 +23,7 @@ export interface QualificationRepository {
   ): Promise<number>;
 }
 
+@Injectable()
 export class PrismaQualificationRepository implements QualificationRepository {
   constructor(private readonly prisma: PrismaService) {}
 

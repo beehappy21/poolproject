@@ -1,3 +1,5 @@
+import { Injectable } from "@nestjs/common";
+
 import { QualificationCycleSnapshot } from "../../../qualification/src/domain/qualification.types";
 import { PrismaService } from "../../../../infrastructure/src/prisma/prisma.service";
 import {
@@ -24,6 +26,7 @@ export interface MembersRepository {
   ): Promise<string[]>;
 }
 
+@Injectable()
 export class PrismaMembersRepository implements MembersRepository {
   constructor(private readonly prisma: PrismaService) {}
 

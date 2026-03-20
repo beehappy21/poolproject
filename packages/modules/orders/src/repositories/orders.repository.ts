@@ -1,3 +1,5 @@
+import { Injectable } from "@nestjs/common";
+
 import { PrismaService } from "../../../../infrastructure/src/prisma/prisma.service";
 import {
   buildUtcDayRange,
@@ -22,6 +24,7 @@ export interface OrdersRepository {
   >;
 }
 
+@Injectable()
 export class PrismaOrdersRepository implements OrdersRepository {
   constructor(private readonly prisma: PrismaService) {}
 

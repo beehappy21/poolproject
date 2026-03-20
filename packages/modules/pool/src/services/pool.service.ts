@@ -1,3 +1,5 @@
+import { Inject, Injectable, forwardRef } from "@nestjs/common";
+
 import {
   DailyPoolFlowResult,
   PoolCloseResult,
@@ -14,9 +16,13 @@ import {
   divideDecimalStringByInt,
   multiplyDecimalStrings,
 } from "../../../../shared/utils/src/money.util";
+import { CommissionsService } from "../../../commissions/src/services/commissions.service";
 import { CommissionsServiceContract } from "../../../commissions/src/services/commissions.service";
+import { MembersService } from "../../../members/src/services/members.service";
 import { MembersServiceContract } from "../../../members/src/services/members.service";
+import { OrdersService } from "../../../orders/src/services/orders.service";
 import { OrdersServiceContract } from "../../../orders/src/services/orders.service";
+import { QualificationService } from "../../../qualification/src/services/qualification.service";
 import { QualificationServiceContract } from "../../../qualification/src/services/qualification.service";
 
 export interface PoolServiceContract {
@@ -36,12 +42,15 @@ export interface PoolServiceContract {
   ): Promise<DailyPoolFlowResult>;
 }
 
+@Injectable()
 export class PoolService implements PoolServiceContract {
   constructor(
-    private readonly ordersService: OrdersServiceContract,
-    private readonly qualificationService: QualificationServiceContract,
-    private readonly membersService: MembersServiceContract,
-    private readonly commissionsService: CommissionsServiceContract,
+    @Inject(forwardRef(() => OrdersService))
+    private readonly ordersService: OrdersService,
+    private readonly qualificationService: QualificationService,
+    private readonly membersService: MembersService,
+    @Inject(forwardRef(() => CommissionsService))
+    private readonly commissionsService: CommissionsService,
   ) {}
 
   async computePoolFunding(input: PoolFundingInput): Promise<PoolFundingResult> {

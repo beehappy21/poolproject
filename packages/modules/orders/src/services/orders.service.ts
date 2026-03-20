@@ -1,3 +1,5 @@
+import { Inject, Injectable, forwardRef } from "@nestjs/common";
+
 export interface OrdersServiceContract {
   getApprovedOrder(orderId: string): Promise<{
     orderId: string;
@@ -26,20 +28,27 @@ export interface OrdersServiceContract {
 }
 
 import { ApprovedOrderCommissionFlowResult } from "../../../commissions/src/domain/commissions.types";
+import { CommissionsService } from "../../../commissions/src/services/commissions.service";
 import { CommissionsServiceContract } from "../../../commissions/src/services/commissions.service";
+import { PoolService } from "../../../pool/src/services/pool.service";
 import { PoolServiceContract } from "../../../pool/src/services/pool.service";
+import { QualificationService } from "../../../qualification/src/services/qualification.service";
 import { QualificationServiceContract } from "../../../qualification/src/services/qualification.service";
+import { RiskService } from "../../../risk/src/services/risk.service";
 import { RiskServiceContract } from "../../../risk/src/services/risk.service";
 import { ApprovedOrderOrchestrationResult } from "../domain/orders.types";
-import { OrdersRepository } from "../repositories/orders.repository";
+import { PrismaOrdersRepository } from "../repositories/orders.repository";
 
+@Injectable()
 export class OrdersService implements OrdersServiceContract {
   constructor(
-    private readonly ordersRepository: OrdersRepository,
-    private readonly qualificationService: QualificationServiceContract,
-    private readonly commissionsService: CommissionsServiceContract,
-    private readonly poolService: PoolServiceContract,
-    private readonly riskService: RiskServiceContract,
+    private readonly ordersRepository: PrismaOrdersRepository,
+    private readonly qualificationService: QualificationService,
+    @Inject(forwardRef(() => CommissionsService))
+    private readonly commissionsService: CommissionsService,
+    @Inject(forwardRef(() => PoolService))
+    private readonly poolService: PoolService,
+    private readonly riskService: RiskService,
   ) {}
 
   async getApprovedOrder(orderId: string): Promise<{

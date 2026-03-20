@@ -1,3 +1,5 @@
+import { Injectable } from "@nestjs/common";
+
 import {
   HoldDecisionResult,
   ManualReviewCaseSummary,
@@ -12,6 +14,7 @@ export interface RiskServiceContract {
   decidePayoutHold(userId: string): Promise<HoldDecisionResult>;
 }
 
+@Injectable()
 export class RiskService implements RiskServiceContract {
   async evaluateRiskFlags(
     input: RiskFlagDecisionInput,

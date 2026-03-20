@@ -1,3 +1,5 @@
+import { Injectable } from "@nestjs/common";
+
 import {
   CycleCapCheckInput,
   CycleCapCheckResult,
@@ -12,7 +14,7 @@ import {
   addDecimalStrings,
   compareDecimalStrings,
 } from "../../../../shared/utils/src/money.util";
-import { QualificationRepository } from "../repositories/qualification.repository";
+import { PrismaQualificationRepository } from "../repositories/qualification.repository";
 
 export interface QualificationServiceContract {
   evaluateMemberQualification(
@@ -37,9 +39,10 @@ export interface QualificationServiceContract {
   ): Promise<PoolEligibilityResult>;
 }
 
+@Injectable()
 export class QualificationService implements QualificationServiceContract {
   constructor(
-    private readonly qualificationRepository: QualificationRepository,
+    private readonly qualificationRepository: PrismaQualificationRepository,
   ) {}
 
   async evaluateMemberQualification(
