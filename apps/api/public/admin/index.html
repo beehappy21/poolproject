@@ -66,6 +66,28 @@
           </article>
         </section>
 
+        <section class="panel">
+          <div class="section-head">
+            <h3>Packages</h3>
+            <span class="muted">Available package catalog</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Code</th>
+                  <th>Name</th>
+                  <th>PV</th>
+                  <th>Price</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="packagesTable"></tbody>
+            </table>
+          </div>
+        </section>
+
         <section class="grid two-up">
           <article class="panel">
             <div class="section-head">
@@ -97,7 +119,20 @@
                 <h4>Create Order</h4>
                 <input id="orderUserIdInput" type="text" placeholder="User ID" required />
                 <input id="orderPackageIdInput" type="text" placeholder="Package ID" required />
+                <select id="orderPackageSelect">
+                  <option value="">Pick package ID</option>
+                </select>
                 <button type="submit">Create Order</button>
+              </form>
+
+              <form id="activatePackageForm" class="panel inner-panel stacked-form">
+                <h4>Activate Package</h4>
+                <input id="activateMemberIdInput" type="text" placeholder="Member ID" required />
+                <input id="activatePackageIdInput" type="text" placeholder="Package ID" required />
+                <select id="activatePackageSelect">
+                  <option value="">Pick package ID</option>
+                </select>
+                <button type="submit">Activate Package</button>
               </form>
 
               <form id="closePoolForm" class="panel inner-panel stacked-form">
@@ -131,6 +166,7 @@
                     <th>Code</th>
                     <th>Name</th>
                     <th>Sponsor</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody id="membersTable"></tbody>
@@ -216,7 +252,7 @@
 
         <section class="panel detail-panel">
           <div class="section-head">
-            <h3>Member Detail</h3>
+            <h3>Detail Viewer</h3>
             <form id="memberDetailForm" class="inline-form">
               <input id="memberDetailInput" type="text" placeholder="Enter member ID" />
               <button type="submit">Load Detail</button>

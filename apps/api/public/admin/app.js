@@ -15,7 +15,10 @@ const actionOutput = document.getElementById("actionOutput");
 const createPackageForm = document.getElementById("createPackageForm");
 const createMemberForm = document.getElementById("createMemberForm");
 const createOrderForm = document.getElementById("createOrderForm");
+const activatePackageForm = document.getElementById("activatePackageForm");
 const closePoolForm = document.getElementById("closePoolForm");
+const orderPackageSelect = document.getElementById("orderPackageSelect");
+const activatePackageSelect = document.getElementById("activatePackageSelect");
 
 function setStatus(message) {
   statusLine.textContent = message;
@@ -85,13 +88,14 @@ async function loadSession() {
 async function loadDashboard() {
   setStatus("Loading dashboard");
 
-  const [members, orders, poolCycles, fallbacks] = await Promise.all([
+  const [members, orders, poolCycles, fallbacks, packages] = await Promise.all([
     request("/members"),
     request(`/orders${orderStatusFilter.value ? `?approvalStatus=${encodeURIComponent(orderStatusFilter.value)}` : ""}`),
     request("/pool"),
     request(
       `/commissions/company-fallbacks${fallbackTypeFilter.value ? `?sourceType=${encodeURIComponent(fallbackTypeFilter.value)}` : ""}`,
     ),
+    request("/packages"),
   ]);
 
   document.getElementById("membersCount").textContent = String(members.length);
@@ -102,7 +106,18 @@ async function loadDashboard() {
   renderTableRows(
     "membersTable",
     members,
-    (member) => `<tr><td>${member.memberId}</td><td>${member.memberCode}</td><td>${member.name}</td><td>${member.sponsorId ?? "-"}</td></tr>`,
+    (member) => `<tr>
+      <td>${member.memberId}</td>
+      <td>${member.memberCode}</td>
+      <td>${member.name}</td>
+      <td>${member.sponsorId ?? "-"}</td>
+      <td>
+        <div class="table-actions">
+          <button type="button" class="secondary" data-action="member-detail" data-member-id="${member.memberId}">Detail</button>
+          <button type="button" class="secondary" data-action="prefill-activate" data-member-id="${member.memberId}">Activate</button>
+        </div>
+      </td>
+    </tr>`,
   );
 
   renderTableRows(
@@ -118,10 +133,26 @@ async function loadDashboard() {
         <div class="table-actions">
           <button type="button" data-action="approve-order" data-order-id="${order.orderId}">Approve</button>
           <button type="button" data-action="process-order" data-order-id="${order.orderId}">Process</button>
+          <button type="button" class="secondary" data-action="order-detail" data-order-id="${order.orderId}">Detail</button>
         </div>
       </td>
     </tr>`,
   );
+
+  renderTableRows(
+    "packagesTable",
+    packages,
+    (pkg) => `<tr><td>${pkg.packageId}</td><td>${pkg.code}</td><td>${pkg.name}</td><td>${pkg.pv}</td><td>${pkg.priceUsdt}</td><td>${pkg.status}</td></tr>`,
+  );
+
+  const packageOptions = [
+    '<option value="">Pick package ID</option>',
+    ...packages.map(
+      (pkg) => `<option value="${pkg.packageId}">${pkg.packageId} · ${pkg.code} · PV ${pkg.pv}</option>`,
+    ),
+  ].join("");
+  orderPackageSelect.innerHTML = packageOptions;
+  activatePackageSelect.innerHTML = packageOptions;
 
   renderTableRows(
     "poolTable",
@@ -150,6 +181,16 @@ async function loadMemberDetail(memberId) {
   setStatus(`Loaded member ${memberId}`);
 }
 
+async function loadOrderDetail(orderId) {
+  setStatus(`Loading order ${orderId}`);
+  const [order, commissions] = await Promise.all([
+    request(`/orders/${orderId}`),
+    request(`/commissions?orderId=${encodeURIComponent(orderId)}`),
+  ]);
+  setActionOutput(`Order ${orderId} detail`, { order, commissions });
+  setStatus(`Loaded order ${orderId}`);
+}
+
 async function runOrderAction(orderId, action) {
   setStatus(`${action} order ${orderId}`);
   const path =
@@ -159,6 +200,16 @@ async function runOrderAction(orderId, action) {
   const result = await request(path, { method: "POST" });
   setActionOutput(`${action} result`, result);
   await loadDashboard();
+}
+
+function syncPackageInputs() {
+  if (orderPackageSelect.value) {
+    document.getElementById("orderPackageIdInput").value = orderPackageSelect.value;
+  }
+
+  if (activatePackageSelect.value) {
+    document.getElementById("activatePackageIdInput").value = activatePackageSelect.value;
+  }
 }
 
 loginForm.addEventListener("submit", async (event) => {
@@ -210,6 +261,28 @@ document.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-action]");
 
   if (!button) {
+    return;
+  }
+
+  if (button.dataset.action === "member-detail") {
+    loadMemberDetail(button.dataset.memberId).catch((error) => {
+      memberDetailOutput.textContent = error.message;
+      setStatus(error.message);
+    });
+    return;
+  }
+
+  if (button.dataset.action === "prefill-activate") {
+    document.getElementById("activateMemberIdInput").value = button.dataset.memberId;
+    setStatus(`Prepared activate form for member ${button.dataset.memberId}`);
+    return;
+  }
+
+  if (button.dataset.action === "order-detail") {
+    loadOrderDetail(button.dataset.orderId).catch((error) => {
+      setStatus(error.message);
+      setActionOutput("Order detail failed", { message: error.message });
+    });
     return;
   }
 
@@ -294,6 +367,26 @@ createOrderForm.addEventListener("submit", async (event) => {
   }
 });
 
+activatePackageForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  try {
+    const memberId = document.getElementById("activateMemberIdInput").value.trim();
+    const packageId = document.getElementById("activatePackageIdInput").value.trim();
+    const result = await request(`/members/${memberId}/activate-package`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ packageId }),
+    });
+
+    setActionOutput("Package activated", result);
+    await loadDashboard();
+  } catch (error) {
+    setStatus(error.message);
+    setActionOutput("Activate package failed", { message: error.message });
+  }
+});
+
 closePoolForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
@@ -317,6 +410,9 @@ memberDetailForm.addEventListener("submit", (event) => {
     },
   );
 });
+
+orderPackageSelect.addEventListener("change", syncPackageInputs);
+activatePackageSelect.addEventListener("change", syncPackageInputs);
 
 (async function bootstrap() {
   const user = await loadSession();

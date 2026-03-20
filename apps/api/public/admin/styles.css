@@ -199,6 +199,12 @@ button.danger {
   font-size: 0.82rem;
 }
 
+.table-actions button.secondary {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
 .stat-card {
   padding: 18px;
 }
