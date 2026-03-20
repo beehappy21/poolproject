@@ -1,4 +1,12 @@
-import { Body, Controller, Get, NotFoundException, Param, Post } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Post,
+  Query,
+} from "@nestjs/common";
 
 import { MembersService } from "../services/members.service";
 
@@ -28,6 +36,18 @@ export class MembersController {
     return member;
   }
 
+  @Get("by-code/:memberCode/referral-link")
+  async getReferralLink(
+    @Param("memberCode") memberCode: string,
+    @Query("baseUrl") baseUrl?: string,
+  ) {
+    try {
+      return await this.membersService.getReferralLink(memberCode, baseUrl);
+    } catch {
+      throw new NotFoundException("Member not found.");
+    }
+  }
+
   @Post()
   async createMember(
     @Body()
@@ -38,6 +58,7 @@ export class MembersController {
       phone?: string;
       sponsorId?: string | null;
       sponsorCode?: string | null;
+      ref?: string | null;
     },
   ) {
     return this.membersService.createMember(body);

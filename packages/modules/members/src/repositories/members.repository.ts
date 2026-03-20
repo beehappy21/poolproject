@@ -46,6 +46,7 @@ export interface MembersRepository {
     phone?: string;
     sponsorId?: string | null;
     sponsorCode?: string | null;
+    ref?: string | null;
   }): Promise<{
     memberId: string;
     memberCode: string;
@@ -212,12 +213,13 @@ export class PrismaMembersRepository implements MembersRepository {
     phone?: string;
     sponsorId?: string | null;
     sponsorCode?: string | null;
+    ref?: string | null;
   }) {
     let sponsorId = input.sponsorId ? BigInt(input.sponsorId) : null;
 
-    if (!sponsorId && input.sponsorCode) {
+    if (!sponsorId && (input.sponsorCode || input.ref)) {
       const sponsor = await this.prisma.user.findUnique({
-        where: { memberCode: input.sponsorCode },
+        where: { memberCode: input.sponsorCode ?? input.ref ?? undefined },
         select: { id: true },
       });
 

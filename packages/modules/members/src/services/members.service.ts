@@ -44,6 +44,11 @@ export interface MembersServiceContract {
     sponsorId: string | null;
   } | null>;
 
+  getReferralLink(memberCode: string, baseUrl?: string): Promise<{
+    memberCode: string;
+    referralLink: string;
+  }>;
+
   createMember(input: {
     memberCode: string;
     name: string;
@@ -51,6 +56,7 @@ export interface MembersServiceContract {
     phone?: string;
     sponsorId?: string | null;
     sponsorCode?: string | null;
+    ref?: string | null;
   }): Promise<{
     memberId: string;
     memberCode: string;
@@ -123,6 +129,21 @@ export class MembersService implements MembersServiceContract {
     return this.membersRepository.findMemberByCode(memberCode);
   }
 
+  async getReferralLink(memberCode: string, baseUrl = "http://localhost:3000") {
+    const member = await this.membersRepository.findMemberByCode(memberCode);
+
+    if (!member) {
+      throw new Error("Member not found.");
+    }
+
+    const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");
+
+    return {
+      memberCode: member.memberCode,
+      referralLink: `${normalizedBaseUrl}/signup?ref=${encodeURIComponent(member.memberCode)}`,
+    };
+  }
+
   async createMember(input: {
     memberCode: string;
     name: string;
@@ -130,6 +151,7 @@ export class MembersService implements MembersServiceContract {
     phone?: string;
     sponsorId?: string | null;
     sponsorCode?: string | null;
+    ref?: string | null;
   }) {
     return this.membersRepository.createMember(input);
   }
