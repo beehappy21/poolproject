@@ -27,7 +27,16 @@ DATABASE_URL="$DATABASE_URL" npm run db:seed >/dev/null
 
 DATABASE_URL="$DATABASE_URL" npm run start:api >/tmp/poolproject-api.log 2>&1 &
 API_PID=$!
-sleep 5
+
+for _ in $(seq 1 20); do
+  if curl -s "$API_BASE_URL/health" >/dev/null 2>&1; then
+    break
+  fi
+
+  sleep 1
+done
+
+curl -s "$API_BASE_URL/health" >/dev/null
 
 PACKAGE_JSON="$(curl -s -X POST "$API_BASE_URL/packages" \
   -H 'content-type: application/json' \

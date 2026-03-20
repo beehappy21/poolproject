@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -8,6 +9,12 @@ import {
   Query,
 } from "@nestjs/common";
 
+import {
+  optionalString,
+  requireNonEmptyString,
+  requirePositiveIntegerString,
+  rethrowHttpError,
+} from "../../../../../apps/api/src/http/request.util";
 import { MembersService } from "../services/members.service";
 
 @Controller("members")
@@ -16,7 +23,8 @@ export class MembersController {
 
   @Get(":memberId")
   async getMember(@Param("memberId") memberId: string) {
-    const member = await this.membersService.getMember(memberId);
+    const validatedMemberId = requirePositiveIntegerString(memberId, "memberId");
+    const member = await this.membersService.getMember(validatedMemberId);
 
     if (!member) {
       throw new NotFoundException("Member not found.");
@@ -27,7 +35,8 @@ export class MembersController {
 
   @Get("by-code/:memberCode")
   async getMemberByCode(@Param("memberCode") memberCode: string) {
-    const member = await this.membersService.getMemberByCode(memberCode);
+    const validatedMemberCode = requireNonEmptyString(memberCode, "memberCode");
+    const member = await this.membersService.getMemberByCode(validatedMemberCode);
 
     if (!member) {
       throw new NotFoundException("Member not found.");
@@ -42,9 +51,12 @@ export class MembersController {
     @Query("baseUrl") baseUrl?: string,
   ) {
     try {
-      return await this.membersService.getReferralLink(memberCode, baseUrl);
-    } catch {
-      throw new NotFoundException("Member not found.");
+      return await this.membersService.getReferralLink(
+        requireNonEmptyString(memberCode, "memberCode"),
+        optionalString(baseUrl),
+      );
+    } catch (error) {
+      rethrowHttpError(error);
     }
   }
 
@@ -61,7 +73,31 @@ export class MembersController {
       ref?: string | null;
     },
   ) {
-    return this.membersService.createMember(body);
+    const memberCode = requireNonEmptyString(body.memberCode, "memberCode");
+    const name = requireNonEmptyString(body.name, "name");
+    const sponsorId = body.sponsorId
+      ? requirePositiveIntegerString(body.sponsorId, "sponsorId")
+      : undefined;
+    const sponsorCode = optionalString(body.sponsorCode);
+    const ref = optionalString(body.ref);
+
+    if (sponsorCode && ref) {
+      throw new BadRequestException("Use sponsorCode or ref, not both.");
+    }
+
+    try {
+      return await this.membersService.createMember({
+        memberCode,
+        name,
+        email: optionalString(body.email),
+        phone: optionalString(body.phone),
+        sponsorId,
+        sponsorCode,
+        ref,
+      });
+    } catch (error) {
+      rethrowHttpError(error);
+    }
   }
 
   @Post(":memberId/activate-package")
@@ -69,9 +105,13 @@ export class MembersController {
     @Param("memberId") memberId: string,
     @Body() body: { packageId: string },
   ) {
-    return this.membersService.activatePackageCycle({
-      memberId,
-      packageId: body.packageId,
-    });
+    try {
+      return await this.membersService.activatePackageCycle({
+        memberId: requirePositiveIntegerString(memberId, "memberId"),
+        packageId: requirePositiveIntegerString(body.packageId, "packageId"),
+      });
+    } catch (error) {
+      rethrowHttpError(error);
+    }
   }
 }
