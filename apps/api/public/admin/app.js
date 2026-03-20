@@ -10,6 +10,10 @@ const logoutButton = document.getElementById("logoutButton");
 const statusLine = document.getElementById("statusLine");
 const memberSearchInput = document.getElementById("memberSearchInput");
 const orderUserFilterInput = document.getElementById("orderUserFilterInput");
+const commissionOrderFilterInput = document.getElementById("commissionOrderFilterInput");
+const commissionBeneficiaryFilterInput = document.getElementById("commissionBeneficiaryFilterInput");
+const poolPayoutDateInput = document.getElementById("poolPayoutDateInput");
+const loadPoolPayoutsButton = document.getElementById("loadPoolPayoutsButton");
 const orderStatusFilter = document.getElementById("orderStatusFilter");
 const fallbackTypeFilter = document.getElementById("fallbackTypeFilter");
 const memberDetailForm = document.getElementById("memberDetailForm");
@@ -24,6 +28,16 @@ const orderPackageSelect = document.getElementById("orderPackageSelect");
 const activatePackageSelect = document.getElementById("activatePackageSelect");
 state.memberSearch = "";
 state.orderUserId = "";
+state.commissionOrderId = "";
+state.commissionBeneficiaryUserId = "";
+state.pageSize = 8;
+state.pages = {
+  members: 1,
+  orders: 1,
+  pool: 1,
+  fallbacks: 1,
+  commissions: 1,
+};
 
 function setStatus(message) {
   if (statusLine) {
@@ -92,6 +106,26 @@ function renderTableRows(elementId, rows, renderRow) {
       : `<tr><td colspan="5" class="muted">No data</td></tr>`;
 }
 
+function paginateRows(rows, key) {
+  const totalPages = Math.max(1, Math.ceil(rows.length / state.pageSize));
+  state.pages[key] = Math.min(state.pages[key] || 1, totalPages);
+  const page = state.pages[key];
+  const start = (page - 1) * state.pageSize;
+  const pagedRows = rows.slice(start, start + state.pageSize);
+  const label = document.getElementById(`${key}PageLabel`);
+
+  if (label) {
+    label.textContent = `Page ${page} / ${totalPages}`;
+  }
+
+  return pagedRows;
+}
+
+function updatePage(key, delta) {
+  state.pages[key] = Math.max(1, (state.pages[key] || 1) + delta);
+  loadDashboard().catch((error) => setStatus(error.message));
+}
+
 function renderSession(user) {
   if (!sessionCard) {
     return;
@@ -137,6 +171,17 @@ async function loadDashboard() {
     request("/packages"),
   ]);
 
+  const commissionQuery = new URLSearchParams();
+  if (state.commissionOrderId) {
+    commissionQuery.set("orderId", state.commissionOrderId);
+  }
+  if (state.commissionBeneficiaryUserId) {
+    commissionQuery.set("beneficiaryUserId", state.commissionBeneficiaryUserId);
+  }
+  const commissions = await request(
+    `/commissions${commissionQuery.toString() ? `?${commissionQuery.toString()}` : ""}`,
+  );
+
   document.getElementById("membersCount").textContent = String(members.length);
   document.getElementById("ordersCount").textContent = String(orders.length);
   document.getElementById("poolCount").textContent = String(poolCycles.length);
@@ -157,7 +202,7 @@ async function loadDashboard() {
 
   renderTableRows(
     "membersTable",
-    visibleMembers,
+    paginateRows(visibleMembers, "members"),
     (member) => `<tr>
       <td>${member.memberId}</td>
       <td>${member.memberCode}</td>
@@ -177,7 +222,7 @@ async function loadDashboard() {
 
   renderTableRows(
     "ordersTable",
-    orders,
+    paginateRows(orders, "orders"),
     (order) => `<tr>
       <td>${order.orderId}</td>
       <td>${order.orderNo}</td>
@@ -211,14 +256,21 @@ async function loadDashboard() {
 
   renderTableRows(
     "poolTable",
-    poolCycles,
+    paginateRows(poolCycles, "pool"),
     (cycle) => `<tr><td>${cycle.poolDate}</td><td>${cycle.poolFund}</td><td>${cycle.eligibleMemberCount}</td><td>${cycle.payoutPerMember}</td><td>${cycle.status}</td></tr>`,
   );
 
   renderTableRows(
     "fallbacksTable",
-    fallbacks,
+    paginateRows(fallbacks, "fallbacks"),
     (fallback) => `<tr><td>${fallback.fallbackId}</td><td>${fallback.sourceType}</td><td>${fallback.sourceRefId}</td><td>${fallback.amount}</td><td>${fallback.reason}</td></tr>`,
+  );
+
+  renderTableRows(
+    "commissionsTable",
+    paginateRows(commissions, "commissions"),
+    (commission) =>
+      `<tr><td>${commission.commissionId}</td><td>${commission.orderId}</td><td>${commission.beneficiaryUserId ?? "-"}</td><td>${commission.commissionType}</td><td>${commission.amount}</td><td>${commission.status}</td></tr>`,
   );
 
   setStatus("Dashboard ready");
@@ -259,6 +311,18 @@ async function loadOrderDetail(orderId) {
   ]);
   setActionOutput(`Order ${orderId} detail`, { order, commissions });
   setStatus(`Loaded order ${orderId}`);
+}
+
+async function loadPoolPayouts(poolDate) {
+  if (!poolDate) {
+    setActionOutput("Pool payouts failed", { message: "poolDate is required" });
+    return;
+  }
+
+  setStatus(`Loading pool payouts ${poolDate}`);
+  const payouts = await request(`/pool/${encodeURIComponent(poolDate)}/payouts`);
+  setActionOutput(`Pool payouts ${poolDate}`, payouts);
+  setStatus(`Loaded pool payouts ${poolDate}`);
 }
 
 async function runOrderAction(orderId, action) {
@@ -350,15 +414,60 @@ if (memberSearchInput) {
 if (orderUserFilterInput) {
   orderUserFilterInput.addEventListener("change", (event) => {
     state.orderUserId = (event.target.value || "").trim();
+    state.pages.orders = 1;
     loadDashboard().catch((error) => setStatus(error.message));
+  });
+}
+
+if (commissionOrderFilterInput) {
+  commissionOrderFilterInput.addEventListener("change", (event) => {
+    state.commissionOrderId = (event.target.value || "").trim();
+    state.pages.commissions = 1;
+    loadDashboard().catch((error) => setStatus(error.message));
+  });
+}
+
+if (commissionBeneficiaryFilterInput) {
+  commissionBeneficiaryFilterInput.addEventListener("change", (event) => {
+    state.commissionBeneficiaryUserId = (event.target.value || "").trim();
+    state.pages.commissions = 1;
+    loadDashboard().catch((error) => setStatus(error.message));
+  });
+}
+
+if (loadPoolPayoutsButton) {
+  loadPoolPayoutsButton.addEventListener("click", () => {
+    loadPoolPayouts(poolPayoutDateInput.value).catch((error) => {
+      setStatus(error.message);
+      setActionOutput("Pool payout lookup failed", { message: error.message });
+    });
   });
 }
 
 if (fallbackTypeFilter) {
   fallbackTypeFilter.addEventListener("change", () => {
+    state.pages.fallbacks = 1;
     loadDashboard().catch((error) => setStatus(error.message));
   });
 }
+
+[
+  ["membersPrevButton", "members", -1],
+  ["membersNextButton", "members", 1],
+  ["ordersPrevButton", "orders", -1],
+  ["ordersNextButton", "orders", 1],
+  ["poolPrevButton", "pool", -1],
+  ["poolNextButton", "pool", 1],
+  ["fallbacksPrevButton", "fallbacks", -1],
+  ["fallbacksNextButton", "fallbacks", 1],
+  ["commissionsPrevButton", "commissions", -1],
+  ["commissionsNextButton", "commissions", 1],
+].forEach(([buttonId, key, delta]) => {
+  const button = document.getElementById(buttonId);
+  if (button) {
+    button.addEventListener("click", () => updatePage(key, delta));
+  }
+});
 
 if (adminView === "dashboard") {
 document.addEventListener("click", (event) => {

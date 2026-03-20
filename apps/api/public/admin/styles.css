@@ -185,6 +185,18 @@ button.danger {
   padding: 0 18px 18px;
 }
 
+.filter-stack {
+  display: grid;
+  gap: 12px;
+  padding: 0 18px 18px;
+}
+
+.filter-inline {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+}
+
 .inner-panel {
   box-shadow: none;
   background: rgba(255, 248, 238, 0.95);
@@ -246,6 +258,14 @@ button.danger {
 
 .table-wrap {
   overflow: auto;
+  padding: 0 18px 18px;
+}
+
+.table-pager {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
   padding: 0 18px 18px;
 }
 

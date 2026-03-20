@@ -88,6 +88,30 @@
           </article>
         </section>
 
+        <section class="grid two-up">
+          <article class="panel filter-panel">
+            <div class="section-head">
+              <h3>Commission Filter</h3>
+              <span class="muted">Server-side filter</span>
+            </div>
+            <div class="filter-stack">
+              <input id="commissionOrderFilterInput" type="text" placeholder="Filter by order ID" />
+              <input id="commissionBeneficiaryFilterInput" type="text" placeholder="Filter by beneficiary user ID" />
+            </div>
+          </article>
+
+          <article class="panel filter-panel">
+            <div class="section-head">
+              <h3>Pool Payout Lookup</h3>
+              <span class="muted">Load by pool date</span>
+            </div>
+            <div class="filter-row filter-inline">
+              <input id="poolPayoutDateInput" type="date" value="2026-03-20" />
+              <button type="button" id="loadPoolPayoutsButton">Load Payouts</button>
+            </div>
+          </article>
+        </section>
+
         <section class="panel">
           <div class="section-head">
             <h3>Packages</h3>
@@ -195,6 +219,11 @@
                 <tbody id="membersTable"></tbody>
               </table>
             </div>
+            <div class="table-pager">
+              <button type="button" class="ghost" id="membersPrevButton">Prev</button>
+              <span id="membersPageLabel" class="muted">Page 1</span>
+              <button type="button" class="ghost" id="membersNextButton">Next</button>
+            </div>
           </article>
 
           <article class="panel">
@@ -221,6 +250,11 @@
                 <tbody id="ordersTable"></tbody>
               </table>
             </div>
+            <div class="table-pager">
+              <button type="button" class="ghost" id="ordersPrevButton">Prev</button>
+              <span id="ordersPageLabel" class="muted">Page 1</span>
+              <button type="button" class="ghost" id="ordersNextButton">Next</button>
+            </div>
           </article>
         </section>
 
@@ -243,6 +277,11 @@
                 </thead>
                 <tbody id="poolTable"></tbody>
               </table>
+            </div>
+            <div class="table-pager">
+              <button type="button" class="ghost" id="poolPrevButton">Prev</button>
+              <span id="poolPageLabel" class="muted">Page 1</span>
+              <button type="button" class="ghost" id="poolNextButton">Next</button>
             </div>
           </article>
 
@@ -270,7 +309,39 @@
                 <tbody id="fallbacksTable"></tbody>
               </table>
             </div>
+            <div class="table-pager">
+              <button type="button" class="ghost" id="fallbacksPrevButton">Prev</button>
+              <span id="fallbacksPageLabel" class="muted">Page 1</span>
+              <button type="button" class="ghost" id="fallbacksNextButton">Next</button>
+            </div>
           </article>
+        </section>
+
+        <section class="panel">
+          <div class="section-head">
+            <h3>Recent Commissions</h3>
+            <span class="muted">Direct and uni results</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Order</th>
+                  <th>Beneficiary</th>
+                  <th>Type</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="commissionsTable"></tbody>
+            </table>
+          </div>
+          <div class="table-pager">
+            <button type="button" class="ghost" id="commissionsPrevButton">Prev</button>
+            <span id="commissionsPageLabel" class="muted">Page 1</span>
+            <button type="button" class="ghost" id="commissionsNextButton">Next</button>
+          </div>
         </section>
 
         <section class="panel detail-panel">
