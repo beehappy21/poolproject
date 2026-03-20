@@ -94,6 +94,29 @@ export class AuthController {
     });
   }
 
+  @Get("transactions")
+  async transactions(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+    return this.walletsService.listWalletTransactions(user.userId);
+  }
+
+  @Get("commissions")
+  async commissions(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+
+    return this.commissionsService.listCommissions({
+      beneficiaryUserId: user.userId,
+      page: 1,
+      pageSize: 20,
+    });
+  }
+
   @Post("activate-package")
   async activatePackage(
     @Headers("authorization") authorization?: string,

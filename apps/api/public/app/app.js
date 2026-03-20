@@ -10,6 +10,8 @@ const activatePackageSelect = document.getElementById("activatePackageSelect");
 const orderPackageSelect = document.getElementById("orderPackageSelect");
 const actionOutput = document.getElementById("actionOutput");
 const orderDetailOutput = document.getElementById("orderDetailOutput");
+const transactionsTable = document.getElementById("transactionsTable");
+const commissionsTable = document.getElementById("commissionsTable");
 
 let packageCatalog = [];
 
@@ -118,7 +120,45 @@ function renderPackageOptions(packages) {
   orderPackageSelect.innerHTML = options;
 }
 
-function renderDashboard(data, orders) {
+function renderTransactions(transactions) {
+  transactionsTable.innerHTML =
+    transactions.length > 0
+      ? transactions
+          .map(
+            (tx) => `<tr>
+              <td>${tx.txType}</td>
+              <td>${tx.direction}</td>
+              <td>${tx.amount}</td>
+              <td>${tx.status}</td>
+              <td>${tx.createdAt}</td>
+            </tr>`,
+          )
+          .join("")
+      : '<tr><td colspan="5" class="muted">No transactions</td></tr>';
+}
+
+function renderCommissions(commissionResult) {
+  const rows = Array.isArray(commissionResult)
+    ? commissionResult
+    : commissionResult.items || [];
+
+  commissionsTable.innerHTML =
+    rows.length > 0
+      ? rows
+          .map(
+            (commission) => `<tr>
+              <td>${commission.commissionType}</td>
+              <td>${commission.levelNo ?? "-"}</td>
+              <td>${commission.amount}</td>
+              <td>${commission.status}</td>
+              <td>${commission.createdAt}</td>
+            </tr>`,
+          )
+          .join("")
+      : '<tr><td colspan="5" class="muted">No commissions</td></tr>';
+}
+
+function renderDashboard(data, orders, transactions, commissions) {
   document.getElementById("memberName").textContent = data.user.name;
   document.getElementById("memberMeta").textContent =
     `${data.user.memberCode}${data.user.email ? ` • ${data.user.email}` : ""}`;
@@ -131,21 +171,25 @@ function renderDashboard(data, orders) {
 
   renderCycles(data.cycles);
   renderOrders(orders);
+  renderTransactions(transactions);
+  renderCommissions(commissions);
   renderSignedIn();
 }
 
 async function loadDashboard() {
   setStatus("Loading dashboard");
 
-  const [dashboardData, orders, packages] = await Promise.all([
+  const [dashboardData, orders, packages, transactions, commissions] = await Promise.all([
     request("/auth/dashboard"),
     request("/auth/orders"),
     request("/packages"),
+    request("/auth/transactions"),
+    request("/auth/commissions"),
   ]);
 
   packageCatalog = packages.filter((pkg) => pkg.status === "active");
   renderPackageOptions(packageCatalog);
-  renderDashboard(dashboardData, orders);
+  renderDashboard(dashboardData, orders, transactions, commissions);
   setStatus("Dashboard loaded");
 }
 
