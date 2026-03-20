@@ -4,6 +4,13 @@ const refreshButton = document.getElementById("refreshButton");
 const statusLine = document.getElementById("statusLine");
 const dashboard = document.getElementById("dashboard");
 const authPanel = document.getElementById("authPanel");
+const activateForm = document.getElementById("activateForm");
+const orderForm = document.getElementById("orderForm");
+const activatePackageSelect = document.getElementById("activatePackageSelect");
+const orderPackageSelect = document.getElementById("orderPackageSelect");
+const actionOutput = document.getElementById("actionOutput");
+
+let packageCatalog = [];
 
 function setStatus(message) {
   statusLine.textContent = message;
@@ -40,6 +47,10 @@ async function request(path, options = {}) {
 
 function clearSession() {
   localStorage.removeItem("memberAccessToken");
+}
+
+function setActionResult(label, data) {
+  actionOutput.textContent = `${label}\n\n${JSON.stringify(data, null, 2)}`;
 }
 
 function renderSignedOut() {
@@ -90,6 +101,21 @@ function renderOrders(orderResult) {
       : '<tr><td colspan="5" class="muted">No orders</td></tr>';
 }
 
+function renderPackageOptions(packages) {
+  const options =
+    packages.length > 0
+      ? packages
+          .map(
+            (pkg) =>
+              `<option value="${pkg.packageId}">${pkg.code} • ${pkg.name} • PV ${pkg.pv}</option>`,
+          )
+          .join("")
+      : '<option value="">No packages</option>';
+
+  activatePackageSelect.innerHTML = options;
+  orderPackageSelect.innerHTML = options;
+}
+
 function renderDashboard(data, orders) {
   document.getElementById("memberName").textContent = data.user.name;
   document.getElementById("memberMeta").textContent =
@@ -109,11 +135,14 @@ function renderDashboard(data, orders) {
 async function loadDashboard() {
   setStatus("Loading dashboard");
 
-  const [dashboardData, orders] = await Promise.all([
+  const [dashboardData, orders, packages] = await Promise.all([
     request("/auth/dashboard"),
     request("/auth/orders"),
+    request("/packages"),
   ]);
 
+  packageCatalog = packages.filter((pkg) => pkg.status === "active");
+  renderPackageOptions(packageCatalog);
   renderDashboard(dashboardData, orders);
   setStatus("Dashboard loaded");
 }
@@ -154,6 +183,46 @@ refreshButton.addEventListener("click", () => {
   loadDashboard().catch((error) => {
     setStatus(error.message);
   });
+});
+
+activateForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  try {
+    setStatus("Activating package");
+    const result = await request("/auth/activate-package", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        packageId: activatePackageSelect.value,
+      }),
+    });
+    setActionResult("Package activated", result);
+    await loadDashboard();
+  } catch (error) {
+    setStatus(error.message);
+    setActionResult("Activate failed", { message: error.message });
+  }
+});
+
+orderForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  try {
+    setStatus("Creating order");
+    const result = await request("/auth/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        packageId: orderPackageSelect.value,
+      }),
+    });
+    setActionResult("Order created", result);
+    await loadDashboard();
+  } catch (error) {
+    setStatus(error.message);
+    setActionResult("Order create failed", { message: error.message });
+  }
 });
 
 (async function bootstrap() {

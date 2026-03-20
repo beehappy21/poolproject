@@ -10,6 +10,7 @@ import {
 
 import {
   requireNonEmptyString,
+  requirePositiveIntegerString,
 } from "../../../../../apps/api/src/http/request.util";
 import { MembersService } from "../../../members";
 import { OrdersService } from "../../../orders";
@@ -87,6 +88,34 @@ export class AuthController {
       userId: user.userId,
       page: 1,
       pageSize: 10,
+    });
+  }
+
+  @Post("activate-package")
+  async activatePackage(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+    @Body() body?: { packageId?: string },
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+
+    return this.membersService.activatePackageCycle({
+      memberId: user.userId,
+      packageId: requirePositiveIntegerString(body?.packageId, "packageId"),
+    });
+  }
+
+  @Post("orders")
+  async createOwnOrder(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+    @Body() body?: { packageId?: string },
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+
+    return this.ordersService.createOrder({
+      userId: user.userId,
+      packageId: requirePositiveIntegerString(body?.packageId, "packageId"),
     });
   }
 

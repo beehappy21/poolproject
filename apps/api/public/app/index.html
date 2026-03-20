@@ -59,6 +59,37 @@
 
         <section class="content-grid">
           <article class="panel">
+            <p class="eyebrow">Actions</p>
+            <h3>Activate Package</h3>
+            <form id="activateForm" class="login-form compact-form">
+              <label>
+                <span>Package</span>
+                <select id="activatePackageSelect" required></select>
+              </label>
+              <button type="submit">Activate Package</button>
+            </form>
+          </article>
+
+          <article class="panel">
+            <p class="eyebrow">Orders</p>
+            <h3>Create Order</h3>
+            <form id="orderForm" class="login-form compact-form">
+              <label>
+                <span>Package</span>
+                <select id="orderPackageSelect" required></select>
+              </label>
+              <button type="submit">Create Order</button>
+            </form>
+          </article>
+        </section>
+
+        <section class="panel">
+          <p class="eyebrow">Last Action</p>
+          <pre id="actionOutput" class="result-output">No action yet.</pre>
+        </section>
+
+        <section class="content-grid">
+          <article class="panel">
             <div class="section-head">
               <div>
                 <p class="eyebrow">Cycles</p>
