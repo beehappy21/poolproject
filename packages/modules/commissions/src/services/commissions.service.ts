@@ -69,6 +69,7 @@ export interface CommissionsServiceContract {
 
   listCompanyFallbacks(filters?: {
     sourceRefId?: string;
+    sourceType?: string;
   }): Promise<
     Array<{
       fallbackId: string;
@@ -279,7 +280,10 @@ export class CommissionsService implements CommissionsServiceContract {
     return this.commissionsRepository.listCommissionEntries(filters);
   }
 
-  async listCompanyFallbacks(filters?: { sourceRefId?: string }) {
+  async listCompanyFallbacks(filters?: {
+    sourceRefId?: string;
+    sourceType?: string;
+  }) {
     return this.commissionsRepository.listCompanyFallbackEntries(filters);
   }
 

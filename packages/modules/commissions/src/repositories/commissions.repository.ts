@@ -52,6 +52,7 @@ export interface CommissionsRepository {
 
   listCompanyFallbackEntries(filters?: {
     sourceRefId?: string;
+    sourceType?: string;
   }): Promise<
     Array<{
       fallbackId: string;
@@ -218,11 +219,17 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
     }));
   }
 
-  async listCompanyFallbackEntries(filters?: { sourceRefId?: string }) {
+  async listCompanyFallbackEntries(filters?: {
+    sourceRefId?: string;
+    sourceType?: string;
+  }) {
     const entries = await this.prisma.companyBonusLedger.findMany({
       where: {
         sourceRefId: filters?.sourceRefId
           ? BigInt(filters.sourceRefId)
+          : undefined,
+        sourceType: filters?.sourceType
+          ? filters.sourceType.toUpperCase() as "DIRECT" | "UNI" | "POOL"
           : undefined,
       },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],

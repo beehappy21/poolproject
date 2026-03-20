@@ -10,6 +10,11 @@ import { PoolService } from "../services/pool.service";
 export class PoolController {
   constructor(private readonly poolService: PoolService) {}
 
+  @Get()
+  async listPoolCycles() {
+    return this.poolService.listPoolCycles();
+  }
+
   @Get(":poolDate")
   async getPoolCycle(@Param("poolDate") poolDate: string) {
     return this.poolService.getPoolCycle(

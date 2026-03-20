@@ -17,10 +17,14 @@ import {
   rethrowHttpError,
 } from "../../../../../apps/api/src/http/request.util";
 import { MembersService } from "../services/members.service";
+import { WalletsService } from "../../../wallets/src/services/wallets.service";
 
 @Controller("members")
 export class MembersController {
-  constructor(private readonly membersService: MembersService) {}
+  constructor(
+    private readonly membersService: MembersService,
+    private readonly walletsService: WalletsService,
+  ) {}
 
   @Get()
   async listMembers(
@@ -45,6 +49,27 @@ export class MembersController {
     }
 
     return member;
+  }
+
+  @Get(":memberId/detail")
+  async getMemberDetail(@Param("memberId") memberId: string) {
+    const validatedMemberId = requirePositiveIntegerString(memberId, "memberId");
+    const member = await this.membersService.getMember(validatedMemberId);
+
+    if (!member) {
+      throw new NotFoundException("Member not found.");
+    }
+
+    const [walletSummary, activeCycles] = await Promise.all([
+      this.walletsService.getWalletSummary(validatedMemberId),
+      this.membersService.getMemberCycles(validatedMemberId, new Date().toISOString()),
+    ]);
+
+    return {
+      ...member,
+      walletSummary,
+      activeCycles,
+    };
   }
 
   @Get(":memberId/cycles")

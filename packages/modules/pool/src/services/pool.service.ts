@@ -29,6 +29,19 @@ import { WalletsServiceContract } from "../../../wallets/src/services/wallets.se
 import { PrismaPoolRepository } from "../repositories/pool.repository";
 
 export interface PoolServiceContract {
+  listPoolCycles(): Promise<
+    Array<{
+      poolCycleId: string;
+      poolDate: string;
+      fundingTotalApprovedPv: string;
+      poolFund: string;
+      eligibleMemberCount: number;
+      payoutPerMember: string;
+      companyFallbackAmount: string;
+      status: string;
+    }>
+  >;
+
   computePoolFunding(input: PoolFundingInput): Promise<PoolFundingResult>;
 
   evaluatePoolEligibility(
@@ -93,6 +106,10 @@ export class PoolService implements PoolServiceContract {
       poolRate: input.poolRate,
       poolFund,
     };
+  }
+
+  async listPoolCycles() {
+    return this.poolRepository.listPoolCycles();
   }
 
   async evaluatePoolEligibility(

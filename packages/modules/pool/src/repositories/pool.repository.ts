@@ -9,6 +9,19 @@ import {
 import { PrismaService } from "../../../../infrastructure/src/prisma/prisma.service";
 
 export interface PoolRepository {
+  listPoolCycles(): Promise<
+    Array<{
+      poolCycleId: string;
+      poolDate: string;
+      fundingTotalApprovedPv: string;
+      poolFund: string;
+      eligibleMemberCount: number;
+      payoutPerMember: string;
+      companyFallbackAmount: string;
+      status: string;
+    }>
+  >;
+
   findApprovedOrderFunding(poolDate: string): Promise<{
     approvedOrderCount: number;
     fundingTotalApprovedPv: string;
@@ -57,6 +70,34 @@ export interface PoolRepository {
 @Injectable()
 export class PrismaPoolRepository implements PoolRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  async listPoolCycles() {
+    const cycles = await this.prisma.dailyPoolCycle.findMany({
+      orderBy: [{ cycleDate: "desc" }, { id: "desc" }],
+      take: 100,
+      select: {
+        id: true,
+        cycleDate: true,
+        fundingTotalApprovedPv: true,
+        poolFund: true,
+        eligibleMemberCount: true,
+        payoutPerMember: true,
+        companyFallbackAmount: true,
+        status: true,
+      },
+    });
+
+    return cycles.map((cycle) => ({
+      poolCycleId: cycle.id.toString(),
+      poolDate: cycle.cycleDate.toISOString().slice(0, 10),
+      fundingTotalApprovedPv: cycle.fundingTotalApprovedPv.toString(),
+      poolFund: cycle.poolFund.toString(),
+      eligibleMemberCount: cycle.eligibleMemberCount,
+      payoutPerMember: cycle.payoutPerMember.toString(),
+      companyFallbackAmount: cycle.companyFallbackAmount.toString(),
+      status: cycle.status.toLowerCase(),
+    }));
+  }
 
   async findApprovedOrderFunding(poolDate: string): Promise<{
     approvedOrderCount: number;
