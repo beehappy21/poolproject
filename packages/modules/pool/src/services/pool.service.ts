@@ -94,7 +94,9 @@ export class PoolService implements PoolServiceContract {
       fundingTotalApprovedPv: this.sumApprovedOrderPv(approvedOrders),
       poolRate: "0.5",
     });
-    const uniqueUserIds = [...new Set(approvedOrders.map((order) => order.sourceUserId))];
+    const uniqueUserIds = await this.membersService.getMemberIdsWithActiveCycles(
+      `${poolDate}T00:00:00.000Z`,
+    );
     const flow = await this.handleDailyPoolFlow(
       poolDate,
       uniqueUserIds.map((userId) => ({

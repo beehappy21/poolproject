@@ -24,6 +24,8 @@ export interface MembersRepository {
     memberId: string,
     evaluationAt: string,
   ): Promise<string[]>;
+
+  findMemberIdsWithActiveCycles(evaluationAt: string): Promise<string[]>;
 }
 
 @Injectable()
@@ -113,5 +115,22 @@ export class PrismaMembersRepository implements MembersRepository {
     }
 
     return candidateUserIds;
+  }
+
+  async findMemberIdsWithActiveCycles(evaluationAt: string): Promise<string[]> {
+    const at = new Date(evaluationAt);
+    const cycles = await this.prisma.memberPackageCycle.findMany({
+      where: {
+        status: "ACTIVE",
+        activatedAt: { lte: at },
+        activeUntil: { gte: at },
+      },
+      distinct: ["userId"],
+      select: {
+        userId: true,
+      },
+    });
+
+    return cycles.map((cycle) => toIdString(cycle.userId));
   }
 }

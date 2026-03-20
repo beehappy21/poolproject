@@ -27,6 +27,8 @@ export interface MembersServiceContract {
     memberId: string,
     evaluationAt: string,
   ): Promise<string[]>;
+
+  getMemberIdsWithActiveCycles(evaluationAt: string): Promise<string[]>;
 }
 
 @Injectable()
@@ -67,5 +69,9 @@ export class MembersService implements MembersServiceContract {
     evaluationAt: string,
   ): Promise<string[]> {
     return this.membersRepository.findUplineCandidateIds(memberId, evaluationAt);
+  }
+
+  async getMemberIdsWithActiveCycles(evaluationAt: string): Promise<string[]> {
+    return this.membersRepository.findMemberIdsWithActiveCycles(evaluationAt);
   }
 }

@@ -108,7 +108,9 @@ export class OrdersService implements OrdersServiceContract {
     const commissionFlow =
       await this.commissionsService.handleApprovedOrderCommissionSource(orderId);
 
-    await this.poolService.loadApprovedOrderFunding(approvedOrder.approvedAt);
+    await this.poolService.loadApprovedOrderFunding(
+      approvedOrder.approvedAt.slice(0, 10),
+    );
 
     const walletPostingInputs = await this.buildWalletPostingInputs(
       commissionFlow,
