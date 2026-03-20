@@ -14,6 +14,9 @@ const commissionOrderFilterInput = document.getElementById("commissionOrderFilte
 const commissionBeneficiaryFilterInput = document.getElementById("commissionBeneficiaryFilterInput");
 const poolPayoutDateInput = document.getElementById("poolPayoutDateInput");
 const loadPoolPayoutsButton = document.getElementById("loadPoolPayoutsButton");
+const focusLatestOrderButton = document.getElementById("focusLatestOrderButton");
+const focusLatestCommissionButton = document.getElementById("focusLatestCommissionButton");
+const reloadPoolTodayButton = document.getElementById("reloadPoolTodayButton");
 const orderStatusFilter = document.getElementById("orderStatusFilter");
 const fallbackTypeFilter = document.getElementById("fallbackTypeFilter");
 const memberDetailForm = document.getElementById("memberDetailForm");
@@ -38,6 +41,8 @@ state.pages = {
   fallbacks: 1,
   commissions: 1,
 };
+state.latestOrderId = "";
+state.latestCommission = null;
 
 function setStatus(message) {
   if (statusLine) {
@@ -126,6 +131,24 @@ function updatePage(key, delta) {
   loadDashboard().catch((error) => setStatus(error.message));
 }
 
+function resetOrderFocus(orderId) {
+  state.commissionOrderId = orderId || "";
+  state.pages.commissions = 1;
+
+  if (commissionOrderFilterInput) {
+    commissionOrderFilterInput.value = state.commissionOrderId;
+  }
+}
+
+function resetBeneficiaryFocus(userId) {
+  state.commissionBeneficiaryUserId = userId || "";
+  state.pages.commissions = 1;
+
+  if (commissionBeneficiaryFilterInput) {
+    commissionBeneficiaryFilterInput.value = state.commissionBeneficiaryUserId;
+  }
+}
+
 function renderSession(user) {
   if (!sessionCard) {
     return;
@@ -181,6 +204,8 @@ async function loadDashboard() {
   const commissions = await request(
     `/commissions${commissionQuery.toString() ? `?${commissionQuery.toString()}` : ""}`,
   );
+  state.latestOrderId = orders[0]?.orderId || "";
+  state.latestCommission = commissions[0] || null;
 
   document.getElementById("membersCount").textContent = String(members.length);
   document.getElementById("ordersCount").textContent = String(orders.length);
@@ -272,7 +297,7 @@ async function loadDashboard() {
     "commissionsTable",
     paginateRows(commissions, "commissions"),
     (commission) =>
-      `<tr><td>${commission.commissionId}</td><td>${commission.orderId}</td><td>${commission.beneficiaryUserId ?? "-"}</td><td>${commission.commissionType}</td><td>${commission.amount}</td><td>${commission.status}</td></tr>`,
+      `<tr><td>${commission.commissionId}</td><td><button type="button" class="secondary" data-action="focus-order-commissions" data-order-id="${commission.orderId}">${commission.orderId}</button></td><td><button type="button" class="secondary" data-action="focus-beneficiary-member" data-beneficiary-user-id="${commission.beneficiaryUserId ?? ""}">${commission.beneficiaryUserId ?? "-"}</button></td><td>${commission.commissionType}</td><td>${commission.amount}</td><td>${commission.status}</td></tr>`,
   );
 
   setStatus("Dashboard ready");
@@ -473,6 +498,43 @@ if (loadPoolPayoutsButton) {
   });
 }
 
+if (focusLatestOrderButton) {
+  focusLatestOrderButton.addEventListener("click", () => {
+    if (!state.latestOrderId) {
+      setStatus("No latest order available.");
+      return;
+    }
+
+    resetOrderFocus(state.latestOrderId);
+    loadOrderDetail(state.latestOrderId).catch((error) => {
+      setStatus(error.message);
+      setActionOutput("Latest order focus failed", { message: error.message });
+    });
+  });
+}
+
+if (focusLatestCommissionButton) {
+  focusLatestCommissionButton.addEventListener("click", () => {
+    if (!state.latestCommission) {
+      setStatus("No latest commission available.");
+      return;
+    }
+
+    resetOrderFocus(state.latestCommission.orderId || "");
+    resetBeneficiaryFocus(state.latestCommission.beneficiaryUserId || "");
+    loadDashboard().catch((error) => setStatus(error.message));
+  });
+}
+
+if (reloadPoolTodayButton) {
+  reloadPoolTodayButton.addEventListener("click", () => {
+    loadPoolPayouts(poolPayoutDateInput.value).catch((error) => {
+      setStatus(error.message);
+      setActionOutput("Today's pool reload failed", { message: error.message });
+    });
+  });
+}
+
 if (fallbackTypeFilter) {
   fallbackTypeFilter.addEventListener("change", () => {
     state.pages.fallbacks = 1;
@@ -526,6 +588,27 @@ document.addEventListener("click", (event) => {
     loadReferralLink(button.dataset.memberCode).catch((error) => {
       setStatus(error.message);
       setActionOutput("Referral link failed", { message: error.message });
+    });
+    return;
+  }
+
+  if (button.dataset.action === "focus-order-commissions") {
+    resetOrderFocus(button.dataset.orderId || "");
+    loadDashboard().catch((error) => setStatus(error.message));
+    return;
+  }
+
+  if (button.dataset.action === "focus-beneficiary-member") {
+    const userId = button.dataset.beneficiaryUserId || "";
+    if (!userId) {
+      setStatus("Commission has no beneficiary member.");
+      return;
+    }
+
+    resetBeneficiaryFocus(userId);
+    loadMemberDetail(userId).catch((error) => {
+      memberDetailOutput.textContent = error.message;
+      setStatus(error.message);
     });
     return;
   }
