@@ -10,7 +10,9 @@ async function bootstrap(): Promise<void> {
   const authService = app.get(AuthService);
 
   app.use(async (request: any, response: any, next: () => void) => {
-    if (!requiresAdminSession(request.method, request.path)) {
+    const access = resolveRouteAccess(request.method, request.path);
+
+    if (access === "public") {
       next();
       return;
     }
@@ -18,7 +20,9 @@ async function bootstrap(): Promise<void> {
     const token = extractAccessToken(request.headers.authorization, request.headers.cookie);
 
     if (!token) {
-      response.status(401).json({ message: "Admin session required." });
+      response.status(401).json({
+        message: access === "admin" ? "Admin session required." : "Session required.",
+      });
       return;
     }
 
@@ -29,7 +33,7 @@ async function bootstrap(): Promise<void> {
       return;
     }
 
-    if (!authService.isAdminUser(user)) {
+    if (access === "admin" && !authService.isAdminUser(user)) {
       response.status(403).json({ message: "Admin access required." });
       return;
     }
@@ -40,9 +44,12 @@ async function bootstrap(): Promise<void> {
   await app.listen(apiConfig.port);
 }
 
-function requiresAdminSession(method: string, path: string): boolean {
+function resolveRouteAccess(
+  method: string,
+  path: string,
+): "public" | "member" | "admin" {
   if (method === "OPTIONS") {
-    return false;
+    return "public";
   }
 
   if (
@@ -57,36 +64,55 @@ function requiresAdminSession(method: string, path: string): boolean {
     path === "/signup/styles.css" ||
     path === "/signup/app.js" ||
     path === "/auth/login" ||
-    path === "/auth/me" ||
-    path === "/auth/logout" ||
     path === "/admin" ||
     path === "/admin/index.html" ||
     path === "/admin/styles.css" ||
     path === "/admin/app.js"
   ) {
-    return false;
+    return "public";
   }
 
   if (method === "POST" && path === "/members") {
-    return false;
+    return "public";
   }
 
   if (method === "GET" && path === "/packages") {
-    return false;
+    return "public";
   }
 
   if (method === "GET" && path.startsWith("/members/by-code/")) {
-    return false;
+    return "public";
   }
 
-  return (
+  if (path === "/auth/me" || path === "/auth/logout") {
+    return "member";
+  }
+
+  if (
+    path === "/auth/dashboard" ||
+    path === "/auth/orders" ||
+    path === "/auth/transactions" ||
+    path === "/auth/commissions" ||
+    path === "/auth/network" ||
+    path === "/auth/activate-package" ||
+    path === "/auth/change-password" ||
+    path.startsWith("/auth/orders/")
+  ) {
+    return "member";
+  }
+
+  if (
     path.startsWith("/packages") ||
     path.startsWith("/orders") ||
     path.startsWith("/pool") ||
     path.startsWith("/wallets") ||
     path.startsWith("/commissions") ||
     path.startsWith("/members")
-  );
+  ) {
+    return "admin";
+  }
+
+  return "public";
 }
 
 function extractAccessToken(
