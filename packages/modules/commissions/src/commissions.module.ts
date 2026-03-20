@@ -4,6 +4,7 @@ import { PrismaModule } from "../../../infrastructure";
 import { MembersModule } from "../../members";
 import { OrdersModule } from "../../orders";
 import { QualificationModule } from "../../qualification";
+import { CommissionsController } from "./controllers/commissions.controller";
 import { PrismaCommissionsRepository } from "./repositories/commissions.repository";
 import { CommissionsService } from "./services/commissions.service";
 
@@ -14,6 +15,7 @@ import { CommissionsService } from "./services/commissions.service";
     QualificationModule,
     forwardRef(() => OrdersModule),
   ],
+  controllers: [CommissionsController],
   providers: [PrismaCommissionsRepository, CommissionsService],
   exports: [CommissionsService, PrismaCommissionsRepository],
 })

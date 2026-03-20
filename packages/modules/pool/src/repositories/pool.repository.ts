@@ -30,6 +30,28 @@ export interface PoolRepository {
     poolCycleId: string;
     recipientDrafts: PoolRecipientDraftResult[];
   }): Promise<void>;
+
+  getPoolCycle(poolDate: string): Promise<{
+    poolCycleId: string;
+    poolDate: string;
+    fundingTotalApprovedPv: string;
+    poolFund: string;
+    eligibleMemberCount: number;
+    payoutPerMember: string;
+    companyFallbackAmount: string;
+    status: string;
+  } | null>;
+
+  listPoolPayouts(poolDate: string): Promise<
+    Array<{
+      payoutId: string;
+      userId: string;
+      beneficiaryCycleId: string | null;
+      payoutAmount: string;
+      status: string;
+      blockReason: string | null;
+    }>
+  >;
 }
 
 @Injectable()
@@ -128,5 +150,69 @@ export class PrismaPoolRepository implements PoolRepository {
         blockReason: recipient.finalization.fallbackReason,
       })),
     });
+  }
+
+  async getPoolCycle(poolDate: string) {
+    const cycle = await this.prisma.dailyPoolCycle.findUnique({
+      where: { cycleDate: new Date(`${poolDate}T00:00:00.000Z`) },
+      select: {
+        id: true,
+        cycleDate: true,
+        fundingTotalApprovedPv: true,
+        poolFund: true,
+        eligibleMemberCount: true,
+        payoutPerMember: true,
+        companyFallbackAmount: true,
+        status: true,
+      },
+    });
+
+    if (!cycle) {
+      return null;
+    }
+
+    return {
+      poolCycleId: cycle.id.toString(),
+      poolDate: cycle.cycleDate.toISOString().slice(0, 10),
+      fundingTotalApprovedPv: cycle.fundingTotalApprovedPv.toString(),
+      poolFund: cycle.poolFund.toString(),
+      eligibleMemberCount: cycle.eligibleMemberCount,
+      payoutPerMember: cycle.payoutPerMember.toString(),
+      companyFallbackAmount: cycle.companyFallbackAmount.toString(),
+      status: cycle.status.toLowerCase(),
+    };
+  }
+
+  async listPoolPayouts(poolDate: string) {
+    const cycle = await this.prisma.dailyPoolCycle.findUnique({
+      where: { cycleDate: new Date(`${poolDate}T00:00:00.000Z`) },
+      select: { id: true },
+    });
+
+    if (!cycle) {
+      return [];
+    }
+
+    const payouts = await this.prisma.dailyPoolPayout.findMany({
+      where: { cycleId: cycle.id },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      select: {
+        id: true,
+        userId: true,
+        beneficiaryCycleId: true,
+        payoutAmount: true,
+        status: true,
+        blockReason: true,
+      },
+    });
+
+    return payouts.map((payout) => ({
+      payoutId: payout.id.toString(),
+      userId: payout.userId.toString(),
+      beneficiaryCycleId: payout.beneficiaryCycleId?.toString() ?? null,
+      payoutAmount: payout.payoutAmount.toString(),
+      status: payout.status.toLowerCase(),
+      blockReason: payout.blockReason,
+    }));
   }
 }

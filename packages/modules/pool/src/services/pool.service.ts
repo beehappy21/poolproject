@@ -41,6 +41,28 @@ export interface PoolServiceContract {
     poolDate: string,
     snapshots: PoolEligibilityMemberSnapshot[],
   ): Promise<DailyPoolFlowResult>;
+
+  getPoolCycle(poolDate: string): Promise<{
+    poolCycleId: string;
+    poolDate: string;
+    fundingTotalApprovedPv: string;
+    poolFund: string;
+    eligibleMemberCount: number;
+    payoutPerMember: string;
+    companyFallbackAmount: string;
+    status: string;
+  } | null>;
+
+  listPoolPayouts(poolDate: string): Promise<
+    Array<{
+      payoutId: string;
+      userId: string;
+      beneficiaryCycleId: string | null;
+      payoutAmount: string;
+      status: string;
+      blockReason: string | null;
+    }>
+  >;
 }
 
 @Injectable()
@@ -139,6 +161,14 @@ export class PoolService implements PoolServiceContract {
       fundingTotalApprovedPv: this.sumApprovedOrderPv(approvedOrders),
       poolRate: "0.5",
     };
+  }
+
+  async getPoolCycle(poolDate: string) {
+    return this.poolRepository.getPoolCycle(poolDate);
+  }
+
+  async listPoolPayouts(poolDate: string) {
+    return this.poolRepository.listPoolPayouts(poolDate);
   }
 
   async handleDailyPoolFlow(

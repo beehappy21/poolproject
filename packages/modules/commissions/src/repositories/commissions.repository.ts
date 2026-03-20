@@ -28,6 +28,41 @@ export interface CommissionsRepository {
     amount: string;
     reasonCode: string;
   }): Promise<void>;
+
+  listCommissionEntries(filters?: {
+    orderId?: string;
+    beneficiaryUserId?: string;
+  }): Promise<
+    Array<{
+      commissionId: string;
+      orderId: string | null;
+      sourceUserId: string;
+      beneficiaryUserId: string | null;
+      beneficiaryCycleId: string | null;
+      commissionType: string;
+      levelNo: number | null;
+      rate: string;
+      basePv: string;
+      amount: string;
+      status: string;
+      companyFallbackReason: string | null;
+      createdAt: string;
+    }>
+  >;
+
+  listCompanyFallbackEntries(filters?: {
+    sourceRefId?: string;
+  }): Promise<
+    Array<{
+      fallbackId: string;
+      sourceType: string;
+      sourceRefId: string;
+      bonusType: string;
+      amount: string;
+      reason: string;
+      createdAt: string;
+    }>
+  >;
 }
 
 @Injectable()
@@ -135,5 +170,81 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
         reason: input.reasonCode,
       },
     });
+  }
+
+  async listCommissionEntries(filters?: {
+    orderId?: string;
+    beneficiaryUserId?: string;
+  }) {
+    const entries = await this.prisma.commissionLedger.findMany({
+      where: {
+        orderId: filters?.orderId ? BigInt(filters.orderId) : undefined,
+        beneficiaryUserId: filters?.beneficiaryUserId
+          ? BigInt(filters.beneficiaryUserId)
+          : undefined,
+      },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      select: {
+        id: true,
+        orderId: true,
+        sourceUserId: true,
+        beneficiaryUserId: true,
+        beneficiaryCycleId: true,
+        commissionType: true,
+        levelNo: true,
+        rate: true,
+        basePv: true,
+        commissionAmount: true,
+        status: true,
+        companyFallbackReason: true,
+        createdAt: true,
+      },
+    });
+
+    return entries.map((entry) => ({
+      commissionId: entry.id.toString(),
+      orderId: entry.orderId?.toString() ?? null,
+      sourceUserId: entry.sourceUserId.toString(),
+      beneficiaryUserId: entry.beneficiaryUserId?.toString() ?? null,
+      beneficiaryCycleId: entry.beneficiaryCycleId?.toString() ?? null,
+      commissionType: entry.commissionType.toLowerCase(),
+      levelNo: entry.levelNo,
+      rate: entry.rate.toString(),
+      basePv: entry.basePv.toString(),
+      amount: entry.commissionAmount.toString(),
+      status: entry.status.toLowerCase(),
+      companyFallbackReason: entry.companyFallbackReason,
+      createdAt: entry.createdAt.toISOString(),
+    }));
+  }
+
+  async listCompanyFallbackEntries(filters?: { sourceRefId?: string }) {
+    const entries = await this.prisma.companyBonusLedger.findMany({
+      where: {
+        sourceRefId: filters?.sourceRefId
+          ? BigInt(filters.sourceRefId)
+          : undefined,
+      },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      select: {
+        id: true,
+        sourceType: true,
+        sourceRefId: true,
+        bonusType: true,
+        amount: true,
+        reason: true,
+        createdAt: true,
+      },
+    });
+
+    return entries.map((entry) => ({
+      fallbackId: entry.id.toString(),
+      sourceType: entry.sourceType.toLowerCase(),
+      sourceRefId: entry.sourceRefId.toString(),
+      bonusType: entry.bonusType.toLowerCase(),
+      amount: entry.amount.toString(),
+      reason: entry.reason,
+      createdAt: entry.createdAt.toISOString(),
+    }));
   }
 }

@@ -45,6 +45,41 @@ export interface CommissionsServiceContract {
     amount: string;
     reasonCode: string;
   }): Promise<void>;
+
+  listCommissions(filters?: {
+    orderId?: string;
+    beneficiaryUserId?: string;
+  }): Promise<
+    Array<{
+      commissionId: string;
+      orderId: string | null;
+      sourceUserId: string;
+      beneficiaryUserId: string | null;
+      beneficiaryCycleId: string | null;
+      commissionType: string;
+      levelNo: number | null;
+      rate: string;
+      basePv: string;
+      amount: string;
+      status: string;
+      companyFallbackReason: string | null;
+      createdAt: string;
+    }>
+  >;
+
+  listCompanyFallbacks(filters?: {
+    sourceRefId?: string;
+  }): Promise<
+    Array<{
+      fallbackId: string;
+      sourceType: string;
+      sourceRefId: string;
+      bonusType: string;
+      amount: string;
+      reason: string;
+      createdAt: string;
+    }>
+  >;
 }
 
 @Injectable()
@@ -235,6 +270,17 @@ export class CommissionsService implements CommissionsServiceContract {
     reasonCode: string;
   }): Promise<void> {
     await this.commissionsRepository.createCompanyFallbackEntry(input);
+  }
+
+  async listCommissions(filters?: {
+    orderId?: string;
+    beneficiaryUserId?: string;
+  }) {
+    return this.commissionsRepository.listCommissionEntries(filters);
+  }
+
+  async listCompanyFallbacks(filters?: { sourceRefId?: string }) {
+    return this.commissionsRepository.listCompanyFallbackEntries(filters);
   }
 
   private async buildDirectDraft(
