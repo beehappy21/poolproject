@@ -11,9 +11,18 @@ const orderStatusFilter = document.getElementById("orderStatusFilter");
 const fallbackTypeFilter = document.getElementById("fallbackTypeFilter");
 const memberDetailForm = document.getElementById("memberDetailForm");
 const memberDetailOutput = document.getElementById("memberDetailOutput");
+const actionOutput = document.getElementById("actionOutput");
+const createPackageForm = document.getElementById("createPackageForm");
+const createMemberForm = document.getElementById("createMemberForm");
+const createOrderForm = document.getElementById("createOrderForm");
+const closePoolForm = document.getElementById("closePoolForm");
 
 function setStatus(message) {
   statusLine.textContent = message;
+}
+
+function setActionOutput(label, data) {
+  actionOutput.textContent = `${label}\n\n${JSON.stringify(data, null, 2)}`;
 }
 
 function setToken(token) {
@@ -99,7 +108,19 @@ async function loadDashboard() {
   renderTableRows(
     "ordersTable",
     orders,
-    (order) => `<tr><td>${order.orderId}</td><td>${order.orderNo}</td><td>${order.sourceUserId}</td><td>${order.approvalStatus}</td><td>${order.totalPv}</td></tr>`,
+    (order) => `<tr>
+      <td>${order.orderId}</td>
+      <td>${order.orderNo}</td>
+      <td>${order.sourceUserId}</td>
+      <td>${order.approvalStatus}</td>
+      <td>${order.totalPv}</td>
+      <td>
+        <div class="table-actions">
+          <button type="button" data-action="approve-order" data-order-id="${order.orderId}">Approve</button>
+          <button type="button" data-action="process-order" data-order-id="${order.orderId}">Process</button>
+        </div>
+      </td>
+    </tr>`,
   );
 
   renderTableRows(
@@ -127,6 +148,17 @@ async function loadMemberDetail(memberId) {
   const detail = await request(`/members/${memberId}/detail`);
   memberDetailOutput.textContent = JSON.stringify(detail, null, 2);
   setStatus(`Loaded member ${memberId}`);
+}
+
+async function runOrderAction(orderId, action) {
+  setStatus(`${action} order ${orderId}`);
+  const path =
+    action === "approve-order"
+      ? `/orders/${orderId}/approve`
+      : `/orders/${orderId}/process-approved`;
+  const result = await request(path, { method: "POST" });
+  setActionOutput(`${action} result`, result);
+  await loadDashboard();
 }
 
 loginForm.addEventListener("submit", async (event) => {
@@ -172,6 +204,108 @@ orderStatusFilter.addEventListener("change", () => {
 
 fallbackTypeFilter.addEventListener("change", () => {
   loadDashboard().catch((error) => setStatus(error.message));
+});
+
+document.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-action]");
+
+  if (!button) {
+    return;
+  }
+
+  runOrderAction(button.dataset.orderId, button.dataset.action).catch((error) => {
+    setStatus(error.message);
+    setActionOutput("Action failed", { message: error.message });
+  });
+});
+
+createPackageForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  try {
+    const result = await request("/packages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: document.getElementById("packageCodeInput").value.trim(),
+        name: document.getElementById("packageNameInput").value.trim(),
+        priceUsdt: document.getElementById("packagePriceInput").value.trim(),
+        pv: document.getElementById("packagePvInput").value.trim(),
+        activeDays: Number(document.getElementById("packageDaysInput").value),
+        earningCapAmount: document.getElementById("packageCapInput").value.trim(),
+      }),
+    });
+
+    setActionOutput("Package created", result);
+    createPackageForm.reset();
+    document.getElementById("packagePriceInput").value = "120";
+    document.getElementById("packagePvInput").value = "120";
+    document.getElementById("packageDaysInput").value = "30";
+    document.getElementById("packageCapInput").value = "360";
+  } catch (error) {
+    setStatus(error.message);
+    setActionOutput("Package create failed", { message: error.message });
+  }
+});
+
+createMemberForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  try {
+    const sponsorCode = document.getElementById("memberSponsorCodeInput").value.trim();
+    const result = await request("/members", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        memberCode: document.getElementById("memberCodeCreateInput").value.trim(),
+        name: document.getElementById("memberNameCreateInput").value.trim(),
+        email: document.getElementById("memberEmailCreateInput").value.trim() || undefined,
+        sponsorCode: sponsorCode || undefined,
+      }),
+    });
+
+    setActionOutput("Member created", result);
+    createMemberForm.reset();
+    await loadDashboard();
+  } catch (error) {
+    setStatus(error.message);
+    setActionOutput("Member create failed", { message: error.message });
+  }
+});
+
+createOrderForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  try {
+    const result = await request("/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: document.getElementById("orderUserIdInput").value.trim(),
+        packageId: document.getElementById("orderPackageIdInput").value.trim(),
+      }),
+    });
+
+    setActionOutput("Order created", result);
+    await loadDashboard();
+  } catch (error) {
+    setStatus(error.message);
+    setActionOutput("Order create failed", { message: error.message });
+  }
+});
+
+closePoolForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  try {
+    const poolDate = document.getElementById("poolDateInput").value;
+    const result = await request(`/pool/${poolDate}/close`, { method: "POST" });
+    setActionOutput("Pool close result", result);
+    await loadDashboard();
+  } catch (error) {
+    setStatus(error.message);
+    setActionOutput("Pool close failed", { message: error.message });
+  }
 });
 
 memberDetailForm.addEventListener("submit", (event) => {

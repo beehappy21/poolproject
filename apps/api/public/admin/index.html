@@ -69,6 +69,57 @@
         <section class="grid two-up">
           <article class="panel">
             <div class="section-head">
+              <h3>Quick Actions</h3>
+              <span class="muted">Create and trigger core flows</span>
+            </div>
+            <div class="action-grid">
+              <form id="createPackageForm" class="panel inner-panel stacked-form">
+                <h4>Create Package</h4>
+                <input id="packageCodeInput" type="text" placeholder="Code" required />
+                <input id="packageNameInput" type="text" placeholder="Name" required />
+                <input id="packagePriceInput" type="text" placeholder="Price USDT" value="120" required />
+                <input id="packagePvInput" type="text" placeholder="PV" value="120" required />
+                <input id="packageDaysInput" type="number" min="1" placeholder="Active Days" value="30" required />
+                <input id="packageCapInput" type="text" placeholder="Earning Cap" value="360" required />
+                <button type="submit">Create Package</button>
+              </form>
+
+              <form id="createMemberForm" class="panel inner-panel stacked-form">
+                <h4>Create Member</h4>
+                <input id="memberCodeCreateInput" type="text" placeholder="Member Code" required />
+                <input id="memberNameCreateInput" type="text" placeholder="Name" required />
+                <input id="memberEmailCreateInput" type="email" placeholder="Email" />
+                <input id="memberSponsorCodeInput" type="text" placeholder="Sponsor Code (optional)" />
+                <button type="submit">Create Member</button>
+              </form>
+
+              <form id="createOrderForm" class="panel inner-panel stacked-form">
+                <h4>Create Order</h4>
+                <input id="orderUserIdInput" type="text" placeholder="User ID" required />
+                <input id="orderPackageIdInput" type="text" placeholder="Package ID" required />
+                <button type="submit">Create Order</button>
+              </form>
+
+              <form id="closePoolForm" class="panel inner-panel stacked-form">
+                <h4>Close Pool</h4>
+                <input id="poolDateInput" type="date" value="2026-03-20" required />
+                <button type="submit">Close Pool Date</button>
+              </form>
+            </div>
+          </article>
+
+          <article class="panel detail-panel">
+            <div class="section-head">
+              <h3>Action Output</h3>
+              <span class="muted">Latest result</span>
+            </div>
+            <pre id="actionOutput" class="detail-output">Use the quick actions or order action buttons to run flows.</pre>
+          </article>
+        </section>
+
+        <section class="grid two-up">
+          <article class="panel">
+            <div class="section-head">
               <h3>Members</h3>
               <span class="muted">Latest 100</span>
             </div>
@@ -105,6 +156,7 @@
                     <th>User</th>
                     <th>Status</th>
                     <th>PV</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody id="ordersTable"></tbody>
