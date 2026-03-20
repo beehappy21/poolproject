@@ -11,9 +11,11 @@ const activatePackageSelect = document.getElementById("activatePackageSelect");
 const orderPackageSelect = document.getElementById("orderPackageSelect");
 const actionOutput = document.getElementById("actionOutput");
 const orderDetailOutput = document.getElementById("orderDetailOutput");
+const orderTimeline = document.getElementById("orderTimeline");
 const transactionsTable = document.getElementById("transactionsTable");
 const commissionsTable = document.getElementById("commissionsTable");
 const networkSummary = document.getElementById("networkSummary");
+const networkReferrals = document.getElementById("networkReferrals");
 
 let packageCatalog = [];
 
@@ -164,6 +166,7 @@ function renderNetwork(network) {
   if (!network) {
     networkSummary.innerHTML =
       '<div class="stack-item"><p class="muted">No network data.</p></div>';
+    networkReferrals.innerHTML = "";
     return;
   }
 
@@ -172,6 +175,19 @@ function renderNetwork(network) {
     `<div class="stack-item"><strong>Direct Referrals</strong><p class="muted">${network.directReferrals.length} members</p></div>`,
     `<div class="stack-item"><strong>Upline Chain</strong><p class="muted">${network.uplineChain.length} levels tracked</p></div>`,
   ].join("");
+
+    networkReferrals.innerHTML =
+    network.directReferrals.length > 0
+      ? network.directReferrals
+          .map(
+            (member) => `<div class="stack-item">
+              <strong>${member.name}</strong>
+              <p class="muted">${member.memberCode}</p>
+              <p class="muted">Member ID ${member.memberId}</p>
+            </div>`,
+          )
+          .join("")
+      : '<div class="stack-item"><p class="muted">No direct referrals yet.</p></div>';
 }
 
 function renderDashboard(data, orders, transactions, commissions, network) {
@@ -214,6 +230,30 @@ async function loadDashboard() {
 async function loadOrderDetail(orderId) {
   setStatus(`Loading order ${orderId}`);
   const snapshot = await request(`/auth/orders/${orderId}`);
+  const commissionRows = Array.isArray(snapshot.commissions)
+    ? snapshot.commissions
+    : snapshot.commissions.items || [];
+  const fallbackRows = Array.isArray(snapshot.companyFallbacks)
+    ? snapshot.companyFallbacks
+    : snapshot.companyFallbacks.items || [];
+
+  orderTimeline.innerHTML = [
+    `<div class="stack-item">
+      <strong>${snapshot.order.orderNo}</strong>
+      <p class="muted">Status ${snapshot.order.status} • Approval ${snapshot.order.approvalStatus}</p>
+      <p class="muted">PV ${snapshot.order.totalPv} • Created ${snapshot.order.createdAt}</p>
+    </div>`,
+    `<div class="stack-item">
+      <strong>Commissions</strong>
+      <p class="muted">${commissionRows.length} item(s)</p>
+      <p class="muted">${commissionRows.map((row) => `${row.commissionType}:${row.amount}`).join(" | ") || "No commissions"}</p>
+    </div>`,
+    `<div class="stack-item">
+      <strong>Fallbacks</strong>
+      <p class="muted">${fallbackRows.length} item(s)</p>
+      <p class="muted">${fallbackRows.map((row) => `${row.sourceType}:${row.amount}`).join(" | ") || "No fallbacks"}</p>
+    </div>`,
+  ].join("");
   orderDetailOutput.textContent = JSON.stringify(snapshot, null, 2);
   setStatus(`Loaded order ${orderId}`);
 }
