@@ -9,6 +9,7 @@ const orderForm = document.getElementById("orderForm");
 const activatePackageSelect = document.getElementById("activatePackageSelect");
 const orderPackageSelect = document.getElementById("orderPackageSelect");
 const actionOutput = document.getElementById("actionOutput");
+const orderDetailOutput = document.getElementById("orderDetailOutput");
 
 let packageCatalog = [];
 
@@ -95,10 +96,11 @@ function renderOrders(orderResult) {
               <td>${order.approvalStatus}</td>
               <td>${order.totalPv}</td>
               <td>${order.createdAt}</td>
+              <td><button type="button" class="ghost inspect-order-button" data-order-id="${order.orderId}">Detail</button></td>
             </tr>`,
           )
           .join("")
-      : '<tr><td colspan="5" class="muted">No orders</td></tr>';
+      : '<tr><td colspan="6" class="muted">No orders</td></tr>';
 }
 
 function renderPackageOptions(packages) {
@@ -145,6 +147,13 @@ async function loadDashboard() {
   renderPackageOptions(packageCatalog);
   renderDashboard(dashboardData, orders);
   setStatus("Dashboard loaded");
+}
+
+async function loadOrderDetail(orderId) {
+  setStatus(`Loading order ${orderId}`);
+  const snapshot = await request(`/auth/orders/${orderId}`);
+  orderDetailOutput.textContent = JSON.stringify(snapshot, null, 2);
+  setStatus(`Loaded order ${orderId}`);
 }
 
 loginForm.addEventListener("submit", async (event) => {
@@ -223,6 +232,19 @@ orderForm.addEventListener("submit", async (event) => {
     setStatus(error.message);
     setActionResult("Order create failed", { message: error.message });
   }
+});
+
+document.addEventListener("click", (event) => {
+  const button = event.target.closest(".inspect-order-button");
+
+  if (!button) {
+    return;
+  }
+
+  loadOrderDetail(button.dataset.orderId).catch((error) => {
+    setStatus(error.message);
+    orderDetailOutput.textContent = JSON.stringify({ message: error.message }, null, 2);
+  });
 });
 
 (async function bootstrap() {

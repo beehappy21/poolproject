@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Headers,
+  Param,
   Post,
   Res,
   UnauthorizedException,
@@ -12,6 +13,7 @@ import {
   requireNonEmptyString,
   requirePositiveIntegerString,
 } from "../../../../../apps/api/src/http/request.util";
+import { CommissionsService } from "../../../commissions";
 import { MembersService } from "../../../members";
 import { OrdersService } from "../../../orders";
 import { WalletsService } from "../../../wallets";
@@ -24,6 +26,7 @@ export class AuthController {
     private readonly membersService: MembersService,
     private readonly ordersService: OrdersService,
     private readonly walletsService: WalletsService,
+    private readonly commissionsService: CommissionsService,
   ) {}
 
   @Post("login")
@@ -117,6 +120,32 @@ export class AuthController {
       userId: user.userId,
       packageId: requirePositiveIntegerString(body?.packageId, "packageId"),
     });
+  }
+
+  @Get("orders/:orderId")
+  async getOwnOrder(
+    @Param("orderId") orderId: string,
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+    const validatedOrderId = requirePositiveIntegerString(orderId, "orderId");
+    const order = await this.ordersService.getOrder(validatedOrderId);
+
+    if (!order || order.sourceUserId !== user.userId) {
+      throw new UnauthorizedException("Order not found for session.");
+    }
+
+    const [commissions, companyFallbacks] = await Promise.all([
+      this.commissionsService.listCommissions({ orderId: validatedOrderId }),
+      this.commissionsService.listCompanyFallbacks({ sourceRefId: validatedOrderId }),
+    ]);
+
+    return {
+      order,
+      commissions,
+      companyFallbacks,
+    };
   }
 
   @Post("logout")

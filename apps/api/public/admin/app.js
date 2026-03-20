@@ -17,6 +17,7 @@ const commissionBeneficiaryFilterInput = document.getElementById("commissionBene
 const poolPayoutDateInput = document.getElementById("poolPayoutDateInput");
 const loadPoolPayoutsButton = document.getElementById("loadPoolPayoutsButton");
 const focusLatestOrderButton = document.getElementById("focusLatestOrderButton");
+const focusPendingOrdersButton = document.getElementById("focusPendingOrdersButton");
 const focusLatestCommissionButton = document.getElementById("focusLatestCommissionButton");
 const reloadPoolTodayButton = document.getElementById("reloadPoolTodayButton");
 const orderStatusFilter = document.getElementById("orderStatusFilter");
@@ -323,6 +324,7 @@ async function loadDashboard() {
       <td>${order.totalPv}</td>
       <td>
         <div class="table-actions">
+          <button type="button" data-action="approve-process-order" data-order-id="${order.orderId}">Approve + Process</button>
           <button type="button" data-action="approve-order" data-order-id="${order.orderId}">Approve</button>
           <button type="button" data-action="process-order" data-order-id="${order.orderId}">Process</button>
           <button type="button" class="secondary" data-action="reprocess-order" data-order-id="${order.orderId}">Reprocess</button>
@@ -499,6 +501,8 @@ async function togglePackageStatus(packageId, currentStatus) {
 
 async function runOrderAction(orderId, action) {
   if (
+    (action === "approve-process-order" &&
+      !confirmAction(`Approve and process order ${orderId}?`)) ||
     (action === "approve-order" &&
       !confirmAction(`Approve order ${orderId}?`)) ||
     (action === "process-order" &&
@@ -510,13 +514,22 @@ async function runOrderAction(orderId, action) {
   }
 
   setStatus(`${action} order ${orderId}`);
-  const path =
-    action === "approve-order"
-      ? `/orders/${orderId}/approve`
-      : action === "reprocess-order"
-        ? `/orders/${orderId}/reprocess`
-        : `/orders/${orderId}/process-approved`;
-  const result = await request(path, { method: "POST" });
+  let result;
+
+  if (action === "approve-process-order") {
+    const approval = await request(`/orders/${orderId}/approve`, { method: "POST" });
+    const processed = await request(`/orders/${orderId}/process-approved`, { method: "POST" });
+    result = { approval, processed };
+  } else {
+    const path =
+      action === "approve-order"
+        ? `/orders/${orderId}/approve`
+        : action === "reprocess-order"
+          ? `/orders/${orderId}/reprocess`
+          : `/orders/${orderId}/process-approved`;
+    result = await request(path, { method: "POST" });
+  }
+
   setActionOutput(`${action} result`, result);
   pushHistory(action, `Ran ${action} for order ${orderId}`);
   await loadDashboard();
@@ -669,6 +682,19 @@ if (focusLatestOrderButton) {
     loadOrderDetail(state.latestOrderId).catch((error) => {
       setStatus(error.message);
       setActionOutput("Latest order focus failed", { message: error.message });
+    });
+  });
+}
+
+if (focusPendingOrdersButton) {
+  focusPendingOrdersButton.addEventListener("click", () => {
+    if (orderStatusFilter) {
+      orderStatusFilter.value = "pending";
+    }
+    state.pages.orders = 1;
+    loadDashboard().catch((error) => {
+      setStatus(error.message);
+      setActionOutput("Pending order focus failed", { message: error.message });
     });
   });
 }
