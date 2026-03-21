@@ -626,6 +626,7 @@ async function loadDashboard() {
     (member) => `<tr>
       <td>${member.memberId}</td>
       <td>${member.memberCode}</td>
+      <td>${member.referralCode ?? "-"}</td>
       <td>${member.name}</td>
       <td>${member.sponsorId ?? "-"}</td>
       <td>
@@ -1290,13 +1291,27 @@ createMemberForm.addEventListener("submit", async (event) => {
 
   try {
     const sponsorCode = document.getElementById("memberSponsorCodeInput").value.trim();
+    const email = document.getElementById("memberEmailCreateInput").value.trim();
+    const phone = document.getElementById("memberPhoneCreateInput").value.trim();
+    const password = document.getElementById("memberPasswordCreateInput").value;
+
+    if (!email && !phone) {
+      throw new Error("Email or phone is required.");
+    }
+
+    if (!/^[A-Za-z0-9]{6,}$/.test(password)) {
+      throw new Error("Password must be at least 6 letters or numbers.");
+    }
+
     const result = await request("/members", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        memberCode: document.getElementById("memberCodeCreateInput").value.trim(),
+        memberCode: document.getElementById("memberCodeCreateInput").value.trim() || undefined,
         name: document.getElementById("memberNameCreateInput").value.trim(),
-        email: document.getElementById("memberEmailCreateInput").value.trim() || undefined,
+        email: email || undefined,
+        phone: phone || undefined,
+        password,
         sponsorCode: sponsorCode || undefined,
       }),
     });

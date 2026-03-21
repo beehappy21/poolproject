@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
 
 import { QualificationCycleSnapshot } from "../../../qualification/src/domain/qualification.types";
 import { PrismaService } from "../../../../infrastructure/src/prisma/prisma.service";
@@ -19,6 +20,7 @@ export interface MembersRepository {
     | Array<{
         memberId: string;
         memberCode: string;
+        referralCode: string;
         name: string;
         sponsorId: string | null;
       }>
@@ -26,6 +28,7 @@ export interface MembersRepository {
         items: Array<{
           memberId: string;
           memberCode: string;
+          referralCode: string;
           name: string;
           sponsorId: string | null;
         }>;
@@ -39,32 +42,39 @@ export interface MembersRepository {
     member: {
       memberId: string;
       memberCode: string;
+      referralCode: string;
       name: string;
       sponsorId: string | null;
     };
     sponsor: {
       memberId: string;
       memberCode: string;
+      referralCode: string;
       name: string;
       sponsorId: string | null;
     } | null;
     directReferrals: Array<{
       memberId: string;
       memberCode: string;
+      referralCode: string;
       name: string;
       sponsorId: string | null;
     }>;
+    directReferralCount: number;
     uplineChain: Array<{
       memberId: string;
       memberCode: string;
+      referralCode: string;
       name: string;
       sponsorId: string | null;
     }>;
+    uplineLevelCount: number;
   } | null>;
 
   findMemberById(memberId: string): Promise<{
     memberId: string;
     memberCode: string;
+    referralCode: string;
     name: string;
     sponsorId: string | null;
   } | null>;
@@ -89,22 +99,43 @@ export interface MembersRepository {
   findMemberByCode(memberCode: string): Promise<{
     memberId: string;
     memberCode: string;
+    referralCode: string;
     name: string;
     sponsorId: string | null;
   } | null>;
 
   createMember(input: {
-    memberCode: string;
-    name: string;
+    memberCode?: string | null;
+    name?: string | null;
     email?: string;
     phone?: string;
     sponsorId?: string | null;
     sponsorCode?: string | null;
     ref?: string | null;
+    password?: string | null;
   }): Promise<{
     memberId: string;
     memberCode: string;
+    referralCode: string;
     name: string;
+    sponsorId: string | null;
+    temporaryPassword?: string;
+  }>;
+
+  updateMemberProfile(
+    memberId: string,
+    input: {
+      name?: string | null;
+      email?: string | null;
+      phone?: string | null;
+    },
+  ): Promise<{
+    memberId: string;
+    memberCode: string;
+    referralCode: string;
+    name: string;
+    email: string | null;
+    phone: string | null;
     sponsorId: string | null;
   }>;
 
@@ -129,6 +160,181 @@ export interface MembersRepository {
 @Injectable()
 export class PrismaMembersRepository implements MembersRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  private async ensureUserReferralCode(user: {
+    id: bigint;
+    referralCode: string | null;
+  }): Promise<string> {
+    if (user.referralCode) {
+      return user.referralCode;
+    }
+
+    const referralCode = await this.generateUniqueReferralCode();
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { referralCode },
+    });
+    return referralCode;
+  }
+
+  private async generateNextMemberCode(): Promise<string> {
+    const result = await this.prisma.$queryRaw<Array<{ next_code: number | bigint }>>`
+      SELECT COALESCE(MAX(CAST(SUBSTRING("memberCode" FROM 3) AS INTEGER)), 0) + 1 AS next_code
+      FROM "User"
+      WHERE "memberCode" ~ '^TH[0-9]{7}$'
+    `;
+
+    const nextCode = Number(result[0]?.next_code ?? 1);
+    return `TH${String(nextCode).padStart(7, "0")}`;
+  }
+
+  private async findMemberCodeSummaryRecord(memberCode: string) {
+    const normalizedCode = memberCode.trim();
+    const upperCode = normalizedCode.toUpperCase();
+
+    let member = await this.prisma.user.findUnique({
+      where: { memberCode: normalizedCode },
+      select: { id: true, memberCode: true, referralCode: true, name: true, sponsorId: true },
+    });
+
+    if (!member && upperCode !== normalizedCode) {
+      member = await this.prisma.user.findUnique({
+        where: { memberCode: upperCode },
+        select: { id: true, memberCode: true, referralCode: true, name: true, sponsorId: true },
+      });
+    }
+
+    if (!member) {
+      member = await this.prisma.user.findUnique({
+        where: { referralCode: normalizedCode },
+        select: { id: true, memberCode: true, referralCode: true, name: true, sponsorId: true },
+      });
+    }
+
+    if (!member && upperCode !== normalizedCode) {
+      member = await this.prisma.user.findUnique({
+        where: { referralCode: upperCode },
+        select: { id: true, memberCode: true, referralCode: true, name: true, sponsorId: true },
+      });
+    }
+
+    if (!member) {
+      member = await this.prisma.user.findFirst({
+        where: {
+          OR: [
+            {
+              memberCode: {
+                equals: normalizedCode,
+                mode: "insensitive" as const,
+              },
+            },
+            {
+              referralCode: {
+                equals: normalizedCode,
+                mode: "insensitive" as const,
+              },
+            },
+          ],
+        },
+        select: { id: true, memberCode: true, referralCode: true, name: true, sponsorId: true },
+      });
+    }
+
+    return member;
+  }
+
+  private async findMemberCodeIdRecord(memberCode: string) {
+    const normalizedCode = memberCode.trim();
+    const upperCode = normalizedCode.toUpperCase();
+
+    let member = await this.prisma.user.findUnique({
+      where: { memberCode: normalizedCode },
+      select: { id: true },
+    });
+
+    if (!member && upperCode !== normalizedCode) {
+      member = await this.prisma.user.findUnique({
+        where: { memberCode: upperCode },
+        select: { id: true },
+      });
+    }
+
+    if (!member) {
+      member = await this.prisma.user.findUnique({
+        where: { referralCode: normalizedCode },
+        select: { id: true },
+      });
+    }
+
+    if (!member && upperCode !== normalizedCode) {
+      member = await this.prisma.user.findUnique({
+        where: { referralCode: upperCode },
+        select: { id: true },
+      });
+    }
+
+    if (!member) {
+      member = await this.prisma.user.findFirst({
+        where: {
+          OR: [
+            {
+              memberCode: {
+                equals: normalizedCode,
+                mode: "insensitive" as const,
+              },
+            },
+            {
+              referralCode: {
+                equals: normalizedCode,
+                mode: "insensitive" as const,
+              },
+            },
+          ],
+        },
+        select: { id: true },
+      });
+    }
+
+    return member;
+  }
+
+  private async generateUniqueReferralCode(): Promise<string> {
+    const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const digits = "0123456789";
+
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      const letterPool = [
+        letters[Math.floor(Math.random() * letters.length)],
+        letters[Math.floor(Math.random() * letters.length)],
+      ];
+      const digitPool = Array.from({ length: 5 }, () =>
+        digits[Math.floor(Math.random() * digits.length)],
+      );
+      const pattern = ["L", "L", "D", "D", "D", "D", "D"];
+
+      for (let index = pattern.length - 1; index > 0; index -= 1) {
+        const swapIndex = Math.floor(Math.random() * (index + 1));
+        [pattern[index], pattern[swapIndex]] = [pattern[swapIndex], pattern[index]];
+      }
+
+      let letterIndex = 0;
+      let digitIndex = 0;
+      const referralCode = pattern
+        .map((token) => (token === "L" ? letterPool[letterIndex++] : digitPool[digitIndex++]))
+        .join("");
+
+      const existing = await this.prisma.user.findUnique({
+        where: { referralCode },
+        select: { id: true },
+      });
+
+      if (!existing) {
+        return referralCode;
+      }
+    }
+
+    throw new Error("Unable to generate referral code.");
+  }
 
   async listMembers(filters?: {
     sponsorId?: string;
@@ -155,15 +361,18 @@ export class PrismaMembersRepository implements MembersRepository {
           ? (filters.page - 1) * filters.pageSize
           : undefined,
       take: filters?.pageSize ?? 100,
-      select: { id: true, memberCode: true, name: true, sponsorId: true },
+      select: { id: true, memberCode: true, referralCode: true, name: true, sponsorId: true },
     });
 
-    const items = members.map((member) => ({
-      memberId: toIdString(member.id),
-      memberCode: member.memberCode,
-      name: member.name,
-      sponsorId: member.sponsorId ? toIdString(member.sponsorId) : null,
-    }));
+    const items = await Promise.all(
+      members.map(async (member) => ({
+        memberId: toIdString(member.id),
+        memberCode: member.memberCode,
+        referralCode: await this.ensureUserReferralCode(member),
+        name: member.name,
+        sponsorId: member.sponsorId ? toIdString(member.sponsorId) : null,
+      })),
+    );
 
     if (!filters?.page || !filters?.pageSize) {
       return items;
@@ -182,18 +391,20 @@ export class PrismaMembersRepository implements MembersRepository {
   async findMemberById(memberId: string): Promise<{
     memberId: string;
     memberCode: string;
+    referralCode: string;
     name: string;
     sponsorId: string | null;
   } | null> {
     const member = await this.prisma.user.findUnique({
       where: { id: BigInt(memberId) },
-      select: { id: true, memberCode: true, name: true, sponsorId: true },
+      select: { id: true, memberCode: true, referralCode: true, name: true, sponsorId: true },
     });
 
     return member
       ? {
           memberId: toIdString(member.id),
           memberCode: member.memberCode,
+          referralCode: await this.ensureUserReferralCode(member),
           name: member.name,
           sponsorId: member.sponsorId ? toIdString(member.sponsorId) : null,
         }
@@ -203,7 +414,7 @@ export class PrismaMembersRepository implements MembersRepository {
   async findMemberNetwork(memberId: string) {
     const member = await this.prisma.user.findUnique({
       where: { id: BigInt(memberId) },
-      select: { id: true, memberCode: true, name: true, sponsorId: true },
+      select: { id: true, memberCode: true, referralCode: true, name: true, sponsorId: true },
     });
 
     if (!member) {
@@ -213,18 +424,23 @@ export class PrismaMembersRepository implements MembersRepository {
     const sponsor = member.sponsorId
       ? await this.prisma.user.findUnique({
           where: { id: member.sponsorId },
-          select: { id: true, memberCode: true, name: true, sponsorId: true },
+          select: { id: true, memberCode: true, referralCode: true, name: true, sponsorId: true },
         })
       : null;
     const directReferrals = await this.prisma.user.findMany({
       where: { sponsorId: member.id },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: 20,
-      select: { id: true, memberCode: true, name: true, sponsorId: true },
+      select: { id: true, memberCode: true, referralCode: true, name: true, sponsorId: true },
     });
+    const directReferralCount = await this.prisma.user.count({
+      where: { sponsorId: member.id },
+    });
+    const memberReferralCode = await this.ensureUserReferralCode(member);
     const uplineChain: Array<{
       memberId: string;
       memberCode: string;
+      referralCode: string;
       name: string;
       sponsorId: string | null;
     }> = [];
@@ -233,7 +449,7 @@ export class PrismaMembersRepository implements MembersRepository {
     while (currentSponsorId && uplineChain.length < 10) {
       const upline = await this.prisma.user.findUnique({
         where: { id: currentSponsorId },
-        select: { id: true, memberCode: true, name: true, sponsorId: true },
+        select: { id: true, memberCode: true, referralCode: true, name: true, sponsorId: true },
       });
 
       if (!upline) {
@@ -243,6 +459,7 @@ export class PrismaMembersRepository implements MembersRepository {
       uplineChain.push({
         memberId: toIdString(upline.id),
         memberCode: upline.memberCode,
+        referralCode: await this.ensureUserReferralCode(upline),
         name: upline.name,
         sponsorId: upline.sponsorId ? toIdString(upline.sponsorId) : null,
       });
@@ -253,6 +470,7 @@ export class PrismaMembersRepository implements MembersRepository {
       member: {
         memberId: toIdString(member.id),
         memberCode: member.memberCode,
+        referralCode: memberReferralCode,
         name: member.name,
         sponsorId: member.sponsorId ? toIdString(member.sponsorId) : null,
       },
@@ -260,19 +478,25 @@ export class PrismaMembersRepository implements MembersRepository {
         ? {
             memberId: toIdString(sponsor.id),
             memberCode: sponsor.memberCode,
+            referralCode: await this.ensureUserReferralCode(sponsor),
             name: sponsor.name,
             sponsorId: sponsor.sponsorId ? toIdString(sponsor.sponsorId) : null,
           }
         : null,
-      directReferrals: directReferrals.map((directReferral) => ({
-        memberId: toIdString(directReferral.id),
-        memberCode: directReferral.memberCode,
-        name: directReferral.name,
-        sponsorId: directReferral.sponsorId
-          ? toIdString(directReferral.sponsorId)
-          : null,
-      })),
+      directReferrals: await Promise.all(
+        directReferrals.map(async (directReferral) => ({
+          memberId: toIdString(directReferral.id),
+          memberCode: directReferral.memberCode,
+          referralCode: await this.ensureUserReferralCode(directReferral),
+          name: directReferral.name,
+          sponsorId: directReferral.sponsorId
+            ? toIdString(directReferral.sponsorId)
+            : null,
+        })),
+      ),
+      directReferralCount,
       uplineChain,
+      uplineLevelCount: uplineChain.length,
     };
   }
 
@@ -372,18 +596,17 @@ export class PrismaMembersRepository implements MembersRepository {
   async findMemberByCode(memberCode: string): Promise<{
     memberId: string;
     memberCode: string;
+    referralCode: string;
     name: string;
     sponsorId: string | null;
   } | null> {
-    const member = await this.prisma.user.findUnique({
-      where: { memberCode },
-      select: { id: true, memberCode: true, name: true, sponsorId: true },
-    });
+    const member = await this.findMemberCodeSummaryRecord(memberCode);
 
     return member
       ? {
           memberId: toIdString(member.id),
           memberCode: member.memberCode,
+          referralCode: await this.ensureUserReferralCode(member),
           name: member.name,
           sponsorId: member.sponsorId ? toIdString(member.sponsorId) : null,
         }
@@ -391,32 +614,56 @@ export class PrismaMembersRepository implements MembersRepository {
   }
 
   async createMember(input: {
-    memberCode: string;
-    name: string;
+    memberCode?: string | null;
+    name?: string | null;
     email?: string;
     phone?: string;
     sponsorId?: string | null;
     sponsorCode?: string | null;
     ref?: string | null;
+    password?: string | null;
   }) {
     let sponsorId = input.sponsorId ? BigInt(input.sponsorId) : null;
 
     if (!sponsorId && (input.sponsorCode || input.ref)) {
-      const sponsor = await this.prisma.user.findUnique({
-        where: { memberCode: input.sponsorCode ?? input.ref ?? undefined },
-        select: { id: true },
-      });
+      const sponsor = await this.findMemberCodeIdRecord(
+        input.sponsorCode ?? input.ref ?? "",
+      );
 
-      sponsorId = sponsor?.id ?? null;
+      if (!sponsor) {
+        throw new Error("Sponsor not found.");
+      }
+
+      sponsorId = sponsor.id;
     }
+
+    if (!sponsorId) {
+      const defaultSponsor = await this.findMemberCodeIdRecord("TH0000001");
+
+      if (defaultSponsor) {
+        sponsorId = defaultSponsor.id;
+      } else {
+        throw new Error("Default sponsor TH0000001 not found.");
+      }
+    }
+
+    const temporaryPassword =
+      input.password && input.password.trim().length > 0
+        ? undefined
+        : randomUUID().replace(/-/g, "").slice(0, 12);
+    const passwordToHash = input.password?.trim() || temporaryPassword!;
+    const memberCode = input.memberCode?.trim() || (await this.generateNextMemberCode());
+    const referralCode = await this.generateUniqueReferralCode();
+    const displayName = input.name?.trim() || memberCode;
 
     const member = await this.prisma.user.create({
       data: {
-        memberCode: input.memberCode,
-        name: input.name,
+        memberCode,
+        referralCode,
+        name: displayName,
         email: input.email ?? null,
         phone: input.phone ?? null,
-        passwordHash: hashPassword("dev-password"),
+        passwordHash: hashPassword(passwordToHash),
         sponsorId,
         status: "ACTIVE",
         riskLevel: "NORMAL",
@@ -427,7 +674,50 @@ export class PrismaMembersRepository implements MembersRepository {
     return {
       memberId: toIdString(member.id),
       memberCode: member.memberCode,
+      referralCode,
       name: member.name,
+      sponsorId: member.sponsorId ? toIdString(member.sponsorId) : null,
+      ...(temporaryPassword ? { temporaryPassword } : {}),
+    };
+  }
+
+  async updateMemberProfile(
+    memberId: string,
+    input: {
+      name?: string | null;
+      email?: string | null;
+      phone?: string | null;
+    },
+  ) {
+    const normalizedName =
+      input.name === undefined || input.name === null
+        ? undefined
+        : input.name.trim() || undefined;
+    const member = await this.prisma.user.update({
+      where: { id: BigInt(memberId) },
+      data: {
+        name: normalizedName,
+        email: input.email === undefined ? undefined : input.email || null,
+        phone: input.phone === undefined ? undefined : input.phone || null,
+      },
+      select: {
+        id: true,
+        memberCode: true,
+        referralCode: true,
+        name: true,
+        email: true,
+        phone: true,
+        sponsorId: true,
+      },
+    });
+
+    return {
+      memberId: toIdString(member.id),
+      memberCode: member.memberCode,
+      referralCode: await this.ensureUserReferralCode(member),
+      name: member.name,
+      email: member.email,
+      phone: member.phone,
       sponsorId: member.sponsorId ? toIdString(member.sponsorId) : null,
     };
   }

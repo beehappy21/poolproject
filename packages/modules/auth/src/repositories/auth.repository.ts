@@ -42,6 +42,7 @@ export class PrismaAuthRepository implements AuthRepository {
             },
           },
           { email: input.identifier.toLowerCase() },
+          { phone: input.identifier },
         ],
       },
       select: {
@@ -49,6 +50,7 @@ export class PrismaAuthRepository implements AuthRepository {
         memberCode: true,
         name: true,
         email: true,
+        phone: true,
         passwordHash: true,
       },
     });
@@ -70,6 +72,7 @@ export class PrismaAuthRepository implements AuthRepository {
           memberCode: user.memberCode,
           name: user.name,
           email: user.email,
+          phone: user.phone,
         }
       : null;
   }
@@ -82,6 +85,7 @@ export class PrismaAuthRepository implements AuthRepository {
         memberCode: true,
         name: true,
         email: true,
+        phone: true,
       },
     });
 
@@ -91,6 +95,7 @@ export class PrismaAuthRepository implements AuthRepository {
           memberCode: user.memberCode,
           name: user.name,
           email: user.email,
+          phone: user.phone,
         }
       : null;
   }

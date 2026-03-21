@@ -7,6 +7,7 @@ export interface AuthUserSummary {
   memberCode: string;
   name: string;
   email: string | null;
+  phone: string | null;
 }
 
 export interface AuthSessionResult {

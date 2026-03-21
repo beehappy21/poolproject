@@ -5,6 +5,7 @@ const statusLine = document.getElementById("statusLine");
 const dashboard = document.getElementById("dashboard");
 const authPanel = document.getElementById("authPanel");
 const activateForm = document.getElementById("activateForm");
+const profileForm = document.getElementById("profileForm");
 const passwordForm = document.getElementById("passwordForm");
 const orderForm = document.getElementById("orderForm");
 const activatePackageSelect = document.getElementById("activatePackageSelect");
@@ -310,8 +311,8 @@ function renderNetwork(network) {
 
   networkSummary.innerHTML = [
     `<div class="stack-item"><strong>Sponsor</strong><p class="muted">${network.sponsor ? `${network.sponsor.name} • ${network.sponsor.memberCode}` : "No sponsor"}</p></div>`,
-    `<div class="stack-item"><strong>Direct Referrals</strong><p class="muted">${network.directReferrals.length} members</p></div>`,
-    `<div class="stack-item"><strong>Upline Chain</strong><p class="muted">${network.uplineChain.length} levels tracked</p></div>`,
+    `<div class="stack-item"><strong>Direct Referrals</strong><p class="muted">${network.directReferralCount} members</p></div>`,
+    `<div class="stack-item"><strong>Upline Chain</strong><p class="muted">${network.uplineLevelCount} levels tracked</p></div>`,
   ].join("");
 
     networkReferrals.innerHTML =
@@ -340,12 +341,15 @@ function renderDashboard(
 ) {
   document.getElementById("memberName").textContent = data.user.name;
   document.getElementById("memberMeta").textContent =
-    `${data.user.memberCode}${data.user.email ? ` • ${data.user.email}` : ""}`;
+    [data.user.memberCode, data.user.email, data.user.phone].filter(Boolean).join(" • ");
+  document.getElementById("profileNameInput").value = data.user.name || "";
+  document.getElementById("profileEmailInput").value = data.user.email || "";
+  document.getElementById("profilePhoneInput").value = data.user.phone || "";
   document.getElementById("withdrawableBalance").textContent =
     data.wallet.withdrawableBalance;
   document.getElementById("walletMeta").textContent =
     `Approved ${data.wallet.approvedBalance} • Held ${data.wallet.heldBalance} • Offset ${data.wallet.negativeOffsetBalance}`;
-  document.getElementById("referralCode").textContent = data.referral.memberCode;
+  document.getElementById("referralCode").textContent = data.referral.referralCode;
   document.getElementById("referralLink").textContent = data.referral.referralLink;
 
   renderCycles(data.cycles);
@@ -489,6 +493,35 @@ activateForm.addEventListener("submit", async (event) => {
   } catch (error) {
     setStatus(error.message);
     setActionResult("Activate failed", { message: error.message });
+  }
+});
+
+profileForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  try {
+    const email = document.getElementById("profileEmailInput").value.trim();
+    const phone = document.getElementById("profilePhoneInput").value.trim();
+
+    if (!email && !phone) {
+      throw new Error("Email or phone is required.");
+    }
+
+    setStatus("Saving profile");
+    const result = await request("/auth/profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: document.getElementById("profileNameInput").value.trim() || undefined,
+        email: email || undefined,
+        phone: phone || undefined,
+      }),
+    });
+    setActionResult("Profile updated", result);
+    await loadDashboard();
+  } catch (error) {
+    setStatus(error.message);
+    setActionResult("Profile update failed", { message: error.message });
   }
 });
 

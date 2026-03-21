@@ -13,6 +13,19 @@ function setResult(label, data) {
   resultOutput.textContent = `${label}\n\n${JSON.stringify(data, null, 2)}`;
 }
 
+function setSignupSuccessResult(member) {
+  const referralLink = `${window.location.origin}/signup?ref=${encodeURIComponent(member.referralCode)}`;
+  resultOutput.textContent = [
+    "Member created",
+    "",
+    `Member Code: ${member.memberCode}`,
+    `Referral Code: ${member.referralCode}`,
+    `Name: ${member.name}`,
+    `Member ID: ${member.memberId}`,
+    `Referral Link: ${referralLink}`,
+  ].join("\n");
+}
+
 async function request(path, options = {}) {
   const response = await fetch(path, options);
   const text = await response.text();
@@ -68,15 +81,40 @@ async function loadPackages() {
       : '<tr><td colspan="5" class="muted">No packages</td></tr>';
 }
 
+async function createSessionAfterSignup(identifier, password) {
+  const session = await request("/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      identifier,
+      password,
+    }),
+  });
+
+  localStorage.setItem("memberAccessToken", session.accessToken);
+}
+
 signupForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   try {
+    const password = document.getElementById("passwordInput").value;
+    const email = document.getElementById("emailInput").value.trim();
+    const phone = document.getElementById("phoneInput").value.trim();
+
+    if (!email && !phone) {
+      throw new Error("Email or phone is required.");
+    }
+
+    if (!/^[A-Za-z0-9]{6,}$/.test(password)) {
+      throw new Error("Password must be at least 6 letters or numbers.");
+    }
+
     const payload = {
       ref: getReferralCode() || undefined,
-      memberCode: document.getElementById("memberCodeInput").value.trim(),
-      name: document.getElementById("nameInput").value.trim(),
-      email: document.getElementById("emailInput").value.trim() || undefined,
+      email: email || undefined,
+      phone: phone || undefined,
+      password,
     };
 
     setStatus("Creating member");
@@ -85,10 +123,11 @@ signupForm.addEventListener("submit", async (event) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    setResult("Member created", result);
-    setStatus("Member created");
-    signupForm.reset();
-    refInput.value = getReferralCode();
+    setSignupSuccessResult(result);
+    setStatus("Signing in");
+    await createSessionAfterSignup(email || phone || result.memberCode, password);
+    setStatus("Redirecting to dashboard");
+    window.location.href = "/app";
   } catch (error) {
     setStatus(error.message);
     setResult("Signup failed", { message: error.message });

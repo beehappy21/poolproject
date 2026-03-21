@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -244,6 +245,28 @@ export class AuthController {
       userId: user.userId,
       currentPassword: requireNonEmptyString(body?.currentPassword, "currentPassword"),
       newPassword: requireNonEmptyString(body?.newPassword, "newPassword"),
+    });
+  }
+
+  @Post("profile")
+  async updateProfile(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+    @Body() body?: { name?: string; email?: string; phone?: string },
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+    const name = body?.name?.trim() || undefined;
+    const email = body?.email?.trim() || undefined;
+    const phone = body?.phone?.trim() || undefined;
+
+    if (!email && !phone) {
+      throw new BadRequestException("Email or phone is required.");
+    }
+
+    return this.membersService.updateMemberProfile(user.userId, {
+      name,
+      email,
+      phone,
     });
   }
 
