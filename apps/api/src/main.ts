@@ -136,7 +136,10 @@ function resolveRouteAccess(
     path.startsWith("/pool") ||
     path.startsWith("/wallets") ||
     path.startsWith("/commissions") ||
-    path.startsWith("/members")
+    path.startsWith("/members") ||
+    path.startsWith("/content") ||
+    path.startsWith("/notifications") ||
+    path.startsWith("/shipping")
   ) {
     return "admin";
   }

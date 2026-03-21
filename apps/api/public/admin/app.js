@@ -216,9 +216,9 @@ state.activeAdminMenu =
   localStorage.getItem("adminActiveMenu") || "overview";
 state.activeEcommerceMenu =
   localStorage.getItem("adminActiveEcommerceMenu") || "catalog";
-state.contentDrafts = JSON.parse(localStorage.getItem("adminContentDrafts") || "[]");
-state.notificationDrafts = JSON.parse(localStorage.getItem("adminNotificationDrafts") || "[]");
-state.shippingJobs = JSON.parse(localStorage.getItem("adminShippingJobs") || "[]");
+state.contentDrafts = [];
+state.notificationDrafts = [];
+state.shippingJobs = [];
 state.orderItems = [];
 state.commissionItems = [];
 
@@ -333,15 +333,10 @@ function renderContentDrafts() {
       <td>${escapeHtml(item.placement)}</td>
       <td>${escapeHtml(item.title)}</td>
       <td>${escapeHtml(item.audience)}</td>
-      <td>${escapeHtml(item.schedule)}</td>
+      <td>${escapeHtml(item.startAt || "-")}</td>
       <td>${escapeHtml(item.status)}</td>
     </tr>`,
   );
-}
-
-function persistContentDrafts() {
-  localStorage.setItem("adminContentDrafts", JSON.stringify(state.contentDrafts));
-  renderContentDrafts();
 }
 
 function resetContentStudio() {
@@ -424,7 +419,7 @@ function renderNotificationQueue() {
       <td>${escapeHtml(item.channel)}</td>
       <td>${escapeHtml(item.audience)}</td>
       <td>${escapeHtml(item.headline)}</td>
-      <td>${escapeHtml(item.schedule)}</td>
+      <td>${escapeHtml(item.scheduleAt || "-")}</td>
       <td>${escapeHtml(item.status)}</td>
     </tr>`,
   );
@@ -611,19 +606,9 @@ function renderReportsWorkspace() {
   );
 }
 
-function persistShippingJobs() {
-  localStorage.setItem("adminShippingJobs", JSON.stringify(state.shippingJobs));
-  renderShippingWorkspace();
-}
-
 function resetShippingWorkspace() {
   shippingForm?.reset();
   renderShippingPreview();
-}
-
-function persistNotificationDrafts() {
-  localStorage.setItem("adminNotificationDrafts", JSON.stringify(state.notificationDrafts));
-  renderNotificationQueue();
 }
 
 function resetNotificationStudio() {
@@ -1354,7 +1339,7 @@ async function loadDashboard() {
     orderQuery.set("userId", state.orderUserId);
   }
 
-  const [members, orders, poolCycles, fallbacks, packages, suppliers, categories, products, productDetails] = await Promise.all([
+  const [members, orders, poolCycles, fallbacks, packages, suppliers, categories, products, productDetails, contentItems, notificationItems, shippingJobs] = await Promise.all([
     request(
       `/members?page=${state.pages.members}&pageSize=${state.pageSize}${state.memberSearch ? `&query=${encodeURIComponent(state.memberSearch)}` : ""}`,
     ),
@@ -1370,6 +1355,9 @@ async function loadDashboard() {
     request("/packages/categories"),
     request("/packages/products"),
     request("/packages/product-details"),
+    request("/content"),
+    request("/notifications"),
+    request("/shipping/jobs"),
     loadCommissionSettings(),
     loadMatrixSettings(),
     loadMatrixSummary(),
@@ -1395,6 +1383,9 @@ async function loadDashboard() {
   state.categories = getListItems(categories);
   state.products = getListItems(products);
   state.productDetails = getListItems(productDetails);
+  state.contentDrafts = getListItems(contentItems);
+  state.notificationDrafts = getListItems(notificationItems);
+  state.shippingJobs = getListItems(shippingJobs);
   const commissionItems = getListItems(commissions);
 
   memberItems.sort((left, right) => {
@@ -2361,24 +2352,32 @@ if (resetProductFormButton) {
 });
 
 if (contentForm) {
-  contentForm.addEventListener("submit", (event) => {
+  contentForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
-    state.contentDrafts = [
-      {
-        key: contentKeyInput.value.trim(),
-        placement: contentPlacementSelect.value,
-        title: contentTitleInput.value.trim(),
-        audience: contentAudienceSelect.value,
-        schedule: contentStartInput.value || "No schedule",
-        status: "draft",
-      },
-      ...state.contentDrafts,
-    ].slice(0, 20);
+    try {
+      const result = await request("/content", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: contentKeyInput.value.trim(),
+          placement: contentPlacementSelect.value,
+          title: contentTitleInput.value.trim(),
+          audience: contentAudienceSelect.value,
+          summary: contentSummaryInput.value.trim(),
+          body: contentBodyInput.value.trim(),
+          startAt: contentStartInput.value || undefined,
+          endAt: contentEndInput.value || undefined,
+        }),
+      });
 
-    persistContentDrafts();
-    setStatus("Content draft saved");
-    setActionOutput("Content draft saved", state.contentDrafts[0]);
+      setStatus("Content draft saved");
+      setActionOutput("Content draft saved", result);
+      await loadDashboard();
+    } catch (error) {
+      setStatus(error.message);
+      setActionOutput("Content draft save failed", { message: error.message });
+    }
   });
 }
 
@@ -2404,31 +2403,32 @@ if (resetContentButton) {
 });
 
 if (notificationForm) {
-  notificationForm.addEventListener("submit", (event) => {
+  notificationForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
-    state.notificationDrafts = [
-      {
-        name: notificationNameInput.value.trim(),
-        channel: notificationChannelSelect.value,
-        audience: notificationAudienceSelect.value,
-        headline: notificationHeadlineInput.value.trim(),
-        schedule: notificationScheduleInput.value || "Send now",
-        status: "queued_draft",
-      },
-      ...state.notificationDrafts,
-    ].slice(0, 20);
+    try {
+      const result = await request("/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: notificationNameInput.value.trim(),
+          channel: notificationChannelSelect.value,
+          audience: notificationAudienceSelect.value,
+          headline: notificationHeadlineInput.value.trim(),
+          message: notificationMessageInput.value.trim(),
+          ctaLabel: notificationCtaLabelInput.value.trim() || undefined,
+          ctaRoute: notificationCtaRouteInput.value.trim() || undefined,
+          scheduleAt: notificationScheduleInput.value || undefined,
+        }),
+      });
 
-    persistNotificationDrafts();
-    setStatus("Notification draft queued");
-    setActionOutput("Notification draft queued", {
-      name: notificationNameInput.value.trim(),
-      channel: notificationChannelSelect.value,
-      audience: notificationAudienceSelect.value,
-      headline: notificationHeadlineInput.value.trim(),
-      ctaLabel: notificationCtaLabelInput.value.trim() || null,
-      ctaRoute: notificationCtaRouteInput.value.trim() || null,
-    });
+      setStatus("Notification draft queued");
+      setActionOutput("Notification draft queued", result);
+      await loadDashboard();
+    } catch (error) {
+      setStatus(error.message);
+      setActionOutput("Notification draft queue failed", { message: error.message });
+    }
   });
 }
 
@@ -2489,25 +2489,31 @@ if (salesFocusCommissionButton) {
 });
 
 if (shippingForm) {
-  shippingForm.addEventListener("submit", (event) => {
+  shippingForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
-    state.shippingJobs = [
-      {
-        orderId: shippingOrderIdInput.value.trim(),
-        status: shippingStatusSelect.value,
-        carrier: shippingCarrierInput.value.trim(),
-        trackingNo: shippingTrackingInput.value.trim(),
-        warehouse: shippingWarehouseInput.value.trim(),
-        dispatchAt: shippingDispatchInput.value || "",
-        note: shippingNoteInput.value.trim(),
-      },
-      ...state.shippingJobs,
-    ].slice(0, 30);
+    try {
+      const result = await request("/shipping/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: shippingOrderIdInput.value.trim(),
+          status: shippingStatusSelect.value,
+          carrier: shippingCarrierInput.value.trim() || undefined,
+          trackingNo: shippingTrackingInput.value.trim() || undefined,
+          warehouse: shippingWarehouseInput.value.trim() || undefined,
+          dispatchAt: shippingDispatchInput.value || undefined,
+          note: shippingNoteInput.value.trim() || undefined,
+        }),
+      });
 
-    persistShippingJobs();
-    setStatus("Shipment job saved");
-    setActionOutput("Shipment job saved", state.shippingJobs[0]);
+      setStatus("Shipment job saved");
+      setActionOutput("Shipment job saved", result);
+      await loadDashboard();
+    } catch (error) {
+      setStatus(error.message);
+      setActionOutput("Shipment job save failed", { message: error.message });
+    }
   });
 }
 
