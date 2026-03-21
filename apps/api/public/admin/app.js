@@ -128,6 +128,16 @@ const notificationPreviewHeadline = document.getElementById("notificationPreview
 const notificationPreviewMessage = document.getElementById("notificationPreviewMessage");
 const notificationPreviewCta = document.getElementById("notificationPreviewCta");
 const notificationPreviewSchedule = document.getElementById("notificationPreviewSchedule");
+const salesOrdersTotalMetric = document.getElementById("salesOrdersTotalMetric");
+const salesPendingMetric = document.getElementById("salesPendingMetric");
+const salesApprovedMetric = document.getElementById("salesApprovedMetric");
+const salesAveragePvMetric = document.getElementById("salesAveragePvMetric");
+const salesLatestOrderLabel = document.getElementById("salesLatestOrderLabel");
+const salesLatestCommissionLabel = document.getElementById("salesLatestCommissionLabel");
+const salesPackageInventoryLabel = document.getElementById("salesPackageInventoryLabel");
+const salesFocusLatestButton = document.getElementById("salesFocusLatestButton");
+const salesFocusPendingButton = document.getElementById("salesFocusPendingButton");
+const salesFocusCommissionButton = document.getElementById("salesFocusCommissionButton");
 state.memberSearch = "";
 state.orderUserId = "";
 state.commissionOrderId = "";
@@ -179,6 +189,8 @@ state.activeEcommerceMenu =
   localStorage.getItem("adminActiveEcommerceMenu") || "catalog";
 state.contentDrafts = JSON.parse(localStorage.getItem("adminContentDrafts") || "[]");
 state.notificationDrafts = JSON.parse(localStorage.getItem("adminNotificationDrafts") || "[]");
+state.orderItems = [];
+state.commissionItems = [];
 
 const adminMenuConfig = {
   overview: {
@@ -322,6 +334,55 @@ function renderNotificationPreview() {
     notificationCtaLabelInput?.value.trim() || "CTA";
   notificationPreviewSchedule.textContent =
     notificationScheduleInput?.value || "Send now";
+}
+
+function renderSalesWorkspace() {
+  const visibleOrders = state.orderItems || [];
+  const pendingCount = visibleOrders.filter(
+    (item) => String(item.approvalStatus || "").toLowerCase() === "pending",
+  ).length;
+  const approvedCount = visibleOrders.filter(
+    (item) => String(item.approvalStatus || "").toLowerCase() === "approved",
+  ).length;
+  const totalPv = visibleOrders.reduce(
+    (sum, item) => sum + (Number(item.totalPv) || 0),
+    0,
+  );
+  const averagePv = visibleOrders.length ? (totalPv / visibleOrders.length).toFixed(2) : "0";
+
+  if (salesOrdersTotalMetric) {
+    salesOrdersTotalMetric.textContent = String(state.totals.orders || 0);
+  }
+
+  if (salesPendingMetric) {
+    salesPendingMetric.textContent = String(pendingCount);
+  }
+
+  if (salesApprovedMetric) {
+    salesApprovedMetric.textContent = String(approvedCount);
+  }
+
+  if (salesAveragePvMetric) {
+    salesAveragePvMetric.textContent = averagePv;
+  }
+
+  if (salesLatestOrderLabel) {
+    const latestOrder = visibleOrders[0];
+    salesLatestOrderLabel.textContent = latestOrder
+      ? `${latestOrder.orderNo} · ${latestOrder.approvalStatus} · PV ${latestOrder.totalPv}`
+      : "No order loaded";
+  }
+
+  if (salesLatestCommissionLabel) {
+    const latestCommission = state.latestCommission;
+    salesLatestCommissionLabel.textContent = latestCommission
+      ? `${latestCommission.commissionType} · ${latestCommission.amount} · order ${latestCommission.orderId}`
+      : "No commission loaded";
+  }
+
+  if (salesPackageInventoryLabel) {
+    salesPackageInventoryLabel.textContent = `${state.packageCatalogItems.length} packages available for sales`;
+  }
 }
 
 function renderNotificationQueue() {
@@ -1135,6 +1196,8 @@ async function loadDashboard() {
     return Number(right.orderId) - Number(left.orderId);
   });
 
+  state.orderItems = orderItems;
+  state.commissionItems = commissionItems;
   state.packageCatalogItems = packageItems;
   state.totals.members = getListTotal(members);
   state.totals.orders = getListTotal(orders);
@@ -1246,6 +1309,7 @@ async function loadDashboard() {
   renderCatalogSelectors();
   renderPackageItemRows();
   renderProductDetailMediaPreview();
+  renderSalesWorkspace();
 
   const packageOptions = [
     '<option value="">Pick package ID</option>',
@@ -2149,6 +2213,42 @@ if (resetNotificationButton) {
   resetNotificationButton.addEventListener("click", () => {
     resetNotificationStudio();
     setStatus("Notification studio reset");
+  });
+}
+
+if (salesFocusLatestButton) {
+  salesFocusLatestButton.addEventListener("click", () => {
+    if (!state.latestOrderId) {
+      setStatus("No latest order found.");
+      return;
+    }
+
+    resetOrderFocus(state.latestOrderId);
+    loadOrderDetail(state.latestOrderId).catch((error) => setStatus(error.message));
+  });
+}
+
+if (salesFocusPendingButton) {
+  salesFocusPendingButton.addEventListener("click", () => {
+    if (orderStatusFilter) {
+      orderStatusFilter.value = "approved";
+      orderStatusFilter.value = "pending";
+    }
+    state.pages.orders = 1;
+    loadDashboard().catch((error) => setStatus(error.message));
+  });
+}
+
+if (salesFocusCommissionButton) {
+  salesFocusCommissionButton.addEventListener("click", () => {
+    if (!state.latestCommission) {
+      setStatus("No latest commission found.");
+      return;
+    }
+
+    resetOrderFocus(state.latestCommission.orderId || "");
+    resetBeneficiaryFocus(state.latestCommission.beneficiaryUserId || "");
+    loadDashboard().catch((error) => setStatus(error.message));
   });
 }
 

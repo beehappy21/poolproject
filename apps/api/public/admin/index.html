@@ -603,11 +603,70 @@
           </div>
         </section>
 
+        <section class="sales-kpi-grid" data-menu-section="ecommerce" data-ecommerce-section="sales">
+          <article class="stat-card panel">
+            <span>Total Orders</span>
+            <strong id="salesOrdersTotalMetric">0</strong>
+          </article>
+          <article class="stat-card panel">
+            <span>Visible Pending</span>
+            <strong id="salesPendingMetric">0</strong>
+          </article>
+          <article class="stat-card panel">
+            <span>Visible Approved</span>
+            <strong id="salesApprovedMetric">0</strong>
+          </article>
+          <article class="stat-card panel">
+            <span>Avg PV On Screen</span>
+            <strong id="salesAveragePvMetric">0</strong>
+          </article>
+        </section>
+
+        <section class="grid two-up" data-menu-section="ecommerce" data-ecommerce-section="sales">
+          <article class="panel">
+            <div class="section-head">
+              <h3>Sales Control Tower</h3>
+              <span class="muted">Fast focus for daily order operations</span>
+            </div>
+            <div class="placeholder-list sales-control-list">
+              <div class="placeholder-item">
+                <strong>Latest Order</strong>
+                <div class="muted" id="salesLatestOrderLabel">No order loaded</div>
+              </div>
+              <div class="placeholder-item">
+                <strong>Latest Commission</strong>
+                <div class="muted" id="salesLatestCommissionLabel">No commission loaded</div>
+              </div>
+              <div class="placeholder-item">
+                <strong>Catalog Packages</strong>
+                <div class="muted" id="salesPackageInventoryLabel">0 packages available for sales</div>
+              </div>
+            </div>
+            <div class="table-actions sales-control-actions">
+              <button type="button" id="salesFocusLatestButton">Focus Latest Order</button>
+              <button type="button" class="ghost" id="salesFocusPendingButton">Show Pending Orders</button>
+              <button type="button" class="ghost" id="salesFocusCommissionButton">Latest Commission</button>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="section-head">
+              <h3>Sales Workflow Guide</h3>
+              <span class="muted">Recommended operator sequence</span>
+            </div>
+            <div class="placeholder-list">
+              <div class="placeholder-item">1. Create member or select existing member, then create order from package</div>
+              <div class="placeholder-item">2. Approve and process order to trigger package, commission, and downstream operations</div>
+              <div class="placeholder-item">3. Review output, then hand over to shipping or payout workflows if needed</div>
+            </div>
+          </article>
+        </section>
+
         <section class="grid two-up" data-menu-section="ecommerce,members" data-ecommerce-section="sales">
           <article class="panel">
             <div class="section-head">
-              <h3>Quick Actions</h3>
-              <span class="muted">Create and trigger core flows</span>
+              <h3>Sales Actions</h3>
+              <span class="muted">Create order-side data and trigger processing</span>
             </div>
             <div class="action-grid">
               <form id="createMemberForm" class="panel inner-panel stacked-form">

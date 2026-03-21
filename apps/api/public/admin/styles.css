@@ -601,6 +601,21 @@ button.danger {
   letter-spacing: 0.08em;
 }
 
+.sales-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.sales-control-list strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.sales-control-actions {
+  padding: 0 18px 18px;
+}
+
 .product-detail-media-preview {
   display: grid;
   gap: 12px;
@@ -849,6 +864,7 @@ th {
 @media (max-width: 1100px) {
   .app-shell,
   .stats-grid,
+  .sales-kpi-grid,
   .grid.two-up,
   .three-up,
   .action-grid,
