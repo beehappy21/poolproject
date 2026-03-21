@@ -14,6 +14,7 @@ import {
   requirePositiveIntegerString,
 } from "../../../../../apps/api/src/http/request.util";
 import { CommissionsService } from "../../../commissions";
+import { MatrixService } from "../../../matrix/src";
 import { MembersService } from "../../../members";
 import { OrdersService } from "../../../orders";
 import { WalletsService } from "../../../wallets";
@@ -27,6 +28,7 @@ export class AuthController {
     private readonly ordersService: OrdersService,
     private readonly walletsService: WalletsService,
     private readonly commissionsService: CommissionsService,
+    private readonly matrixService: MatrixService,
   ) {}
 
   @Post("login")
@@ -124,6 +126,19 @@ export class AuthController {
   ) {
     const user = await this.requireSessionUser(authorization, cookieHeader);
     return this.membersService.getMemberNetwork(user.userId);
+  }
+
+  @Get("matrix")
+  async matrix(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+
+    return {
+      userId: user.userId,
+      cycles: await this.matrixService.getMemberMatrixCycles(user.userId),
+    };
   }
 
   @Post("activate-package")

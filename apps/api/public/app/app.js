@@ -17,6 +17,8 @@ const transactionsTable = document.getElementById("transactionsTable");
 const commissionsTable = document.getElementById("commissionsTable");
 const networkSummary = document.getElementById("networkSummary");
 const networkReferrals = document.getElementById("networkReferrals");
+const matrixCycles = document.getElementById("matrixCycles");
+const matrixMeta = document.getElementById("matrixMeta");
 
 let packageCatalog = [];
 
@@ -133,7 +135,7 @@ function renderTransactions(transactions) {
       ? transactions
           .map(
             (tx) => `<tr>
-              <td>${tx.txType}</td>
+              <td><span class="type-chip ${getTransactionTypeClassName(tx.txType)}">${tx.txType}</span></td>
               <td>${tx.direction}</td>
               <td>${tx.amount}</td>
               <td>${tx.status}</td>
@@ -142,6 +144,43 @@ function renderTransactions(transactions) {
           )
           .join("")
       : '<tr><td colspan="5" class="muted">No transactions</td></tr>';
+}
+
+function renderMatrix(matrix) {
+  const cycles = Array.isArray(matrix?.cycles) ? matrix.cycles : [];
+
+  if (!cycles.length) {
+    matrixMeta.textContent = "No matrix cycle yet";
+    matrixCycles.innerHTML = '<div class="stack-item"><p class="muted">No matrix cycle yet.</p></div>';
+    return;
+  }
+
+  const activeCycle = cycles.find((cycle) => cycle.status === "active") || cycles[0];
+  const completedBoards = activeCycle.boards.filter((board) => board.status === "completed").length;
+
+  matrixMeta.textContent = `Cycle ${activeCycle.cycleNo} • Board ${activeCycle.currentBoardNo}/${activeCycle.boardCount} • ${completedBoards} completed`;
+  matrixCycles.innerHTML = cycles
+    .slice(0, 3)
+    .map(
+      (cycle) => `<div class="stack-item">
+        <strong>Cycle ${cycle.cycleNo}</strong>
+        <p class="muted">Status ${cycle.status} • Accumulated PV ${cycle.totalAccumulatedPv} • Org rate ${formatPercent(cycle.organizationPvRate)}</p>
+        <div class="matrix-board-grid">
+          ${cycle.boards
+            .map(
+              (board) => `<div class="matrix-board-card ${getMatrixBoardClassName(board.status, cycle.currentBoardNo === board.boardNo)}">
+                <p class="eyebrow">Board ${board.boardNo}</p>
+                <strong>${board.filledSlots}/${board.slotCount} slots</strong>
+                <p class="muted">Open at PV ${board.openThresholdPv}</p>
+                <p class="muted">Board PV ${board.accumulatedPv}</p>
+                <p class="muted">${board.status}${cycle.currentBoardNo === board.boardNo ? " • current" : ""}</p>
+              </div>`,
+            )
+            .join("")}
+        </div>
+      </div>`,
+    )
+    .join("");
 }
 
 function renderCommissions(commissionResult) {
@@ -167,6 +206,31 @@ function renderCommissions(commissionResult) {
 
 function getApprovalClassName(approvalStatus) {
   return approvalStatus === "approved" ? "status-ok" : "status-waiting";
+}
+
+function getTransactionTypeClassName(txType) {
+  return txType === "MATRIX_CREDIT" ? "type-matrix" : "type-default";
+}
+
+function getMatrixBoardClassName(status, isCurrent) {
+  if (status === "completed") {
+    return "board-complete";
+  }
+
+  if (isCurrent) {
+    return "board-current";
+  }
+
+  if (status === "open") {
+    return "board-open";
+  }
+
+  return "board-locked";
+}
+
+function formatPercent(decimalValue) {
+  const numericValue = Number(decimalValue || 0);
+  return `${numericValue * 100}%`;
 }
 
 function renderOrderGuide(orders) {
@@ -226,7 +290,7 @@ function renderNetwork(network) {
       : '<div class="stack-item"><p class="muted">No direct referrals yet.</p></div>';
 }
 
-function renderDashboard(data, orders, transactions, commissions, network) {
+function renderDashboard(data, orders, transactions, commissions, network, matrix) {
   document.getElementById("memberName").textContent = data.user.name;
   document.getElementById("memberMeta").textContent =
     `${data.user.memberCode}${data.user.email ? ` • ${data.user.email}` : ""}`;
@@ -242,24 +306,26 @@ function renderDashboard(data, orders, transactions, commissions, network) {
   renderTransactions(transactions);
   renderCommissions(commissions);
   renderNetwork(network);
+  renderMatrix(matrix);
   renderSignedIn();
 }
 
 async function loadDashboard() {
   setStatus("Loading dashboard");
 
-  const [dashboardData, orders, packages, transactions, commissions, network] = await Promise.all([
+  const [dashboardData, orders, packages, transactions, commissions, network, matrix] = await Promise.all([
     request("/auth/dashboard"),
     request("/auth/orders"),
     request("/packages"),
     request("/auth/transactions"),
     request("/auth/commissions"),
     request("/auth/network"),
+    request("/auth/matrix"),
   ]);
 
   packageCatalog = packages.filter((pkg) => pkg.status === "active");
   renderPackageOptions(packageCatalog);
-  renderDashboard(dashboardData, orders, transactions, commissions, network);
+  renderDashboard(dashboardData, orders, transactions, commissions, network, matrix);
   setStatus("Dashboard loaded");
 }
 
