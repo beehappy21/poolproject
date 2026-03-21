@@ -28,10 +28,24 @@ const actionOutput = document.getElementById("actionOutput");
 const historyList = document.getElementById("historyList");
 const clearHistoryButton = document.getElementById("clearHistoryButton");
 const commissionSettingsForm = document.getElementById("commissionSettingsForm");
-const directRateInput = document.getElementById("directRateInput");
+const directLevelsList = document.getElementById("directLevelsList");
+const addDirectLevelButton = document.getElementById("addDirectLevelButton");
 const poolRateSettingsInput = document.getElementById("poolRateSettingsInput");
 const uniLevelsList = document.getElementById("uniLevelsList");
 const addUniLevelButton = document.getElementById("addUniLevelButton");
+const matrixSettingsForm = document.getElementById("matrixSettingsForm");
+const matrixOrganizationPvRateInput = document.getElementById("matrixOrganizationPvRateInput");
+const matrixLevelRatesList = document.getElementById("matrixLevelRatesList");
+const matrixBoardThresholdsList = document.getElementById("matrixBoardThresholdsList");
+const matrixMemberForm = document.getElementById("matrixMemberForm");
+const matrixOutput = document.getElementById("matrixOutput");
+const matrixCycleCount = document.getElementById("matrixCycleCount");
+const matrixActiveCycleCount = document.getElementById("matrixActiveCycleCount");
+const matrixPayoutCount = document.getElementById("matrixPayoutCount");
+const matrixPayoutTotal = document.getElementById("matrixPayoutTotal");
+const matrixSummaryList = document.getElementById("matrixSummaryList");
+const matrixPayoutBeneficiaryInput = document.getElementById("matrixPayoutBeneficiaryInput");
+const matrixPayoutOrderInput = document.getElementById("matrixPayoutOrderInput");
 const createPackageForm = document.getElementById("createPackageForm");
 const createMemberForm = document.getElementById("createMemberForm");
 const createOrderForm = document.getElementById("createOrderForm");
@@ -43,6 +57,8 @@ state.memberSearch = "";
 state.orderUserId = "";
 state.commissionOrderId = "";
 state.commissionBeneficiaryUserId = "";
+state.matrixPayoutBeneficiaryUserId = "";
+state.matrixPayoutSourceOrderId = "";
 state.pageSize = 8;
 state.pages = {
   members: 1,
@@ -64,10 +80,23 @@ state.memberSort = "created_desc";
 state.orderSort = "created_desc";
 state.actionHistory = JSON.parse(localStorage.getItem("adminActionHistory") || "[]");
 state.settings = {
-  directRate: "0.2",
+  directLevelRates: ["0.2"],
   uniLevelRates: ["0.05", "0.05", "0.05", "0.05", "0.05"],
   poolRate: "0.5",
 };
+state.matrixSettings = {
+  boardWidth: 2,
+  boardDepth: 3,
+  boardCount: 3,
+  organizationPvRate: "0.1",
+  levelRates: ["0.1", "0.05", "0.03"],
+  boardOpenPvThresholds: ["100", "100", "100"],
+};
+
+function setAuthState(isAuthenticated) {
+  document.body.classList.toggle("is-authenticated", isAuthenticated);
+  document.body.classList.toggle("is-logged-out", !isAuthenticated);
+}
 
 function setStatus(message) {
   if (statusLine) {
@@ -119,38 +148,267 @@ function confirmAction(message) {
   return window.confirm(message);
 }
 
-function renderCommissionSettings() {
-  if (!directRateInput || !poolRateSettingsInput || !uniLevelsList) {
+function decimalToPercentString(value) {
+  const numericValue = Number(value);
+
+  if (!Number.isFinite(numericValue)) {
+    return value;
+  }
+
+  return `${numericValue * 100}`;
+}
+
+function percentToDecimalString(value) {
+  const trimmed = value.trim();
+  const numericValue = Number(trimmed);
+
+  if (!trimmed || !Number.isFinite(numericValue)) {
+    return trimmed;
+  }
+
+  return `${numericValue / 100}`;
+}
+
+function renderRateLevelRows(listElement, rates, inputKey, removeAction) {
+  if (!listElement) {
     return;
   }
 
-  directRateInput.value = state.settings.directRate;
-  poolRateSettingsInput.value = state.settings.poolRate;
-  uniLevelsList.innerHTML = state.settings.uniLevelRates
+  listElement.innerHTML = rates
     .map(
       (rate, index) => `<label class="settings-level-row">
         <span>Level ${index + 1}</span>
-        <input type="text" data-uni-level-rate="${index}" value="${rate}" required />
-        <button type="button" class="ghost" data-action="remove-uni-level" data-level-index="${index}">Remove</button>
+        <input type="text" data-${inputKey}="${index}" value="${rate}" required />
+        <button type="button" class="ghost" data-action="${removeAction}" data-level-index="${index}">Remove</button>
       </label>`,
     )
     .join("");
 }
 
+function renderSimpleValueRows(listElement, values, inputKey, labelPrefix) {
+  if (!listElement) {
+    return;
+  }
+
+  listElement.innerHTML = values
+    .map(
+      (value, index) => `<label class="settings-level-row">
+        <span>${labelPrefix} ${index + 1}</span>
+        <input type="text" data-${inputKey}="${index}" value="${value}" required />
+      </label>`,
+    )
+    .join("");
+}
+
+function renderCommissionSettings() {
+  if (!poolRateSettingsInput || !directLevelsList || !uniLevelsList) {
+    return;
+  }
+
+  poolRateSettingsInput.value = decimalToPercentString(state.settings.poolRate);
+  renderRateLevelRows(
+    directLevelsList,
+    state.settings.directLevelRates.map(decimalToPercentString),
+    "direct-level-rate",
+    "remove-direct-level",
+  );
+  renderRateLevelRows(
+    uniLevelsList,
+    state.settings.uniLevelRates.map(decimalToPercentString),
+    "uni-level-rate",
+    "remove-uni-level",
+  );
+}
+
+function collectRateInputs(selector) {
+  return Array.from(document.querySelectorAll(selector)).map((input) =>
+    input.value.trim(),
+  );
+}
+
+function collectDirectLevelRates() {
+  return collectRateInputs("[data-direct-level-rate]").map(percentToDecimalString);
+}
+
 function collectUniLevelRates() {
-  return Array.from(
-    document.querySelectorAll("[data-uni-level-rate]"),
-  ).map((input) => input.value.trim());
+  return collectRateInputs("[data-uni-level-rate]").map(percentToDecimalString);
 }
 
 async function loadCommissionSettings() {
   const settings = await request("/settings/commissions");
   state.settings = {
-    directRate: settings.directRate,
+    directLevelRates:
+      settings.directLevelRates && settings.directLevelRates.length > 0
+        ? settings.directLevelRates
+        : settings.directRate
+          ? [settings.directRate]
+          : ["0.2"],
     uniLevelRates: settings.uniLevelRates,
     poolRate: settings.poolRate,
   };
   renderCommissionSettings();
+}
+
+function renderMatrixSettings() {
+  if (
+    !matrixOrganizationPvRateInput ||
+    !matrixLevelRatesList ||
+    !matrixBoardThresholdsList
+  ) {
+    return;
+  }
+
+  matrixOrganizationPvRateInput.value = decimalToPercentString(
+    state.matrixSettings.organizationPvRate,
+  );
+  renderSimpleValueRows(
+    matrixLevelRatesList,
+    state.matrixSettings.levelRates.map(decimalToPercentString),
+    "matrix-level-rate",
+    "Level",
+  );
+  renderSimpleValueRows(
+    matrixBoardThresholdsList,
+    state.matrixSettings.boardOpenPvThresholds,
+    "matrix-board-threshold",
+    "Board",
+  );
+}
+
+function collectMatrixLevelRates() {
+  return collectRateInputs("[data-matrix-level-rate]").map(percentToDecimalString);
+}
+
+function collectMatrixBoardThresholds() {
+  return collectRateInputs("[data-matrix-board-threshold]");
+}
+
+async function loadMatrixSettings() {
+  const settings = await request("/settings/matrix");
+  state.matrixSettings = {
+    boardWidth: settings.boardWidth,
+    boardDepth: settings.boardDepth,
+    boardCount: settings.boardCount,
+    organizationPvRate: settings.organizationPvRate,
+    levelRates: settings.levelRates,
+    boardOpenPvThresholds: settings.boardOpenPvThresholds,
+  };
+  renderMatrixSettings();
+}
+
+function renderMatrixSummary(summary) {
+  if (
+    !matrixCycleCount ||
+    !matrixActiveCycleCount ||
+    !matrixPayoutCount ||
+    !matrixPayoutTotal ||
+    !matrixSummaryList
+  ) {
+    return;
+  }
+
+  matrixCycleCount.textContent = String(summary.cycleCount || 0);
+  matrixActiveCycleCount.textContent = String(summary.activeCycleCount || 0);
+  matrixPayoutCount.textContent = String(summary.payoutCount || 0);
+  matrixPayoutTotal.textContent = summary.payoutTotal || "0";
+
+  if (!summary.latestCycles || summary.latestCycles.length === 0) {
+    matrixSummaryList.innerHTML = '<p class="muted">No matrix cycles yet.</p>';
+    return;
+  }
+
+  matrixSummaryList.innerHTML = summary.latestCycles
+    .map(
+      (cycle) => `<article class="history-item">
+        <strong>${cycle.memberCode} · Cycle ${cycle.cycleNo}</strong>
+        <div class="muted">PV ${cycle.totalAccumulatedPv} · Board ${cycle.currentBoardNo} · ${cycle.status}</div>
+        <div class="muted">${cycle.boards
+          .map(
+            (board) =>
+              `B${board.boardNo}: ${board.filledSlots}/${board.slotCount} slots · PV ${board.accumulatedPv}/${board.openThresholdPv} · ${board.status}`,
+          )
+          .join(" | ")}</div>
+      </article>`,
+    )
+    .join("");
+}
+
+async function loadMatrixSummary() {
+  const summary = await request("/matrix/summary");
+  renderMatrixSummary(summary);
+}
+
+async function loadMatrixPayouts() {
+  const query = new URLSearchParams();
+  if (state.matrixPayoutBeneficiaryUserId) {
+    query.set("beneficiaryUserId", state.matrixPayoutBeneficiaryUserId);
+  }
+  if (state.matrixPayoutSourceOrderId) {
+    query.set("sourceOrderId", state.matrixPayoutSourceOrderId);
+  }
+
+  const result = await request(
+    `/matrix/payouts?page=1&pageSize=20${query.toString() ? `&${query.toString()}` : ""}`,
+  );
+  const rows = Array.isArray(result) ? result : result.items || [];
+
+  renderTableRows(
+    "matrixPayoutsTable",
+    rows,
+    (payout) => `<tr>
+      <td>${payout.payoutId}</td>
+      <td>${payout.cycleId}</td>
+      <td>${payout.boardNo}</td>
+      <td>${payout.levelNo}</td>
+      <td>${payout.beneficiaryUserId}</td>
+      <td>${payout.sourceOrderId ?? "-"}</td>
+      <td>${decimalToPercentString(payout.rate)}%</td>
+      <td>${payout.basePv}</td>
+      <td>${payout.amount}</td>
+      <td>${payout.status}</td>
+    </tr>`,
+  );
+}
+
+async function saveMatrixSettings() {
+  const result = await request("/settings/matrix", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      organizationPvRate: percentToDecimalString(
+        matrixOrganizationPvRateInput.value,
+      ),
+      levelRates: collectMatrixLevelRates(),
+      boardOpenPvThresholds: collectMatrixBoardThresholds(),
+    }),
+  });
+
+  state.matrixSettings = {
+    boardWidth: result.boardWidth,
+    boardDepth: result.boardDepth,
+    boardCount: result.boardCount,
+    organizationPvRate: result.organizationPvRate,
+    levelRates: result.levelRates,
+    boardOpenPvThresholds: result.boardOpenPvThresholds,
+  };
+  renderMatrixSettings();
+  setActionOutput("Matrix settings saved", result);
+  pushHistory(
+    "Matrix Settings",
+    `Saved matrix ${state.matrixSettings.boardWidth}x${state.matrixSettings.boardDepth} with ${state.matrixSettings.boardCount} boards`,
+  );
+}
+
+async function loadMemberMatrix(memberId) {
+  if (!memberId) {
+    matrixOutput.textContent = "Enter a member ID.";
+    return;
+  }
+
+  setStatus(`Loading matrix ${memberId}`);
+  const result = await request(`/matrix/member/${memberId}`);
+  matrixOutput.textContent = JSON.stringify(result, null, 2);
+  setStatus(`Loaded matrix ${memberId}`);
 }
 
 async function saveCommissionSettings() {
@@ -158,14 +416,14 @@ async function saveCommissionSettings() {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      directRate: directRateInput.value.trim(),
+      directLevelRates: collectDirectLevelRates(),
       uniLevelRates: collectUniLevelRates(),
-      poolRate: poolRateSettingsInput.value.trim(),
+      poolRate: percentToDecimalString(poolRateSettingsInput.value),
     }),
   });
 
   state.settings = {
-    directRate: result.directRate,
+    directLevelRates: result.directLevelRates,
     uniLevelRates: result.uniLevelRates,
     poolRate: result.poolRate,
   };
@@ -173,7 +431,7 @@ async function saveCommissionSettings() {
   setActionOutput("Commission settings saved", result);
   pushHistory(
     "Commission Settings",
-    `Saved direct ${result.directRate}, ${result.uniLevels} uni levels, pool ${result.poolRate}`,
+    `Saved ${result.directLevels} direct levels, ${result.uniLevels} uni levels, pool ${decimalToPercentString(result.poolRate)}%`,
   );
 }
 
@@ -284,6 +542,7 @@ function renderSession(user) {
     return;
   }
 
+  setAuthState(Boolean(user));
   sessionCard.innerHTML = user
     ? `<p class="eyebrow">Signed In</p><strong>${user.name}</strong><p class="muted">${user.memberCode}${user.email ? ` · ${user.email}` : ""}</p>`
     : `<p class="muted">Not signed in</p>`;
@@ -327,6 +586,9 @@ async function loadDashboard() {
     ),
     request("/packages"),
     loadCommissionSettings(),
+    loadMatrixSettings(),
+    loadMatrixSummary(),
+    loadMatrixPayouts(),
   ]);
 
   const commissionQuery = new URLSearchParams();
@@ -374,6 +636,7 @@ async function loadDashboard() {
           <button type="button" class="secondary" data-action="member-detail" data-member-id="${member.memberId}">Detail</button>
           <button type="button" class="secondary" data-action="member-network" data-member-id="${member.memberId}">Network</button>
           <button type="button" class="secondary" data-action="member-referral" data-member-code="${member.memberCode}">Referral</button>
+          <button type="button" class="secondary" data-action="member-matrix" data-member-id="${member.memberId}">Matrix</button>
           <button type="button" class="secondary" data-action="member-reset-password" data-member-id="${member.memberId}">Reset PW</button>
           <button type="button" class="secondary" data-action="prefill-activate" data-member-id="${member.memberId}">Activate</button>
           <button type="button" class="secondary" data-action="prefill-order-member" data-member-id="${member.memberId}">New Order</button>
@@ -614,16 +877,30 @@ function syncPackageInputs() {
   }
 }
 
+function normalizeIdentifierInput(value) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  return trimmed.includes("@") ? trimmed.toLowerCase() : trimmed.toUpperCase();
+}
+
 if (loginForm) {
   loginForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
     try {
+      const normalizedIdentifier = normalizeIdentifierInput(
+        document.getElementById("identifierInput").value,
+      );
+      document.getElementById("identifierInput").value = normalizedIdentifier;
+
       const data = await request("/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          identifier: document.getElementById("identifierInput").value.trim(),
+          identifier: normalizedIdentifier,
           password: document.getElementById("passwordInput").value,
         }),
       });
@@ -727,6 +1004,20 @@ if (commissionBeneficiaryFilterInput) {
   commissionBeneficiaryFilterInput.addEventListener("change", (event) => {
     state.commissionBeneficiaryUserId = (event.target.value || "").trim();
     state.pages.commissions = 1;
+    loadDashboard().catch((error) => setStatus(error.message));
+  });
+}
+
+if (matrixPayoutBeneficiaryInput) {
+  matrixPayoutBeneficiaryInput.addEventListener("change", (event) => {
+    state.matrixPayoutBeneficiaryUserId = (event.target.value || "").trim();
+    loadDashboard().catch((error) => setStatus(error.message));
+  });
+}
+
+if (matrixPayoutOrderInput) {
+  matrixPayoutOrderInput.addEventListener("change", (event) => {
+    state.matrixPayoutSourceOrderId = (event.target.value || "").trim();
     loadDashboard().catch((error) => setStatus(error.message));
   });
 }
@@ -855,6 +1146,15 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  if (button.dataset.action === "member-matrix") {
+    document.getElementById("matrixMemberInput").value = button.dataset.memberId;
+    loadMemberMatrix(button.dataset.memberId).catch((error) => {
+      matrixOutput.textContent = error.message;
+      setStatus(error.message);
+    });
+    return;
+  }
+
   if (button.dataset.action === "member-reset-password") {
     resetMemberPassword(button.dataset.memberId).catch((error) => {
       setStatus(error.message);
@@ -918,6 +1218,18 @@ document.addEventListener("click", (event) => {
     }
 
     state.settings.uniLevelRates.splice(levelIndex, 1);
+    renderCommissionSettings();
+    return;
+  }
+
+  if (button.dataset.action === "remove-direct-level") {
+    const levelIndex = Number(button.dataset.levelIndex);
+    if (state.settings.directLevelRates.length <= 1) {
+      setStatus("At least one direct rate is required.");
+      return;
+    }
+
+    state.settings.directLevelRates.splice(levelIndex, 1);
     renderCommissionSettings();
     return;
   }
@@ -1075,6 +1387,15 @@ if (addUniLevelButton) {
   });
 }
 
+if (addDirectLevelButton) {
+  addDirectLevelButton.addEventListener("click", () => {
+    const lastRate =
+      state.settings.directLevelRates[state.settings.directLevelRates.length - 1] || "0.2";
+    state.settings.directLevelRates.push(lastRate);
+    renderCommissionSettings();
+  });
+}
+
 if (commissionSettingsForm) {
   commissionSettingsForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -1087,9 +1408,35 @@ if (commissionSettingsForm) {
     }
   });
 }
+
+if (matrixSettingsForm) {
+  matrixSettingsForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    try {
+      await saveMatrixSettings();
+    } catch (error) {
+      setStatus(error.message);
+      setActionOutput("Matrix settings failed", { message: error.message });
+    }
+  });
+}
+
+if (matrixMemberForm) {
+  matrixMemberForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    loadMemberMatrix(document.getElementById("matrixMemberInput").value.trim()).catch(
+      (error) => {
+        matrixOutput.textContent = error.message;
+        setStatus(error.message);
+      },
+    );
+  });
+}
 }
 
 (async function bootstrap() {
+  setAuthState(false);
   renderHistory();
   const user = await loadSession();
   if (user) {

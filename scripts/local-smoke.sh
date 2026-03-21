@@ -52,6 +52,13 @@ AUTH_JSON="$(curl -s -X POST "$API_BASE_URL/auth/login" \
 ACCESS_TOKEN="$(node -e 'const data = JSON.parse(process.argv[1]); process.stdout.write(data.accessToken);' "$AUTH_JSON")"
 AUTH_HEADER="Authorization: Bearer $ACCESS_TOKEN"
 
+SETTINGS_UPDATE_JSON="$(curl -s -X PUT "$API_BASE_URL/settings/commissions" \
+  -H "$AUTH_HEADER" \
+  -H 'content-type: application/json' \
+  -d '{"directLevelRates":["0.1","0.05"],"uniLevelRates":["0.05","0.04","0.03"],"poolRate":"0.4"}')"
+SETTINGS_READ_JSON="$(curl -s "$API_BASE_URL/settings/commissions" \
+  -H "$AUTH_HEADER")"
+
 PACKAGE_JSON="$(curl -s -X POST "$API_BASE_URL/packages" \
   -H "$AUTH_HEADER" \
   -H 'content-type: application/json' \
@@ -86,15 +93,28 @@ node -e '
 const processResult = JSON.parse(process.argv[1]);
 const poolResult = JSON.parse(process.argv[2]);
 const referralResult = JSON.parse(process.argv[3]);
+const settingsUpdate = JSON.parse(process.argv[4]);
+const settingsRead = JSON.parse(process.argv[5]);
 if (!processResult.orderId) throw new Error("process-approved failed");
 if (!poolResult.poolDate) throw new Error("pool close failed");
 if (!referralResult.referralLink) throw new Error("referral link failed");
+if (settingsUpdate.directLevels !== 2) throw new Error("settings update failed");
+if (settingsRead.poolRate !== "0.4") throw new Error("settings read-back failed");
+if ((settingsRead.directLevelRates || []).join(",") !== "0.1,0.05") {
+  throw new Error("directLevelRates read-back failed");
+}
 console.log(JSON.stringify({
   orderId: processResult.orderId,
+  directCount: processResult.commissionDrafts.directCount,
   directStatus: processResult.commissionDrafts.directStatus,
   uniCount: processResult.commissionDrafts.uniCount,
   poolDate: poolResult.poolDate,
   eligibleMemberCount: poolResult.eligibleMemberCount,
-  referralLink: referralResult.referralLink
+  referralLink: referralResult.referralLink,
+  settings: {
+    directLevels: settingsRead.directLevels,
+    uniLevels: settingsRead.uniLevels,
+    poolRate: settingsRead.poolRate
+  }
 }, null, 2));
-' "$PROCESS_JSON" "$POOL_JSON" "$REFERRAL_JSON"
+' "$PROCESS_JSON" "$POOL_JSON" "$REFERRAL_JSON" "$SETTINGS_UPDATE_JSON" "$SETTINGS_READ_JSON"

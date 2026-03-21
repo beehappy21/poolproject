@@ -10,12 +10,12 @@ export interface WalletSummary {
 
 export interface WalletPostingInput {
   userId: string;
-  refType: "commission" | "pool" | "reversal" | "payout_batch";
+  refType: "commission" | "pool" | "reversal" | "payout_batch" | "matrix";
   refId: string;
   amount: string;
   holdRequired: boolean;
   direction?: "credit" | "debit";
-  earningType?: "direct" | "uni" | "pool";
+  earningType?: "direct" | "uni" | "pool" | "matrix";
 }
 
 export interface WalletPostingResult {

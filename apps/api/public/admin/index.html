@@ -14,7 +14,7 @@
           <h1>PoolProject Admin</h1>
         </div>
 
-        <div class="session-card" id="sessionCard">
+        <div class="session-card session-only" id="sessionCard">
           <p class="muted">Not signed in</p>
         </div>
 
@@ -31,14 +31,14 @@
           <p class="form-hint">Default dev login: <code>ALICE / dev-password</code></p>
         </form>
 
-        <div class="panel action-panel">
+        <div class="panel action-panel session-only">
           <button id="refreshButton" class="ghost">Refresh Dashboard</button>
           <button id="logoutButton" class="ghost danger">Sign Out</button>
           <p class="muted" id="statusLine">Waiting for login</p>
         </div>
       </aside>
 
-      <main class="content">
+      <main class="content dashboard-only">
         <section class="hero panel">
           <div>
             <p class="eyebrow">MVP Operations</p>
@@ -104,14 +104,17 @@
         <section class="panel">
           <div class="section-head">
             <h3>Commission Settings</h3>
-            <span class="muted">Direct, unilevel, and pool rates</span>
+            <span class="muted">Enter percentages, for example 20 = 20%</span>
           </div>
           <form id="commissionSettingsForm" class="settings-form">
+            <div class="settings-level-header">
+              <strong>Direct Rates</strong>
+              <div class="table-actions">
+                <button type="button" class="ghost" id="addDirectLevelButton">Add Level</button>
+              </div>
+            </div>
+            <div id="directLevelsList" class="settings-level-list"></div>
             <div class="settings-grid">
-              <label>
-                <span>Direct Rate</span>
-                <input id="directRateInput" type="text" value="0.2" required />
-              </label>
               <label>
                 <span>Pool Rate</span>
                 <input id="poolRateSettingsInput" type="text" value="0.5" required />
@@ -128,6 +131,103 @@
               <button type="submit">Save Settings</button>
             </div>
           </form>
+        </section>
+
+        <section class="grid two-up">
+          <article class="panel">
+            <div class="section-head">
+              <h3>Matrix Settings</h3>
+              <span class="muted">2x3, 3 boards, percent inputs</span>
+            </div>
+            <form id="matrixSettingsForm" class="settings-form">
+              <div class="settings-grid">
+                <label>
+                  <span>Organization PV Rate %</span>
+                  <input id="matrixOrganizationPvRateInput" type="text" value="10" required />
+                </label>
+              </div>
+              <div class="settings-level-header">
+                <strong>Level Rates %</strong>
+              </div>
+              <div id="matrixLevelRatesList" class="settings-level-list"></div>
+              <div class="settings-level-header">
+                <strong>Board Open PV Thresholds</strong>
+              </div>
+              <div id="matrixBoardThresholdsList" class="settings-level-list"></div>
+              <div class="table-actions">
+                <button type="submit">Save Matrix Settings</button>
+              </div>
+            </form>
+          </article>
+
+          <article class="panel detail-panel">
+            <div class="section-head">
+              <h3>Matrix Viewer</h3>
+              <form id="matrixMemberForm" class="inline-form">
+                <input id="matrixMemberInput" type="text" placeholder="Enter member ID" />
+                <button type="submit">Load Matrix</button>
+              </form>
+            </div>
+            <pre id="matrixOutput" class="detail-output">Load a member matrix to inspect cycles, boards, and progress.</pre>
+          </article>
+        </section>
+
+        <section class="panel">
+          <div class="section-head">
+            <h3>Matrix Summary</h3>
+            <span class="muted">Live cycle and payout overview</span>
+          </div>
+          <section class="stats-grid">
+            <article class="stat-card panel inner-panel">
+              <span>Matrix Cycles</span>
+              <strong id="matrixCycleCount">0</strong>
+            </article>
+            <article class="stat-card panel inner-panel">
+              <span>Active Cycles</span>
+              <strong id="matrixActiveCycleCount">0</strong>
+            </article>
+            <article class="stat-card panel inner-panel">
+              <span>Matrix Payouts</span>
+              <strong id="matrixPayoutCount">0</strong>
+            </article>
+            <article class="stat-card panel inner-panel">
+              <span>Payout Total</span>
+              <strong id="matrixPayoutTotal">0</strong>
+            </article>
+          </section>
+          <div id="matrixSummaryList" class="history-list">
+            <p class="muted">No matrix cycles yet.</p>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="section-head">
+            <h3>Matrix Payouts</h3>
+            <span class="muted">Latest matrix credits</span>
+          </div>
+          <div class="filter-stack">
+            <input id="matrixPayoutBeneficiaryInput" type="text" placeholder="Filter by beneficiary user ID" />
+            <input id="matrixPayoutOrderInput" type="text" placeholder="Filter by source order ID" />
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Cycle</th>
+                  <th>Board</th>
+                  <th>Level</th>
+                  <th>Beneficiary</th>
+                  <th>Order</th>
+                  <th>Rate</th>
+                  <th>Base PV</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="matrixPayoutsTable"></tbody>
+            </table>
+          </div>
         </section>
 
         <section class="grid two-up">

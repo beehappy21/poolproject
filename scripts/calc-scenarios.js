@@ -154,6 +154,36 @@ async function createProcessedOrder(memberId, packageId, adminToken) {
   return order.orderId;
 }
 
+async function getCommissionSettings(adminToken) {
+  return request("/settings/commissions", {
+    method: "GET",
+    token: adminToken,
+  });
+}
+
+async function updateCommissionSettings(adminToken, settings) {
+  return request("/settings/commissions", {
+    method: "PUT",
+    token: adminToken,
+    body: settings,
+  });
+}
+
+async function getMatrixSettings(adminToken) {
+  return request("/settings/matrix", {
+    method: "GET",
+    token: adminToken,
+  });
+}
+
+async function updateMatrixSettings(adminToken, settings) {
+  return request("/settings/matrix", {
+    method: "PUT",
+    token: adminToken,
+    body: settings,
+  });
+}
+
 function getPayoutsServiceClass() {
   if (payoutsServiceClass) {
     return payoutsServiceClass;
@@ -230,6 +260,220 @@ async function scenarioDirectNormal(adminToken, packageId) {
       amount: direct?.commissionAmount?.toString() || null,
     },
   };
+}
+
+async function scenarioDirectMultiLevel(adminToken, packageId) {
+  const originalSettings = await getCommissionSettings(adminToken);
+
+  await updateCommissionSettings(adminToken, {
+    directLevelRates: ["0.1", "0.05"],
+    uniLevelRates: originalSettings.uniLevelRates,
+    poolRate: originalSettings.poolRate,
+  });
+
+  try {
+    const root = await createMember({
+      memberCode: `SCN1DR${RUN_SUFFIX}`,
+      name: "Scenario Direct Root",
+      email: `scn1.direct.root.${RUN_SUFFIX}@example.com`,
+      sponsorCode: "ALICE",
+    });
+    await activatePackage(root.memberId, packageId, adminToken);
+
+    const middle = await createMember({
+      memberCode: `SCN1DM${RUN_SUFFIX}`,
+      name: "Scenario Direct Middle",
+      email: `scn1.direct.middle.${RUN_SUFFIX}@example.com`,
+      sponsorCode: root.memberCode,
+    });
+    await activatePackage(middle.memberId, packageId, adminToken);
+
+    const buyer = await createMember({
+      memberCode: `SCN1DB${RUN_SUFFIX}`,
+      name: "Scenario Direct Buyer",
+      email: `scn1.direct.buyer.${RUN_SUFFIX}@example.com`,
+      sponsorCode: middle.memberCode,
+    });
+    const orderId = await createProcessedOrder(buyer.memberId, packageId, adminToken);
+
+    const directEntries = await prisma.commissionLedger.findMany({
+      where: {
+        orderId: BigInt(orderId),
+        commissionType: "DIRECT",
+      },
+      orderBy: [{ levelNo: "asc" }],
+      select: {
+        levelNo: true,
+        rate: true,
+        commissionAmount: true,
+        status: true,
+        beneficiaryUser: {
+          select: {
+            memberCode: true,
+          },
+        },
+      },
+    });
+
+    const pass =
+      directEntries.length === 2 &&
+      directEntries[0]?.levelNo === 1 &&
+      directEntries[0]?.beneficiaryUser?.memberCode === middle.memberCode &&
+      directEntries[0]?.rate?.toString() === "0.1" &&
+      directEntries[0]?.status === "APPROVED" &&
+      directEntries[0]?.commissionAmount?.toString() === "10" &&
+      directEntries[1]?.levelNo === 2 &&
+      directEntries[1]?.beneficiaryUser?.memberCode === root.memberCode &&
+      directEntries[1]?.rate?.toString() === "0.05" &&
+      directEntries[1]?.status === "APPROVED" &&
+      directEntries[1]?.commissionAmount?.toString() === "5";
+
+    return {
+      scenario: "direct_multi_level",
+      pass,
+      expected: "two direct commission levels pay active middle and root with configured rates",
+      actual: {
+        orderId,
+        directEntries: directEntries.map((entry) => ({
+          level: entry.levelNo,
+          beneficiary: entry.beneficiaryUser?.memberCode || null,
+          rate: entry.rate?.toString() || null,
+          amount: entry.commissionAmount?.toString() || null,
+          status: entry.status,
+        })),
+      },
+    };
+  } finally {
+    await updateCommissionSettings(adminToken, {
+      directLevelRates:
+        originalSettings.directLevelRates && originalSettings.directLevelRates.length > 0
+          ? originalSettings.directLevelRates
+          : originalSettings.directRate
+            ? [originalSettings.directRate]
+            : ["0.2"],
+      uniLevelRates: originalSettings.uniLevelRates,
+      poolRate: originalSettings.poolRate,
+    });
+  }
+}
+
+async function scenarioMatrixPayoutWalletCredit(adminToken, packageId) {
+  const originalSettings = await getMatrixSettings(adminToken);
+  await updateMatrixSettings(adminToken, {
+    organizationPvRate: originalSettings.organizationPvRate,
+    levelRates: originalSettings.levelRates,
+    boardOpenPvThresholds: ["10", "20", "30"],
+  });
+
+  try {
+    const sponsor = await createMember({
+      memberCode: `SCNM1S${RUN_SUFFIX}`,
+      name: "Scenario Matrix Sponsor",
+      email: `scnm1.sponsor.${RUN_SUFFIX}@example.com`,
+      sponsorCode: "ALICE",
+    });
+    await activatePackage(sponsor.memberId, packageId, adminToken);
+
+    const buyer = await createMember({
+      memberCode: `SCNM1B${RUN_SUFFIX}`,
+      name: "Scenario Matrix Buyer",
+      email: `scnm1.buyer.${RUN_SUFFIX}@example.com`,
+      sponsorCode: sponsor.memberCode,
+    });
+    const orderId = await createProcessedOrder(buyer.memberId, packageId, adminToken);
+
+    const payout = await prisma.matrixPayout.findFirst({
+      where: {
+        sourceOrderId: BigInt(orderId),
+        beneficiaryUserId: BigInt(sponsor.memberId),
+      },
+      orderBy: [{ id: "desc" }],
+      select: {
+        id: true,
+        boardNo: true,
+        levelNo: true,
+        payoutAmount: true,
+        status: true,
+      },
+    });
+    const walletTx = payout
+      ? await prisma.walletTransaction.findFirst({
+          where: {
+            refType: "MATRIX",
+            refId: payout.id,
+            txType: "MATRIX_CREDIT",
+            userId: BigInt(sponsor.memberId),
+          },
+          select: {
+            amount: true,
+            txType: true,
+            status: true,
+          },
+        })
+      : null;
+    const cycle = await prisma.matrixCycle.findFirst({
+      where: {
+        userId: BigInt(sponsor.memberId),
+      },
+      orderBy: [{ id: "desc" }],
+      include: {
+        boards: {
+          orderBy: [{ boardNo: "asc" }],
+        },
+      },
+    });
+    const boardOne = cycle?.boards.find((entry) => entry.boardNo === 1);
+
+    const pass =
+      payout?.status === "APPROVED" &&
+      payout?.boardNo === 1 &&
+      payout?.levelNo === 1 &&
+      walletTx?.txType === "MATRIX_CREDIT" &&
+      walletTx?.status === "POSTED" &&
+      walletTx?.amount?.toString() === payout?.payoutAmount?.toString() &&
+      boardOne?.status === "OPEN" &&
+      boardOne?.filledSlots === 1;
+
+    return {
+      scenario: "matrix_payout_wallet_credit",
+      pass,
+      expected:
+        "matrix opens board 1 at threshold, creates payout row, and posts MATRIX_CREDIT wallet transaction",
+      actual: {
+        orderId,
+        payout: payout
+          ? {
+              payoutId: payout.id.toString(),
+              boardNo: payout.boardNo,
+              levelNo: payout.levelNo,
+              amount: payout.payoutAmount.toString(),
+              status: payout.status,
+            }
+          : null,
+        walletTx: walletTx
+          ? {
+              amount: walletTx.amount.toString(),
+              txType: walletTx.txType,
+              status: walletTx.status,
+            }
+          : null,
+        boardOne: boardOne
+          ? {
+              status: boardOne.status,
+              filledSlots: boardOne.filledSlots,
+              accumulatedPv: boardOne.accumulatedPv.toString(),
+              openThresholdPv: boardOne.openThresholdPv.toString(),
+            }
+          : null,
+      },
+    };
+  } finally {
+    await updateMatrixSettings(adminToken, {
+      organizationPvRate: originalSettings.organizationPvRate,
+      levelRates: originalSettings.levelRates,
+      boardOpenPvThresholds: originalSettings.boardOpenPvThresholds,
+    });
+  }
 }
 
 async function scenarioUniCompression(adminToken, packageId) {
@@ -526,97 +770,112 @@ async function scenarioMultiCycleAllocation(adminToken, packageId) {
 }
 
 async function scenarioWalletNegativeOffset(adminToken, packageId) {
-  const sponsorCode = `SCN7S${RUN_SUFFIX}`;
-  const sponsor = await createMember({
-    memberCode: sponsorCode,
-    name: "Scenario Wallet Offset Sponsor",
-    email: `scn7.sponsor.${RUN_SUFFIX}@example.com`,
-    sponsorCode: "ALICE",
-  });
-  await activatePackage(sponsor.memberId, packageId, adminToken);
-
-  await prisma.wallet.upsert({
-    where: { userId: BigInt(sponsor.memberId) },
-    update: {
-      approvedBalance: "0",
-      heldBalance: "0",
-      withdrawableBalance: "0",
-      negativeOffsetBalance: "15",
-    },
-    create: {
-      userId: BigInt(sponsor.memberId),
-      approvedBalance: "0",
-      heldBalance: "0",
-      withdrawableBalance: "0",
-      negativeOffsetBalance: "15",
-    },
+  const originalMatrixSettings = await getMatrixSettings(adminToken);
+  await updateMatrixSettings(adminToken, {
+    organizationPvRate: originalMatrixSettings.organizationPvRate,
+    levelRates: originalMatrixSettings.levelRates,
+    boardOpenPvThresholds: ["999999", "999999", "999999"],
   });
 
-  const buyer = await createMember({
-    memberCode: `SCN7B${RUN_SUFFIX}`,
-    name: "Scenario Wallet Offset Buyer",
-    email: `scn7.buyer.${RUN_SUFFIX}@example.com`,
-    sponsorCode,
-  });
-  const orderId = await createProcessedOrder(buyer.memberId, packageId, adminToken);
+  try {
+    const sponsorCode = `SCN7S${RUN_SUFFIX}`;
+    const sponsor = await createMember({
+      memberCode: sponsorCode,
+      name: "Scenario Wallet Offset Sponsor",
+      email: `scn7.sponsor.${RUN_SUFFIX}@example.com`,
+      sponsorCode: "ALICE",
+    });
+    await activatePackage(sponsor.memberId, packageId, adminToken);
 
-  const wallet = await prisma.wallet.findUnique({
-    where: { userId: BigInt(sponsor.memberId) },
-    select: {
-      withdrawableBalance: true,
-      negativeOffsetBalance: true,
-      approvedBalance: true,
-    },
-  });
-  const approvedCommissions = await prisma.commissionLedger.findMany({
-    where: {
-      orderId: BigInt(orderId),
-      beneficiaryUserId: BigInt(sponsor.memberId),
-      status: "APPROVED",
-    },
-    select: {
-      id: true,
-      commissionAmount: true,
-      commissionType: true,
-    },
-  });
-  const offsetTx = await prisma.walletTransaction.findFirst({
-    where: {
-      userId: BigInt(sponsor.memberId),
-      txType: "NEGATIVE_OFFSET_APPLY",
-      refType: "COMMISSION",
-      refId: {
-        in: approvedCommissions.map((entry) => entry.id),
+    await prisma.wallet.upsert({
+      where: { userId: BigInt(sponsor.memberId) },
+      update: {
+        approvedBalance: "0",
+        heldBalance: "0",
+        withdrawableBalance: "0",
+        negativeOffsetBalance: "15",
       },
-    },
-    select: {
-      amount: true,
-      status: true,
-    },
-  });
+      create: {
+        userId: BigInt(sponsor.memberId),
+        approvedBalance: "0",
+        heldBalance: "0",
+        withdrawableBalance: "0",
+        negativeOffsetBalance: "15",
+      },
+    });
 
-  const pass =
-    wallet?.negativeOffsetBalance?.toString() === "0" &&
-    wallet?.withdrawableBalance?.toString() === "10" &&
-    offsetTx?.amount?.toString() === "15";
+    const buyer = await createMember({
+      memberCode: `SCN7B${RUN_SUFFIX}`,
+      name: "Scenario Wallet Offset Buyer",
+      email: `scn7.buyer.${RUN_SUFFIX}@example.com`,
+      sponsorCode,
+    });
+    const orderId = await createProcessedOrder(buyer.memberId, packageId, adminToken);
 
-  return {
-    scenario: "wallet_negative_offset",
-    pass,
-    expected: "combined commission credits first clear negative offset and only residual remains withdrawable",
-    actual: {
-      orderId,
-      withdrawableBalance: wallet?.withdrawableBalance?.toString() || null,
-      approvedBalance: wallet?.approvedBalance?.toString() || null,
-      negativeOffsetBalance: wallet?.negativeOffsetBalance?.toString() || null,
-      offsetAppliedAmount: offsetTx?.amount?.toString() || null,
-      offsetTxStatus: offsetTx?.status || null,
-      approvedCommissionTypes: approvedCommissions.map((entry) => ({
-        type: entry.commissionType,
-        amount: entry.commissionAmount.toString(),
-      })),
-    },
-  };
+    const wallet = await prisma.wallet.findUnique({
+      where: { userId: BigInt(sponsor.memberId) },
+      select: {
+        withdrawableBalance: true,
+        negativeOffsetBalance: true,
+        approvedBalance: true,
+      },
+    });
+    const approvedCommissions = await prisma.commissionLedger.findMany({
+      where: {
+        orderId: BigInt(orderId),
+        beneficiaryUserId: BigInt(sponsor.memberId),
+        status: "APPROVED",
+      },
+      select: {
+        id: true,
+        commissionAmount: true,
+        commissionType: true,
+      },
+    });
+    const offsetTx = await prisma.walletTransaction.findFirst({
+      where: {
+        userId: BigInt(sponsor.memberId),
+        txType: "NEGATIVE_OFFSET_APPLY",
+        refType: "COMMISSION",
+        refId: {
+          in: approvedCommissions.map((entry) => entry.id),
+        },
+      },
+      select: {
+        amount: true,
+        status: true,
+      },
+    });
+
+    const pass =
+      wallet?.negativeOffsetBalance?.toString() === "0" &&
+      wallet?.withdrawableBalance?.toString() === "10" &&
+      offsetTx?.amount?.toString() === "15";
+
+    return {
+      scenario: "wallet_negative_offset",
+      pass,
+      expected: "combined commission credits first clear negative offset and only residual remains withdrawable",
+      actual: {
+        orderId,
+        withdrawableBalance: wallet?.withdrawableBalance?.toString() || null,
+        approvedBalance: wallet?.approvedBalance?.toString() || null,
+        negativeOffsetBalance: wallet?.negativeOffsetBalance?.toString() || null,
+        offsetAppliedAmount: offsetTx?.amount?.toString() || null,
+        offsetTxStatus: offsetTx?.status || null,
+        approvedCommissionTypes: approvedCommissions.map((entry) => ({
+          type: entry.commissionType,
+          amount: entry.commissionAmount.toString(),
+        })),
+      },
+    };
+  } finally {
+    await updateMatrixSettings(adminToken, {
+      organizationPvRate: originalMatrixSettings.organizationPvRate,
+      levelRates: originalMatrixSettings.levelRates,
+      boardOpenPvThresholds: originalMatrixSettings.boardOpenPvThresholds,
+    });
+  }
 }
 
 async function scenarioDuplicateProcessGuard(adminToken, packageId) {
@@ -830,6 +1089,8 @@ async function main() {
 
   const results = [];
   results.push(await scenarioDirectNormal(adminToken, packageId));
+  results.push(await scenarioDirectMultiLevel(adminToken, packageId));
+  results.push(await scenarioMatrixPayoutWalletCredit(adminToken, packageId));
   results.push(await scenarioUniCompression(adminToken, packageId));
   results.push(await scenarioCapFallback(adminToken, packageId));
   results.push(await scenarioPoolPositive(adminToken));

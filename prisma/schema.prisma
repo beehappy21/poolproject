@@ -108,6 +108,7 @@ enum WalletTransactionType {
   DIRECT_CREDIT
   UNI_CREDIT
   POOL_CREDIT
+  MATRIX_CREDIT
   HOLD_RELEASE
   REVERSAL_DEBIT
   NEGATIVE_OFFSET_APPLY
@@ -220,6 +221,31 @@ enum ReviewCasePriority {
   URGENT
 }
 
+enum MatrixCycleStatus {
+  ACTIVE
+  COMPLETED
+  RESET
+}
+
+enum MatrixBoardStatus {
+  LOCKED
+  OPEN
+  COMPLETED
+  RESET
+}
+
+enum MatrixPositionStatus {
+  FILLED
+  RESET
+}
+
+enum MatrixPayoutStatus {
+  PENDING
+  APPROVED
+  PAID
+  RESET
+}
+
 model User {
   id                   BigInt          @id @default(autoincrement())
   memberCode           String          @unique @db.VarChar(50)
@@ -265,6 +291,11 @@ model User {
   releasedPayoutHolds PayoutHold[]                   @relation("PayoutHoldReleasedByUser")
   reviewCases         ManualReviewCase[]             @relation("ManualReviewSubjectUser")
   assignedReviewCases ManualReviewCase[]             @relation("ManualReviewAssignedUser")
+  matrixCycles        MatrixCycle[]
+  matrixSourcePositions MatrixPosition[]             @relation("MatrixPositionSourceUser")
+  matrixBeneficiaryPayouts MatrixPayout[]            @relation("MatrixPayoutBeneficiaryUser")
+  matrixSourcePayouts MatrixPayout[]                 @relation("MatrixPayoutSourceUser")
+  matrixAccumulationEvents MatrixAccumulationEvent[] @relation("MatrixAccumulationSourceUser")
 }
 
 model Package {
@@ -333,6 +364,9 @@ model Order {
   user               User                 @relation(fields: [userId], references: [id])
   orderItems         OrderItem[]
   commissionLedgers  CommissionLedger[]
+  matrixSourcePositions MatrixPosition[]  @relation("MatrixPositionSourceOrder")
+  matrixPayouts      MatrixPayout[]       @relation("MatrixPayoutSourceOrder")
+  matrixAccumulationEvents MatrixAccumulationEvent[] @relation("MatrixAccumulationSourceOrder")
 
   @@index([userId, status])
   @@index([approvedAt])
@@ -517,6 +551,134 @@ model WalletTransaction {
   @@index([userId, createdAt])
   @@index([refType, refId])
   @@index([balanceBucket, status])
+}
+
+model MatrixCycle {
+  id                 BigInt            @id @default(autoincrement())
+  userId             BigInt
+  cycleNo            Int
+  boardWidth         Int               @default(2)
+  boardDepth         Int               @default(3)
+  boardCount         Int               @default(3)
+  organizationPvRate Decimal           @default(0.1) @db.Decimal(10, 8)
+  totalAccumulatedPv Decimal           @default(0) @db.Decimal(18, 8)
+  currentBoardNo     Int               @default(1)
+  status             MatrixCycleStatus @default(ACTIVE)
+  startedAt          DateTime          @default(now())
+  completedAt        DateTime?
+  resetAt            DateTime?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  user               User                     @relation(fields: [userId], references: [id])
+  boards             MatrixBoard[]
+  payouts            MatrixPayout[]
+  accumulationEvents MatrixAccumulationEvent[]
+
+  @@unique([userId, cycleNo])
+  @@index([userId, status])
+}
+
+model MatrixBoard {
+  id              BigInt            @id @default(autoincrement())
+  cycleId         BigInt
+  boardNo         Int
+  slotCount       Int               @default(14)
+  openThresholdPv Decimal           @default(0) @db.Decimal(18, 8)
+  accumulatedPv   Decimal           @default(0) @db.Decimal(18, 8)
+  filledSlots     Int               @default(0)
+  status          MatrixBoardStatus @default(LOCKED)
+  openedAt        DateTime?
+  completedAt     DateTime?
+  resetAt         DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  cycle               MatrixCycle               @relation(fields: [cycleId], references: [id])
+  positions           MatrixPosition[]
+  payouts             MatrixPayout[]
+  accumulationEvents  MatrixAccumulationEvent[]
+
+  @@unique([cycleId, boardNo])
+  @@index([cycleId, status])
+}
+
+model MatrixPosition {
+  id             BigInt               @id @default(autoincrement())
+  boardId        BigInt
+  slotNo         Int
+  levelNo        Int
+  parentSlotNo   Int?
+  sourceUserId   BigInt?
+  sourceOrderId  BigInt?
+  sourcePv       Decimal              @default(0) @db.Decimal(18, 8)
+  creditedPv     Decimal              @default(0) @db.Decimal(18, 8)
+  status         MatrixPositionStatus @default(FILLED)
+  assignedAt     DateTime             @default(now())
+  resetAt        DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  board          MatrixBoard @relation(fields: [boardId], references: [id])
+  sourceUser     User?       @relation("MatrixPositionSourceUser", fields: [sourceUserId], references: [id])
+  sourceOrder    Order?      @relation("MatrixPositionSourceOrder", fields: [sourceOrderId], references: [id])
+  payouts        MatrixPayout[]
+
+  @@unique([boardId, slotNo])
+  @@index([boardId, levelNo])
+  @@index([sourceUserId])
+  @@index([sourceOrderId])
+}
+
+model MatrixPayout {
+  id                BigInt             @id @default(autoincrement())
+  cycleId           BigInt
+  boardId           BigInt
+  positionId        BigInt?
+  beneficiaryUserId BigInt
+  sourceUserId      BigInt?
+  sourceOrderId     BigInt?
+  boardNo           Int
+  levelNo           Int
+  rate              Decimal            @default(0) @db.Decimal(10, 8)
+  basePv            Decimal            @default(0) @db.Decimal(18, 8)
+  payoutAmount      Decimal            @default(0) @db.Decimal(18, 8)
+  status            MatrixPayoutStatus @default(PENDING)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  cycle            MatrixCycle   @relation(fields: [cycleId], references: [id])
+  board            MatrixBoard   @relation(fields: [boardId], references: [id])
+  position         MatrixPosition? @relation(fields: [positionId], references: [id])
+  beneficiaryUser  User          @relation("MatrixPayoutBeneficiaryUser", fields: [beneficiaryUserId], references: [id])
+  sourceUser       User?         @relation("MatrixPayoutSourceUser", fields: [sourceUserId], references: [id])
+  sourceOrder      Order?        @relation("MatrixPayoutSourceOrder", fields: [sourceOrderId], references: [id])
+
+  @@index([cycleId, status])
+  @@index([boardId, levelNo])
+  @@index([beneficiaryUserId, status])
+  @@index([sourceOrderId])
+}
+
+model MatrixAccumulationEvent {
+  id          BigInt   @id @default(autoincrement())
+  cycleId     BigInt
+  boardId     BigInt?
+  sourceUserId BigInt
+  sourceOrderId BigInt?
+  depthNo     Int
+  sourcePv    Decimal  @default(0) @db.Decimal(18, 8)
+  creditedPv  Decimal  @default(0) @db.Decimal(18, 8)
+  createdAt   DateTime @default(now())
+
+  cycle       MatrixCycle  @relation(fields: [cycleId], references: [id])
+  board       MatrixBoard? @relation(fields: [boardId], references: [id])
+  sourceUser  User         @relation("MatrixAccumulationSourceUser", fields: [sourceUserId], references: [id])
+  sourceOrder Order?       @relation("MatrixAccumulationSourceOrder", fields: [sourceOrderId], references: [id])
+
+  @@index([cycleId, createdAt])
+  @@index([boardId, createdAt])
+  @@index([sourceUserId, createdAt])
 }
 
 model PayoutBatch {
