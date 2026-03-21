@@ -16,6 +16,13 @@ export interface MembersServiceContract {
         referralCode: string;
         name: string;
         sponsorId: string | null;
+        nationalId?: string | null;
+        uplineUserId?: string | null;
+        placementSide?: "LEFT" | "RIGHT" | null;
+        rankCode?: string | null;
+        honorTitle?: string | null;
+        mobileCenterCode?: string | null;
+        joinedAt?: string | null;
       }>
     | {
         items: Array<{
@@ -24,6 +31,13 @@ export interface MembersServiceContract {
           referralCode: string;
           name: string;
           sponsorId: string | null;
+          nationalId?: string | null;
+          uplineUserId?: string | null;
+          placementSide?: "LEFT" | "RIGHT" | null;
+          rankCode?: string | null;
+          honorTitle?: string | null;
+          mobileCenterCode?: string | null;
+          joinedAt?: string | null;
         }>;
         total: number;
         page: number;
@@ -97,6 +111,13 @@ export interface MembersServiceContract {
     referralCode: string;
     name: string;
     sponsorId: string | null;
+    nationalId?: string | null;
+    uplineUserId?: string | null;
+    placementSide?: "LEFT" | "RIGHT" | null;
+    rankCode?: string | null;
+    honorTitle?: string | null;
+    mobileCenterCode?: string | null;
+    joinedAt?: string | null;
   } | null>;
 
   getMemberByCode(memberCode: string): Promise<{
@@ -105,6 +126,13 @@ export interface MembersServiceContract {
     referralCode: string;
     name: string;
     sponsorId: string | null;
+    nationalId?: string | null;
+    uplineUserId?: string | null;
+    placementSide?: "LEFT" | "RIGHT" | null;
+    rankCode?: string | null;
+    honorTitle?: string | null;
+    mobileCenterCode?: string | null;
+    joinedAt?: string | null;
   } | null>;
 
   getReferralLink(memberCode: string, baseUrl?: string): Promise<{

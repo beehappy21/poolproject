@@ -30,6 +30,8 @@ use App\Orchid\Screens\Review\ReviewListScreen;
 use App\Orchid\Screens\Review\ReviewDetailScreen;
 use App\Orchid\Screens\Audience\AudienceListScreen;
 use App\Orchid\Screens\Audience\AudienceEditScreen;
+use App\Orchid\Screens\Member\MemberListScreen;
+use App\Orchid\Screens\Member\MemberEditScreen;
 use App\Orchid\Screens\Size\SizeListScreen;
 use App\Orchid\Screens\Size\SizeEditScreen;
 use App\Orchid\Screens\Product\ProductListScreen;
@@ -38,6 +40,8 @@ use App\Orchid\Screens\Package\PackageListScreen;
 use App\Orchid\Screens\Package\PackageEditScreen;
 use App\Orchid\Screens\Supplier\SupplierListScreen;
 use App\Orchid\Screens\Supplier\SupplierEditScreen;
+use App\Orchid\Screens\Commission\CommissionSettingsScreen;
+use App\Http\Controllers\Platform\CommissionSettingsController;
 use App\Orchid\Screens\Tag\TagListScreen;
 use App\Orchid\Screens\Tag\TagEditScreen;
 
@@ -66,6 +70,33 @@ Route::screen('package/list', PackageListScreen::class)
 Route::screen('package/edit/{package?}', PackageEditScreen::class)
   ->name('platform.package.edit');
 
+// Platform > Commission Settings
+Route::screen('commission/settings', CommissionSettingsScreen::class)
+  ->defaults('section', 'settings')
+  ->name('platform.commission.settings');
+
+Route::screen('commission/direct', CommissionSettingsScreen::class)
+  ->defaults('section', 'direct')
+  ->name('platform.commission.direct');
+
+Route::screen('commission/unilevel', CommissionSettingsScreen::class)
+  ->defaults('section', 'unilevel')
+  ->name('platform.commission.unilevel');
+
+Route::screen('commission/matrix', CommissionSettingsScreen::class)
+  ->defaults('section', 'matrix')
+  ->name('platform.commission.matrix');
+
+Route::screen('commission/pool', CommissionSettingsScreen::class)
+  ->defaults('section', 'pool')
+  ->name('platform.commission.pool');
+
+Route::post('commission/save', [CommissionSettingsController::class, 'saveCommission'])
+  ->name('platform.commission.save');
+
+Route::post('commission/save-matrix', [CommissionSettingsController::class, 'saveMatrix'])
+  ->name('platform.commission.saveMatrix');
+
 // Platform > Suppliers
 Route::screen('supplier/list', SupplierListScreen::class)
   ->name('platform.supplier.list');
@@ -86,6 +117,13 @@ Route::screen('audience/list', AudienceListScreen::class)
 
 Route::screen('audience/edit/{audience?}', AudienceEditScreen::class)
   ->name('platform.audience.edit');
+
+// Platform > Members
+Route::screen('member/list', MemberListScreen::class)
+  ->name('platform.member.list');
+
+Route::screen('member/edit/{member}', MemberEditScreen::class)
+  ->name('platform.member.edit');
 
 // Platform > Sizes
 Route::screen('size/list', SizeListScreen::class)

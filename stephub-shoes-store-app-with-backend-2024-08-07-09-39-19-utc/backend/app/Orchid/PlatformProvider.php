@@ -42,6 +42,11 @@ class PlatformProvider extends OrchidServiceProvider {
         ->icon('bs.box-seam')
         ->route('platform.package.list'),
 
+      Menu::make('Commission Setting')
+        ->title('Commission Setting')
+        ->icon('bs-cash-stack')
+        ->route('platform.commission.settings'),
+
       Menu::make('Suppliers')
         ->icon('bs.truck')
         ->route('platform.supplier.list'),
@@ -63,9 +68,9 @@ class PlatformProvider extends OrchidServiceProvider {
         ->icon('bs.grid')
         ->route('platform.category.list'),
 
-      Menu::make('Audience')
+      Menu::make('Members')
         ->icon('bs.people')
-        ->route('platform.audience.list'),
+        ->route('platform.member.list'),
 
       Menu::make('Sizes')
         ->icon('bs.bounding-box')

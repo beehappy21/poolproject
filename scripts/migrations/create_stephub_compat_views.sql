@@ -10,6 +10,7 @@ drop view if exists stephub_packages_v1 cascade;
 drop view if exists stephub_package_items_v1 cascade;
 drop view if exists stephub_order_items_v1 cascade;
 drop view if exists stephub_orders_v1 cascade;
+drop view if exists stephub_members_v1 cascade;
 
 create view stephub_suppliers_v1 as
 select
@@ -228,5 +229,34 @@ select
   oi."updatedAt" as updated_at
 from "OrderItem" oi
 left join "Package" p on p."id" = oi."packageId";
+
+create view stephub_members_v1 as
+select
+  u."id" as source_user_id,
+  u."id"::bigint as id,
+  row_number() over (order by u."createdAt", u."id")::bigint as seq_no,
+  u."memberCode" as member_code,
+  coalesce(mp."joinedAtOverride", u."createdAt"::date) as joined_date,
+  s."memberCode" as sponsor_code,
+  uu."memberCode" as upline_code,
+  mp."nationalId" as national_id,
+  case
+    when mp."placementSide" is null then null
+    else initcap(lower(mp."placementSide"::text))
+  end as side,
+  u."name" as full_name,
+  mp."rankCode" as rank_code,
+  mp."honorTitle" as honor_title,
+  mp."mobileCenterCode" as mobile_center,
+  u."email" as email,
+  u."phone" as phone,
+  u."referralCode" as referral_code,
+  u."status"::text as status,
+  u."createdAt" as created_at,
+  u."updatedAt" as updated_at
+from public."User" u
+left join public."User" s on s."id" = u."sponsorId"
+left join public."MemberProfile" mp on mp."userId" = u."id"
+left join public."User" uu on uu."id" = mp."uplineUserId";
 
 commit;
