@@ -26,6 +26,11 @@ enum PayoutStatus {
   LOCKED
 }
 
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+}
+
 enum PackageStatus {
   ACTIVE
   INACTIVE
@@ -265,6 +270,8 @@ model User {
   status               UserStatus   @default(ACTIVE)
   riskLevel            RiskLevel    @default(NORMAL)
   payoutStatus         PayoutStatus @default(ACTIVE)
+  isAdmin              Boolean      @default(false)
+  adminRole            AdminRole?
   manualReviewRequired Boolean      @default(false)
   manualReviewReason   String?      @db.VarChar(255)
   lastRiskReviewedAt   DateTime?
@@ -305,25 +312,36 @@ model User {
 }
 
 model Supplier {
-  id        BigInt        @id @default(autoincrement())
-  code      String        @unique @db.VarChar(50)
-  name      String        @db.VarChar(255)
-  status    CatalogStatus @default(ACTIVE)
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  id          BigInt        @id @default(autoincrement())
+  code        String        @unique @db.VarChar(50)
+  name        String        @db.VarChar(255)
+  slug        String?       @unique @db.VarChar(255)
+  description String?       @db.Text
+  imageUrl    String?       @db.VarChar(500)
+  sortOrder   Int           @default(0)
+  isFeatured  Boolean       @default(false)
+  status      CatalogStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
   categories ProductCategory[]
   products   Product[]
 }
 
 model ProductCategory {
-  id         BigInt        @id @default(autoincrement())
-  supplierId BigInt
-  code       String        @db.VarChar(50)
-  name       String        @db.VarChar(255)
-  status     CatalogStatus @default(ACTIVE)
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
+  id           BigInt        @id @default(autoincrement())
+  supplierId   BigInt
+  code         String        @db.VarChar(50)
+  name         String        @db.VarChar(255)
+  slug         String?       @unique @db.VarChar(255)
+  description  String?       @db.Text
+  imageUrl     String?       @db.VarChar(500)
+  audienceTags String[]      @default([])
+  sortOrder    Int           @default(0)
+  isFeatured   Boolean       @default(false)
+  status       CatalogStatus @default(ACTIVE)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   supplier Supplier  @relation(fields: [supplierId], references: [id])
   products Product[]
@@ -333,14 +351,18 @@ model ProductCategory {
 }
 
 model Product {
-  id         BigInt        @id @default(autoincrement())
-  supplierId BigInt
-  categoryId BigInt
-  code       String        @unique @db.VarChar(50)
-  name       String        @db.VarChar(255)
-  status     CatalogStatus @default(ACTIVE)
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
+  id          BigInt        @id @default(autoincrement())
+  supplierId  BigInt
+  categoryId  BigInt
+  code        String        @unique @db.VarChar(50)
+  name        String        @db.VarChar(255)
+  slug        String?       @unique @db.VarChar(255)
+  description String?       @db.Text
+  sortOrder   Int           @default(0)
+  isFeatured  Boolean       @default(false)
+  status      CatalogStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
   supplier Supplier        @relation(fields: [supplierId], references: [id])
   category ProductCategory @relation(fields: [categoryId], references: [id])
@@ -351,20 +373,31 @@ model Product {
 }
 
 model ProductDetail {
-  id              BigInt        @id @default(autoincrement())
-  productId       BigInt
-  code            String        @unique @db.VarChar(50)
-  name            String        @db.VarChar(255)
-  youtubeUrl      String?       @db.VarChar(500)
-  imageUrls       String[]      @default([])
-  costPriceUsdt   Decimal       @default(0) @db.Decimal(18, 8)
-  memberPriceUsdt Decimal       @default(0) @db.Decimal(18, 8)
-  retailPriceUsdt Decimal       @default(0) @db.Decimal(18, 8)
-  pv              Decimal       @default(0) @db.Decimal(18, 8)
-  poolRate        Decimal       @default(0) @db.Decimal(10, 8)
-  status          CatalogStatus @default(ACTIVE)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id               BigInt        @id @default(autoincrement())
+  productId        BigInt
+  code             String        @unique @db.VarChar(50)
+  name             String        @db.VarChar(255)
+  slug             String?       @unique @db.VarChar(255)
+  shortDescription String?       @db.VarChar(500)
+  description      String?       @db.Text
+  youtubeUrl       String?       @db.VarChar(500)
+  primaryImageUrl  String?       @db.VarChar(500)
+  imageUrls        String[]      @default([])
+  costPriceUsdt    Decimal       @default(0) @db.Decimal(18, 8)
+  memberPriceUsdt  Decimal       @default(0) @db.Decimal(18, 8)
+  retailPriceUsdt  Decimal       @default(0) @db.Decimal(18, 8)
+  pv               Decimal       @default(0) @db.Decimal(18, 8)
+  ratingAvg        Decimal       @default(0) @db.Decimal(10, 2)
+  ratingCount      Int           @default(0)
+  sortOrder        Int           @default(0)
+  isNew            Boolean       @default(false)
+  isTop            Boolean       @default(false)
+  isFeatured       Boolean       @default(false)
+  isBestSeller     Boolean       @default(false)
+  poolRate         Decimal       @default(0) @db.Decimal(10, 8)
+  status           CatalogStatus @default(ACTIVE)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 
   product      Product       @relation(fields: [productId], references: [id])
   packageItems PackageItem[]
