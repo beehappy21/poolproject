@@ -11,6 +11,13 @@ class CommissionSettingsController extends Controller
 {
     public function saveCommission(Request $request): RedirectResponse
     {
+        $request->merge([
+            'directLevelRates' => $request->input('directLevelRates', $request->input('direct_level_rates')),
+            'uniLevelRates' => $request->input('uniLevelRates', $request->input('uni_level_rates')),
+            'poolRate' => $request->input('poolRate', $request->input('pool_rate')),
+            'redirectSection' => $request->input('redirectSection', $request->input('redirect_section')),
+        ]);
+
         $payload = $request->validate([
             'directLevelRates' => ['nullable', 'array'],
             'directLevelRates.*' => ['nullable', 'string'],
@@ -37,23 +44,48 @@ class CommissionSettingsController extends Controller
 
     public function saveMatrix(Request $request): RedirectResponse
     {
+        $request->merge([
+            'organizationPvRate' => $request->input('organizationPvRate', $request->input('organization_pv_rate')),
+            'boardWidth' => $request->input('boardWidth', $request->input('board_width')),
+            'levelRates' => $request->input('levelRates', $request->input('level_rates')),
+            'boardLevelRates' => $request->input('boardLevelRates', $request->input('board_level_rates')),
+            'boardOpenPvThresholds' => $request->input('boardOpenPvThresholds', $request->input('board_open_pv_thresholds')),
+        ]);
+
         $payload = $request->validate([
             'organizationPvRate' => ['required', 'string'],
-            'levelRates' => ['required', 'array'],
-            'levelRates.*' => ['required', 'string'],
+            'boardWidth' => ['nullable', 'integer', 'min:1'],
+            'levelRates' => ['nullable', 'array'],
+            'levelRates.*' => ['nullable', 'string'],
+            'boardLevelRates' => ['nullable', 'array'],
+            'boardLevelRates.*' => ['nullable', 'array'],
+            'boardLevelRates.*.*' => ['nullable', 'string'],
             'boardOpenPvThresholds' => ['required', 'array'],
             'boardOpenPvThresholds.*' => ['required', 'string'],
         ]);
 
+        $boardThresholds = $this->cleanRates($payload['boardOpenPvThresholds']);
+        $fallbackLevelRates = $this->resolveMatrixFallbackLevelRates(
+            $payload['levelRates'] ?? null,
+            $payload['boardLevelRates'] ?? []
+        );
+        $boardLevelRates = $this->cleanBoardLevelRates(
+            $payload['boardLevelRates'] ?? [],
+            $fallbackLevelRates,
+            count($boardThresholds)
+        );
+        $levelRates = $boardLevelRates[0] ?? $fallbackLevelRates;
+
         $current = PoolprojectSettingsStore::readMatrixSettings();
 
         PoolprojectSettingsStore::writeMatrixSettings([
-            'boardWidth' => $current['boardWidth'],
-            'boardDepth' => $current['boardDepth'],
-            'boardCount' => $current['boardCount'],
+            'boardWidth' => (int) ($payload['boardWidth'] ?? $current['boardWidth']),
+            'boardDepth' => count($levelRates),
+            'boardCount' => count($boardThresholds),
             'organizationPvRate' => $this->cleanSingleRate($payload['organizationPvRate']),
-            'levelRates' => $this->cleanRates($payload['levelRates']),
-            'boardOpenPvThresholds' => $this->cleanRates($payload['boardOpenPvThresholds']),
+            'levelRates' => $levelRates,
+            'boardLevelRates' => $boardLevelRates,
+            'boardOpenPvThresholds' => $boardThresholds,
         ]);
 
         return redirect()
@@ -76,6 +108,31 @@ class CommissionSettingsController extends Controller
         $value = is_string($value) ? trim($value) : '';
 
         return preg_match('/^\d+(\.\d+)?$/', $value) ? $value : '0';
+    }
+
+    private function cleanBoardLevelRates(array $boards, array $fallbackLevelRates, int $boardCount): array
+    {
+        $normalized = [];
+
+        foreach (range(0, max($boardCount - 1, 0)) as $index) {
+            $boardRates = $boards[$index] ?? $fallbackLevelRates;
+            $normalized[] = $this->cleanRates(is_array($boardRates) ? $boardRates : $fallbackLevelRates);
+        }
+
+        return $normalized;
+    }
+
+    private function resolveMatrixFallbackLevelRates(mixed $levelRates, array $boardLevelRates): array
+    {
+        if (is_array($levelRates) && $levelRates !== []) {
+            return $this->cleanRates($levelRates);
+        }
+
+        if (isset($boardLevelRates[0]) && is_array($boardLevelRates[0])) {
+            return $this->cleanRates($boardLevelRates[0]);
+        }
+
+        return ['0'];
     }
 
     private function redirectRouteName(string $section): string

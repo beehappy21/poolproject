@@ -47,6 +47,26 @@ class PlatformProvider extends OrchidServiceProvider {
         ->icon('bs-cash-stack')
         ->route('platform.commission.settings'),
 
+      Menu::make('Commission Report')
+        ->icon('bs-table')
+        ->list([
+          Menu::make('Commission Report')
+            ->icon('bs-table')
+            ->route('platform.commission.report'),
+          Menu::make('Direct Bonus')
+            ->icon('bs-cash')
+            ->route('platform.commission.report.direct'),
+          Menu::make('Unilevel Bonus')
+            ->icon('bs-diagram-3')
+            ->route('platform.commission.report.unilevel'),
+          Menu::make('Matrix Bonus')
+            ->icon('bs-grid-3x3-gap')
+            ->route('platform.commission.report.matrix'),
+          Menu::make('Pool Bonus')
+            ->icon('bs-droplet')
+            ->route('platform.commission.report.pool'),
+        ]),
+
       Menu::make('Suppliers')
         ->icon('bs.truck')
         ->route('platform.supplier.list'),

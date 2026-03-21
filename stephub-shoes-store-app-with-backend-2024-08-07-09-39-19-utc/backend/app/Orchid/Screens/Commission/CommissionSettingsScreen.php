@@ -64,16 +64,17 @@ class CommissionSettingsScreen extends Screen
             'title' => 'Matrix Bonus',
             'routeName' => 'platform.commission.matrix',
             'eyebrow' => 'Commission Setting',
-            'description' => 'Matrix board opening, position thresholds, and payout progression settings.',
+            'description' => 'กำหนดกติกาเปิดบอร์ดด้วย PV ส่วนตัว, การดันสมาชิกในสายเลือดเข้าบอร์ด, และอัตราจ่ายของเมทริกซ์.',
             'accent' => '#f59e0b',
             'cards' => [
-                ['label' => 'Boards', 'value' => 'Pending UI', 'note' => 'Board count and open thresholds'],
-                ['label' => 'Payouts', 'value' => 'Pending UI', 'note' => 'Per-board or per-level release logic'],
-                ['label' => 'Reset policy', 'value' => 'Pending UI', 'note' => 'Completion and reset handling'],
+                ['label' => 'การเปิดบอร์ด', 'value' => 'PV ส่วนตัว', 'note' => 'ใช้ PV ส่วนตัวขั้นต่ำเพื่อเปิดบอร์ดแต่ละใบ'],
+                ['label' => 'การวางสมาชิก', 'value' => 'สายเลือดเข้าบอร์ด', 'note' => 'สมาชิกในสายเลือดจะไหลลงใต้สมาชิกก่อนหน้า โดยเริ่มทางซ้าย'],
+                ['label' => 'การเปิดบอร์ดถัดไป', 'value' => 'บอร์ดเต็มแล้วเปิดต่อ', 'note' => 'บอร์ด 2 และ 3 เปิดเมื่อบอร์ดก่อนหน้าครบ และใช้ยอด PV ส่วนตัวในบอร์ดนั้นคำนวณต่อ'],
             ],
             'bullets' => [
-                'Use this page to stage matrix settings before we wire forms into the matrix module.',
-                'The layout is already ready for Stephub-style cards and grouped controls.',
+                'ใช้หน้านี้กำหนดกติกาเปิดบอร์ดจาก PV ส่วนตัวของสมาชิก เช่น มี PV ส่วนตัว 700 จึงเปิดบอร์ด 1 ได้',
+                'เมื่อสมาชิกในสายเลือดมี PV ตามเกณฑ์ เช่น 700 จะเข้ามาเป็นตำแหน่งถัดไปในบอร์ด และถ้าคนนั้นมีสายงานต่อ จะลงใต้คนนั้นทางซ้ายก่อน',
+                'การไปบอร์ด 2 เกิดเมื่อคนในบอร์ด 1 ครบแล้ว และคำนวณต่อจากยอด PV ส่วนตัวของสมาชิกในบอร์ด 1 ส่วนบอร์ด 3 ใช้หลักเดียวกับบอร์ด 2',
             ],
         ],
         'pool' => [
@@ -96,11 +97,72 @@ class CommissionSettingsScreen extends Screen
 
     private array $sectionConfig = self::SECTIONS['settings'];
 
+    public static function commissionNav(string $activeKey): array
+    {
+        $nav = collect(self::SECTIONS)->map(
+            fn (array $config, string $key) => [
+                'key' => $key,
+                'title' => $config['title'],
+                'route' => route($config['routeName']),
+                'isActive' => $key === $activeKey,
+            ]
+        );
+
+        $nav->push([
+            'key' => 'report',
+            'title' => 'Commission Report',
+            'route' => route('platform.commission.report'),
+            'isActive' => $activeKey === 'report',
+        ]);
+
+        return $nav->values()->all();
+    }
+
     public function query(Request $request): iterable
     {
         $section = (string) ($request->route('section') ?? 'settings');
+        if (!array_key_exists($section, self::SECTIONS)) {
+            $section = 'settings';
+        }
+        $this->sectionConfig = self::SECTIONS[$section];
+
+        return $this->buildPayload($section);
+    }
+
+    public function settings(Request $request): iterable
+    {
+        return $this->resolveSectionPayload('settings');
+    }
+
+    public function direct(Request $request): iterable
+    {
+        return $this->resolveSectionPayload('direct');
+    }
+
+    public function unilevel(Request $request): iterable
+    {
+        return $this->resolveSectionPayload('unilevel');
+    }
+
+    public function matrix(Request $request): iterable
+    {
+        return $this->resolveSectionPayload('matrix');
+    }
+
+    public function pool(Request $request): iterable
+    {
+        return $this->resolveSectionPayload('pool');
+    }
+
+    private function resolveSectionPayload(string $section): iterable
+    {
         $this->sectionConfig = self::SECTIONS[$section] ?? self::SECTIONS['settings'];
 
+        return $this->buildPayload($section);
+    }
+
+    private function buildPayload(string $section): iterable
+    {
         return [
             'commissionSection' => [
                 ...$this->sectionConfig,
@@ -108,14 +170,7 @@ class CommissionSettingsScreen extends Screen
             ],
             'commissionSettings' => PoolprojectSettingsStore::readCommissionSettings(),
             'matrixSettings' => PoolprojectSettingsStore::readMatrixSettings(),
-            'commissionNav' => collect(self::SECTIONS)->map(
-                fn (array $config, string $key) => [
-                    'key' => $key,
-                    'title' => $config['title'],
-                    'route' => route($config['routeName']),
-                    'isActive' => $key === $section,
-                ]
-            )->values()->all(),
+            'commissionNav' => self::commissionNav($section),
         ];
     }
 
