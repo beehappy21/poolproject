@@ -17,6 +17,7 @@ async function upsertUser(input) {
   return prisma.user.upsert({
     where: { memberCode: input.memberCode },
     update: {
+      referralCode: input.referralCode,
       name: input.name,
       email: input.email,
       passwordHash: input.passwordHash,
@@ -27,6 +28,7 @@ async function upsertUser(input) {
     },
     create: {
       memberCode: input.memberCode,
+      referralCode: input.referralCode,
       name: input.name,
       email: input.email,
       passwordHash: input.passwordHash,
@@ -64,6 +66,7 @@ async function main() {
 
   const alice = await upsertUser({
     memberCode: "ALICE",
+    referralCode: "A1B2345",
     name: "Alice Root",
     email: "alice@example.com",
     passwordHash: hashPassword("dev-password"),
@@ -71,6 +74,7 @@ async function main() {
   });
   const bob = await upsertUser({
     memberCode: "BOB",
+    referralCode: "B2C3456",
     name: "Bob Sponsor",
     email: "bob@example.com",
     passwordHash: hashPassword("dev-password"),
@@ -78,6 +82,7 @@ async function main() {
   });
   const carol = await upsertUser({
     memberCode: "CAROL",
+    referralCode: "C3D4567",
     name: "Carol Direct",
     email: "carol@example.com",
     passwordHash: hashPassword("dev-password"),
@@ -85,6 +90,7 @@ async function main() {
   });
   const dave = await upsertUser({
     memberCode: "DAVE",
+    referralCode: "D4E5678",
     name: "Dave Buyer",
     email: "dave@example.com",
     passwordHash: hashPassword("dev-password"),
@@ -92,6 +98,7 @@ async function main() {
   });
   const eve = await upsertUser({
     memberCode: "EVE",
+    referralCode: "E5F6789",
     name: "Eve Direct",
     email: "eve@example.com",
     passwordHash: hashPassword("dev-password"),

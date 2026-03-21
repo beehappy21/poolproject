@@ -23,8 +23,8 @@
         </div>
         <form id="loginForm" class="login-form">
           <label>
-            <span>Member Code or Email</span>
-            <input id="identifierInput" type="text" placeholder="ALICE or alice@example.com" required />
+            <span>Member Code, Email, or Phone</span>
+            <input id="identifierInput" type="text" placeholder="ALICE, alice@example.com, or 0812345678" required />
           </label>
           <label>
             <span>Password</span>
@@ -58,6 +58,26 @@
         </section>
 
         <section class="content-grid">
+          <article class="panel">
+            <p class="eyebrow">Profile</p>
+            <h3>Complete Profile</h3>
+            <form id="profileForm" class="login-form compact-form">
+              <label>
+                <span>Name</span>
+                <input id="profileNameInput" type="text" placeholder="Display name" />
+              </label>
+              <label>
+                <span>Email</span>
+                <input id="profileEmailInput" type="email" placeholder="Email" />
+              </label>
+              <label>
+                <span>Phone</span>
+                <input id="profilePhoneInput" type="tel" placeholder="Phone" />
+              </label>
+              <button type="submit">Save Profile</button>
+            </form>
+          </article>
+
           <article class="panel">
             <p class="eyebrow">Actions</p>
             <h3>Activate Package</h3>

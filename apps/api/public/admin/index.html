@@ -297,9 +297,11 @@
 
               <form id="createMemberForm" class="panel inner-panel stacked-form">
                 <h4>Create Member</h4>
-                <input id="memberCodeCreateInput" type="text" placeholder="Member Code" required />
+                <input id="memberCodeCreateInput" type="text" placeholder="Member Code (leave blank for TH0000001 auto)" />
                 <input id="memberNameCreateInput" type="text" placeholder="Name" required />
-                <input id="memberEmailCreateInput" type="email" placeholder="Email" />
+                <input id="memberEmailCreateInput" type="email" placeholder="Email (or phone below)" />
+                <input id="memberPhoneCreateInput" type="tel" placeholder="Phone (or email above)" />
+                <input id="memberPasswordCreateInput" type="password" placeholder="Password: at least 6 letters or numbers" required />
                 <input id="memberSponsorCodeInput" type="text" placeholder="Sponsor Code (optional)" />
                 <button type="submit">Create Member</button>
               </form>
@@ -367,6 +369,7 @@
                   <tr>
                     <th>ID</th>
                     <th>Code</th>
+                    <th>Referral</th>
                     <th>Name</th>
                     <th>Sponsor</th>
                     <th>Wallet</th>

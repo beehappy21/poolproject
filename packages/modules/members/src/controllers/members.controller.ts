@@ -138,22 +138,35 @@ export class MembersController {
   async createMember(
     @Body()
     body: {
-      memberCode: string;
-      name: string;
+      memberCode?: string | null;
+      name?: string | null;
       email?: string;
       phone?: string;
       sponsorId?: string | null;
       sponsorCode?: string | null;
       ref?: string | null;
+      password?: string | null;
     },
   ) {
-    const memberCode = requireNonEmptyString(body.memberCode, "memberCode");
-    const name = requireNonEmptyString(body.name, "name");
-    const sponsorId = body.sponsorId
-      ? requirePositiveIntegerString(body.sponsorId, "sponsorId")
-      : undefined;
+    const name = optionalString(body.name);
+    const memberCode = optionalString(body.memberCode);
     const sponsorCode = optionalString(body.sponsorCode);
     const ref = optionalString(body.ref);
+    const password = optionalString(body.password);
+    const email = optionalString(body.email);
+    const phone = optionalString(body.phone);
+
+    if (!email && !phone) {
+      throw new BadRequestException("Email or phone is required.");
+    }
+
+    if (!password || !/^[A-Za-z0-9]{6,}$/.test(password)) {
+      throw new BadRequestException("Password must be at least 6 letters or numbers.");
+    }
+
+    if (body.sponsorId) {
+      throw new BadRequestException("Use sponsorCode or ref, not sponsorId.");
+    }
 
     if (sponsorCode && ref) {
       throw new BadRequestException("Use sponsorCode or ref, not both.");
@@ -163,11 +176,11 @@ export class MembersController {
       return await this.membersService.createMember({
         memberCode,
         name,
-        email: optionalString(body.email),
-        phone: optionalString(body.phone),
-        sponsorId,
+        email,
+        phone,
         sponsorCode,
         ref,
+        password,
       });
     } catch (error) {
       rethrowHttpError(error);

@@ -13,6 +13,7 @@ export interface MembersServiceContract {
     | Array<{
         memberId: string;
         memberCode: string;
+        referralCode: string;
         name: string;
         sponsorId: string | null;
       }>
@@ -20,6 +21,7 @@ export interface MembersServiceContract {
         items: Array<{
           memberId: string;
           memberCode: string;
+          referralCode: string;
           name: string;
           sponsorId: string | null;
         }>;
@@ -33,27 +35,33 @@ export interface MembersServiceContract {
     member: {
       memberId: string;
       memberCode: string;
+      referralCode: string;
       name: string;
       sponsorId: string | null;
     };
     sponsor: {
       memberId: string;
       memberCode: string;
+      referralCode: string;
       name: string;
       sponsorId: string | null;
     } | null;
     directReferrals: Array<{
       memberId: string;
       memberCode: string;
+      referralCode: string;
       name: string;
       sponsorId: string | null;
     }>;
+    directReferralCount: number;
     uplineChain: Array<{
       memberId: string;
       memberCode: string;
+      referralCode: string;
       name: string;
       sponsorId: string | null;
     }>;
+    uplineLevelCount: number;
   } | null>;
 
   getMemberCycles(
@@ -86,6 +94,7 @@ export interface MembersServiceContract {
   getMember(memberId: string): Promise<{
     memberId: string;
     memberCode: string;
+    referralCode: string;
     name: string;
     sponsorId: string | null;
   } | null>;
@@ -93,27 +102,49 @@ export interface MembersServiceContract {
   getMemberByCode(memberCode: string): Promise<{
     memberId: string;
     memberCode: string;
+    referralCode: string;
     name: string;
     sponsorId: string | null;
   } | null>;
 
   getReferralLink(memberCode: string, baseUrl?: string): Promise<{
     memberCode: string;
+    referralCode: string;
     referralLink: string;
   }>;
 
   createMember(input: {
-    memberCode: string;
-    name: string;
+    memberCode?: string | null;
+    name?: string | null;
     email?: string;
     phone?: string;
     sponsorId?: string | null;
     sponsorCode?: string | null;
     ref?: string | null;
+    password?: string | null;
   }): Promise<{
     memberId: string;
     memberCode: string;
+    referralCode: string;
     name: string;
+    sponsorId: string | null;
+    temporaryPassword?: string;
+  }>;
+
+  updateMemberProfile(
+    memberId: string,
+    input: {
+      name?: string | null;
+      email?: string | null;
+      phone?: string | null;
+    },
+  ): Promise<{
+    memberId: string;
+    memberCode: string;
+    referralCode: string;
+    name: string;
+    email: string | null;
+    phone: string | null;
     sponsorId: string | null;
   }>;
 
@@ -212,20 +243,33 @@ export class MembersService implements MembersServiceContract {
 
     return {
       memberCode: member.memberCode,
-      referralLink: `${normalizedBaseUrl}/signup?ref=${encodeURIComponent(member.memberCode)}`,
+      referralCode: member.referralCode,
+      referralLink: `${normalizedBaseUrl}/signup?ref=${encodeURIComponent(member.referralCode)}`,
     };
   }
 
   async createMember(input: {
-    memberCode: string;
-    name: string;
+    memberCode?: string | null;
+    name?: string | null;
     email?: string;
     phone?: string;
     sponsorId?: string | null;
     sponsorCode?: string | null;
     ref?: string | null;
+    password?: string | null;
   }) {
     return this.membersRepository.createMember(input);
+  }
+
+  async updateMemberProfile(
+    memberId: string,
+    input: {
+      name?: string | null;
+      email?: string | null;
+      phone?: string | null;
+    },
+  ) {
+    return this.membersRepository.updateMemberProfile(memberId, input);
   }
 
   async activatePackageCycle(input: { memberId: string; packageId: string }) {

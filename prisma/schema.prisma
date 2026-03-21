@@ -249,6 +249,7 @@ enum MatrixPayoutStatus {
 model User {
   id                   BigInt          @id @default(autoincrement())
   memberCode           String          @unique @db.VarChar(50)
+  referralCode         String?         @unique @db.VarChar(20)
   name                 String          @db.VarChar(255)
   email                String?         @unique @db.VarChar(255)
   phone                String?         @unique @db.VarChar(50)

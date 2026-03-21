@@ -13,7 +13,7 @@
           <p class="eyebrow">Referral Signup</p>
           <h1>Join the network with a live sponsor link.</h1>
           <p class="lede">
-            Enter a referral code or open a shared link to prefill your sponsor and create your member account.
+            Open a shared link or enter a referral code or member code to prefill your sponsor and create your member account.
           </p>
         </div>
         <div class="hero-card">
@@ -31,13 +31,13 @@
             <span id="statusLine" class="muted">Waiting for input</span>
           </div>
           <form id="signupForm" class="stacked-form">
-            <input id="refInput" type="text" placeholder="Referral code" />
-            <input id="memberCodeInput" type="text" placeholder="Your member code" required />
-            <input id="nameInput" type="text" placeholder="Your name" required />
-            <input id="emailInput" type="email" placeholder="Email" />
+            <input id="refInput" type="text" placeholder="Referral code or member code" />
+            <input id="emailInput" type="email" placeholder="Email (optional if phone is filled)" />
+            <input id="phoneInput" type="tel" placeholder="Phone (optional if email is filled)" />
+            <input id="passwordInput" type="password" placeholder="Create password" required minlength="6" pattern="[A-Za-z0-9]{6,}" />
             <button type="submit">Create Member</button>
           </form>
-          <pre id="resultOutput" class="result-panel">Submit the form to create your member account.</pre>
+          <pre id="resultOutput" class="result-panel">Use a referral code, member code, or shared link. Then enter email or phone and create a password with at least 6 letters or numbers. Your profile can be completed after signup.</pre>
         </article>
 
         <article class="panel">
