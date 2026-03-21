@@ -616,6 +616,12 @@ button.danger {
   padding: 0 18px 18px;
 }
 
+#shippingQueueTable td,
+#contentDraftsTable td,
+#notificationQueueTable td {
+  word-break: break-word;
+}
+
 .product-detail-media-preview {
   display: grid;
   gap: 12px;

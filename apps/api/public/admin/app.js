@@ -138,6 +138,25 @@ const salesPackageInventoryLabel = document.getElementById("salesPackageInventor
 const salesFocusLatestButton = document.getElementById("salesFocusLatestButton");
 const salesFocusPendingButton = document.getElementById("salesFocusPendingButton");
 const salesFocusCommissionButton = document.getElementById("salesFocusCommissionButton");
+const shippingJobsMetric = document.getElementById("shippingJobsMetric");
+const shippingPendingMetric = document.getElementById("shippingPendingMetric");
+const shippingTransitMetric = document.getElementById("shippingTransitMetric");
+const shippingDeliveredMetric = document.getElementById("shippingDeliveredMetric");
+const shippingForm = document.getElementById("shippingForm");
+const shippingOrderIdInput = document.getElementById("shippingOrderIdInput");
+const shippingStatusSelect = document.getElementById("shippingStatusSelect");
+const shippingCarrierInput = document.getElementById("shippingCarrierInput");
+const shippingTrackingInput = document.getElementById("shippingTrackingInput");
+const shippingWarehouseInput = document.getElementById("shippingWarehouseInput");
+const shippingDispatchInput = document.getElementById("shippingDispatchInput");
+const shippingNoteInput = document.getElementById("shippingNoteInput");
+const shippingUseLatestOrderButton = document.getElementById("shippingUseLatestOrderButton");
+const resetShippingButton = document.getElementById("resetShippingButton");
+const shippingPreviewStatus = document.getElementById("shippingPreviewStatus");
+const shippingPreviewWarehouse = document.getElementById("shippingPreviewWarehouse");
+const shippingPreviewOrder = document.getElementById("shippingPreviewOrder");
+const shippingPreviewCarrier = document.getElementById("shippingPreviewCarrier");
+const shippingPreviewNote = document.getElementById("shippingPreviewNote");
 state.memberSearch = "";
 state.orderUserId = "";
 state.commissionOrderId = "";
@@ -189,6 +208,7 @@ state.activeEcommerceMenu =
   localStorage.getItem("adminActiveEcommerceMenu") || "catalog";
 state.contentDrafts = JSON.parse(localStorage.getItem("adminContentDrafts") || "[]");
 state.notificationDrafts = JSON.parse(localStorage.getItem("adminNotificationDrafts") || "[]");
+state.shippingJobs = JSON.parse(localStorage.getItem("adminShippingJobs") || "[]");
 state.orderItems = [];
 state.commissionItems = [];
 
@@ -398,6 +418,74 @@ function renderNotificationQueue() {
       <td>${escapeHtml(item.status)}</td>
     </tr>`,
   );
+}
+
+function renderShippingPreview() {
+  if (!shippingPreviewOrder) {
+    return;
+  }
+
+  shippingPreviewStatus.textContent =
+    (shippingStatusSelect?.value || "pending_pack").toUpperCase();
+  shippingPreviewWarehouse.textContent =
+    shippingWarehouseInput?.value.trim() || "Warehouse";
+  shippingPreviewOrder.textContent =
+    shippingOrderIdInput?.value.trim() || "Order ID";
+  shippingPreviewCarrier.textContent = shippingCarrierInput?.value.trim()
+    ? `${shippingCarrierInput.value.trim()}${shippingTrackingInput?.value.trim() ? ` · ${shippingTrackingInput.value.trim()}` : ""}`
+    : "Carrier and tracking will appear here.";
+  shippingPreviewNote.textContent =
+    shippingNoteInput?.value.trim() || "Shipping note preview.";
+}
+
+function renderShippingQueue() {
+  renderTableRows(
+    "shippingQueueTable",
+    state.shippingJobs,
+    (item) => `<tr>
+      <td>${escapeHtml(item.orderId)}</td>
+      <td>${escapeHtml(item.status)}</td>
+      <td>${escapeHtml(item.carrier || "-")}</td>
+      <td>${escapeHtml(item.trackingNo || "-")}</td>
+      <td>${escapeHtml(item.warehouse || "-")}</td>
+      <td>${escapeHtml(item.dispatchAt || "-")}</td>
+    </tr>`,
+  );
+}
+
+function renderShippingWorkspace() {
+  const jobs = state.shippingJobs || [];
+  const pendingPack = jobs.filter((item) => item.status === "pending_pack").length;
+  const inTransit = jobs.filter((item) => item.status === "shipped").length;
+  const delivered = jobs.filter((item) => item.status === "delivered").length;
+
+  if (shippingJobsMetric) {
+    shippingJobsMetric.textContent = String(jobs.length);
+  }
+
+  if (shippingPendingMetric) {
+    shippingPendingMetric.textContent = String(pendingPack);
+  }
+
+  if (shippingTransitMetric) {
+    shippingTransitMetric.textContent = String(inTransit);
+  }
+
+  if (shippingDeliveredMetric) {
+    shippingDeliveredMetric.textContent = String(delivered);
+  }
+
+  renderShippingQueue();
+}
+
+function persistShippingJobs() {
+  localStorage.setItem("adminShippingJobs", JSON.stringify(state.shippingJobs));
+  renderShippingWorkspace();
+}
+
+function resetShippingWorkspace() {
+  shippingForm?.reset();
+  renderShippingPreview();
 }
 
 function persistNotificationDrafts() {
@@ -1310,6 +1398,7 @@ async function loadDashboard() {
   renderPackageItemRows();
   renderProductDetailMediaPreview();
   renderSalesWorkspace();
+  renderShippingWorkspace();
 
   const packageOptions = [
     '<option value="">Pick package ID</option>',
@@ -2252,6 +2341,62 @@ if (salesFocusCommissionButton) {
   });
 }
 
+[
+  shippingOrderIdInput,
+  shippingStatusSelect,
+  shippingCarrierInput,
+  shippingTrackingInput,
+  shippingWarehouseInput,
+  shippingDispatchInput,
+  shippingNoteInput,
+].forEach((element) => {
+  element?.addEventListener("input", renderShippingPreview);
+  element?.addEventListener("change", renderShippingPreview);
+});
+
+if (shippingForm) {
+  shippingForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+
+    state.shippingJobs = [
+      {
+        orderId: shippingOrderIdInput.value.trim(),
+        status: shippingStatusSelect.value,
+        carrier: shippingCarrierInput.value.trim(),
+        trackingNo: shippingTrackingInput.value.trim(),
+        warehouse: shippingWarehouseInput.value.trim(),
+        dispatchAt: shippingDispatchInput.value || "",
+        note: shippingNoteInput.value.trim(),
+      },
+      ...state.shippingJobs,
+    ].slice(0, 30);
+
+    persistShippingJobs();
+    setStatus("Shipment job saved");
+    setActionOutput("Shipment job saved", state.shippingJobs[0]);
+  });
+}
+
+if (shippingUseLatestOrderButton) {
+  shippingUseLatestOrderButton.addEventListener("click", () => {
+    if (!state.latestOrderId) {
+      setStatus("No latest order found.");
+      return;
+    }
+
+    shippingOrderIdInput.value = state.latestOrderId;
+    renderShippingPreview();
+    setStatus(`Loaded latest order ${state.latestOrderId} into shipping form`);
+  });
+}
+
+if (resetShippingButton) {
+  resetShippingButton.addEventListener("click", () => {
+    resetShippingWorkspace();
+    setStatus("Shipping workspace reset");
+  });
+}
+
 createMemberForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
@@ -2424,6 +2569,8 @@ if (matrixMemberForm) {
   renderContentDrafts();
   renderNotificationPreview();
   renderNotificationQueue();
+  renderShippingPreview();
+  renderShippingWorkspace();
   const user = await loadSession();
   if (user) {
     if (adminView === "dashboard") {

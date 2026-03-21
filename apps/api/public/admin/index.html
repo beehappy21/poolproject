@@ -799,30 +799,113 @@
           </article>
         </section>
 
+        <section class="sales-kpi-grid" data-menu-section="ecommerce" data-ecommerce-section="shipping">
+          <article class="stat-card panel">
+            <span>Shipment Jobs</span>
+            <strong id="shippingJobsMetric">0</strong>
+          </article>
+          <article class="stat-card panel">
+            <span>Pending Pack</span>
+            <strong id="shippingPendingMetric">0</strong>
+          </article>
+          <article class="stat-card panel">
+            <span>In Transit</span>
+            <strong id="shippingTransitMetric">0</strong>
+          </article>
+          <article class="stat-card panel">
+            <span>Delivered</span>
+            <strong id="shippingDeliveredMetric">0</strong>
+          </article>
+        </section>
+
         <section class="grid two-up" data-menu-section="ecommerce" data-ecommerce-section="shipping">
-          <article class="panel placeholder-panel">
+          <article class="panel">
             <div class="section-head">
-              <h3>Shipping Queue</h3>
-              <span class="muted">Suggested workflow</span>
+              <h3>Shipping Dispatcher</h3>
+              <span class="muted">Create or update shipment job</span>
             </div>
-            <div class="placeholder-list">
-              <div class="placeholder-item">Pending pack / packed / shipped / delivered / returned states</div>
-              <div class="placeholder-item">Tracking code, carrier, warehouse, and shipping note fields</div>
-              <div class="placeholder-item">Auto-create shipment jobs from approved paid orders</div>
-            </div>
+            <form id="shippingForm" class="settings-form">
+              <div class="settings-grid">
+                <label>
+                  <span>Order ID</span>
+                  <input id="shippingOrderIdInput" type="text" placeholder="Latest approved order" required />
+                </label>
+                <label>
+                  <span>Shipment Status</span>
+                  <select id="shippingStatusSelect">
+                    <option value="pending_pack">Pending Pack</option>
+                    <option value="packed">Packed</option>
+                    <option value="shipped">Shipped</option>
+                    <option value="delivered">Delivered</option>
+                    <option value="returned">Returned</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Carrier</span>
+                  <input id="shippingCarrierInput" type="text" placeholder="Flash Express" />
+                </label>
+                <label>
+                  <span>Tracking No</span>
+                  <input id="shippingTrackingInput" type="text" placeholder="TH1234567890" />
+                </label>
+                <label>
+                  <span>Warehouse</span>
+                  <input id="shippingWarehouseInput" type="text" placeholder="Bangkok Hub" />
+                </label>
+                <label>
+                  <span>Dispatch Time</span>
+                  <input id="shippingDispatchInput" type="datetime-local" />
+                </label>
+              </div>
+              <label>
+                <span>Shipping Note</span>
+                <textarea id="shippingNoteInput" rows="4" placeholder="Packing note, route note, return reason, or delivery detail"></textarea>
+              </label>
+              <div class="table-actions">
+                <button type="submit">Save Shipment Job</button>
+                <button type="button" class="ghost" id="shippingUseLatestOrderButton">Use Latest Order</button>
+                <button type="button" class="ghost" id="resetShippingButton">Reset</button>
+              </div>
+            </form>
           </article>
 
-          <article class="panel placeholder-panel">
+          <article class="panel">
             <div class="section-head">
-              <h3>Shipping Detail</h3>
-              <span class="muted">Recommended next round</span>
+              <h3>Shipment Preview</h3>
+              <span class="muted">Current dispatch card</span>
             </div>
-            <div class="placeholder-list">
-              <div class="placeholder-item">Shipment detail drawer with consignee address and package items</div>
-              <div class="placeholder-item">Bulk print packing slips / labels</div>
-              <div class="placeholder-item">Failed delivery and return-to-sender management</div>
-            </div>
+            <article class="notification-preview-card">
+              <div class="notification-preview-card__meta">
+                <span id="shippingPreviewStatus">PENDING_PACK</span>
+                <span id="shippingPreviewWarehouse">Bangkok Hub</span>
+              </div>
+              <strong id="shippingPreviewOrder">Order ID</strong>
+              <p id="shippingPreviewCarrier">Carrier and tracking will appear here.</p>
+              <div class="content-preview-body" id="shippingPreviewNote">Shipping note preview.</div>
+            </article>
           </article>
+        </section>
+
+        <section class="panel" data-menu-section="ecommerce" data-ecommerce-section="shipping">
+          <div class="section-head">
+            <h3>Shipping Queue</h3>
+            <span class="muted">Local shipment jobs until shipping API is added</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Order</th>
+                  <th>Status</th>
+                  <th>Carrier</th>
+                  <th>Tracking</th>
+                  <th>Warehouse</th>
+                  <th>Dispatch</th>
+                </tr>
+              </thead>
+              <tbody id="shippingQueueTable"></tbody>
+            </table>
+          </div>
         </section>
 
         <section class="grid two-up" data-menu-section="marketing,members,ecommerce" data-ecommerce-section="reports">
