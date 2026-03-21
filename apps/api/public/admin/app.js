@@ -46,13 +46,52 @@ const matrixPayoutTotal = document.getElementById("matrixPayoutTotal");
 const matrixSummaryList = document.getElementById("matrixSummaryList");
 const matrixPayoutBeneficiaryInput = document.getElementById("matrixPayoutBeneficiaryInput");
 const matrixPayoutOrderInput = document.getElementById("matrixPayoutOrderInput");
+const createSupplierForm = document.getElementById("createSupplierForm");
+const createCategoryForm = document.getElementById("createCategoryForm");
+const createProductForm = document.getElementById("createProductForm");
+const createProductDetailForm = document.getElementById("createProductDetailForm");
 const createPackageForm = document.getElementById("createPackageForm");
+const resetProductFormButton = document.getElementById("resetProductFormButton");
 const createMemberForm = document.getElementById("createMemberForm");
 const createOrderForm = document.getElementById("createOrderForm");
 const activatePackageForm = document.getElementById("activatePackageForm");
 const closePoolForm = document.getElementById("closePoolForm");
 const orderPackageSelect = document.getElementById("orderPackageSelect");
 const activatePackageSelect = document.getElementById("activatePackageSelect");
+const packageCodeInput = document.getElementById("packageCodeInput");
+const packageNameInput = document.getElementById("packageNameInput");
+const packageDaysInput = document.getElementById("packageDaysInput");
+const packageCapInput = document.getElementById("packageCapInput");
+const packagePoolRateInput = document.getElementById("packagePoolRateInput");
+const packageDetailSelect = document.getElementById("packageDetailSelect");
+const packageDetailQtyInput = document.getElementById("packageDetailQtyInput");
+const addPackageDetailButton = document.getElementById("addPackageDetailButton");
+const packageItemsList = document.getElementById("packageItemsList");
+const supplierCodeInput = document.getElementById("supplierCodeInput");
+const supplierNameInput = document.getElementById("supplierNameInput");
+const categorySupplierSelect = document.getElementById("categorySupplierSelect");
+const categoryCodeInput = document.getElementById("categoryCodeInput");
+const categoryNameInput = document.getElementById("categoryNameInput");
+const productSupplierSelect = document.getElementById("productSupplierSelect");
+const productCategorySelect = document.getElementById("productCategorySelect");
+const productCodeInput = document.getElementById("productCodeInput");
+const productNameInput = document.getElementById("productNameInput");
+const productDetailProductSelect = document.getElementById("productDetailProductSelect");
+const productDetailCodeInput = document.getElementById("productDetailCodeInput");
+const productDetailNameInput = document.getElementById("productDetailNameInput");
+const productDetailYoutubeUrlInput = document.getElementById("productDetailYoutubeUrlInput");
+const productDetailImageUrlsInput = document.getElementById("productDetailImageUrlsInput");
+const productDetailYoutubePreview = document.getElementById("productDetailYoutubePreview");
+const productDetailImagePreviewGrid = document.getElementById("productDetailImagePreviewGrid");
+const productDetailCostInput = document.getElementById("productDetailCostInput");
+const productDetailMemberPriceInput = document.getElementById("productDetailMemberPriceInput");
+const productDetailRetailPriceInput = document.getElementById("productDetailRetailPriceInput");
+const productDetailPvInput = document.getElementById("productDetailPvInput");
+const productDetailPoolRateInput = document.getElementById("productDetailPoolRateInput");
+const supplierCountMetric = document.getElementById("supplierCountMetric");
+const categoryCountMetric = document.getElementById("categoryCountMetric");
+const catalogProductCountMetric = document.getElementById("catalogProductCountMetric");
+const productDetailCountMetric = document.getElementById("productDetailCountMetric");
 state.memberSearch = "";
 state.orderUserId = "";
 state.commissionOrderId = "";
@@ -92,6 +131,58 @@ state.matrixSettings = {
   levelRates: ["0.1", "0.05", "0.03"],
   boardOpenPvThresholds: ["100", "100", "100"],
 };
+state.suppliers = [];
+state.categories = [];
+state.products = [];
+state.productDetails = [];
+state.packageBuilderItems = [];
+state.packageCatalogItems = [];
+
+function parseLineSeparatedUrls(value) {
+  return value
+    .split("\n")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function renderProductDetailMediaPreview() {
+  if (!productDetailYoutubePreview || !productDetailImagePreviewGrid) {
+    return;
+  }
+
+  const youtubeUrl = productDetailYoutubeUrlInput?.value.trim() || "";
+  const imageUrls = parseLineSeparatedUrls(productDetailImageUrlsInput?.value || "").slice(0, 10);
+
+  if (youtubeUrl) {
+    productDetailYoutubePreview.href = youtubeUrl;
+    productDetailYoutubePreview.textContent = youtubeUrl;
+    productDetailYoutubePreview.classList.remove("muted");
+  } else {
+    productDetailYoutubePreview.href = "#";
+    productDetailYoutubePreview.textContent = "No YouTube link";
+    productDetailYoutubePreview.classList.add("muted");
+  }
+
+  productDetailImagePreviewGrid.innerHTML = imageUrls.length
+    ? imageUrls
+        .map(
+          (url, index) => `<figure class="product-detail-preview-card">
+            <img src="${escapeHtml(url)}" alt="Preview ${index + 1}" loading="lazy" />
+            <figcaption>${index + 1}. ${escapeHtml(url)}</figcaption>
+          </figure>`,
+        )
+        .join("")
+    : '<p class="muted">No images yet.</p>';
+}
 
 function setAuthState(isAuthenticated) {
   document.body.classList.toggle("is-authenticated", isAuthenticated);
@@ -108,6 +199,166 @@ function setActionOutput(label, data) {
   if (actionOutput) {
     actionOutput.textContent = `${label}\n\n${JSON.stringify(data, null, 2)}`;
   }
+}
+
+function renderProductPreview() {
+  const previewTitle = document.getElementById("productPreviewTitle");
+  const previewCode = document.getElementById("productPreviewCode");
+  const previewCost = document.getElementById("productPreviewCost");
+  const previewMemberPrice = document.getElementById("productPreviewMemberPrice");
+  const previewRetailPrice = document.getElementById("productPreviewRetailPrice");
+  const previewPv = document.getElementById("productPreviewPv");
+  const previewPoolRate = document.getElementById("productPreviewPoolRate");
+  const previewDays = document.getElementById("productPreviewDays");
+  const previewCap = document.getElementById("productPreviewCap");
+  const previewItemCount = document.getElementById("productPreviewItemCount");
+
+  if (!previewTitle) {
+    return;
+  }
+
+  const totals = state.packageBuilderItems.reduce(
+    (summary, item) => {
+      const detail = state.productDetails.find(
+        (productDetail) => productDetail.productDetailId === item.productDetailId,
+      );
+
+      if (!detail) {
+        return summary;
+      }
+
+      const qty = Number(item.qty) || 0;
+      summary.cost += (Number(detail.costPriceUsdt) || 0) * qty;
+      summary.member += (Number(detail.memberPriceUsdt) || 0) * qty;
+      summary.retail += (Number(detail.retailPriceUsdt) || 0) * qty;
+      summary.pv += (Number(detail.pv) || 0) * qty;
+      summary.items += qty;
+      return summary;
+    },
+    { cost: 0, member: 0, retail: 0, pv: 0, items: 0 },
+  );
+
+  previewTitle.textContent = packageNameInput?.value.trim() || "Untitled Product";
+  previewCode.textContent = packageCodeInput?.value.trim() || "NO-CODE";
+  previewCost.textContent = `${totals.cost} USDT`;
+  previewMemberPrice.textContent = `${totals.member} USDT`;
+  previewRetailPrice.textContent = `${totals.retail} USDT`;
+  previewPv.textContent = `${totals.pv} PV`;
+  previewPoolRate.textContent = `${packagePoolRateInput?.value.trim() || "0"}%`;
+  previewDays.textContent = `${packageDaysInput?.value.trim() || "0"} days`;
+  previewCap.textContent = packageCapInput?.value.trim() || "0";
+  previewItemCount.textContent = `${totals.items} items`;
+}
+
+function resetProductForm() {
+  createPackageForm.reset();
+  packageDaysInput.value = "30";
+  packageCapInput.value = "360";
+  packagePoolRateInput.value = "10";
+  packageDetailQtyInput.value = "1";
+  state.packageBuilderItems = [];
+  renderPackageItemRows();
+  renderProductPreview();
+}
+
+function populateProductForm(pkg) {
+  if (!pkg) {
+    return;
+  }
+
+  packageCodeInput.value = pkg.code || "";
+  packageNameInput.value = pkg.name || "";
+  packageDaysInput.value = `${pkg.activeDays || ""}`;
+  packageCapInput.value = pkg.earningCapAmount || "";
+  packagePoolRateInput.value = pkg.poolRate ? `${Number(pkg.poolRate) * 100}` : "0";
+  state.packageBuilderItems = [];
+  renderPackageItemRows();
+  renderProductPreview();
+}
+
+function renderCatalogEntityMetrics() {
+  if (!supplierCountMetric) {
+    return;
+  }
+
+  supplierCountMetric.textContent = `${state.suppliers.length}`;
+  categoryCountMetric.textContent = `${state.categories.length}`;
+  catalogProductCountMetric.textContent = `${state.products.length}`;
+  productDetailCountMetric.textContent = `${state.productDetails.length}`;
+}
+
+function renderCatalogSelectors() {
+  if (!categorySupplierSelect) {
+    return;
+  }
+
+  const supplierOptions = [
+    '<option value="">Pick supplier</option>',
+    ...state.suppliers.map(
+      (supplier) =>
+        `<option value="${supplier.supplierId}">${supplier.code} · ${supplier.name}</option>`,
+    ),
+  ].join("");
+  const categoryOptions = [
+    '<option value="">Pick category</option>',
+    ...state.categories.map(
+      (category) =>
+        `<option value="${category.categoryId}">${category.code} · ${category.name}</option>`,
+    ),
+  ].join("");
+  const productOptions = [
+    '<option value="">Pick product</option>',
+    ...state.products.map(
+      (product) => `<option value="${product.productId}">${product.code} · ${product.name}</option>`,
+    ),
+  ].join("");
+  const detailOptions = [
+    '<option value="">Pick product detail</option>',
+    ...state.productDetails.map(
+      (detail) =>
+        `<option value="${detail.productDetailId}">${detail.code} · ${detail.name} · Member ${detail.memberPriceUsdt}</option>`,
+    ),
+  ].join("");
+
+  categorySupplierSelect.innerHTML = supplierOptions;
+  productSupplierSelect.innerHTML = supplierOptions;
+  productCategorySelect.innerHTML = categoryOptions;
+  productDetailProductSelect.innerHTML = productOptions;
+  packageDetailSelect.innerHTML = detailOptions;
+}
+
+function renderPackageItemRows() {
+  if (!packageItemsList) {
+    return;
+  }
+
+  if (!state.packageBuilderItems.length) {
+    packageItemsList.innerHTML = '<p class="muted">No product details selected yet.</p>';
+    renderProductPreview();
+    return;
+  }
+
+  packageItemsList.innerHTML = state.packageBuilderItems
+    .map((item) => {
+      const detail = state.productDetails.find(
+        (productDetail) => productDetail.productDetailId === item.productDetailId,
+      );
+
+      if (!detail) {
+        return "";
+      }
+
+      return `<div class="package-item-row">
+        <div class="package-item-meta">
+          <strong>${detail.code} · ${detail.name}</strong>
+          <span>${detail.productCode} · Cost ${detail.costPriceUsdt} · Member ${detail.memberPriceUsdt} · PV ${detail.pv}</span>
+        </div>
+        <input type="number" min="1" value="${item.qty}" data-package-item-qty="${item.productDetailId}" />
+        <button type="button" class="ghost" data-action="remove-package-item" data-product-detail-id="${item.productDetailId}">Remove</button>
+      </div>`;
+    })
+    .join("");
+  renderProductPreview();
 }
 
 function renderHistory() {
@@ -573,7 +824,7 @@ async function loadDashboard() {
     orderQuery.set("userId", state.orderUserId);
   }
 
-  const [members, orders, poolCycles, fallbacks, packages] = await Promise.all([
+  const [members, orders, poolCycles, fallbacks, packages, suppliers, categories, products, productDetails] = await Promise.all([
     request(
       `/members?page=${state.pages.members}&pageSize=${state.pageSize}${state.memberSearch ? `&query=${encodeURIComponent(state.memberSearch)}` : ""}`,
     ),
@@ -585,6 +836,10 @@ async function loadDashboard() {
       `/commissions/company-fallbacks?page=${state.pages.fallbacks}&pageSize=${state.pageSize}${fallbackTypeFilter.value ? `&sourceType=${encodeURIComponent(fallbackTypeFilter.value)}` : ""}`,
     ),
     request("/packages"),
+    request("/packages/suppliers"),
+    request("/packages/categories"),
+    request("/packages/products"),
+    request("/packages/product-details"),
     loadCommissionSettings(),
     loadMatrixSettings(),
     loadMatrixSummary(),
@@ -606,7 +861,12 @@ async function loadDashboard() {
   const poolCycleItems = getListItems(poolCycles);
   const fallbackItems = getListItems(fallbacks);
   const packageItems = getListItems(packages);
+  state.suppliers = getListItems(suppliers);
+  state.categories = getListItems(categories);
+  state.products = getListItems(products);
+  state.productDetails = getListItems(productDetails);
   const commissionItems = getListItems(commissions);
+  state.packageCatalogItems = packageItems;
   state.totals.members = getListTotal(members);
   state.totals.orders = getListTotal(orders);
   state.totals.pool = getListTotal(poolCycles);
@@ -668,10 +928,55 @@ async function loadDashboard() {
   );
 
   renderTableRows(
+    "productDetailsTable",
+    state.productDetails,
+    (detail) => {
+      const youtubeCell = detail.youtubeUrl
+        ? `<a href="${escapeHtml(detail.youtubeUrl)}" target="_blank" rel="noreferrer">Open video</a>`
+        : '<span class="muted">No video</span>';
+      const imageCell = Array.isArray(detail.imageUrls) && detail.imageUrls.length
+        ? `<div class="product-detail-media-cell">
+            <div class="product-detail-thumb-row">
+              ${detail.imageUrls
+                .slice(0, 3)
+                .map(
+                  (url, index) =>
+                    `<a href="${escapeHtml(url)}" target="_blank" rel="noreferrer" title="Image ${index + 1}">
+                      <img src="${escapeHtml(url)}" alt="${escapeHtml(detail.name)} image ${index + 1}" loading="lazy" />
+                    </a>`,
+                )
+                .join("")}
+            </div>
+            <span class="muted">${detail.imageUrls.length} image${detail.imageUrls.length > 1 ? "s" : ""}</span>
+          </div>`
+        : '<span class="muted">No images</span>';
+
+      return `<tr>
+        <td>${detail.productDetailId}</td>
+        <td>${detail.supplierCode}</td>
+        <td>${detail.categoryCode}</td>
+        <td>${detail.productCode}<br /><span class="muted">${detail.productName}</span></td>
+        <td>${detail.code}<br /><span class="muted">${detail.name}</span></td>
+        <td><div class="product-detail-media-stack">${youtubeCell}${imageCell}</div></td>
+        <td>${detail.costPriceUsdt}</td>
+        <td>${detail.memberPriceUsdt}</td>
+        <td>${detail.retailPriceUsdt}</td>
+        <td>${detail.pv}</td>
+        <td>${decimalToPercentString(detail.poolRate)}</td>
+        <td>${detail.status}</td>
+      </tr>`;
+    },
+  );
+
+  renderTableRows(
     "packagesTable",
     packageItems,
-    (pkg) => `<tr><td>${pkg.packageId}</td><td>${pkg.code}</td><td>${pkg.name}</td><td>${pkg.pv}</td><td>${pkg.priceUsdt}</td><td>${pkg.status}</td><td><div class="table-actions"><button type="button" class="secondary" data-action="prefill-order-package" data-package-id="${pkg.packageId}">Use In Order</button><button type="button" class="secondary" data-action="toggle-package-status" data-package-id="${pkg.packageId}" data-package-status="${pkg.status}">${pkg.status === "active" ? "Deactivate" : "Activate"}</button></div></td></tr>`,
+    (pkg) => `<tr><td>${pkg.packageId}</td><td>${pkg.code}</td><td>${pkg.name}</td><td>${pkg.costPriceUsdt}</td><td>${pkg.memberPriceUsdt}</td><td>${pkg.retailPriceUsdt}</td><td>${pkg.pv}</td><td>${decimalToPercentString(pkg.poolRate)}</td><td>${pkg.activeDays}</td><td>${pkg.earningCapAmount}</td><td>${pkg.itemCount ?? 0}</td><td>${pkg.status}</td><td><div class="table-actions"><button type="button" class="secondary" data-action="clone-package-to-studio" data-package-id="${pkg.packageId}">Clone to Studio</button><button type="button" class="secondary" data-action="prefill-order-package" data-package-id="${pkg.packageId}">Use In Order</button><button type="button" class="secondary" data-action="toggle-package-status" data-package-id="${pkg.packageId}" data-package-status="${pkg.status}">${pkg.status === "active" ? "Deactivate" : "Activate"}</button></div></td></tr>`,
   );
+  renderCatalogEntityMetrics();
+  renderCatalogSelectors();
+  renderPackageItemRows();
+  renderProductDetailMediaPreview();
 
   const packageOptions = [
     '<option value="">Pick package ID</option>',
@@ -1201,6 +1506,23 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  if (button.dataset.action === "clone-package-to-studio") {
+    const pkg = (state.packageCatalogItems || []).find(
+      (item) => item.packageId === (button.dataset.packageId || ""),
+    );
+    populateProductForm(pkg);
+    setStatus(`Loaded package ${button.dataset.packageId} into Product Studio`);
+    return;
+  }
+
+  if (button.dataset.action === "remove-package-item") {
+    state.packageBuilderItems = state.packageBuilderItems.filter(
+      (item) => item.productDetailId !== (button.dataset.productDetailId || ""),
+    );
+    renderPackageItemRows();
+    return;
+  }
+
   if (button.dataset.action === "toggle-package-status") {
     togglePackageStatus(button.dataset.packageId, button.dataset.packageStatus).catch(
       (error) => {
@@ -1257,34 +1579,204 @@ document.addEventListener("click", (event) => {
   });
 });
 
+createSupplierForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  try {
+    const result = await request("/packages/suppliers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: supplierCodeInput.value.trim(),
+        name: supplierNameInput.value.trim(),
+      }),
+    });
+
+    setActionOutput("Supplier created", result);
+    createSupplierForm.reset();
+    await loadDashboard();
+  } catch (error) {
+    setStatus(error.message);
+    setActionOutput("Supplier create failed", { message: error.message });
+  }
+});
+
+createCategoryForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  try {
+    const result = await request("/packages/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        supplierId: categorySupplierSelect.value,
+        code: categoryCodeInput.value.trim(),
+        name: categoryNameInput.value.trim(),
+      }),
+    });
+
+    setActionOutput("Category created", result);
+    createCategoryForm.reset();
+    await loadDashboard();
+  } catch (error) {
+    setStatus(error.message);
+    setActionOutput("Category create failed", { message: error.message });
+  }
+});
+
+createProductForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  try {
+    const result = await request("/packages/products", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        supplierId: productSupplierSelect.value,
+        categoryId: productCategorySelect.value,
+        code: productCodeInput.value.trim(),
+        name: productNameInput.value.trim(),
+      }),
+    });
+
+    setActionOutput("Product created", result);
+    createProductForm.reset();
+    await loadDashboard();
+  } catch (error) {
+    setStatus(error.message);
+    setActionOutput("Product create failed", { message: error.message });
+  }
+});
+
+createProductDetailForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  try {
+    const result = await request("/packages/product-details", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        productId: productDetailProductSelect.value,
+        code: productDetailCodeInput.value.trim(),
+        name: productDetailNameInput.value.trim(),
+        youtubeUrl: productDetailYoutubeUrlInput.value.trim(),
+        imageUrls: parseLineSeparatedUrls(productDetailImageUrlsInput.value),
+        costPriceUsdt: productDetailCostInput.value.trim(),
+        memberPriceUsdt: productDetailMemberPriceInput.value.trim(),
+        retailPriceUsdt: productDetailRetailPriceInput.value.trim(),
+        pv: productDetailPvInput.value.trim(),
+        poolRate: percentToDecimalString(productDetailPoolRateInput.value),
+      }),
+    });
+
+    setActionOutput("Product detail created", result);
+    createProductDetailForm.reset();
+    renderProductDetailMediaPreview();
+    await loadDashboard();
+  } catch (error) {
+    setStatus(error.message);
+    setActionOutput("Product detail create failed", { message: error.message });
+  }
+});
+
+productDetailYoutubeUrlInput?.addEventListener("input", renderProductDetailMediaPreview);
+productDetailImageUrlsInput?.addEventListener("input", renderProductDetailMediaPreview);
+
 createPackageForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   try {
+    if (!state.packageBuilderItems.length) {
+      throw new Error("Select at least one product detail for the package.");
+    }
+
     const result = await request("/packages", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        code: document.getElementById("packageCodeInput").value.trim(),
-        name: document.getElementById("packageNameInput").value.trim(),
-        priceUsdt: document.getElementById("packagePriceInput").value.trim(),
-        pv: document.getElementById("packagePvInput").value.trim(),
-        activeDays: Number(document.getElementById("packageDaysInput").value),
-        earningCapAmount: document.getElementById("packageCapInput").value.trim(),
+        code: packageCodeInput.value.trim(),
+        name: packageNameInput.value.trim(),
+        activeDays: Number(packageDaysInput.value),
+        earningCapAmount: packageCapInput.value.trim(),
+        poolRate: percentToDecimalString(packagePoolRateInput.value),
+        productDetailItems: state.packageBuilderItems.map((item) => ({
+          productDetailId: item.productDetailId,
+          qty: Number(item.qty),
+        })),
       }),
     });
 
     setActionOutput("Package created", result);
-    createPackageForm.reset();
-    document.getElementById("packagePriceInput").value = "120";
-    document.getElementById("packagePvInput").value = "120";
-    document.getElementById("packageDaysInput").value = "30";
-    document.getElementById("packageCapInput").value = "360";
+    resetProductForm();
+    await loadDashboard();
   } catch (error) {
     setStatus(error.message);
     setActionOutput("Package create failed", { message: error.message });
   }
 });
+
+[packageCodeInput, packageNameInput, packageDaysInput, packageCapInput, packagePoolRateInput]
+  .filter(Boolean)
+  .forEach((input) => {
+    input.addEventListener("input", renderProductPreview);
+  });
+
+addPackageDetailButton?.addEventListener("click", () => {
+  const productDetailId = packageDetailSelect.value;
+  const qty = Number(packageDetailQtyInput.value);
+
+  if (!productDetailId) {
+    setStatus("Pick a product detail first.");
+    return;
+  }
+
+  if (!Number.isInteger(qty) || qty <= 0) {
+    setStatus("Quantity must be a positive integer.");
+    return;
+  }
+
+  const existing = state.packageBuilderItems.find(
+    (item) => item.productDetailId === productDetailId,
+  );
+
+  if (existing) {
+    existing.qty += qty;
+  } else {
+    state.packageBuilderItems.push({ productDetailId, qty });
+  }
+
+  packageDetailQtyInput.value = "1";
+  renderPackageItemRows();
+});
+
+packageItemsList?.addEventListener("input", (event) => {
+  const input = event.target;
+
+  if (!(input instanceof HTMLInputElement) || !input.dataset.packageItemQty) {
+    return;
+  }
+
+  const nextQty = Number(input.value);
+  const item = state.packageBuilderItems.find(
+    (entry) => entry.productDetailId === input.dataset.packageItemQty,
+  );
+
+  if (!item || !Number.isInteger(nextQty) || nextQty <= 0) {
+    return;
+  }
+
+  item.qty = nextQty;
+  renderProductPreview();
+});
+
+renderProductPreview();
+
+if (resetProductFormButton) {
+  resetProductFormButton.addEventListener("click", () => {
+    resetProductForm();
+    setStatus("Product Studio reset");
+  });
+}
 
 createMemberForm.addEventListener("submit", async (event) => {
   event.preventDefault();

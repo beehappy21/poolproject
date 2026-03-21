@@ -25,6 +25,52 @@ export function optionalString(value: unknown): string | undefined {
   return normalized === "" ? undefined : normalized;
 }
 
+export function optionalUrlString(
+  value: unknown,
+  fieldName: string,
+): string | undefined {
+  const normalized = optionalString(value);
+
+  if (!normalized) {
+    return undefined;
+  }
+
+  try {
+    const parsed = new URL(normalized);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      throw new Error("invalid protocol");
+    }
+  } catch {
+    throw new BadRequestException(`${fieldName} must be a valid http or https URL.`);
+  }
+
+  return normalized;
+}
+
+export function optionalUrlStringArray(
+  value: unknown,
+  fieldName: string,
+  maxItems: number,
+): string[] {
+  if (value === undefined || value === null) {
+    return [];
+  }
+
+  if (!Array.isArray(value)) {
+    throw new BadRequestException(`${fieldName} must be an array.`);
+  }
+
+  if (value.length > maxItems) {
+    throw new BadRequestException(`${fieldName} must contain at most ${maxItems} items.`);
+  }
+
+  return value.map((item, index) =>
+    optionalUrlString(item, `${fieldName}[${index}]`) ?? (() => {
+      throw new BadRequestException(`${fieldName}[${index}] is required.`);
+    })(),
+  );
+}
+
 export function requirePositiveIntegerString(
   value: unknown,
   fieldName: string,
@@ -138,7 +184,8 @@ export function rethrowHttpError(error: unknown): never {
     if (
       error.message === "Order not found." ||
       error.message === "Approved order not found." ||
-      error.message === "Package not found."
+      error.message === "Package not found." ||
+      error.message === "Product detail not found."
     ) {
       throw new NotFoundException(error.message);
     }
