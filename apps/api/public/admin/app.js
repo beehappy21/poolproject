@@ -157,6 +157,16 @@ const shippingPreviewWarehouse = document.getElementById("shippingPreviewWarehou
 const shippingPreviewOrder = document.getElementById("shippingPreviewOrder");
 const shippingPreviewCarrier = document.getElementById("shippingPreviewCarrier");
 const shippingPreviewNote = document.getElementById("shippingPreviewNote");
+const reportSalesPvMetric = document.getElementById("reportSalesPvMetric");
+const reportApprovedRateMetric = document.getElementById("reportApprovedRateMetric");
+const reportShipmentCoverageMetric = document.getElementById("reportShipmentCoverageMetric");
+const reportAveragePackageMetric = document.getElementById("reportAveragePackageMetric");
+const reportOrderMixLabel = document.getElementById("reportOrderMixLabel");
+const reportShipmentMixLabel = document.getElementById("reportShipmentMixLabel");
+const reportCatalogValueLabel = document.getElementById("reportCatalogValueLabel");
+const reportOpsInsight1 = document.getElementById("reportOpsInsight1");
+const reportOpsInsight2 = document.getElementById("reportOpsInsight2");
+const reportOpsInsight3 = document.getElementById("reportOpsInsight3");
 state.memberSearch = "";
 state.orderUserId = "";
 state.commissionOrderId = "";
@@ -476,6 +486,129 @@ function renderShippingWorkspace() {
   }
 
   renderShippingQueue();
+}
+
+function renderReportsWorkspace() {
+  const orders = state.orderItems || [];
+  const shipments = state.shippingJobs || [];
+  const packages = state.packageCatalogItems || [];
+  const totalPv = orders.reduce((sum, item) => sum + (Number(item.totalPv) || 0), 0);
+  const approvedCount = orders.filter(
+    (item) => String(item.approvalStatus || "").toLowerCase() === "approved",
+  ).length;
+  const pendingCount = orders.filter(
+    (item) => String(item.approvalStatus || "").toLowerCase() === "pending",
+  ).length;
+  const approvedRate = orders.length ? ((approvedCount / orders.length) * 100).toFixed(1) : "0.0";
+  const shipmentCoverage = approvedCount
+    ? ((shipments.length / approvedCount) * 100).toFixed(1)
+    : "0.0";
+  const averagePackagePrice = packages.length
+    ? (
+        packages.reduce((sum, item) => sum + (Number(item.memberPriceUsdt) || 0), 0) /
+        packages.length
+      ).toFixed(2)
+    : "0.00";
+  const deliveredCount = shipments.filter((item) => item.status === "delivered").length;
+  const shippedCount = shipments.filter((item) => item.status === "shipped").length;
+
+  if (reportSalesPvMetric) {
+    reportSalesPvMetric.textContent = `${totalPv}`;
+  }
+
+  if (reportApprovedRateMetric) {
+    reportApprovedRateMetric.textContent = `${approvedRate}%`;
+  }
+
+  if (reportShipmentCoverageMetric) {
+    reportShipmentCoverageMetric.textContent = `${shipmentCoverage}%`;
+  }
+
+  if (reportAveragePackageMetric) {
+    reportAveragePackageMetric.textContent = `${averagePackagePrice}`;
+  }
+
+  if (reportOrderMixLabel) {
+    reportOrderMixLabel.textContent = `${approvedCount} approved / ${pendingCount} pending from ${orders.length} visible orders`;
+  }
+
+  if (reportShipmentMixLabel) {
+    reportShipmentMixLabel.textContent = `${shippedCount} in transit / ${deliveredCount} delivered across ${shipments.length} shipment jobs`;
+  }
+
+  if (reportCatalogValueLabel) {
+    reportCatalogValueLabel.textContent = `${packages.length} packages with average member price ${averagePackagePrice}`;
+  }
+
+  if (reportOpsInsight1) {
+    reportOpsInsight1.textContent = pendingCount
+      ? `${pendingCount} pending orders need approval attention in the current visible set.`
+      : "No pending orders in the current visible set.";
+  }
+
+  if (reportOpsInsight2) {
+    reportOpsInsight2.textContent = approvedCount > shipments.length
+      ? `${approvedCount - shipments.length} approved orders still have no shipment job tracked locally.`
+      : "Shipment tracking covers all approved orders currently visible.";
+  }
+
+  if (reportOpsInsight3) {
+    reportOpsInsight3.textContent = `${state.totals.fallbacks || 0} fallback records and ${state.totals.pool || 0} pool cycles are available for report cross-checking.`;
+  }
+
+  renderTableRows(
+    "salesReportTable",
+    [
+      {
+        metric: "Visible Sales PV",
+        value: `${totalPv}`,
+        comment: "PV total from the currently loaded order page.",
+      },
+      {
+        metric: "Approved Rate",
+        value: `${approvedRate}%`,
+        comment: "Approved orders divided by visible orders.",
+      },
+      {
+        metric: "Shipment Coverage",
+        value: `${shipmentCoverage}%`,
+        comment: "Local shipment jobs compared with approved orders.",
+      },
+      {
+        metric: "Average Package Price",
+        value: `${averagePackagePrice}`,
+        comment: "Average member price from package catalog.",
+      },
+    ],
+    (row) => `<tr><td>${row.metric}</td><td>${row.value}</td><td>${row.comment}</td></tr>`,
+  );
+
+  renderTableRows(
+    "operationsReportTable",
+    [
+      {
+        area: "Orders",
+        status: pendingCount ? "attention" : "stable",
+        summary: pendingCount
+          ? `${pendingCount} pending orders awaiting approval.`
+          : "No pending orders in current view.",
+      },
+      {
+        area: "Shipping",
+        status: approvedCount > shipments.length ? "gap" : "covered",
+        summary:
+          approvedCount > shipments.length
+            ? `${approvedCount - shipments.length} approved orders have no local shipment job.`
+            : "Approved orders are covered by local shipment jobs.",
+      },
+      {
+        area: "Catalog",
+        status: packages.length ? "ready" : "empty",
+        summary: `${packages.length} packages available for commerce operations.`,
+      },
+    ],
+    (row) => `<tr><td>${row.area}</td><td>${row.status}</td><td>${row.summary}</td></tr>`,
+  );
 }
 
 function persistShippingJobs() {
@@ -1399,6 +1532,7 @@ async function loadDashboard() {
   renderProductDetailMediaPreview();
   renderSalesWorkspace();
   renderShippingWorkspace();
+  renderReportsWorkspace();
 
   const packageOptions = [
     '<option value="">Pick package ID</option>',

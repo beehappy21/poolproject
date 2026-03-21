@@ -908,6 +908,60 @@
           </div>
         </section>
 
+        <section class="sales-kpi-grid" data-menu-section="ecommerce" data-ecommerce-section="reports">
+          <article class="stat-card panel">
+            <span>Visible Sales PV</span>
+            <strong id="reportSalesPvMetric">0</strong>
+          </article>
+          <article class="stat-card panel">
+            <span>Approved Rate</span>
+            <strong id="reportApprovedRateMetric">0%</strong>
+          </article>
+          <article class="stat-card panel">
+            <span>Shipment Coverage</span>
+            <strong id="reportShipmentCoverageMetric">0%</strong>
+          </article>
+          <article class="stat-card panel">
+            <span>Avg Package Price</span>
+            <strong id="reportAveragePackageMetric">0</strong>
+          </article>
+        </section>
+
+        <section class="grid two-up" data-menu-section="ecommerce" data-ecommerce-section="reports">
+          <article class="panel">
+            <div class="section-head">
+              <h3>Sales Summary</h3>
+              <span class="muted">Realtime computed overview from visible admin data</span>
+            </div>
+            <div class="placeholder-list">
+              <div class="placeholder-item">
+                <strong>Order Mix</strong>
+                <div class="muted" id="reportOrderMixLabel">No order data</div>
+              </div>
+              <div class="placeholder-item">
+                <strong>Shipment Coverage</strong>
+                <div class="muted" id="reportShipmentMixLabel">No shipment data</div>
+              </div>
+              <div class="placeholder-item">
+                <strong>Catalog Value</strong>
+                <div class="muted" id="reportCatalogValueLabel">No package data</div>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="section-head">
+              <h3>Operational Insight</h3>
+              <span class="muted">Quick interpretation for operators</span>
+            </div>
+            <div class="placeholder-list">
+              <div class="placeholder-item" id="reportOpsInsight1">Pending order pressure will appear here.</div>
+              <div class="placeholder-item" id="reportOpsInsight2">Shipping readiness note will appear here.</div>
+              <div class="placeholder-item" id="reportOpsInsight3">Fallback and pool note will appear here.</div>
+            </div>
+          </article>
+        </section>
+
         <section class="grid two-up" data-menu-section="marketing,members,ecommerce" data-ecommerce-section="reports">
           <article class="panel">
             <div class="section-head">
@@ -969,27 +1023,41 @@
         </section>
 
         <section class="grid two-up" data-menu-section="ecommerce" data-ecommerce-section="reports">
-          <article class="panel placeholder-panel">
+          <article class="panel">
             <div class="section-head">
               <h3>Sales KPI</h3>
-              <span class="muted">Suggested report group</span>
+              <span class="muted">Topline report slices</span>
             </div>
-            <div class="placeholder-list">
-              <div class="placeholder-item">Gross sales, approved orders, average basket size, package mix</div>
-              <div class="placeholder-item">Top products, top packages, and sales by day / week / month</div>
-              <div class="placeholder-item">Approval lag, shipping lag, and order failure reasons</div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Metric</th>
+                    <th>Value</th>
+                    <th>Comment</th>
+                  </tr>
+                </thead>
+                <tbody id="salesReportTable"></tbody>
+              </table>
             </div>
           </article>
 
-          <article class="panel placeholder-panel">
+          <article class="panel">
             <div class="section-head">
               <h3>Operational Reports</h3>
-              <span class="muted">Recommended metrics</span>
+              <span class="muted">Operator-facing summary</span>
             </div>
-            <div class="placeholder-list">
-              <div class="placeholder-item">Fulfillment SLA dashboard</div>
-              <div class="placeholder-item">Shipment aging and undelivered order list</div>
-              <div class="placeholder-item">Refund / cancellation / return summary</div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Area</th>
+                    <th>Status</th>
+                    <th>Summary</th>
+                  </tr>
+                </thead>
+                <tbody id="operationsReportTable"></tbody>
+              </table>
             </div>
           </article>
         </section>
