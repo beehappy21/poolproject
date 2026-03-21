@@ -92,6 +92,10 @@ const supplierCountMetric = document.getElementById("supplierCountMetric");
 const categoryCountMetric = document.getElementById("categoryCountMetric");
 const catalogProductCountMetric = document.getElementById("catalogProductCountMetric");
 const productDetailCountMetric = document.getElementById("productDetailCountMetric");
+const workspaceTitle = document.getElementById("workspaceTitle");
+const workspaceDescription = document.getElementById("workspaceDescription");
+const workspaceAdminName = document.getElementById("workspaceAdminName");
+const workspaceAdminMeta = document.getElementById("workspaceAdminMeta");
 state.memberSearch = "";
 state.orderUserId = "";
 state.commissionOrderId = "";
@@ -137,6 +141,41 @@ state.products = [];
 state.productDetails = [];
 state.packageBuilderItems = [];
 state.packageCatalogItems = [];
+state.activeAdminMenu =
+  localStorage.getItem("adminActiveMenu") || "overview";
+
+const adminMenuConfig = {
+  overview: {
+    title: "Overview",
+    description:
+      "High-level command center plus recommended admin areas to add next.",
+  },
+  marketing: {
+    title: "ตั้งค่าแผนการตลาด",
+    description:
+      "Commission, matrix, pool, and core compensation configuration workspace.",
+  },
+  ecommerce: {
+    title: "ระบบ eCommerce",
+    description:
+      "Product creation, package setup, order operations, and sales-related workflows.",
+  },
+  members: {
+    title: "ข้อมูลสมาชิก / ค่าคอมมิชชั่น",
+    description:
+      "Member records, commission activity, profile lookup, and network-related operations.",
+  },
+  content: {
+    title: "Member Content",
+    description:
+      "Planned space for banners, tutorials, CMS blocks, and publishing controls for member-facing screens.",
+  },
+  notifications: {
+    title: "Notification",
+    description:
+      "Planned space for broadcast messaging, templates, targeting, and delivery reporting.",
+  },
+};
 
 function parseLineSeparatedUrls(value) {
   return value
@@ -182,6 +221,47 @@ function renderProductDetailMediaPreview() {
         )
         .join("")
     : '<p class="muted">No images yet.</p>';
+}
+
+function renderAdminWorkspaceHeader() {
+  const menu = adminMenuConfig[state.activeAdminMenu] || adminMenuConfig.overview;
+
+  if (workspaceTitle) {
+    workspaceTitle.textContent = menu.title;
+  }
+
+  if (workspaceDescription) {
+    workspaceDescription.textContent = menu.description;
+  }
+}
+
+function applyAdminMenuVisibility() {
+  const activeMenu = state.activeAdminMenu || "overview";
+  document.body.dataset.activeAdminMenu = activeMenu;
+
+  document.querySelectorAll("[data-menu-section]").forEach((element) => {
+    const sections = String(element.dataset.menuSection || "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    element.hidden = !sections.includes(activeMenu);
+  });
+
+  document.querySelectorAll("[data-menu-target]").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.menuTarget === activeMenu);
+  });
+}
+
+function setActiveAdminMenu(menu) {
+  if (!adminMenuConfig[menu]) {
+    return;
+  }
+
+  state.activeAdminMenu = menu;
+  localStorage.setItem("adminActiveMenu", menu);
+  renderAdminWorkspaceHeader();
+  applyAdminMenuVisibility();
 }
 
 function setAuthState(isAuthenticated) {
@@ -797,6 +877,16 @@ function renderSession(user) {
   sessionCard.innerHTML = user
     ? `<p class="eyebrow">Signed In</p><strong>${user.name}</strong><p class="muted">${user.memberCode}${user.email ? ` · ${user.email}` : ""}</p>`
     : `<p class="muted">Not signed in</p>`;
+
+  if (workspaceAdminName) {
+    workspaceAdminName.textContent = user ? user.name : "Not signed in";
+  }
+
+  if (workspaceAdminMeta) {
+    workspaceAdminMeta.textContent = user
+      ? `${user.memberCode}${user.email ? ` · ${user.email}` : ""}`
+      : "Sign in to access menu workspaces.";
+  }
 }
 
 async function loadSession() {
@@ -866,6 +956,27 @@ async function loadDashboard() {
   state.products = getListItems(products);
   state.productDetails = getListItems(productDetails);
   const commissionItems = getListItems(commissions);
+
+  memberItems.sort((left, right) => {
+    if (state.memberSort === "code_asc") {
+      return left.memberCode.localeCompare(right.memberCode);
+    }
+    if (state.memberSort === "name_asc") {
+      return left.name.localeCompare(right.name);
+    }
+    return Number(right.memberId) - Number(left.memberId);
+  });
+
+  orderItems.sort((left, right) => {
+    if (state.orderSort === "order_no_asc") {
+      return left.orderNo.localeCompare(right.orderNo);
+    }
+    if (state.orderSort === "pv_desc") {
+      return Number(right.totalPv) - Number(left.totalPv);
+    }
+    return Number(right.orderId) - Number(left.orderId);
+  });
+
   state.packageCatalogItems = packageItems;
   state.totals.members = getListTotal(members);
   state.totals.orders = getListTotal(orders);
@@ -1232,6 +1343,12 @@ if (refreshButton) {
     task.catch((error) => setStatus(error.message));
   });
 }
+
+document.querySelectorAll("[data-menu-target]").forEach((button) => {
+  button.addEventListener("click", () => {
+    setActiveAdminMenu(button.dataset.menuTarget || "overview");
+  });
+});
 
 if (clearHistoryButton) {
   clearHistoryButton.addEventListener("click", () => {
@@ -1940,10 +2057,11 @@ if (matrixMemberForm) {
     );
   });
 }
-}
 
 (async function bootstrap() {
   setAuthState(false);
+  renderAdminWorkspaceHeader();
+  applyAdminMenuVisibility();
   renderHistory();
   const user = await loadSession();
   if (user) {
@@ -1956,22 +2074,3 @@ if (matrixMemberForm) {
     setStatus("Sign in to load dashboard");
   }
 })();
-  memberItems.sort((left, right) => {
-    if (state.memberSort === "code_asc") {
-      return left.memberCode.localeCompare(right.memberCode);
-    }
-    if (state.memberSort === "name_asc") {
-      return left.name.localeCompare(right.name);
-    }
-    return Number(right.memberId) - Number(left.memberId);
-  });
-
-  orderItems.sort((left, right) => {
-    if (state.orderSort === "order_no_asc") {
-      return left.orderNo.localeCompare(right.orderNo);
-    }
-    if (state.orderSort === "pv_desc") {
-      return Number(right.totalPv) - Number(left.totalPv);
-    }
-    return Number(right.orderId) - Number(left.orderId);
-  });

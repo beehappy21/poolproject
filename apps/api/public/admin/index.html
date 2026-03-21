@@ -9,9 +9,12 @@
   <body>
     <div class="app-shell">
       <aside class="sidebar">
-        <div class="brand">
+        <div class="brand brand-shell">
+          <div class="brand">
           <p class="eyebrow">Internal Console</p>
           <h1>PoolProject Admin</h1>
+          </div>
+          <p class="muted sidebar-tagline">Operations, commerce, member network, and publishing control.</p>
         </div>
 
         <div class="session-card session-only" id="sessionCard">
@@ -36,10 +39,38 @@
           <button id="logoutButton" class="ghost danger">Sign Out</button>
           <p class="muted" id="statusLine">Waiting for login</p>
         </div>
+
+        <nav class="panel admin-nav session-only" aria-label="Admin main navigation">
+          <div class="admin-nav-head">
+            <p class="eyebrow">Main Menu</p>
+            <strong>Admin Workspaces</strong>
+          </div>
+          <div class="admin-nav-list" id="adminNavList">
+            <button type="button" class="admin-nav-button" data-menu-target="overview">Overview</button>
+            <button type="button" class="admin-nav-button" data-menu-target="marketing">ตั้งค่าแผนการตลาด</button>
+            <button type="button" class="admin-nav-button" data-menu-target="ecommerce">ระบบ eCommerce</button>
+            <button type="button" class="admin-nav-button" data-menu-target="members">ข้อมูลสมาชิก / ค่าคอมมิชชั่น</button>
+            <button type="button" class="admin-nav-button" data-menu-target="content">Member Content</button>
+            <button type="button" class="admin-nav-button" data-menu-target="notifications">Notification</button>
+          </div>
+        </nav>
       </aside>
 
       <main class="content dashboard-only">
-        <section class="hero panel">
+        <section class="workspace-bar panel">
+          <div class="workspace-summary">
+            <p class="eyebrow">Workspace</p>
+            <h2 id="workspaceTitle">Overview</h2>
+            <p class="muted" id="workspaceDescription">High-level admin command center and recommended next menu areas.</p>
+          </div>
+          <div class="workspace-admin" id="workspaceAdminCard">
+            <span class="workspace-admin__label">Admin</span>
+            <strong id="workspaceAdminName">Not signed in</strong>
+            <p class="muted" id="workspaceAdminMeta">Sign in to access menu workspaces.</p>
+          </div>
+        </section>
+
+        <section class="hero panel" data-menu-section="overview">
           <div>
             <p class="eyebrow">MVP Operations</p>
             <h2>Live overview for members, orders, commissions, pool, and wallets.</h2>
@@ -47,7 +78,7 @@
           <div class="hero-badge">/admin</div>
         </section>
 
-        <section class="stats-grid">
+        <section class="stats-grid" data-menu-section="overview">
           <article class="stat-card panel">
             <span>Members</span>
             <strong id="membersCount">0</strong>
@@ -66,7 +97,7 @@
           </article>
         </section>
 
-        <section class="grid two-up">
+        <section class="grid two-up" data-menu-section="members,ecommerce">
           <article class="panel filter-panel">
             <div class="section-head">
               <h3>Member Filter</h3>
@@ -88,7 +119,7 @@
           </article>
         </section>
 
-        <section class="panel">
+        <section class="panel" data-menu-section="overview">
           <div class="section-head">
             <h3>Operator Shortcuts</h3>
             <span class="muted">One-click focus actions</span>
@@ -101,7 +132,25 @@
           </div>
         </section>
 
-        <section class="panel">
+        <section class="grid three-up workspace-recommendations" data-menu-section="overview">
+          <article class="panel recommendation-card">
+            <p class="eyebrow">Recommended Extra Menu</p>
+            <h3>Finance / Payouts</h3>
+            <p class="muted">For withdrawal approval, payout batches, reconciliation, wallet exceptions, and finance history.</p>
+          </article>
+          <article class="panel recommendation-card">
+            <p class="eyebrow">Recommended Extra Menu</p>
+            <h3>Roles / Admin Users</h3>
+            <p class="muted">For permission control, operator roles, audit ownership, and access separation by team.</p>
+          </article>
+          <article class="panel recommendation-card">
+            <p class="eyebrow">Recommended Extra Menu</p>
+            <h3>Audit Log</h3>
+            <p class="muted">For tracking who changed settings, published content, sent notifications, or touched orders.</p>
+          </article>
+        </section>
+
+        <section class="panel" data-menu-section="marketing">
           <div class="section-head">
             <h3>Commission Settings</h3>
             <span class="muted">Enter percentages, for example 20 = 20%</span>
@@ -133,7 +182,7 @@
           </form>
         </section>
 
-        <section class="grid two-up">
+        <section class="grid two-up" data-menu-section="marketing">
           <article class="panel">
             <div class="section-head">
               <h3>Matrix Settings</h3>
@@ -172,7 +221,7 @@
           </article>
         </section>
 
-        <section class="panel">
+        <section class="panel" data-menu-section="marketing">
           <div class="section-head">
             <h3>Matrix Summary</h3>
             <span class="muted">Live cycle and payout overview</span>
@@ -200,7 +249,7 @@
           </div>
         </section>
 
-        <section class="panel">
+        <section class="panel" data-menu-section="marketing">
           <div class="section-head">
             <h3>Matrix Payouts</h3>
             <span class="muted">Latest matrix credits</span>
@@ -230,7 +279,7 @@
           </div>
         </section>
 
-        <section class="grid two-up">
+        <section class="grid two-up" data-menu-section="marketing,members">
           <article class="panel filter-panel">
             <div class="section-head">
               <h3>Commission Filter</h3>
@@ -254,7 +303,7 @@
           </article>
         </section>
 
-        <section class="panel product-studio-panel">
+        <section class="panel product-studio-panel" data-menu-section="ecommerce">
           <div class="section-head">
             <div>
               <p class="eyebrow">Catalog Control</p>
@@ -481,7 +530,7 @@
           </div>
         </section>
 
-        <section class="panel">
+        <section class="panel" data-menu-section="ecommerce">
           <div class="section-head">
             <h3>Product Details</h3>
             <span class="muted">Catalog variants with media preview</span>
@@ -509,7 +558,7 @@
           </div>
         </section>
 
-        <section class="panel">
+        <section class="panel" data-menu-section="ecommerce">
           <div class="section-head">
             <h3>Packages</h3>
             <span class="muted">Available package catalog</span>
@@ -538,7 +587,7 @@
           </div>
         </section>
 
-        <section class="grid two-up">
+        <section class="grid two-up" data-menu-section="ecommerce,members">
           <article class="panel">
             <div class="section-head">
               <h3>Quick Actions</h3>
@@ -593,7 +642,7 @@
           </article>
         </section>
 
-        <section class="panel detail-panel">
+        <section class="panel detail-panel" data-menu-section="overview,ecommerce,members,marketing">
           <div class="section-head">
             <h3>Action History</h3>
             <button type="button" class="ghost" id="clearHistoryButton">Clear</button>
@@ -603,7 +652,7 @@
           </div>
         </section>
 
-        <section class="grid two-up">
+        <section class="grid two-up" data-menu-section="members,ecommerce">
           <article class="panel">
             <div class="section-head">
               <h3>Members</h3>
@@ -675,7 +724,7 @@
           </article>
         </section>
 
-        <section class="grid two-up">
+        <section class="grid two-up" data-menu-section="marketing,members">
           <article class="panel">
             <div class="section-head">
               <h3>Pool Cycles</h3>
@@ -735,7 +784,7 @@
           </article>
         </section>
 
-        <section class="panel">
+        <section class="panel" data-menu-section="members">
           <div class="section-head">
             <h3>Recent Commissions</h3>
             <span class="muted">Direct and uni results</span>
@@ -762,7 +811,7 @@
           </div>
         </section>
 
-        <section class="panel detail-panel">
+        <section class="panel detail-panel" data-menu-section="members">
           <div class="section-head">
             <h3>Detail Viewer</h3>
             <form id="memberDetailForm" class="inline-form">
@@ -771,6 +820,58 @@
             </form>
           </div>
           <pre id="memberDetailOutput" class="detail-output">Load a member detail to inspect wallet summary and active cycles.</pre>
+        </section>
+
+        <section class="grid two-up" data-menu-section="content">
+          <article class="panel placeholder-panel">
+            <div class="section-head">
+              <h3>Member Content Hub</h3>
+              <span class="muted">Suggested scope</span>
+            </div>
+            <div class="placeholder-list">
+              <div class="placeholder-item">Banner / hero management for member app and signup pages</div>
+              <div class="placeholder-item">Education content, onboarding tutorials, and package highlight blocks</div>
+              <div class="placeholder-item">FAQ, policy pages, featured promotions, and localized content sets</div>
+            </div>
+          </article>
+
+          <article class="panel placeholder-panel">
+            <div class="section-head">
+              <h3>Publishing Workflow</h3>
+              <span class="muted">Recommended next round</span>
+            </div>
+            <div class="placeholder-list">
+              <div class="placeholder-item">Draft / publish state</div>
+              <div class="placeholder-item">Schedule start and expiry</div>
+              <div class="placeholder-item">Audience targeting by package, member status, or language</div>
+            </div>
+          </article>
+        </section>
+
+        <section class="grid two-up" data-menu-section="notifications">
+          <article class="panel placeholder-panel">
+            <div class="section-head">
+              <h3>Notification Center</h3>
+              <span class="muted">Planned operator tools</span>
+            </div>
+            <div class="placeholder-list">
+              <div class="placeholder-item">Broadcast notifications to all members or filtered segments</div>
+              <div class="placeholder-item">Transactional alerts for orders, package activation, payout, and account updates</div>
+              <div class="placeholder-item">Template management with channel selection: in-app, email, SMS, LINE</div>
+            </div>
+          </article>
+
+          <article class="panel placeholder-panel">
+            <div class="section-head">
+              <h3>Delivery Insight</h3>
+              <span class="muted">Recommended metrics</span>
+            </div>
+            <div class="placeholder-list">
+              <div class="placeholder-item">Sent, delivered, opened, clicked, failed</div>
+              <div class="placeholder-item">Target audience preview before send</div>
+              <div class="placeholder-item">Approval / audit trail for mass notification sends</div>
+            </div>
+          </article>
         </section>
       </main>
     </div>
