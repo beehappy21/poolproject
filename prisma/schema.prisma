@@ -31,6 +31,11 @@ enum PackageStatus {
   INACTIVE
 }
 
+enum CatalogStatus {
+  ACTIVE
+  INACTIVE
+}
+
 enum EarningCapType {
   FIXED_AMOUNT
   PRICE_MULTIPLE
@@ -247,97 +252,194 @@ enum MatrixPayoutStatus {
 }
 
 model User {
-  id                   BigInt          @id @default(autoincrement())
-  memberCode           String          @unique @db.VarChar(50)
-  referralCode         String?         @unique @db.VarChar(20)
-  name                 String          @db.VarChar(255)
-  email                String?         @unique @db.VarChar(255)
-  phone                String?         @unique @db.VarChar(50)
-  passwordHash         String          @db.VarChar(255)
-  walletAddress        String?         @db.VarChar(255)
+  id                   BigInt       @id @default(autoincrement())
+  memberCode           String       @unique @db.VarChar(50)
+  referralCode         String?      @unique @db.VarChar(20)
+  name                 String       @db.VarChar(255)
+  email                String?      @unique @db.VarChar(255)
+  phone                String?      @unique @db.VarChar(50)
+  passwordHash         String       @db.VarChar(255)
+  walletAddress        String?      @db.VarChar(255)
   walletVerifiedAt     DateTime?
   sponsorId            BigInt?
-  status               UserStatus      @default(ACTIVE)
-  riskLevel            RiskLevel       @default(NORMAL)
-  payoutStatus         PayoutStatus    @default(ACTIVE)
-  manualReviewRequired Boolean         @default(false)
-  manualReviewReason   String?         @db.VarChar(255)
+  status               UserStatus   @default(ACTIVE)
+  riskLevel            RiskLevel    @default(NORMAL)
+  payoutStatus         PayoutStatus @default(ACTIVE)
+  manualReviewRequired Boolean      @default(false)
+  manualReviewReason   String?      @db.VarChar(255)
   lastRiskReviewedAt   DateTime?
-  createdAt            DateTime        @default(now())
-  updatedAt            DateTime        @updatedAt
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
 
-  sponsor             User?                          @relation("UserSponsorTree", fields: [sponsorId], references: [id])
-  directReferrals     User[]                         @relation("UserSponsorTree")
-  packageCycles       MemberPackageCycle[]
-  orders              Order[]
-  beneficiaryCommissions CommissionLedger[]          @relation("CommissionBeneficiaryUser")
-  sourceCommissions   CommissionLedger[]             @relation("CommissionSourceUser")
-  originalTargetCommissions CommissionLedger[]       @relation("CommissionOriginalTargetUser")
-  rollupFromCommissions CommissionLedger[]           @relation("CommissionRollupFromUser")
-  companyBonusLedgers CompanyBonusLedger[]          @relation("CompanyBonusCreatedByUser")
-  dailyPoolEligibilitySnapshots DailyPoolEligibilitySnapshot[]
-  dailyPoolPayouts    DailyPoolPayout[]
-  wallet              Wallet?
-  walletTransactions  WalletTransaction[]            @relation("WalletTransactionUser")
-  counterpartyWalletTransactions WalletTransaction[] @relation("WalletTransactionCounterpartyUser")
-  payoutBatchApprovals PayoutBatch[]                 @relation("PayoutBatchApprovedByUser")
-  payoutBatchSubmissions PayoutBatch[]               @relation("PayoutBatchSubmittedByUser")
-  payoutBatchReconciliations PayoutBatch[]           @relation("PayoutBatchReconciledByUser")
-  payoutBatchItems    PayoutBatchItem[]
-  walletBindingHistory WalletBindingHistory[]        @relation("WalletBindingUser")
-  walletBindingRequests WalletBindingHistory[]       @relation("WalletBindingRequestedByUser")
-  riskFlags           MemberRiskFlag[]
-  payoutHolds         PayoutHold[]                   @relation("PayoutHoldUser")
-  placedPayoutHolds   PayoutHold[]                   @relation("PayoutHoldPlacedByUser")
-  releasedPayoutHolds PayoutHold[]                   @relation("PayoutHoldReleasedByUser")
-  reviewCases         ManualReviewCase[]             @relation("ManualReviewSubjectUser")
-  assignedReviewCases ManualReviewCase[]             @relation("ManualReviewAssignedUser")
-  matrixCycles        MatrixCycle[]
-  matrixSourcePositions MatrixPosition[]             @relation("MatrixPositionSourceUser")
-  matrixBeneficiaryPayouts MatrixPayout[]            @relation("MatrixPayoutBeneficiaryUser")
-  matrixSourcePayouts MatrixPayout[]                 @relation("MatrixPayoutSourceUser")
-  matrixAccumulationEvents MatrixAccumulationEvent[] @relation("MatrixAccumulationSourceUser")
+  sponsor                        User?                          @relation("UserSponsorTree", fields: [sponsorId], references: [id])
+  directReferrals                User[]                         @relation("UserSponsorTree")
+  packageCycles                  MemberPackageCycle[]
+  orders                         Order[]
+  beneficiaryCommissions         CommissionLedger[]             @relation("CommissionBeneficiaryUser")
+  sourceCommissions              CommissionLedger[]             @relation("CommissionSourceUser")
+  originalTargetCommissions      CommissionLedger[]             @relation("CommissionOriginalTargetUser")
+  rollupFromCommissions          CommissionLedger[]             @relation("CommissionRollupFromUser")
+  companyBonusLedgers            CompanyBonusLedger[]           @relation("CompanyBonusCreatedByUser")
+  dailyPoolEligibilitySnapshots  DailyPoolEligibilitySnapshot[]
+  dailyPoolPayouts               DailyPoolPayout[]
+  wallet                         Wallet?
+  walletTransactions             WalletTransaction[]            @relation("WalletTransactionUser")
+  counterpartyWalletTransactions WalletTransaction[]            @relation("WalletTransactionCounterpartyUser")
+  payoutBatchApprovals           PayoutBatch[]                  @relation("PayoutBatchApprovedByUser")
+  payoutBatchSubmissions         PayoutBatch[]                  @relation("PayoutBatchSubmittedByUser")
+  payoutBatchReconciliations     PayoutBatch[]                  @relation("PayoutBatchReconciledByUser")
+  payoutBatchItems               PayoutBatchItem[]
+  walletBindingHistory           WalletBindingHistory[]         @relation("WalletBindingUser")
+  walletBindingRequests          WalletBindingHistory[]         @relation("WalletBindingRequestedByUser")
+  riskFlags                      MemberRiskFlag[]
+  payoutHolds                    PayoutHold[]                   @relation("PayoutHoldUser")
+  placedPayoutHolds              PayoutHold[]                   @relation("PayoutHoldPlacedByUser")
+  releasedPayoutHolds            PayoutHold[]                   @relation("PayoutHoldReleasedByUser")
+  reviewCases                    ManualReviewCase[]             @relation("ManualReviewSubjectUser")
+  assignedReviewCases            ManualReviewCase[]             @relation("ManualReviewAssignedUser")
+  matrixCycles                   MatrixCycle[]
+  matrixSourcePositions          MatrixPosition[]               @relation("MatrixPositionSourceUser")
+  matrixBeneficiaryPayouts       MatrixPayout[]                 @relation("MatrixPayoutBeneficiaryUser")
+  matrixSourcePayouts            MatrixPayout[]                 @relation("MatrixPayoutSourceUser")
+  matrixAccumulationEvents       MatrixAccumulationEvent[]      @relation("MatrixAccumulationSourceUser")
+}
+
+model Supplier {
+  id        BigInt        @id @default(autoincrement())
+  code      String        @unique @db.VarChar(50)
+  name      String        @db.VarChar(255)
+  status    CatalogStatus @default(ACTIVE)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  categories ProductCategory[]
+  products   Product[]
+}
+
+model ProductCategory {
+  id         BigInt        @id @default(autoincrement())
+  supplierId BigInt
+  code       String        @db.VarChar(50)
+  name       String        @db.VarChar(255)
+  status     CatalogStatus @default(ACTIVE)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  supplier Supplier  @relation(fields: [supplierId], references: [id])
+  products Product[]
+
+  @@unique([supplierId, code])
+  @@index([supplierId, status])
+}
+
+model Product {
+  id         BigInt        @id @default(autoincrement())
+  supplierId BigInt
+  categoryId BigInt
+  code       String        @unique @db.VarChar(50)
+  name       String        @db.VarChar(255)
+  status     CatalogStatus @default(ACTIVE)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  supplier Supplier        @relation(fields: [supplierId], references: [id])
+  category ProductCategory @relation(fields: [categoryId], references: [id])
+  details  ProductDetail[]
+
+  @@index([supplierId, status])
+  @@index([categoryId, status])
+}
+
+model ProductDetail {
+  id              BigInt        @id @default(autoincrement())
+  productId       BigInt
+  code            String        @unique @db.VarChar(50)
+  name            String        @db.VarChar(255)
+  youtubeUrl      String?       @db.VarChar(500)
+  imageUrls       String[]      @default([])
+  costPriceUsdt   Decimal       @default(0) @db.Decimal(18, 8)
+  memberPriceUsdt Decimal       @default(0) @db.Decimal(18, 8)
+  retailPriceUsdt Decimal       @default(0) @db.Decimal(18, 8)
+  pv              Decimal       @default(0) @db.Decimal(18, 8)
+  poolRate        Decimal       @default(0) @db.Decimal(10, 8)
+  status          CatalogStatus @default(ACTIVE)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  product      Product       @relation(fields: [productId], references: [id])
+  packageItems PackageItem[]
+
+  @@index([productId, status])
 }
 
 model Package {
-  id               BigInt           @id @default(autoincrement())
-  code             String           @unique @db.VarChar(50)
-  name             String           @db.VarChar(255)
-  priceUsdt        Decimal          @db.Decimal(18, 8)
-  pv               Decimal          @db.Decimal(18, 8)
+  id               BigInt         @id @default(autoincrement())
+  code             String         @unique @db.VarChar(50)
+  name             String         @db.VarChar(255)
+  costPriceUsdt    Decimal        @default(0) @db.Decimal(18, 8)
+  memberPriceUsdt  Decimal        @default(0) @db.Decimal(18, 8)
+  retailPriceUsdt  Decimal        @default(0) @db.Decimal(18, 8)
+  priceUsdt        Decimal        @db.Decimal(18, 8)
+  pv               Decimal        @db.Decimal(18, 8)
+  poolRate         Decimal        @default(0) @db.Decimal(10, 8)
   activeDays       Int
   earningCapType   EarningCapType
-  earningCapAmount Decimal          @db.Decimal(18, 8)
-  status           PackageStatus    @default(ACTIVE)
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  earningCapAmount Decimal        @db.Decimal(18, 8)
+  status           PackageStatus  @default(ACTIVE)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 
   memberPackageCycles MemberPackageCycle[]
   orderItems          OrderItem[]
+  packageItems        PackageItem[]
+}
+
+model PackageItem {
+  id                  BigInt   @id @default(autoincrement())
+  packageId           BigInt
+  productDetailId     BigInt
+  qty                 Int      @default(1)
+  unitCostPriceUsdt   Decimal  @default(0) @db.Decimal(18, 8)
+  unitMemberPriceUsdt Decimal  @default(0) @db.Decimal(18, 8)
+  unitRetailPriceUsdt Decimal  @default(0) @db.Decimal(18, 8)
+  unitPv              Decimal  @default(0) @db.Decimal(18, 8)
+  unitPoolRate        Decimal  @default(0) @db.Decimal(10, 8)
+  lineCostPriceUsdt   Decimal  @default(0) @db.Decimal(18, 8)
+  lineMemberPriceUsdt Decimal  @default(0) @db.Decimal(18, 8)
+  lineRetailPriceUsdt Decimal  @default(0) @db.Decimal(18, 8)
+  linePv              Decimal  @default(0) @db.Decimal(18, 8)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  package       Package       @relation(fields: [packageId], references: [id])
+  productDetail ProductDetail @relation(fields: [productDetailId], references: [id])
+
+  @@unique([packageId, productDetailId])
+  @@index([productDetailId])
 }
 
 model MemberPackageCycle {
-  id                  BigInt         @id @default(autoincrement())
-  userId              BigInt
-  packageId           BigInt
-  cycleNo             Int
-  activatedAt         DateTime
-  activeUntil         DateTime
-  earningCap          Decimal        @db.Decimal(18, 8)
-  earnedTotalInCycle  Decimal        @default(0) @db.Decimal(18, 8)
-  earningStatus       EarningStatus  @default(ACTIVE)
-  repurchaseRequired  Boolean        @default(false)
-  isReceivable        Boolean        @default(true)
-  status              CycleStatus    @default(ACTIVE)
-  cappedAt            DateTime?
-  closedAt            DateTime?
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @updatedAt
+  id                 BigInt        @id @default(autoincrement())
+  userId             BigInt
+  packageId          BigInt
+  cycleNo            Int
+  activatedAt        DateTime
+  activeUntil        DateTime
+  earningCap         Decimal       @db.Decimal(18, 8)
+  earnedTotalInCycle Decimal       @default(0) @db.Decimal(18, 8)
+  earningStatus      EarningStatus @default(ACTIVE)
+  repurchaseRequired Boolean       @default(false)
+  isReceivable       Boolean       @default(true)
+  status             CycleStatus   @default(ACTIVE)
+  cappedAt           DateTime?
+  closedAt           DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
-  user                User             @relation(fields: [userId], references: [id])
-  package             Package          @relation(fields: [packageId], references: [id])
-  commissionLedgers   CommissionLedger[]
-  dailyPoolPayouts    DailyPoolPayout[]
+  user              User               @relation(fields: [userId], references: [id])
+  package           Package            @relation(fields: [packageId], references: [id])
+  commissionLedgers CommissionLedger[]
+  dailyPoolPayouts  DailyPoolPayout[]
 
   @@unique([userId, cycleNo])
   @@index([userId, status, activatedAt])
@@ -346,29 +448,29 @@ model MemberPackageCycle {
 }
 
 model Order {
-  id                        BigInt                    @id @default(autoincrement())
-  orderNo                   String                    @unique @db.VarChar(50)
-  userId                    BigInt
-  subtotalUsdt              Decimal                   @default(0) @db.Decimal(18, 8)
-  totalUsdt                 Decimal                   @default(0) @db.Decimal(18, 8)
-  totalPv                   Decimal                   @default(0) @db.Decimal(18, 8)
-  paidAt                    DateTime?
-  approvedAt                DateTime?
-  refundWindowEndsAt        DateTime?
-  approvalBatchRef          String?                   @db.VarChar(100)
-  commissionSettingsSnapshot String?                  @db.Text
-  matrixSettingsSnapshot    String?                   @db.Text
-  approvalStatus            ApprovalStatus            @default(PENDING)
-  exceptionalReversalStatus ExceptionalReversalStatus @default(NONE)
-  status                    OrderStatus               @default(PENDING)
-  createdAt                 DateTime                  @default(now())
-  updatedAt                 DateTime                  @updatedAt
+  id                         BigInt                    @id @default(autoincrement())
+  orderNo                    String                    @unique @db.VarChar(50)
+  userId                     BigInt
+  subtotalUsdt               Decimal                   @default(0) @db.Decimal(18, 8)
+  totalUsdt                  Decimal                   @default(0) @db.Decimal(18, 8)
+  totalPv                    Decimal                   @default(0) @db.Decimal(18, 8)
+  paidAt                     DateTime?
+  approvedAt                 DateTime?
+  refundWindowEndsAt         DateTime?
+  approvalBatchRef           String?                   @db.VarChar(100)
+  commissionSettingsSnapshot String?                   @db.Text
+  matrixSettingsSnapshot     String?                   @db.Text
+  approvalStatus             ApprovalStatus            @default(PENDING)
+  exceptionalReversalStatus  ExceptionalReversalStatus @default(NONE)
+  status                     OrderStatus               @default(PENDING)
+  createdAt                  DateTime                  @default(now())
+  updatedAt                  DateTime                  @updatedAt
 
-  user               User                 @relation(fields: [userId], references: [id])
-  orderItems         OrderItem[]
-  commissionLedgers  CommissionLedger[]
-  matrixSourcePositions MatrixPosition[]  @relation("MatrixPositionSourceOrder")
-  matrixPayouts      MatrixPayout[]       @relation("MatrixPayoutSourceOrder")
+  user                     User                      @relation(fields: [userId], references: [id])
+  orderItems               OrderItem[]
+  commissionLedgers        CommissionLedger[]
+  matrixSourcePositions    MatrixPosition[]          @relation("MatrixPositionSourceOrder")
+  matrixPayouts            MatrixPayout[]            @relation("MatrixPayoutSourceOrder")
   matrixAccumulationEvents MatrixAccumulationEvent[] @relation("MatrixAccumulationSourceOrder")
 
   @@index([userId, status])
@@ -396,33 +498,33 @@ model OrderItem {
 }
 
 model CommissionLedger {
-  id                    BigInt           @id @default(autoincrement())
-  beneficiaryUserId     BigInt?
-  beneficiaryCycleId    BigInt?
-  sourceUserId          BigInt
-  orderId               BigInt?
-  commissionType        CommissionType
-  tierNo                Int?
-  levelNo               Int?
-  rate                  Decimal          @default(0) @db.Decimal(10, 8)
-  basePv                Decimal          @default(0) @db.Decimal(18, 8)
-  commissionAmount      Decimal          @default(0) @db.Decimal(18, 8)
-  originalTargetUserId  BigInt?
-  rollupFromUserId      BigInt?
-  rollupDepth           Int              @default(0)
-  cycleRefId            BigInt?
-  evaluationAt          DateTime
-  finalizeCheckedAt     DateTime?
-  finalizedAt           DateTime?
-  status                CommissionStatus @default(PENDING)
-  fallbackToCompany     Boolean          @default(false)
-  blockReason           String?          @db.VarChar(100)
-  companyFallbackReason String?          @db.VarChar(100)
-  holdStatus            HoldStatus       @default(NONE)
-  holdReason            String?          @db.VarChar(100)
+  id                       BigInt           @id @default(autoincrement())
+  beneficiaryUserId        BigInt?
+  beneficiaryCycleId       BigInt?
+  sourceUserId             BigInt
+  orderId                  BigInt?
+  commissionType           CommissionType
+  tierNo                   Int?
+  levelNo                  Int?
+  rate                     Decimal          @default(0) @db.Decimal(10, 8)
+  basePv                   Decimal          @default(0) @db.Decimal(18, 8)
+  commissionAmount         Decimal          @default(0) @db.Decimal(18, 8)
+  originalTargetUserId     BigInt?
+  rollupFromUserId         BigInt?
+  rollupDepth              Int              @default(0)
+  cycleRefId               BigInt?
+  evaluationAt             DateTime
+  finalizeCheckedAt        DateTime?
+  finalizedAt              DateTime?
+  status                   CommissionStatus @default(PENDING)
+  fallbackToCompany        Boolean          @default(false)
+  blockReason              String?          @db.VarChar(100)
+  companyFallbackReason    String?          @db.VarChar(100)
+  holdStatus               HoldStatus       @default(NONE)
+  holdReason               String?          @db.VarChar(100)
   releasedToWithdrawableAt DateTime?
-  createdAt             DateTime         @default(now())
-  updatedAt             DateTime         @updatedAt
+  createdAt                DateTime         @default(now())
+  updatedAt                DateTime         @updatedAt
 
   beneficiaryUser    User?               @relation("CommissionBeneficiaryUser", fields: [beneficiaryUserId], references: [id])
   beneficiaryCycle   MemberPackageCycle? @relation(fields: [beneficiaryCycleId], references: [id])
@@ -440,14 +542,14 @@ model CommissionLedger {
 }
 
 model CompanyBonusLedger {
-  id            BigInt                 @id @default(autoincrement())
-  sourceType    CompanyBonusSourceType
-  sourceRefId   BigInt
-  bonusType     CommissionType
-  amount        Decimal                @default(0) @db.Decimal(18, 8)
-  reason        String                 @db.VarChar(100)
+  id              BigInt                 @id @default(autoincrement())
+  sourceType      CompanyBonusSourceType
+  sourceRefId     BigInt
+  bonusType       CommissionType
+  amount          Decimal                @default(0) @db.Decimal(18, 8)
+  reason          String                 @db.VarChar(100)
   createdByUserId BigInt?
-  createdAt     DateTime               @default(now())
+  createdAt       DateTime               @default(now())
 
   createdByUser User? @relation("CompanyBonusCreatedByUser", fields: [createdByUserId], references: [id])
 
@@ -456,22 +558,22 @@ model CompanyBonusLedger {
 }
 
 model DailyPoolCycle {
-  id                       BigInt               @id @default(autoincrement())
-  cycleDate                DateTime             @db.Date
-  snapshotAt               DateTime
-  evaluationAt             DateTime             @default(now())
-  totalPv                  Decimal              @default(0) @db.Decimal(18, 8)
-  fundingApprovedOrderCount Int                 @default(0)
-  fundingTotalApprovedPv   Decimal              @default(0) @db.Decimal(18, 8)
-  poolRate                 Decimal              @default(0.5) @db.Decimal(10, 8)
-  settingsSnapshot         String?              @db.Text
-  poolFund                 Decimal              @default(0) @db.Decimal(18, 8)
-  eligibleMemberCount      Int                  @default(0)
-  payoutPerMember          Decimal              @default(0) @db.Decimal(18, 8)
-  companyFallbackAmount    Decimal              @default(0) @db.Decimal(18, 8)
-  status                   DailyPoolCycleStatus @default(OPEN)
-  createdAt                DateTime             @default(now())
-  updatedAt                DateTime             @updatedAt
+  id                        BigInt               @id @default(autoincrement())
+  cycleDate                 DateTime             @db.Date
+  snapshotAt                DateTime
+  evaluationAt              DateTime             @default(now())
+  totalPv                   Decimal              @default(0) @db.Decimal(18, 8)
+  fundingApprovedOrderCount Int                  @default(0)
+  fundingTotalApprovedPv    Decimal              @default(0) @db.Decimal(18, 8)
+  poolRate                  Decimal              @default(0.5) @db.Decimal(10, 8)
+  settingsSnapshot          String?              @db.Text
+  poolFund                  Decimal              @default(0) @db.Decimal(18, 8)
+  eligibleMemberCount       Int                  @default(0)
+  payoutPerMember           Decimal              @default(0) @db.Decimal(18, 8)
+  companyFallbackAmount     Decimal              @default(0) @db.Decimal(18, 8)
+  status                    DailyPoolCycleStatus @default(OPEN)
+  createdAt                 DateTime             @default(now())
+  updatedAt                 DateTime             @updatedAt
 
   eligibilitySnapshots DailyPoolEligibilitySnapshot[]
   dailyPoolPayouts     DailyPoolPayout[]
@@ -481,14 +583,14 @@ model DailyPoolCycle {
 }
 
 model DailyPoolEligibilitySnapshot {
-  id                        BigInt    @id @default(autoincrement())
+  id                        BigInt   @id @default(autoincrement())
   cycleId                   BigInt
   userId                    BigInt
-  isMemberActive            Boolean   @default(false)
-  activeDirectReferralCount Int       @default(0)
-  isEligible                Boolean   @default(false)
-  reason                    String?   @db.VarChar(100)
-  createdAt                 DateTime  @default(now())
+  isMemberActive            Boolean  @default(false)
+  activeDirectReferralCount Int      @default(0)
+  isEligible                Boolean  @default(false)
+  reason                    String?  @db.VarChar(100)
+  createdAt                 DateTime @default(now())
 
   cycle DailyPoolCycle @relation(fields: [cycleId], references: [id])
   user  User           @relation(fields: [userId], references: [id])
@@ -537,21 +639,21 @@ model Wallet {
 }
 
 model WalletTransaction {
-  id                 BigInt                   @id @default(autoincrement())
+  id                 BigInt                     @id @default(autoincrement())
   userId             BigInt
   txType             WalletTransactionType
   direction          WalletTransactionDirection
   balanceBucket      WalletBalanceBucket
-  refType            String                   @db.VarChar(50)
+  refType            String                     @db.VarChar(50)
   refId              BigInt
   counterpartyUserId BigInt?
-  amount             Decimal                  @default(0) @db.Decimal(18, 8)
-  status             WalletTransactionStatus  @default(POSTED)
-  createdAt          DateTime                 @default(now())
-  updatedAt          DateTime                 @updatedAt
+  amount             Decimal                    @default(0) @db.Decimal(18, 8)
+  status             WalletTransactionStatus    @default(POSTED)
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
 
-  user             User              @relation("WalletTransactionUser", fields: [userId], references: [id])
-  counterpartyUser User?             @relation("WalletTransactionCounterpartyUser", fields: [counterpartyUserId], references: [id])
+  user             User  @relation("WalletTransactionUser", fields: [userId], references: [id])
+  counterpartyUser User? @relation("WalletTransactionCounterpartyUser", fields: [counterpartyUserId], references: [id])
 
   @@index([userId, createdAt])
   @@index([refType, refId])
@@ -576,7 +678,7 @@ model MatrixCycle {
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
 
-  user               User                     @relation(fields: [userId], references: [id])
+  user               User                      @relation(fields: [userId], references: [id])
   boards             MatrixBoard[]
   payouts            MatrixPayout[]
   accumulationEvents MatrixAccumulationEvent[]
@@ -600,35 +702,35 @@ model MatrixBoard {
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
-  cycle               MatrixCycle               @relation(fields: [cycleId], references: [id])
-  positions           MatrixPosition[]
-  payouts             MatrixPayout[]
-  accumulationEvents  MatrixAccumulationEvent[]
+  cycle              MatrixCycle               @relation(fields: [cycleId], references: [id])
+  positions          MatrixPosition[]
+  payouts            MatrixPayout[]
+  accumulationEvents MatrixAccumulationEvent[]
 
   @@unique([cycleId, boardNo])
   @@index([cycleId, status])
 }
 
 model MatrixPosition {
-  id             BigInt               @id @default(autoincrement())
-  boardId        BigInt
-  slotNo         Int
-  levelNo        Int
-  parentSlotNo   Int?
-  sourceUserId   BigInt?
-  sourceOrderId  BigInt?
-  sourcePv       Decimal              @default(0) @db.Decimal(18, 8)
-  creditedPv     Decimal              @default(0) @db.Decimal(18, 8)
-  status         MatrixPositionStatus @default(FILLED)
-  assignedAt     DateTime             @default(now())
-  resetAt        DateTime?
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
+  id            BigInt               @id @default(autoincrement())
+  boardId       BigInt
+  slotNo        Int
+  levelNo       Int
+  parentSlotNo  Int?
+  sourceUserId  BigInt?
+  sourceOrderId BigInt?
+  sourcePv      Decimal              @default(0) @db.Decimal(18, 8)
+  creditedPv    Decimal              @default(0) @db.Decimal(18, 8)
+  status        MatrixPositionStatus @default(FILLED)
+  assignedAt    DateTime             @default(now())
+  resetAt       DateTime?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
 
-  board          MatrixBoard @relation(fields: [boardId], references: [id])
-  sourceUser     User?       @relation("MatrixPositionSourceUser", fields: [sourceUserId], references: [id])
-  sourceOrder    Order?      @relation("MatrixPositionSourceOrder", fields: [sourceOrderId], references: [id])
-  payouts        MatrixPayout[]
+  board       MatrixBoard    @relation(fields: [boardId], references: [id])
+  sourceUser  User?          @relation("MatrixPositionSourceUser", fields: [sourceUserId], references: [id])
+  sourceOrder Order?         @relation("MatrixPositionSourceOrder", fields: [sourceOrderId], references: [id])
+  payouts     MatrixPayout[]
 
   @@unique([boardId, slotNo])
   @@index([boardId, levelNo])
@@ -653,12 +755,12 @@ model MatrixPayout {
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 
-  cycle            MatrixCycle   @relation(fields: [cycleId], references: [id])
-  board            MatrixBoard   @relation(fields: [boardId], references: [id])
-  position         MatrixPosition? @relation(fields: [positionId], references: [id])
-  beneficiaryUser  User          @relation("MatrixPayoutBeneficiaryUser", fields: [beneficiaryUserId], references: [id])
-  sourceUser       User?         @relation("MatrixPayoutSourceUser", fields: [sourceUserId], references: [id])
-  sourceOrder      Order?        @relation("MatrixPayoutSourceOrder", fields: [sourceOrderId], references: [id])
+  cycle           MatrixCycle     @relation(fields: [cycleId], references: [id])
+  board           MatrixBoard     @relation(fields: [boardId], references: [id])
+  position        MatrixPosition? @relation(fields: [positionId], references: [id])
+  beneficiaryUser User            @relation("MatrixPayoutBeneficiaryUser", fields: [beneficiaryUserId], references: [id])
+  sourceUser      User?           @relation("MatrixPayoutSourceUser", fields: [sourceUserId], references: [id])
+  sourceOrder     Order?          @relation("MatrixPayoutSourceOrder", fields: [sourceOrderId], references: [id])
 
   @@index([cycleId, status])
   @@index([boardId, levelNo])
@@ -667,15 +769,15 @@ model MatrixPayout {
 }
 
 model MatrixAccumulationEvent {
-  id          BigInt   @id @default(autoincrement())
-  cycleId     BigInt
-  boardId     BigInt?
-  sourceUserId BigInt
+  id            BigInt   @id @default(autoincrement())
+  cycleId       BigInt
+  boardId       BigInt?
+  sourceUserId  BigInt
   sourceOrderId BigInt?
-  depthNo     Int
-  sourcePv    Decimal  @default(0) @db.Decimal(18, 8)
-  creditedPv  Decimal  @default(0) @db.Decimal(18, 8)
-  createdAt   DateTime @default(now())
+  depthNo       Int
+  sourcePv      Decimal  @default(0) @db.Decimal(18, 8)
+  creditedPv    Decimal  @default(0) @db.Decimal(18, 8)
+  createdAt     DateTime @default(now())
 
   cycle       MatrixCycle  @relation(fields: [cycleId], references: [id])
   board       MatrixBoard? @relation(fields: [boardId], references: [id])
@@ -714,22 +816,22 @@ model PayoutBatch {
 }
 
 model PayoutBatchItem {
-  id                 BigInt                @id @default(autoincrement())
-  batchId            BigInt
-  userId             BigInt
-  walletAddress      String                @db.VarChar(255)
-  amount             Decimal               @default(0) @db.Decimal(18, 8)
-  refType            String                @db.VarChar(50)
-  refId              BigInt
-  holdClearedAt      DateTime?
-  excludedReason     String?               @db.VarChar(100)
-  txHash             String?               @db.VarChar(255)
-  status             PayoutBatchItemStatus @default(RESERVED)
-  createdAt          DateTime              @default(now())
-  updatedAt          DateTime              @updatedAt
+  id             BigInt                @id @default(autoincrement())
+  batchId        BigInt
+  userId         BigInt
+  walletAddress  String                @db.VarChar(255)
+  amount         Decimal               @default(0) @db.Decimal(18, 8)
+  refType        String                @db.VarChar(50)
+  refId          BigInt
+  holdClearedAt  DateTime?
+  excludedReason String?               @db.VarChar(100)
+  txHash         String?               @db.VarChar(255)
+  status         PayoutBatchItemStatus @default(RESERVED)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
 
-  batch            PayoutBatch       @relation(fields: [batchId], references: [id])
-  user             User              @relation(fields: [userId], references: [id])
+  batch PayoutBatch @relation(fields: [batchId], references: [id])
+  user  User        @relation(fields: [userId], references: [id])
 
   @@index([batchId, status])
   @@index([userId, status])
@@ -783,19 +885,19 @@ model MemberRiskFlag {
 }
 
 model PayoutHold {
-  id               BigInt            @id @default(autoincrement())
+  id               BigInt              @id @default(autoincrement())
   userId           BigInt
   scopeType        PayoutHoldScopeType
   scopeRefId       BigInt?
-  reasonCode       String            @db.VarChar(100)
-  status           PayoutHoldStatus  @default(ACTIVE)
+  reasonCode       String              @db.VarChar(100)
+  status           PayoutHoldStatus    @default(ACTIVE)
   placedAt         DateTime
   releasedAt       DateTime?
   placedByUserId   BigInt
   releasedByUserId BigInt?
   reviewCaseId     BigInt?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
 
   user           User              @relation("PayoutHoldUser", fields: [userId], references: [id])
   placedByUser   User              @relation("PayoutHoldPlacedByUser", fields: [placedByUserId], references: [id])

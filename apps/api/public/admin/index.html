@@ -254,6 +254,261 @@
           </article>
         </section>
 
+        <section class="panel product-studio-panel">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Catalog Control</p>
+              <h3>Product Catalog</h3>
+            </div>
+            <span class="muted">Build supplier, category, product, product detail, then combine them into packages.</span>
+          </div>
+          <div class="product-studio-layout">
+            <div class="product-catalog-stack">
+              <div class="catalog-mini-grid">
+                <form id="createSupplierForm" class="panel inner-panel stacked-form">
+                  <h4>Create Supplier</h4>
+                  <input id="supplierCodeInput" type="text" placeholder="SUP-THAIHERB" required />
+                  <input id="supplierNameInput" type="text" placeholder="Thai Herb Supplier" required />
+                  <button type="submit">Create Supplier</button>
+                </form>
+
+                <form id="createCategoryForm" class="panel inner-panel stacked-form">
+                  <h4>Create Category</h4>
+                  <select id="categorySupplierSelect">
+                    <option value="">Pick supplier</option>
+                  </select>
+                  <input id="categoryCodeInput" type="text" placeholder="CAT-SKIN" required />
+                  <input id="categoryNameInput" type="text" placeholder="Skin Care" required />
+                  <button type="submit">Create Category</button>
+                </form>
+              </div>
+
+              <div class="catalog-mini-grid">
+                <form id="createProductForm" class="panel inner-panel stacked-form">
+                  <h4>Create Product</h4>
+                  <select id="productSupplierSelect">
+                    <option value="">Pick supplier</option>
+                  </select>
+                  <select id="productCategorySelect">
+                    <option value="">Pick category</option>
+                  </select>
+                  <input id="productCodeInput" type="text" placeholder="PROD-SERUM" required />
+                  <input id="productNameInput" type="text" placeholder="Glow Serum" required />
+                  <button type="submit">Create Product</button>
+                </form>
+
+                <form id="createProductDetailForm" class="panel inner-panel stacked-form">
+                  <h4>Create Product Detail</h4>
+                  <select id="productDetailProductSelect">
+                    <option value="">Pick product</option>
+                  </select>
+                  <input id="productDetailCodeInput" type="text" placeholder="SERUM-30ML" required />
+                  <input id="productDetailNameInput" type="text" placeholder="Glow Serum 30ml" required />
+                  <label>
+                    <span>YouTube Link</span>
+                    <input
+                      id="productDetailYoutubeUrlInput"
+                      type="url"
+                      placeholder="https://www.youtube.com/watch?v=..."
+                    />
+                  </label>
+                  <label>
+                    <span>Product Images</span>
+                    <textarea
+                      id="productDetailImageUrlsInput"
+                      rows="5"
+                      placeholder="https://cdn.example.com/product-1.jpg&#10;https://cdn.example.com/product-2.jpg"
+                    ></textarea>
+                  </label>
+                  <div class="product-form-grid">
+                    <label>
+                      <span>Cost Price</span>
+                      <input id="productDetailCostInput" type="text" placeholder="50" required />
+                    </label>
+                    <label>
+                      <span>Member Price</span>
+                      <input id="productDetailMemberPriceInput" type="text" placeholder="80" required />
+                    </label>
+                    <label>
+                      <span>Retail Price</span>
+                      <input id="productDetailRetailPriceInput" type="text" placeholder="120" required />
+                    </label>
+                    <label>
+                      <span>PV</span>
+                      <input id="productDetailPvInput" type="text" placeholder="80" required />
+                    </label>
+                    <label>
+                      <span>Pool %</span>
+                      <input id="productDetailPoolRateInput" type="text" placeholder="10" required />
+                    </label>
+                  </div>
+                  <p class="form-hint">Enter pool as percent. Example: 10 = 10%</p>
+                  <p class="form-hint">Image URLs: one per line, maximum 10 images.</p>
+                  <article class="product-detail-media-preview" id="productDetailMediaPreview">
+                    <div class="product-detail-media-preview__head">
+                      <strong>Media Preview</strong>
+                      <span class="muted">Review YouTube and image URLs before saving</span>
+                    </div>
+                    <div class="product-detail-media-preview__links">
+                      <a
+                        id="productDetailYoutubePreview"
+                        class="product-detail-media-preview__youtube muted"
+                        href="#"
+                        target="_blank"
+                        rel="noreferrer"
+                      >No YouTube link</a>
+                    </div>
+                    <div id="productDetailImagePreviewGrid" class="product-detail-image-preview-grid">
+                      <p class="muted">No images yet.</p>
+                    </div>
+                  </article>
+                  <button type="submit">Create Product Detail</button>
+                </form>
+              </div>
+
+              <article class="panel inner-panel product-catalog-summary">
+                <div class="section-head">
+                  <h4>Catalog Snapshot</h4>
+                  <span class="muted">Live structure counters</span>
+                </div>
+                <div class="product-snapshot-grid">
+                  <div class="product-snapshot-card">
+                    <span>Suppliers</span>
+                    <strong id="supplierCountMetric">0</strong>
+                  </div>
+                  <div class="product-snapshot-card">
+                    <span>Categories</span>
+                    <strong id="categoryCountMetric">0</strong>
+                  </div>
+                  <div class="product-snapshot-card">
+                    <span>Products</span>
+                    <strong id="catalogProductCountMetric">0</strong>
+                  </div>
+                  <div class="product-snapshot-card">
+                    <span>Product Details</span>
+                    <strong id="productDetailCountMetric">0</strong>
+                  </div>
+                </div>
+              </article>
+            </div>
+
+            <form id="createPackageForm" class="panel inner-panel stacked-form product-studio-form">
+              <div class="product-form-head">
+                <div>
+                  <p class="eyebrow">Package Builder</p>
+                  <h4>Create Package</h4>
+                </div>
+                <p class="muted">Choose product details, set quantity, then the package totals update automatically.</p>
+              </div>
+              <div class="product-form-grid">
+                <label>
+                  <span>Package Code</span>
+                  <input id="packageCodeInput" type="text" placeholder="STARTER120" required />
+                </label>
+                <label>
+                  <span>Package Name</span>
+                  <input id="packageNameInput" type="text" placeholder="Starter Growth Pack" required />
+                </label>
+                <label>
+                  <span>Active Days</span>
+                  <input id="packageDaysInput" type="number" min="1" placeholder="30" value="30" required />
+                </label>
+                <label>
+                  <span>Earning Cap</span>
+                  <input id="packageCapInput" type="text" placeholder="360" value="360" required />
+                </label>
+                <label>
+                  <span>Package Pool %</span>
+                  <input id="packagePoolRateInput" type="text" placeholder="10" value="10" required />
+                </label>
+              </div>
+              <div class="package-builder">
+                <div class="package-builder-add">
+                  <select id="packageDetailSelect">
+                    <option value="">Pick product detail</option>
+                  </select>
+                  <input id="packageDetailQtyInput" type="number" min="1" value="1" />
+                  <button type="button" id="addPackageDetailButton">Add Item</button>
+                </div>
+                <div id="packageItemsList" class="package-items-list">
+                  <p class="muted">No product details selected yet.</p>
+                </div>
+              </div>
+              <div class="product-form-actions">
+                <button type="submit">Create Package</button>
+                <button type="button" class="ghost" id="resetProductFormButton">Reset Form</button>
+              </div>
+              <article class="product-preview-card product-preview-card--hero">
+                <p class="eyebrow">Live Preview</p>
+                <strong id="productPreviewTitle">Starter Growth Pack</strong>
+                <p class="muted" id="productPreviewCode">STARTER120</p>
+                <div class="product-preview-metrics">
+                  <div>
+                    <span>Cost</span>
+                    <strong id="productPreviewCost">0 USDT</strong>
+                  </div>
+                  <div>
+                    <span>Member</span>
+                    <strong id="productPreviewMemberPrice">0 USDT</strong>
+                  </div>
+                  <div>
+                    <span>Retail</span>
+                    <strong id="productPreviewRetailPrice">0 USDT</strong>
+                  </div>
+                  <div>
+                    <span>PV</span>
+                    <strong id="productPreviewPv">0 PV</strong>
+                  </div>
+                  <div>
+                    <span>Pool</span>
+                    <strong id="productPreviewPoolRate">10%</strong>
+                  </div>
+                  <div>
+                    <span>Cycle</span>
+                    <strong id="productPreviewDays">30 days</strong>
+                  </div>
+                  <div>
+                    <span>Cap</span>
+                    <strong id="productPreviewCap">360</strong>
+                  </div>
+                  <div>
+                    <span>Items</span>
+                    <strong id="productPreviewItemCount">0 items</strong>
+                  </div>
+                </div>
+              </article>
+            </form>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="section-head">
+            <h3>Product Details</h3>
+            <span class="muted">Catalog variants with media preview</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Supplier</th>
+                  <th>Category</th>
+                  <th>Product</th>
+                  <th>Detail</th>
+                  <th>Media</th>
+                  <th>Cost</th>
+                  <th>Member</th>
+                  <th>Retail</th>
+                  <th>PV</th>
+                  <th>Pool %</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="productDetailsTable"></tbody>
+            </table>
+          </div>
+        </section>
+
         <section class="panel">
           <div class="section-head">
             <h3>Packages</h3>
@@ -266,8 +521,14 @@
                   <th>ID</th>
                   <th>Code</th>
                   <th>Name</th>
+                  <th>Cost</th>
+                  <th>Member</th>
+                  <th>Retail</th>
                   <th>PV</th>
-                  <th>Price</th>
+                  <th>Pool %</th>
+                  <th>Days</th>
+                  <th>Cap</th>
+                  <th>Items</th>
                   <th>Status</th>
                   <th>Actions</th>
                 </tr>
@@ -284,17 +545,6 @@
               <span class="muted">Create and trigger core flows</span>
             </div>
             <div class="action-grid">
-              <form id="createPackageForm" class="panel inner-panel stacked-form">
-                <h4>Create Package</h4>
-                <input id="packageCodeInput" type="text" placeholder="Code" required />
-                <input id="packageNameInput" type="text" placeholder="Name" required />
-                <input id="packagePriceInput" type="text" placeholder="Price USDT" value="120" required />
-                <input id="packagePvInput" type="text" placeholder="PV" value="120" required />
-                <input id="packageDaysInput" type="number" min="1" placeholder="Active Days" value="30" required />
-                <input id="packageCapInput" type="text" placeholder="Earning Cap" value="360" required />
-                <button type="submit">Create Package</button>
-              </form>
-
               <form id="createMemberForm" class="panel inner-panel stacked-form">
                 <h4>Create Member</h4>
                 <input id="memberCodeCreateInput" type="text" placeholder="Member Code (leave blank for TH0000001 auto)" />
