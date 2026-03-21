@@ -97,6 +97,37 @@ const workspaceDescription = document.getElementById("workspaceDescription");
 const workspaceAdminName = document.getElementById("workspaceAdminName");
 const workspaceAdminMeta = document.getElementById("workspaceAdminMeta");
 const ecommerceSectionDescription = document.getElementById("ecommerceSectionDescription");
+const contentForm = document.getElementById("contentForm");
+const contentKeyInput = document.getElementById("contentKeyInput");
+const contentPlacementSelect = document.getElementById("contentPlacementSelect");
+const contentTitleInput = document.getElementById("contentTitleInput");
+const contentAudienceSelect = document.getElementById("contentAudienceSelect");
+const contentStartInput = document.getElementById("contentStartInput");
+const contentEndInput = document.getElementById("contentEndInput");
+const contentSummaryInput = document.getElementById("contentSummaryInput");
+const contentBodyInput = document.getElementById("contentBodyInput");
+const resetContentButton = document.getElementById("resetContentButton");
+const contentPreviewPlacement = document.getElementById("contentPreviewPlacement");
+const contentPreviewTitle = document.getElementById("contentPreviewTitle");
+const contentPreviewAudience = document.getElementById("contentPreviewAudience");
+const contentPreviewSummary = document.getElementById("contentPreviewSummary");
+const contentPreviewBody = document.getElementById("contentPreviewBody");
+const notificationForm = document.getElementById("notificationForm");
+const notificationNameInput = document.getElementById("notificationNameInput");
+const notificationChannelSelect = document.getElementById("notificationChannelSelect");
+const notificationAudienceSelect = document.getElementById("notificationAudienceSelect");
+const notificationScheduleInput = document.getElementById("notificationScheduleInput");
+const notificationCtaLabelInput = document.getElementById("notificationCtaLabelInput");
+const notificationCtaRouteInput = document.getElementById("notificationCtaRouteInput");
+const notificationHeadlineInput = document.getElementById("notificationHeadlineInput");
+const notificationMessageInput = document.getElementById("notificationMessageInput");
+const resetNotificationButton = document.getElementById("resetNotificationButton");
+const notificationPreviewChannel = document.getElementById("notificationPreviewChannel");
+const notificationPreviewAudience = document.getElementById("notificationPreviewAudience");
+const notificationPreviewHeadline = document.getElementById("notificationPreviewHeadline");
+const notificationPreviewMessage = document.getElementById("notificationPreviewMessage");
+const notificationPreviewCta = document.getElementById("notificationPreviewCta");
+const notificationPreviewSchedule = document.getElementById("notificationPreviewSchedule");
 state.memberSearch = "";
 state.orderUserId = "";
 state.commissionOrderId = "";
@@ -146,6 +177,8 @@ state.activeAdminMenu =
   localStorage.getItem("adminActiveMenu") || "overview";
 state.activeEcommerceMenu =
   localStorage.getItem("adminActiveEcommerceMenu") || "catalog";
+state.contentDrafts = JSON.parse(localStorage.getItem("adminContentDrafts") || "[]");
+state.notificationDrafts = JSON.parse(localStorage.getItem("adminNotificationDrafts") || "[]");
 
 const adminMenuConfig = {
   overview: {
@@ -231,6 +264,89 @@ function renderProductDetailMediaPreview() {
         )
         .join("")
     : '<p class="muted">No images yet.</p>';
+}
+
+function renderContentPreview() {
+  if (!contentPreviewTitle) {
+    return;
+  }
+
+  contentPreviewPlacement.textContent =
+    contentPlacementSelect?.selectedOptions?.[0]?.textContent || "Placement";
+  contentPreviewTitle.textContent = contentTitleInput?.value.trim() || "Draft title";
+  contentPreviewAudience.textContent =
+    `Audience: ${contentAudienceSelect?.value || "all_members"}`;
+  contentPreviewSummary.textContent =
+    contentSummaryInput?.value.trim() || "Short summary will appear here.";
+  contentPreviewBody.textContent =
+    contentBodyInput?.value.trim() || "Detailed content preview.";
+}
+
+function renderContentDrafts() {
+  renderTableRows(
+    "contentDraftsTable",
+    state.contentDrafts,
+    (item) => `<tr>
+      <td>${escapeHtml(item.key)}</td>
+      <td>${escapeHtml(item.placement)}</td>
+      <td>${escapeHtml(item.title)}</td>
+      <td>${escapeHtml(item.audience)}</td>
+      <td>${escapeHtml(item.schedule)}</td>
+      <td>${escapeHtml(item.status)}</td>
+    </tr>`,
+  );
+}
+
+function persistContentDrafts() {
+  localStorage.setItem("adminContentDrafts", JSON.stringify(state.contentDrafts));
+  renderContentDrafts();
+}
+
+function resetContentStudio() {
+  contentForm?.reset();
+  renderContentPreview();
+}
+
+function renderNotificationPreview() {
+  if (!notificationPreviewHeadline) {
+    return;
+  }
+
+  notificationPreviewChannel.textContent = (notificationChannelSelect?.value || "in_app").toUpperCase();
+  notificationPreviewAudience.textContent = notificationAudienceSelect?.value || "all_members";
+  notificationPreviewHeadline.textContent =
+    notificationHeadlineInput?.value.trim() || "Draft headline";
+  notificationPreviewMessage.textContent =
+    notificationMessageInput?.value.trim() || "Notification message preview.";
+  notificationPreviewCta.textContent =
+    notificationCtaLabelInput?.value.trim() || "CTA";
+  notificationPreviewSchedule.textContent =
+    notificationScheduleInput?.value || "Send now";
+}
+
+function renderNotificationQueue() {
+  renderTableRows(
+    "notificationQueueTable",
+    state.notificationDrafts,
+    (item) => `<tr>
+      <td>${escapeHtml(item.name)}</td>
+      <td>${escapeHtml(item.channel)}</td>
+      <td>${escapeHtml(item.audience)}</td>
+      <td>${escapeHtml(item.headline)}</td>
+      <td>${escapeHtml(item.schedule)}</td>
+      <td>${escapeHtml(item.status)}</td>
+    </tr>`,
+  );
+}
+
+function persistNotificationDrafts() {
+  localStorage.setItem("adminNotificationDrafts", JSON.stringify(state.notificationDrafts));
+  renderNotificationQueue();
+}
+
+function resetNotificationStudio() {
+  notificationForm?.reset();
+  renderNotificationPreview();
 }
 
 function renderAdminWorkspaceHeader() {
@@ -1943,6 +2059,99 @@ if (resetProductFormButton) {
   });
 }
 
+[
+  contentKeyInput,
+  contentPlacementSelect,
+  contentTitleInput,
+  contentAudienceSelect,
+  contentStartInput,
+  contentEndInput,
+  contentSummaryInput,
+  contentBodyInput,
+].forEach((element) => {
+  element?.addEventListener("input", renderContentPreview);
+  element?.addEventListener("change", renderContentPreview);
+});
+
+if (contentForm) {
+  contentForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+
+    state.contentDrafts = [
+      {
+        key: contentKeyInput.value.trim(),
+        placement: contentPlacementSelect.value,
+        title: contentTitleInput.value.trim(),
+        audience: contentAudienceSelect.value,
+        schedule: contentStartInput.value || "No schedule",
+        status: "draft",
+      },
+      ...state.contentDrafts,
+    ].slice(0, 20);
+
+    persistContentDrafts();
+    setStatus("Content draft saved");
+    setActionOutput("Content draft saved", state.contentDrafts[0]);
+  });
+}
+
+if (resetContentButton) {
+  resetContentButton.addEventListener("click", () => {
+    resetContentStudio();
+    setStatus("Content studio reset");
+  });
+}
+
+[
+  notificationNameInput,
+  notificationChannelSelect,
+  notificationAudienceSelect,
+  notificationScheduleInput,
+  notificationCtaLabelInput,
+  notificationCtaRouteInput,
+  notificationHeadlineInput,
+  notificationMessageInput,
+].forEach((element) => {
+  element?.addEventListener("input", renderNotificationPreview);
+  element?.addEventListener("change", renderNotificationPreview);
+});
+
+if (notificationForm) {
+  notificationForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+
+    state.notificationDrafts = [
+      {
+        name: notificationNameInput.value.trim(),
+        channel: notificationChannelSelect.value,
+        audience: notificationAudienceSelect.value,
+        headline: notificationHeadlineInput.value.trim(),
+        schedule: notificationScheduleInput.value || "Send now",
+        status: "queued_draft",
+      },
+      ...state.notificationDrafts,
+    ].slice(0, 20);
+
+    persistNotificationDrafts();
+    setStatus("Notification draft queued");
+    setActionOutput("Notification draft queued", {
+      name: notificationNameInput.value.trim(),
+      channel: notificationChannelSelect.value,
+      audience: notificationAudienceSelect.value,
+      headline: notificationHeadlineInput.value.trim(),
+      ctaLabel: notificationCtaLabelInput.value.trim() || null,
+      ctaRoute: notificationCtaRouteInput.value.trim() || null,
+    });
+  });
+}
+
+if (resetNotificationButton) {
+  resetNotificationButton.addEventListener("click", () => {
+    resetNotificationStudio();
+    setStatus("Notification studio reset");
+  });
+}
+
 createMemberForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
@@ -2111,6 +2320,10 @@ if (matrixMemberForm) {
   renderAdminWorkspaceHeader();
   applyAdminMenuVisibility();
   renderHistory();
+  renderContentPreview();
+  renderContentDrafts();
+  renderNotificationPreview();
+  renderNotificationQueue();
   const user = await loadSession();
   if (user) {
     if (adminView === "dashboard") {

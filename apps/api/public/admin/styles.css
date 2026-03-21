@@ -553,6 +553,54 @@ button.danger {
   background: rgba(255, 248, 238, 0.95);
 }
 
+.content-preview-card,
+.notification-preview-card {
+  margin: 18px;
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(135deg, rgba(27, 107, 82, 0.08), rgba(255, 248, 238, 0.96)),
+    rgba(255, 248, 238, 0.95);
+}
+
+.content-preview-card strong,
+.notification-preview-card strong {
+  display: block;
+  font-size: 1.2rem;
+  margin-bottom: 8px;
+}
+
+.content-preview-card p,
+.notification-preview-card p {
+  margin: 0 0 10px;
+}
+
+.content-preview-body {
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: rgba(255, 250, 240, 0.82);
+  white-space: pre-wrap;
+}
+
+.notification-preview-card__meta,
+.notification-preview-card__cta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.notification-preview-card__meta span:first-child {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+}
+
 .product-detail-media-preview {
   display: grid;
   gap: 12px;

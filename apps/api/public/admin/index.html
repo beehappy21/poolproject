@@ -891,55 +891,201 @@
         </section>
 
         <section class="grid two-up" data-menu-section="content">
-          <article class="panel placeholder-panel">
+          <article class="panel">
             <div class="section-head">
-              <h3>Member Content Hub</h3>
-              <span class="muted">Suggested scope</span>
+              <h3>Content Studio</h3>
+              <span class="muted">Create member-facing blocks</span>
             </div>
-            <div class="placeholder-list">
-              <div class="placeholder-item">Banner / hero management for member app and signup pages</div>
-              <div class="placeholder-item">Education content, onboarding tutorials, and package highlight blocks</div>
-              <div class="placeholder-item">FAQ, policy pages, featured promotions, and localized content sets</div>
-            </div>
+            <form id="contentForm" class="settings-form">
+              <div class="settings-grid">
+                <label>
+                  <span>Content Key</span>
+                  <input id="contentKeyInput" type="text" placeholder="home-banner-march" required />
+                </label>
+                <label>
+                  <span>Placement</span>
+                  <select id="contentPlacementSelect">
+                    <option value="home_hero">Home Hero</option>
+                    <option value="home_feed">Home Feed</option>
+                    <option value="signup_banner">Signup Banner</option>
+                    <option value="member_learning">Member Learning</option>
+                    <option value="member_promo">Member Promotion</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Title</span>
+                  <input id="contentTitleInput" type="text" placeholder="March Growth Campaign" required />
+                </label>
+                <label>
+                  <span>Audience</span>
+                  <select id="contentAudienceSelect">
+                    <option value="all_members">All Members</option>
+                    <option value="new_members">New Members</option>
+                    <option value="active_members">Active Members</option>
+                    <option value="inactive_members">Inactive Members</option>
+                    <option value="vip_members">VIP Members</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Start At</span>
+                  <input id="contentStartInput" type="datetime-local" />
+                </label>
+                <label>
+                  <span>End At</span>
+                  <input id="contentEndInput" type="datetime-local" />
+                </label>
+              </div>
+              <label>
+                <span>Summary</span>
+                <textarea id="contentSummaryInput" rows="3" placeholder="Short supporting message for the content block"></textarea>
+              </label>
+              <label>
+                <span>Body</span>
+                <textarea id="contentBodyInput" rows="6" placeholder="Detailed content, promo description, tutorial intro, or policy text"></textarea>
+              </label>
+              <div class="table-actions">
+                <button type="submit">Save Draft</button>
+                <button type="button" class="ghost" id="resetContentButton">Reset</button>
+              </div>
+            </form>
           </article>
 
-          <article class="panel placeholder-panel">
+          <article class="panel">
             <div class="section-head">
-              <h3>Publishing Workflow</h3>
-              <span class="muted">Recommended next round</span>
+              <h3>Content Preview</h3>
+              <span class="muted">Live member-facing card</span>
             </div>
-            <div class="placeholder-list">
-              <div class="placeholder-item">Draft / publish state</div>
-              <div class="placeholder-item">Schedule start and expiry</div>
-              <div class="placeholder-item">Audience targeting by package, member status, or language</div>
-            </div>
+            <article class="content-preview-card" id="contentPreviewCard">
+              <p class="eyebrow" id="contentPreviewPlacement">Home Hero</p>
+              <strong id="contentPreviewTitle">Draft title</strong>
+              <p class="muted" id="contentPreviewAudience">Audience: all_members</p>
+              <p id="contentPreviewSummary">Short summary will appear here.</p>
+              <div class="content-preview-body" id="contentPreviewBody">Detailed content preview.</div>
+            </article>
           </article>
         </section>
 
+        <section class="panel" data-menu-section="content">
+          <div class="section-head">
+            <h3>Content Drafts</h3>
+            <span class="muted">Local admin drafts until content API is added</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Key</th>
+                  <th>Placement</th>
+                  <th>Title</th>
+                  <th>Audience</th>
+                  <th>Schedule</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="contentDraftsTable"></tbody>
+            </table>
+          </div>
+        </section>
+
         <section class="grid two-up" data-menu-section="notifications">
-          <article class="panel placeholder-panel">
+          <article class="panel">
             <div class="section-head">
-              <h3>Notification Center</h3>
-              <span class="muted">Planned operator tools</span>
+              <h3>Notification Composer</h3>
+              <span class="muted">Prepare targeted sends</span>
             </div>
-            <div class="placeholder-list">
-              <div class="placeholder-item">Broadcast notifications to all members or filtered segments</div>
-              <div class="placeholder-item">Transactional alerts for orders, package activation, payout, and account updates</div>
-              <div class="placeholder-item">Template management with channel selection: in-app, email, SMS, LINE</div>
-            </div>
+            <form id="notificationForm" class="settings-form">
+              <div class="settings-grid">
+                <label>
+                  <span>Campaign Name</span>
+                  <input id="notificationNameInput" type="text" placeholder="Promo blast week 1" required />
+                </label>
+                <label>
+                  <span>Channel</span>
+                  <select id="notificationChannelSelect">
+                    <option value="in_app">In-App</option>
+                    <option value="email">Email</option>
+                    <option value="sms">SMS</option>
+                    <option value="line">LINE</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Audience</span>
+                  <select id="notificationAudienceSelect">
+                    <option value="all_members">All Members</option>
+                    <option value="new_signups">New Signups</option>
+                    <option value="active_buyers">Active Buyers</option>
+                    <option value="inactive_members">Inactive Members</option>
+                    <option value="pending_activation">Pending Activation</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Schedule</span>
+                  <input id="notificationScheduleInput" type="datetime-local" />
+                </label>
+                <label>
+                  <span>CTA Label</span>
+                  <input id="notificationCtaLabelInput" type="text" placeholder="Shop now" />
+                </label>
+                <label>
+                  <span>CTA Route</span>
+                  <input id="notificationCtaRouteInput" type="text" placeholder="/app/shop" />
+                </label>
+              </div>
+              <label>
+                <span>Headline</span>
+                <input id="notificationHeadlineInput" type="text" placeholder="Your package is ready" required />
+              </label>
+              <label>
+                <span>Message</span>
+                <textarea id="notificationMessageInput" rows="5" placeholder="Write the notification body here"></textarea>
+              </label>
+              <div class="table-actions">
+                <button type="submit">Queue Draft</button>
+                <button type="button" class="ghost" id="resetNotificationButton">Reset</button>
+              </div>
+            </form>
           </article>
 
-          <article class="panel placeholder-panel">
+          <article class="panel">
             <div class="section-head">
-              <h3>Delivery Insight</h3>
-              <span class="muted">Recommended metrics</span>
+              <h3>Notification Preview</h3>
+              <span class="muted">How the message will look</span>
             </div>
-            <div class="placeholder-list">
-              <div class="placeholder-item">Sent, delivered, opened, clicked, failed</div>
-              <div class="placeholder-item">Target audience preview before send</div>
-              <div class="placeholder-item">Approval / audit trail for mass notification sends</div>
-            </div>
+            <article class="notification-preview-card">
+              <div class="notification-preview-card__meta">
+                <span id="notificationPreviewChannel">IN_APP</span>
+                <span id="notificationPreviewAudience">all_members</span>
+              </div>
+              <strong id="notificationPreviewHeadline">Draft headline</strong>
+              <p id="notificationPreviewMessage">Notification message preview.</p>
+              <div class="notification-preview-card__cta">
+                <button type="button" class="ghost" id="notificationPreviewCta">CTA</button>
+                <span class="muted" id="notificationPreviewSchedule">Send now</span>
+              </div>
+            </article>
           </article>
+        </section>
+
+        <section class="panel" data-menu-section="notifications">
+          <div class="section-head">
+            <h3>Notification Queue</h3>
+            <span class="muted">Local draft queue and send planning</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Campaign</th>
+                  <th>Channel</th>
+                  <th>Audience</th>
+                  <th>Headline</th>
+                  <th>Schedule</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="notificationQueueTable"></tbody>
+            </table>
+          </div>
         </section>
       </main>
     </div>
