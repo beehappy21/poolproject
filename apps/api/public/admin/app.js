@@ -229,9 +229,9 @@ const adminMenuConfig = {
       "High-level command center plus recommended admin areas to add next.",
   },
   marketing: {
-    title: "ตั้งค่าแผนการตลาด",
+    title: "Commission Setting",
     description:
-      "Commission, matrix, pool, and core compensation configuration workspace.",
+      "Commission rates, matrix rules, pool cycles, and compensation configuration workspace.",
   },
   ecommerce: {
     title: "ระบบ eCommerce",
