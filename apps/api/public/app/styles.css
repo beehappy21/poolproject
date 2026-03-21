@@ -162,6 +162,57 @@ p {
   color: #8a5b13;
 }
 
+.type-chip {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.type-default {
+  background: rgba(109, 75, 28, 0.1);
+  color: #6d4b1c;
+}
+
+.type-matrix {
+  background: rgba(31, 91, 70, 0.14);
+  color: #1f5b46;
+  font-weight: 700;
+}
+
+.matrix-board-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.matrix-board-card {
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(85, 62, 22, 0.12);
+  background: #fffdf8;
+}
+
+.board-complete {
+  background: rgba(55, 110, 52, 0.1);
+  border-color: rgba(55, 110, 52, 0.24);
+}
+
+.board-current {
+  background: rgba(158, 114, 29, 0.12);
+  border-color: rgba(158, 114, 29, 0.24);
+}
+
+.board-open {
+  background: rgba(109, 75, 28, 0.08);
+}
+
+.board-locked {
+  opacity: 0.82;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;

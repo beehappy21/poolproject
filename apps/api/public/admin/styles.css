@@ -41,6 +41,26 @@ select {
   grid-template-columns: 360px 1fr;
 }
 
+.is-logged-out .app-shell {
+  grid-template-columns: minmax(320px, 460px);
+  justify-content: center;
+  align-content: center;
+  padding: 32px;
+}
+
+.is-logged-out .sidebar {
+  border-right: 0;
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  background: rgba(249, 244, 233, 0.94);
+  box-shadow: var(--shadow);
+}
+
+.is-logged-out .dashboard-only,
+.is-logged-out .session-only {
+  display: none;
+}
+
 .sidebar {
   padding: 28px;
   border-right: 1px solid var(--line);
@@ -96,6 +116,10 @@ select {
 .login-form {
   display: grid;
   gap: 14px;
+}
+
+.is-logged-out .login-form {
+  margin-top: 28px;
 }
 
 .login-form label,
@@ -392,5 +416,13 @@ th {
   .sidebar {
     border-right: 0;
     border-bottom: 1px solid var(--line);
+  }
+
+  .is-logged-out .app-shell {
+    padding: 18px;
+  }
+
+  .is-logged-out .sidebar {
+    border-bottom: 0;
   }
 }

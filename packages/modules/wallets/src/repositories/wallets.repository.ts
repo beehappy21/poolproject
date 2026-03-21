@@ -306,6 +306,10 @@ export class PrismaWalletsRepository implements WalletsRepository {
       return "POOL_CREDIT" as const;
     }
 
+    if (input.earningType === "matrix" || input.refType === "matrix") {
+      return "MATRIX_CREDIT" as const;
+    }
+
     if (input.earningType === "uni") {
       return "UNI_CREDIT" as const;
     }

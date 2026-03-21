@@ -78,9 +78,12 @@ export interface CommissionCandidatePath {
 export interface DirectCommissionDraftResult {
   sourceType: "direct";
   sourceOrderId: string;
+  level: number;
+  levelNo: number;
   basePv: string;
   rate: string;
   amount: string;
+  beneficiaryUserId: string | null;
   candidateUserId: string | null;
   rollupApplied: boolean;
   rollupDepth: number;
@@ -104,6 +107,6 @@ export interface UniCommissionDraftResult {
 
 export interface ApprovedOrderCommissionFlowResult {
   sourceOrderId: string;
-  directDraft: DirectCommissionDraftResult;
+  directDrafts: DirectCommissionDraftResult[];
   uniDrafts: UniCommissionDraftResult[];
 }

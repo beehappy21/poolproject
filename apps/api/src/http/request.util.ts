@@ -48,6 +48,17 @@ export function requireDecimalString(value: unknown, fieldName: string): string 
   return normalized;
 }
 
+export function requireDecimalRateString(value: unknown, fieldName: string): string {
+  const normalized = requireDecimalString(value, fieldName);
+  const numericValue = Number(normalized);
+
+  if (!Number.isFinite(numericValue) || numericValue < 0 || numericValue > 1) {
+    throw new BadRequestException(`${fieldName} must be between 0 and 1.`);
+  }
+
+  return normalized;
+}
+
 export function requirePositiveInteger(value: unknown, fieldName: string): number {
   if (
     typeof value !== "number" ||

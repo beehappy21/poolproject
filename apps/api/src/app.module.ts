@@ -1,5 +1,7 @@
 import { Module } from "@nestjs/common";
 import { AuthModule } from "../../../packages/modules/auth";
+import { AdminMatrixSettingsController } from "./admin-matrix-settings.controller";
+import { MatrixModule } from "../../../packages/modules/matrix/src";
 import { MembersModule } from "../../../packages/modules/members";
 import { OrdersModule } from "../../../packages/modules/orders";
 import { PackagesModule } from "../../../packages/modules/packages";
@@ -13,12 +15,18 @@ import { HealthController } from "./health.controller";
   imports: [
     AuthModule,
     MembersModule,
+    MatrixModule,
     PackagesModule,
     OrdersModule,
     PoolModule,
     WalletsModule,
   ],
-  controllers: [HealthController, AdminUiController, AdminSettingsController],
+  controllers: [
+    HealthController,
+    AdminUiController,
+    AdminSettingsController,
+    AdminMatrixSettingsController,
+  ],
   providers: [],
 })
 export class ApiAppModule {}

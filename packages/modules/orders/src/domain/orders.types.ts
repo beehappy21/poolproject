@@ -22,8 +22,15 @@ export interface ApprovedOrderOrchestrationResult {
   steps: ApprovedOrderOrchestrationStep[];
   commissionDrafts: {
     directStatus: "approved" | "held" | "fallback" | "withdrawable";
+    directCount: number;
     uniCount: number;
     hasFallback: boolean;
+  };
+  matrixProcessing: {
+    affectedMemberCount: number;
+    payoutCount: number;
+    completedCycleCount: number;
+    skipped: boolean;
   };
   walletPostingInputs: Array<{
     userId: string;

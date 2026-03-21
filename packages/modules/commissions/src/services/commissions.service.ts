@@ -26,7 +26,7 @@ export interface CommissionsServiceContract {
 
   resolveDirectBonusCandidatePath(
     input: CommissionCandidatePath,
-  ): Promise<string | null>;
+  ): Promise<string[]>;
 
   resolveUniBonusCandidatePath(
     input: CommissionCandidatePath,
@@ -143,19 +143,19 @@ export class CommissionsService implements CommissionsServiceContract {
       sourceOrder.approvedAt,
     );
 
-    const directCandidateUserId = await this.resolveDirectBonusCandidatePath({
+    const directCandidateUserIds = await this.resolveDirectBonusCandidatePath({
       sourceUserId: sourceOrder.sourceUserId,
       evaluationAt: sourceOrder.approvedAt,
       candidateUserIds,
     });
 
-    const directDraft = await this.buildDirectDraft(
+    const directDrafts = await this.buildDirectDrafts(
       sourceOrder.orderId,
       sourceOrder.sourceUserId,
       sourceOrder.approvedAt,
       sourceOrder.totalPv,
       candidateUserIds,
-      directCandidateUserId,
+      directCandidateUserIds,
     );
     const uniCandidateUserIds = await this.resolveUniBonusCandidatePath({
       sourceUserId: sourceOrder.sourceUserId,
@@ -173,14 +173,17 @@ export class CommissionsService implements CommissionsServiceContract {
 
     return {
       sourceOrderId: sourceOrder.orderId,
-      directDraft,
+      directDrafts,
       uniDrafts,
     };
   }
 
   async resolveDirectBonusCandidatePath(
     input: CommissionCandidatePath,
-  ): Promise<string | null> {
+  ): Promise<string[]> {
+    const maxLevels = readCommissionSettings().directLevelRates.length;
+    const activeCandidateUserIds: string[] = [];
+
     for (const candidateUserId of input.candidateUserIds) {
       const cycles = await this.membersService.getMemberCycles(
         candidateUserId,
@@ -194,11 +197,15 @@ export class CommissionsService implements CommissionsServiceContract {
         });
 
       if (qualification.memberActive) {
-        return candidateUserId;
+        activeCandidateUserIds.push(candidateUserId);
+      }
+
+      if (activeCandidateUserIds.length >= maxLevels) {
+        break;
       }
     }
 
-    return null;
+    return activeCandidateUserIds;
   }
 
   async resolveUniBonusCandidatePath(
@@ -339,14 +346,16 @@ export class CommissionsService implements CommissionsServiceContract {
     evaluationAt: string,
     totalPv: string,
     candidateUserIds: string[],
+    levelNo: number,
+    rate: string,
     candidateUserId: string | null,
   ) {
     const basePv = totalPv;
-    const rate = readCommissionSettings().directRate;
     const amount = multiplyDecimalStrings(basePv, rate);
-    const rollupDepth = candidateUserId
-      ? Math.max(candidateUserIds.indexOf(candidateUserId), 0)
-      : 0;
+    const candidateIndex = candidateUserId
+      ? candidateUserIds.indexOf(candidateUserId)
+      : -1;
+    const rollupDepth = candidateIndex >= 0 ? Math.max(candidateIndex - (levelNo - 1), 0) : 0;
     const rollupApplied = rollupDepth > 0;
 
     if (!candidateUserId) {
@@ -360,14 +369,18 @@ export class CommissionsService implements CommissionsServiceContract {
         basePv,
         rate,
         amount,
+        levelNo,
       }, finalization);
 
       return {
         sourceType: "direct" as const,
         sourceOrderId,
+        level: levelNo,
+        levelNo,
         basePv,
         rate,
         amount,
+        beneficiaryUserId: null,
         candidateUserId: null,
         rollupApplied: false,
         rollupDepth: 0,
@@ -393,6 +406,7 @@ export class CommissionsService implements CommissionsServiceContract {
         basePv,
         rate,
         amount,
+        levelNo,
       },
       finalization,
     );
@@ -400,15 +414,66 @@ export class CommissionsService implements CommissionsServiceContract {
     return {
       sourceType: "direct" as const,
       sourceOrderId,
+      level: levelNo,
+      levelNo,
       basePv,
       rate,
       amount,
+      beneficiaryUserId:
+        finalization.commissionStatus === "fallback" ? null : candidateUserId,
       candidateUserId,
       rollupApplied,
       rollupDepth,
       allocation,
       finalization,
     };
+  }
+
+  private async buildDirectDrafts(
+    sourceOrderId: string,
+    sourceUserId: string,
+    evaluationAt: string,
+    totalPv: string,
+    candidateUserIds: string[],
+    directCandidateUserIds: string[],
+  ) {
+    const directLevelRates = readCommissionSettings().directLevelRates;
+    const maxLevels = directLevelRates.length;
+    const drafts = await Promise.all(
+      directCandidateUserIds.slice(0, maxLevels).map((candidateUserId, index) =>
+        this.buildDirectDraft(
+          sourceOrderId,
+          sourceUserId,
+          evaluationAt,
+          totalPv,
+          candidateUserIds,
+          index + 1,
+          directLevelRates[index],
+          candidateUserId,
+        ),
+      ),
+    );
+
+    const missingLevelCount = Math.max(maxLevels - drafts.length, 0);
+
+    if (missingLevelCount === 0) {
+      return drafts;
+    }
+
+    const fallbackDrafts = Array.from({ length: missingLevelCount }, (_, index) =>
+      this.buildDirectDraft(
+        sourceOrderId,
+        sourceUserId,
+        evaluationAt,
+        totalPv,
+        candidateUserIds,
+        drafts.length + index + 1,
+        directLevelRates[drafts.length + index],
+        null,
+      ),
+    );
+
+    return [...drafts, ...(await Promise.all(fallbackDrafts))];
   }
 
   private buildMissingBeneficiaryFinalization(): CommissionFinalizationResult {

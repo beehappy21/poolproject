@@ -2,6 +2,7 @@ import { Module, forwardRef } from "@nestjs/common";
 
 import { PrismaModule } from "../../../infrastructure";
 import { CommissionsModule } from "../../commissions";
+import { MatrixModule } from "../../matrix/src";
 import { PoolModule } from "../../pool";
 import { QualificationModule } from "../../qualification";
 import { RiskModule } from "../../risk/src";
@@ -16,6 +17,7 @@ import { OrdersService } from "./services/orders.service";
     QualificationModule,
     RiskModule,
     WalletsModule,
+    MatrixModule,
     forwardRef(() => CommissionsModule),
     forwardRef(() => PoolModule),
   ],

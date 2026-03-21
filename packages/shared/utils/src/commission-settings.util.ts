@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 export interface CommissionSettings {
-  directRate: string;
+  directLevelRates: string[];
   uniLevelRates: string[];
   poolRate: string;
 }
@@ -14,7 +14,7 @@ const SETTINGS_PATH = join(
 );
 
 const DEFAULT_SETTINGS: CommissionSettings = {
-  directRate: "0.2",
+  directLevelRates: ["0.2"],
   uniLevelRates: ["0.05", "0.05", "0.05", "0.05", "0.05"],
   poolRate: "0.5",
 };
@@ -35,14 +35,33 @@ function normalizeUniLevelRates(value: unknown): string[] {
   return normalized.length > 0 ? normalized : DEFAULT_SETTINGS.uniLevelRates;
 }
 
+function normalizeDirectLevelRates(value: unknown, legacyRate: unknown): string[] {
+  if (Array.isArray(value)) {
+    const normalized = value
+      .map((item) => (typeof item === "string" ? item.trim() : ""))
+      .filter((item) => isDecimalString(item));
+
+    if (normalized.length > 0) {
+      return normalized;
+    }
+  }
+
+  if (isDecimalString(legacyRate)) {
+    return [legacyRate.trim()];
+  }
+
+  return DEFAULT_SETTINGS.directLevelRates;
+}
+
 function normalizeSettings(input: unknown): CommissionSettings {
   const candidate =
     input && typeof input === "object" ? (input as Record<string, unknown>) : {};
 
   return {
-    directRate: isDecimalString(candidate.directRate)
-      ? candidate.directRate.trim()
-      : DEFAULT_SETTINGS.directRate,
+    directLevelRates: normalizeDirectLevelRates(
+      candidate.directLevelRates,
+      candidate.directRate,
+    ),
     uniLevelRates: normalizeUniLevelRates(candidate.uniLevelRates),
     poolRate: isDecimalString(candidate.poolRate)
       ? candidate.poolRate.trim()
@@ -52,7 +71,7 @@ function normalizeSettings(input: unknown): CommissionSettings {
 
 export function getDefaultCommissionSettings(): CommissionSettings {
   return {
-    directRate: DEFAULT_SETTINGS.directRate,
+    directLevelRates: [...DEFAULT_SETTINGS.directLevelRates],
     uniLevelRates: [...DEFAULT_SETTINGS.uniLevelRates],
     poolRate: DEFAULT_SETTINGS.poolRate,
   };

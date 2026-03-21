@@ -97,6 +97,8 @@ export interface OrdersServiceContract {
 import { ApprovedOrderCommissionFlowResult } from "../../../commissions/src/domain/commissions.types";
 import { CommissionsService } from "../../../commissions/src/services/commissions.service";
 import { CommissionsServiceContract } from "../../../commissions/src/services/commissions.service";
+import { MatrixService } from "../../../matrix/src/services/matrix.service";
+import { MatrixServiceContract } from "../../../matrix/src/services/matrix.service";
 import { PoolService } from "../../../pool/src/services/pool.service";
 import { PoolServiceContract } from "../../../pool/src/services/pool.service";
 import { QualificationService } from "../../../qualification/src/services/qualification.service";
@@ -117,6 +119,7 @@ export class OrdersService implements OrdersServiceContract {
     private readonly commissionsService: CommissionsService,
     @Inject(forwardRef(() => PoolService))
     private readonly poolService: PoolService,
+    private readonly matrixService: MatrixService,
     private readonly riskService: RiskService,
     private readonly walletsService: WalletsService,
   ) {}
@@ -195,12 +198,19 @@ export class OrdersService implements OrdersServiceContract {
     );
 
     if (existingCommissionEntries.length > 0) {
+      const matrixFlow = await this.matrixService.handleApprovedOrderMatrixSource({
+        orderId: approvedOrder.orderId,
+        sourceUserId: approvedOrder.sourceUserId,
+        approvedAt: approvedOrder.approvedAt,
+        totalPv: approvedOrder.totalPv,
+      });
       const walletPostingInputs = await this.postCommissionWalletEntries(orderId);
 
       return this.buildApprovedOrderResultFromEntries(
         approvedOrder,
         existingCommissionEntries,
         walletPostingInputs,
+        matrixFlow,
       );
     }
 
@@ -212,6 +222,12 @@ export class OrdersService implements OrdersServiceContract {
 
     const commissionFlow =
       await this.commissionsService.handleApprovedOrderCommissionSource(orderId);
+    const matrixFlow = await this.matrixService.handleApprovedOrderMatrixSource({
+      orderId: approvedOrder.orderId,
+      sourceUserId: approvedOrder.sourceUserId,
+      approvedAt: approvedOrder.approvedAt,
+      totalPv: approvedOrder.totalPv,
+    });
 
     await this.poolService.loadApprovedOrderFunding(
       approvedOrder.approvedAt.slice(0, 10),
@@ -225,6 +241,7 @@ export class OrdersService implements OrdersServiceContract {
         await this.commissionsService.listCommissions({ orderId }),
       ),
       walletPostingInputs,
+      matrixFlow,
     );
   }
 
@@ -245,8 +262,14 @@ export class OrdersService implements OrdersServiceContract {
       amount: string;
     }>,
     walletPostingInputs: ApprovedOrderOrchestrationResult["walletPostingInputs"],
+    matrixFlow?: {
+      affectedMemberCount: number;
+      payoutCount: number;
+      completedCycleCount: number;
+      skipped: boolean;
+    },
   ): ApprovedOrderOrchestrationResult {
-    const directEntry = commissionEntries.find(
+    const directEntries = commissionEntries.filter(
       (entry) => entry.commissionType === "direct",
     );
     const uniEntries = commissionEntries.filter(
@@ -269,13 +292,20 @@ export class OrdersService implements OrdersServiceContract {
       ],
       commissionDrafts: {
         directStatus:
-          (directEntry?.status as
+          (directEntries[0]?.status as
             | "approved"
             | "held"
             | "fallback"
             | "withdrawable") ?? "fallback",
+        directCount: directEntries.length,
         uniCount: uniEntries.length,
         hasFallback: commissionEntries.some((entry) => entry.status === "fallback"),
+      },
+      matrixProcessing: {
+        affectedMemberCount: matrixFlow?.affectedMemberCount ?? 0,
+        payoutCount: matrixFlow?.payoutCount ?? 0,
+        completedCycleCount: matrixFlow?.completedCycleCount ?? 0,
+        skipped: matrixFlow?.skipped ?? false,
       },
       walletPostingInputs,
     };

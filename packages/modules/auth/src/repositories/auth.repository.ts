@@ -35,7 +35,12 @@ export class PrismaAuthRepository implements AuthRepository {
     const user = await this.prisma.user.findFirst({
       where: {
         OR: [
-          { memberCode: input.identifier },
+          {
+            memberCode: {
+              equals: input.identifier,
+              mode: "insensitive" as const,
+            },
+          },
           { email: input.identifier.toLowerCase() },
         ],
       },
