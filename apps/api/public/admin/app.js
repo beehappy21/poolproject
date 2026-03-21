@@ -96,6 +96,7 @@ const workspaceTitle = document.getElementById("workspaceTitle");
 const workspaceDescription = document.getElementById("workspaceDescription");
 const workspaceAdminName = document.getElementById("workspaceAdminName");
 const workspaceAdminMeta = document.getElementById("workspaceAdminMeta");
+const ecommerceSectionDescription = document.getElementById("ecommerceSectionDescription");
 state.memberSearch = "";
 state.orderUserId = "";
 state.commissionOrderId = "";
@@ -143,6 +144,8 @@ state.packageBuilderItems = [];
 state.packageCatalogItems = [];
 state.activeAdminMenu =
   localStorage.getItem("adminActiveMenu") || "overview";
+state.activeEcommerceMenu =
+  localStorage.getItem("adminActiveEcommerceMenu") || "catalog";
 
 const adminMenuConfig = {
   overview: {
@@ -175,6 +178,13 @@ const adminMenuConfig = {
     description:
       "Planned space for broadcast messaging, templates, targeting, and delivery reporting.",
   },
+};
+
+const ecommerceMenuConfig = {
+  catalog: "จัดการสินค้า, product detail, package, และ catalog structure",
+  sales: "ดูคำสั่งซื้อ, ใช้งาน quick actions, และจัดการ flow งานขายรายวัน",
+  shipping: "พื้นที่สำหรับคิวจัดส่ง, tracking, packing, และสถานะขนส่ง",
+  reports: "สรุปยอดขาย, operational KPI, pool/fallback snapshots, และประวัติการทำงาน",
 };
 
 function parseLineSeparatedUrls(value) {
@@ -233,6 +243,11 @@ function renderAdminWorkspaceHeader() {
   if (workspaceDescription) {
     workspaceDescription.textContent = menu.description;
   }
+
+  if (ecommerceSectionDescription) {
+    ecommerceSectionDescription.textContent =
+      ecommerceMenuConfig[state.activeEcommerceMenu] || ecommerceMenuConfig.catalog;
+  }
 }
 
 function applyAdminMenuVisibility() {
@@ -251,6 +266,22 @@ function applyAdminMenuVisibility() {
   document.querySelectorAll("[data-menu-target]").forEach((button) => {
     button.classList.toggle("is-active", button.dataset.menuTarget === activeMenu);
   });
+
+  document.querySelectorAll("[data-ecommerce-section]").forEach((element) => {
+    const sections = String(element.dataset.ecommerceSection || "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    element.hidden = activeMenu !== "ecommerce" || !sections.includes(state.activeEcommerceMenu);
+  });
+
+  document.querySelectorAll("[data-ecommerce-target]").forEach((button) => {
+    button.classList.toggle(
+      "is-active",
+      activeMenu === "ecommerce" && button.dataset.ecommerceTarget === state.activeEcommerceMenu,
+    );
+  });
 }
 
 function setActiveAdminMenu(menu) {
@@ -260,6 +291,17 @@ function setActiveAdminMenu(menu) {
 
   state.activeAdminMenu = menu;
   localStorage.setItem("adminActiveMenu", menu);
+  renderAdminWorkspaceHeader();
+  applyAdminMenuVisibility();
+}
+
+function setActiveEcommerceMenu(menu) {
+  if (!ecommerceMenuConfig[menu]) {
+    return;
+  }
+
+  state.activeEcommerceMenu = menu;
+  localStorage.setItem("adminActiveEcommerceMenu", menu);
   renderAdminWorkspaceHeader();
   applyAdminMenuVisibility();
 }
@@ -1347,6 +1389,12 @@ if (refreshButton) {
 document.querySelectorAll("[data-menu-target]").forEach((button) => {
   button.addEventListener("click", () => {
     setActiveAdminMenu(button.dataset.menuTarget || "overview");
+  });
+});
+
+document.querySelectorAll("[data-ecommerce-target]").forEach((button) => {
+  button.addEventListener("click", () => {
+    setActiveEcommerceMenu(button.dataset.ecommerceTarget || "catalog");
   });
 });
 

@@ -70,6 +70,22 @@
           </div>
         </section>
 
+        <section class="panel ecommerce-subnav-panel" data-menu-section="ecommerce">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">eCommerce Menu</p>
+              <h3>Sales Operations</h3>
+            </div>
+            <span class="muted" id="ecommerceSectionDescription">จัดการสินค้าและแพ็กเกจที่ขายในระบบ</span>
+          </div>
+          <div class="ecommerce-subnav" id="ecommerceSubnav">
+            <button type="button" class="ecommerce-subnav__button" data-ecommerce-target="catalog">สินค้า</button>
+            <button type="button" class="ecommerce-subnav__button" data-ecommerce-target="sales">งานขาย</button>
+            <button type="button" class="ecommerce-subnav__button" data-ecommerce-target="shipping">ขนส่ง</button>
+            <button type="button" class="ecommerce-subnav__button" data-ecommerce-target="reports">รายงาน</button>
+          </div>
+        </section>
+
         <section class="hero panel" data-menu-section="overview">
           <div>
             <p class="eyebrow">MVP Operations</p>
@@ -303,7 +319,7 @@
           </article>
         </section>
 
-        <section class="panel product-studio-panel" data-menu-section="ecommerce">
+        <section class="panel product-studio-panel" data-menu-section="ecommerce" data-ecommerce-section="catalog">
           <div class="section-head">
             <div>
               <p class="eyebrow">Catalog Control</p>
@@ -530,7 +546,7 @@
           </div>
         </section>
 
-        <section class="panel" data-menu-section="ecommerce">
+        <section class="panel" data-menu-section="ecommerce" data-ecommerce-section="catalog">
           <div class="section-head">
             <h3>Product Details</h3>
             <span class="muted">Catalog variants with media preview</span>
@@ -558,7 +574,7 @@
           </div>
         </section>
 
-        <section class="panel" data-menu-section="ecommerce">
+        <section class="panel" data-menu-section="ecommerce" data-ecommerce-section="catalog">
           <div class="section-head">
             <h3>Packages</h3>
             <span class="muted">Available package catalog</span>
@@ -587,7 +603,7 @@
           </div>
         </section>
 
-        <section class="grid two-up" data-menu-section="ecommerce,members">
+        <section class="grid two-up" data-menu-section="ecommerce,members" data-ecommerce-section="sales">
           <article class="panel">
             <div class="section-head">
               <h3>Quick Actions</h3>
@@ -642,7 +658,7 @@
           </article>
         </section>
 
-        <section class="panel detail-panel" data-menu-section="overview,ecommerce,members,marketing">
+        <section class="panel detail-panel" data-menu-section="overview,ecommerce,members,marketing" data-ecommerce-section="reports">
           <div class="section-head">
             <h3>Action History</h3>
             <button type="button" class="ghost" id="clearHistoryButton">Clear</button>
@@ -652,7 +668,7 @@
           </div>
         </section>
 
-        <section class="grid two-up" data-menu-section="members,ecommerce">
+        <section class="grid two-up" data-menu-section="members,ecommerce" data-ecommerce-section="sales">
           <article class="panel">
             <div class="section-head">
               <h3>Members</h3>
@@ -724,7 +740,33 @@
           </article>
         </section>
 
-        <section class="grid two-up" data-menu-section="marketing,members">
+        <section class="grid two-up" data-menu-section="ecommerce" data-ecommerce-section="shipping">
+          <article class="panel placeholder-panel">
+            <div class="section-head">
+              <h3>Shipping Queue</h3>
+              <span class="muted">Suggested workflow</span>
+            </div>
+            <div class="placeholder-list">
+              <div class="placeholder-item">Pending pack / packed / shipped / delivered / returned states</div>
+              <div class="placeholder-item">Tracking code, carrier, warehouse, and shipping note fields</div>
+              <div class="placeholder-item">Auto-create shipment jobs from approved paid orders</div>
+            </div>
+          </article>
+
+          <article class="panel placeholder-panel">
+            <div class="section-head">
+              <h3>Shipping Detail</h3>
+              <span class="muted">Recommended next round</span>
+            </div>
+            <div class="placeholder-list">
+              <div class="placeholder-item">Shipment detail drawer with consignee address and package items</div>
+              <div class="placeholder-item">Bulk print packing slips / labels</div>
+              <div class="placeholder-item">Failed delivery and return-to-sender management</div>
+            </div>
+          </article>
+        </section>
+
+        <section class="grid two-up" data-menu-section="marketing,members,ecommerce" data-ecommerce-section="reports">
           <article class="panel">
             <div class="section-head">
               <h3>Pool Cycles</h3>
@@ -780,6 +822,32 @@
               <button type="button" class="ghost" id="fallbacksPrevButton">Prev</button>
               <span id="fallbacksPageLabel" class="muted">Page 1</span>
               <button type="button" class="ghost" id="fallbacksNextButton">Next</button>
+            </div>
+          </article>
+        </section>
+
+        <section class="grid two-up" data-menu-section="ecommerce" data-ecommerce-section="reports">
+          <article class="panel placeholder-panel">
+            <div class="section-head">
+              <h3>Sales KPI</h3>
+              <span class="muted">Suggested report group</span>
+            </div>
+            <div class="placeholder-list">
+              <div class="placeholder-item">Gross sales, approved orders, average basket size, package mix</div>
+              <div class="placeholder-item">Top products, top packages, and sales by day / week / month</div>
+              <div class="placeholder-item">Approval lag, shipping lag, and order failure reasons</div>
+            </div>
+          </article>
+
+          <article class="panel placeholder-panel">
+            <div class="section-head">
+              <h3>Operational Reports</h3>
+              <span class="muted">Recommended metrics</span>
+            </div>
+            <div class="placeholder-list">
+              <div class="placeholder-item">Fulfillment SLA dashboard</div>
+              <div class="placeholder-item">Shipment aging and undelivered order list</div>
+              <div class="placeholder-item">Refund / cancellation / return summary</div>
             </div>
           </article>
         </section>
