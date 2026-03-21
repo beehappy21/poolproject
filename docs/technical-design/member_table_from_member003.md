@@ -141,6 +141,8 @@ Current behavior:
 Examples:
 
 ```bash
+node scripts/seed_members_from_xlsx.mjs
+node scripts/seed_members_from_xlsx.mjs member003.xlsx 123456
 python3 scripts/import_member_profiles_from_xlsx.py
 python3 scripts/import_member_profiles_from_xlsx.py --apply
 ```
