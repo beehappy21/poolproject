@@ -9,9 +9,12 @@
   <body>
     <div class="app-shell">
       <aside class="sidebar">
-        <div class="brand">
+        <div class="brand brand-shell">
+          <div class="brand">
           <p class="eyebrow">Internal Console</p>
           <h1>PoolProject Admin</h1>
+          </div>
+          <p class="muted sidebar-tagline">Operations, commerce, member network, and publishing control.</p>
         </div>
 
         <div class="session-card session-only" id="sessionCard">
@@ -36,10 +39,54 @@
           <button id="logoutButton" class="ghost danger">Sign Out</button>
           <p class="muted" id="statusLine">Waiting for login</p>
         </div>
+
+        <nav class="panel admin-nav session-only" aria-label="Admin main navigation">
+          <div class="admin-nav-head">
+            <p class="eyebrow">Main Menu</p>
+            <strong>Admin Workspaces</strong>
+          </div>
+          <div class="admin-nav-list" id="adminNavList">
+            <button type="button" class="admin-nav-button" data-menu-target="overview">Overview</button>
+            <button type="button" class="admin-nav-button" data-menu-target="marketing">ตั้งค่าแผนการตลาด</button>
+            <button type="button" class="admin-nav-button" data-menu-target="ecommerce">ระบบ eCommerce</button>
+            <button type="button" class="admin-nav-button" data-menu-target="members">ข้อมูลสมาชิก / ค่าคอมมิชชั่น</button>
+            <button type="button" class="admin-nav-button" data-menu-target="content">Member Content</button>
+            <button type="button" class="admin-nav-button" data-menu-target="notifications">Notification</button>
+          </div>
+        </nav>
       </aside>
 
       <main class="content dashboard-only">
-        <section class="hero panel">
+        <section class="workspace-bar panel">
+          <div class="workspace-summary">
+            <p class="eyebrow">Workspace</p>
+            <h2 id="workspaceTitle">Overview</h2>
+            <p class="muted" id="workspaceDescription">High-level admin command center and recommended next menu areas.</p>
+          </div>
+          <div class="workspace-admin" id="workspaceAdminCard">
+            <span class="workspace-admin__label">Admin</span>
+            <strong id="workspaceAdminName">Not signed in</strong>
+            <p class="muted" id="workspaceAdminMeta">Sign in to access menu workspaces.</p>
+          </div>
+        </section>
+
+        <section class="panel ecommerce-subnav-panel" data-menu-section="ecommerce">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">eCommerce Menu</p>
+              <h3>Sales Operations</h3>
+            </div>
+            <span class="muted" id="ecommerceSectionDescription">จัดการสินค้าและแพ็กเกจที่ขายในระบบ</span>
+          </div>
+          <div class="ecommerce-subnav" id="ecommerceSubnav">
+            <button type="button" class="ecommerce-subnav__button" data-ecommerce-target="catalog">สินค้า</button>
+            <button type="button" class="ecommerce-subnav__button" data-ecommerce-target="sales">งานขาย</button>
+            <button type="button" class="ecommerce-subnav__button" data-ecommerce-target="shipping">ขนส่ง</button>
+            <button type="button" class="ecommerce-subnav__button" data-ecommerce-target="reports">รายงาน</button>
+          </div>
+        </section>
+
+        <section class="hero panel" data-menu-section="overview">
           <div>
             <p class="eyebrow">MVP Operations</p>
             <h2>Live overview for members, orders, commissions, pool, and wallets.</h2>
@@ -47,7 +94,7 @@
           <div class="hero-badge">/admin</div>
         </section>
 
-        <section class="stats-grid">
+        <section class="stats-grid" data-menu-section="overview">
           <article class="stat-card panel">
             <span>Members</span>
             <strong id="membersCount">0</strong>
@@ -66,7 +113,7 @@
           </article>
         </section>
 
-        <section class="grid two-up">
+        <section class="grid two-up" data-menu-section="members,ecommerce">
           <article class="panel filter-panel">
             <div class="section-head">
               <h3>Member Filter</h3>
@@ -88,7 +135,7 @@
           </article>
         </section>
 
-        <section class="panel">
+        <section class="panel" data-menu-section="overview">
           <div class="section-head">
             <h3>Operator Shortcuts</h3>
             <span class="muted">One-click focus actions</span>
@@ -101,7 +148,25 @@
           </div>
         </section>
 
-        <section class="panel">
+        <section class="grid three-up workspace-recommendations" data-menu-section="overview">
+          <article class="panel recommendation-card">
+            <p class="eyebrow">Recommended Extra Menu</p>
+            <h3>Finance / Payouts</h3>
+            <p class="muted">For withdrawal approval, payout batches, reconciliation, wallet exceptions, and finance history.</p>
+          </article>
+          <article class="panel recommendation-card">
+            <p class="eyebrow">Recommended Extra Menu</p>
+            <h3>Roles / Admin Users</h3>
+            <p class="muted">For permission control, operator roles, audit ownership, and access separation by team.</p>
+          </article>
+          <article class="panel recommendation-card">
+            <p class="eyebrow">Recommended Extra Menu</p>
+            <h3>Audit Log</h3>
+            <p class="muted">For tracking who changed settings, published content, sent notifications, or touched orders.</p>
+          </article>
+        </section>
+
+        <section class="panel" data-menu-section="marketing">
           <div class="section-head">
             <h3>Commission Settings</h3>
             <span class="muted">Enter percentages, for example 20 = 20%</span>
@@ -133,7 +198,7 @@
           </form>
         </section>
 
-        <section class="grid two-up">
+        <section class="grid two-up" data-menu-section="marketing">
           <article class="panel">
             <div class="section-head">
               <h3>Matrix Settings</h3>
@@ -172,7 +237,7 @@
           </article>
         </section>
 
-        <section class="panel">
+        <section class="panel" data-menu-section="marketing">
           <div class="section-head">
             <h3>Matrix Summary</h3>
             <span class="muted">Live cycle and payout overview</span>
@@ -200,7 +265,7 @@
           </div>
         </section>
 
-        <section class="panel">
+        <section class="panel" data-menu-section="marketing">
           <div class="section-head">
             <h3>Matrix Payouts</h3>
             <span class="muted">Latest matrix credits</span>
@@ -230,7 +295,7 @@
           </div>
         </section>
 
-        <section class="grid two-up">
+        <section class="grid two-up" data-menu-section="marketing,members">
           <article class="panel filter-panel">
             <div class="section-head">
               <h3>Commission Filter</h3>
@@ -254,7 +319,7 @@
           </article>
         </section>
 
-        <section class="panel product-studio-panel">
+        <section class="panel product-studio-panel" data-menu-section="ecommerce" data-ecommerce-section="catalog">
           <div class="section-head">
             <div>
               <p class="eyebrow">Catalog Control</p>
@@ -481,7 +546,7 @@
           </div>
         </section>
 
-        <section class="panel">
+        <section class="panel" data-menu-section="ecommerce" data-ecommerce-section="catalog">
           <div class="section-head">
             <h3>Product Details</h3>
             <span class="muted">Catalog variants with media preview</span>
@@ -509,7 +574,7 @@
           </div>
         </section>
 
-        <section class="panel">
+        <section class="panel" data-menu-section="ecommerce" data-ecommerce-section="catalog">
           <div class="section-head">
             <h3>Packages</h3>
             <span class="muted">Available package catalog</span>
@@ -538,11 +603,70 @@
           </div>
         </section>
 
-        <section class="grid two-up">
+        <section class="sales-kpi-grid" data-menu-section="ecommerce" data-ecommerce-section="sales">
+          <article class="stat-card panel">
+            <span>Total Orders</span>
+            <strong id="salesOrdersTotalMetric">0</strong>
+          </article>
+          <article class="stat-card panel">
+            <span>Visible Pending</span>
+            <strong id="salesPendingMetric">0</strong>
+          </article>
+          <article class="stat-card panel">
+            <span>Visible Approved</span>
+            <strong id="salesApprovedMetric">0</strong>
+          </article>
+          <article class="stat-card panel">
+            <span>Avg PV On Screen</span>
+            <strong id="salesAveragePvMetric">0</strong>
+          </article>
+        </section>
+
+        <section class="grid two-up" data-menu-section="ecommerce" data-ecommerce-section="sales">
           <article class="panel">
             <div class="section-head">
-              <h3>Quick Actions</h3>
-              <span class="muted">Create and trigger core flows</span>
+              <h3>Sales Control Tower</h3>
+              <span class="muted">Fast focus for daily order operations</span>
+            </div>
+            <div class="placeholder-list sales-control-list">
+              <div class="placeholder-item">
+                <strong>Latest Order</strong>
+                <div class="muted" id="salesLatestOrderLabel">No order loaded</div>
+              </div>
+              <div class="placeholder-item">
+                <strong>Latest Commission</strong>
+                <div class="muted" id="salesLatestCommissionLabel">No commission loaded</div>
+              </div>
+              <div class="placeholder-item">
+                <strong>Catalog Packages</strong>
+                <div class="muted" id="salesPackageInventoryLabel">0 packages available for sales</div>
+              </div>
+            </div>
+            <div class="table-actions sales-control-actions">
+              <button type="button" id="salesFocusLatestButton">Focus Latest Order</button>
+              <button type="button" class="ghost" id="salesFocusPendingButton">Show Pending Orders</button>
+              <button type="button" class="ghost" id="salesFocusCommissionButton">Latest Commission</button>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="section-head">
+              <h3>Sales Workflow Guide</h3>
+              <span class="muted">Recommended operator sequence</span>
+            </div>
+            <div class="placeholder-list">
+              <div class="placeholder-item">1. Create member or select existing member, then create order from package</div>
+              <div class="placeholder-item">2. Approve and process order to trigger package, commission, and downstream operations</div>
+              <div class="placeholder-item">3. Review output, then hand over to shipping or payout workflows if needed</div>
+            </div>
+          </article>
+        </section>
+
+        <section class="grid two-up" data-menu-section="ecommerce,members" data-ecommerce-section="sales">
+          <article class="panel">
+            <div class="section-head">
+              <h3>Sales Actions</h3>
+              <span class="muted">Create order-side data and trigger processing</span>
             </div>
             <div class="action-grid">
               <form id="createMemberForm" class="panel inner-panel stacked-form">
@@ -593,7 +717,7 @@
           </article>
         </section>
 
-        <section class="panel detail-panel">
+        <section class="panel detail-panel" data-menu-section="overview,ecommerce,members,marketing" data-ecommerce-section="reports">
           <div class="section-head">
             <h3>Action History</h3>
             <button type="button" class="ghost" id="clearHistoryButton">Clear</button>
@@ -603,7 +727,7 @@
           </div>
         </section>
 
-        <section class="grid two-up">
+        <section class="grid two-up" data-menu-section="members,ecommerce" data-ecommerce-section="sales">
           <article class="panel">
             <div class="section-head">
               <h3>Members</h3>
@@ -675,7 +799,170 @@
           </article>
         </section>
 
-        <section class="grid two-up">
+        <section class="sales-kpi-grid" data-menu-section="ecommerce" data-ecommerce-section="shipping">
+          <article class="stat-card panel">
+            <span>Shipment Jobs</span>
+            <strong id="shippingJobsMetric">0</strong>
+          </article>
+          <article class="stat-card panel">
+            <span>Pending Pack</span>
+            <strong id="shippingPendingMetric">0</strong>
+          </article>
+          <article class="stat-card panel">
+            <span>In Transit</span>
+            <strong id="shippingTransitMetric">0</strong>
+          </article>
+          <article class="stat-card panel">
+            <span>Delivered</span>
+            <strong id="shippingDeliveredMetric">0</strong>
+          </article>
+        </section>
+
+        <section class="grid two-up" data-menu-section="ecommerce" data-ecommerce-section="shipping">
+          <article class="panel">
+            <div class="section-head">
+              <h3>Shipping Dispatcher</h3>
+              <span class="muted">Create or update shipment job</span>
+            </div>
+            <form id="shippingForm" class="settings-form">
+              <div class="settings-grid">
+                <label>
+                  <span>Order ID</span>
+                  <input id="shippingOrderIdInput" type="text" placeholder="Latest approved order" required />
+                </label>
+                <label>
+                  <span>Shipment Status</span>
+                  <select id="shippingStatusSelect">
+                    <option value="pending_pack">Pending Pack</option>
+                    <option value="packed">Packed</option>
+                    <option value="shipped">Shipped</option>
+                    <option value="delivered">Delivered</option>
+                    <option value="returned">Returned</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Carrier</span>
+                  <input id="shippingCarrierInput" type="text" placeholder="Flash Express" />
+                </label>
+                <label>
+                  <span>Tracking No</span>
+                  <input id="shippingTrackingInput" type="text" placeholder="TH1234567890" />
+                </label>
+                <label>
+                  <span>Warehouse</span>
+                  <input id="shippingWarehouseInput" type="text" placeholder="Bangkok Hub" />
+                </label>
+                <label>
+                  <span>Dispatch Time</span>
+                  <input id="shippingDispatchInput" type="datetime-local" />
+                </label>
+              </div>
+              <label>
+                <span>Shipping Note</span>
+                <textarea id="shippingNoteInput" rows="4" placeholder="Packing note, route note, return reason, or delivery detail"></textarea>
+              </label>
+              <div class="table-actions">
+                <button type="submit">Save Shipment Job</button>
+                <button type="button" class="ghost" id="shippingUseLatestOrderButton">Use Latest Order</button>
+                <button type="button" class="ghost" id="resetShippingButton">Reset</button>
+              </div>
+            </form>
+          </article>
+
+          <article class="panel">
+            <div class="section-head">
+              <h3>Shipment Preview</h3>
+              <span class="muted">Current dispatch card</span>
+            </div>
+            <article class="notification-preview-card">
+              <div class="notification-preview-card__meta">
+                <span id="shippingPreviewStatus">PENDING_PACK</span>
+                <span id="shippingPreviewWarehouse">Bangkok Hub</span>
+              </div>
+              <strong id="shippingPreviewOrder">Order ID</strong>
+              <p id="shippingPreviewCarrier">Carrier and tracking will appear here.</p>
+              <div class="content-preview-body" id="shippingPreviewNote">Shipping note preview.</div>
+            </article>
+          </article>
+        </section>
+
+        <section class="panel" data-menu-section="ecommerce" data-ecommerce-section="shipping">
+          <div class="section-head">
+            <h3>Shipping Queue</h3>
+            <span class="muted">Local shipment jobs until shipping API is added</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Order</th>
+                  <th>Status</th>
+                  <th>Carrier</th>
+                  <th>Tracking</th>
+                  <th>Warehouse</th>
+                  <th>Dispatch</th>
+                </tr>
+              </thead>
+              <tbody id="shippingQueueTable"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="sales-kpi-grid" data-menu-section="ecommerce" data-ecommerce-section="reports">
+          <article class="stat-card panel">
+            <span>Visible Sales PV</span>
+            <strong id="reportSalesPvMetric">0</strong>
+          </article>
+          <article class="stat-card panel">
+            <span>Approved Rate</span>
+            <strong id="reportApprovedRateMetric">0%</strong>
+          </article>
+          <article class="stat-card panel">
+            <span>Shipment Coverage</span>
+            <strong id="reportShipmentCoverageMetric">0%</strong>
+          </article>
+          <article class="stat-card panel">
+            <span>Avg Package Price</span>
+            <strong id="reportAveragePackageMetric">0</strong>
+          </article>
+        </section>
+
+        <section class="grid two-up" data-menu-section="ecommerce" data-ecommerce-section="reports">
+          <article class="panel">
+            <div class="section-head">
+              <h3>Sales Summary</h3>
+              <span class="muted">Realtime computed overview from visible admin data</span>
+            </div>
+            <div class="placeholder-list">
+              <div class="placeholder-item">
+                <strong>Order Mix</strong>
+                <div class="muted" id="reportOrderMixLabel">No order data</div>
+              </div>
+              <div class="placeholder-item">
+                <strong>Shipment Coverage</strong>
+                <div class="muted" id="reportShipmentMixLabel">No shipment data</div>
+              </div>
+              <div class="placeholder-item">
+                <strong>Catalog Value</strong>
+                <div class="muted" id="reportCatalogValueLabel">No package data</div>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="section-head">
+              <h3>Operational Insight</h3>
+              <span class="muted">Quick interpretation for operators</span>
+            </div>
+            <div class="placeholder-list">
+              <div class="placeholder-item" id="reportOpsInsight1">Pending order pressure will appear here.</div>
+              <div class="placeholder-item" id="reportOpsInsight2">Shipping readiness note will appear here.</div>
+              <div class="placeholder-item" id="reportOpsInsight3">Fallback and pool note will appear here.</div>
+            </div>
+          </article>
+        </section>
+
+        <section class="grid two-up" data-menu-section="marketing,members,ecommerce" data-ecommerce-section="reports">
           <article class="panel">
             <div class="section-head">
               <h3>Pool Cycles</h3>
@@ -735,7 +1022,47 @@
           </article>
         </section>
 
-        <section class="panel">
+        <section class="grid two-up" data-menu-section="ecommerce" data-ecommerce-section="reports">
+          <article class="panel">
+            <div class="section-head">
+              <h3>Sales KPI</h3>
+              <span class="muted">Topline report slices</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Metric</th>
+                    <th>Value</th>
+                    <th>Comment</th>
+                  </tr>
+                </thead>
+                <tbody id="salesReportTable"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="section-head">
+              <h3>Operational Reports</h3>
+              <span class="muted">Operator-facing summary</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Area</th>
+                    <th>Status</th>
+                    <th>Summary</th>
+                  </tr>
+                </thead>
+                <tbody id="operationsReportTable"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+
+        <section class="panel" data-menu-section="members">
           <div class="section-head">
             <h3>Recent Commissions</h3>
             <span class="muted">Direct and uni results</span>
@@ -762,7 +1089,7 @@
           </div>
         </section>
 
-        <section class="panel detail-panel">
+        <section class="panel detail-panel" data-menu-section="members">
           <div class="section-head">
             <h3>Detail Viewer</h3>
             <form id="memberDetailForm" class="inline-form">
@@ -771,6 +1098,204 @@
             </form>
           </div>
           <pre id="memberDetailOutput" class="detail-output">Load a member detail to inspect wallet summary and active cycles.</pre>
+        </section>
+
+        <section class="grid two-up" data-menu-section="content">
+          <article class="panel">
+            <div class="section-head">
+              <h3>Content Studio</h3>
+              <span class="muted">Create member-facing blocks</span>
+            </div>
+            <form id="contentForm" class="settings-form">
+              <div class="settings-grid">
+                <label>
+                  <span>Content Key</span>
+                  <input id="contentKeyInput" type="text" placeholder="home-banner-march" required />
+                </label>
+                <label>
+                  <span>Placement</span>
+                  <select id="contentPlacementSelect">
+                    <option value="home_hero">Home Hero</option>
+                    <option value="home_feed">Home Feed</option>
+                    <option value="signup_banner">Signup Banner</option>
+                    <option value="member_learning">Member Learning</option>
+                    <option value="member_promo">Member Promotion</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Title</span>
+                  <input id="contentTitleInput" type="text" placeholder="March Growth Campaign" required />
+                </label>
+                <label>
+                  <span>Audience</span>
+                  <select id="contentAudienceSelect">
+                    <option value="all_members">All Members</option>
+                    <option value="new_members">New Members</option>
+                    <option value="active_members">Active Members</option>
+                    <option value="inactive_members">Inactive Members</option>
+                    <option value="vip_members">VIP Members</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Start At</span>
+                  <input id="contentStartInput" type="datetime-local" />
+                </label>
+                <label>
+                  <span>End At</span>
+                  <input id="contentEndInput" type="datetime-local" />
+                </label>
+              </div>
+              <label>
+                <span>Summary</span>
+                <textarea id="contentSummaryInput" rows="3" placeholder="Short supporting message for the content block"></textarea>
+              </label>
+              <label>
+                <span>Body</span>
+                <textarea id="contentBodyInput" rows="6" placeholder="Detailed content, promo description, tutorial intro, or policy text"></textarea>
+              </label>
+              <div class="table-actions">
+                <button type="submit">Save Draft</button>
+                <button type="button" class="ghost" id="resetContentButton">Reset</button>
+              </div>
+            </form>
+          </article>
+
+          <article class="panel">
+            <div class="section-head">
+              <h3>Content Preview</h3>
+              <span class="muted">Live member-facing card</span>
+            </div>
+            <article class="content-preview-card" id="contentPreviewCard">
+              <p class="eyebrow" id="contentPreviewPlacement">Home Hero</p>
+              <strong id="contentPreviewTitle">Draft title</strong>
+              <p class="muted" id="contentPreviewAudience">Audience: all_members</p>
+              <p id="contentPreviewSummary">Short summary will appear here.</p>
+              <div class="content-preview-body" id="contentPreviewBody">Detailed content preview.</div>
+            </article>
+          </article>
+        </section>
+
+        <section class="panel" data-menu-section="content">
+          <div class="section-head">
+            <h3>Content Drafts</h3>
+            <span class="muted">Local admin drafts until content API is added</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Key</th>
+                  <th>Placement</th>
+                  <th>Title</th>
+                  <th>Audience</th>
+                  <th>Schedule</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="contentDraftsTable"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="grid two-up" data-menu-section="notifications">
+          <article class="panel">
+            <div class="section-head">
+              <h3>Notification Composer</h3>
+              <span class="muted">Prepare targeted sends</span>
+            </div>
+            <form id="notificationForm" class="settings-form">
+              <div class="settings-grid">
+                <label>
+                  <span>Campaign Name</span>
+                  <input id="notificationNameInput" type="text" placeholder="Promo blast week 1" required />
+                </label>
+                <label>
+                  <span>Channel</span>
+                  <select id="notificationChannelSelect">
+                    <option value="in_app">In-App</option>
+                    <option value="email">Email</option>
+                    <option value="sms">SMS</option>
+                    <option value="line">LINE</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Audience</span>
+                  <select id="notificationAudienceSelect">
+                    <option value="all_members">All Members</option>
+                    <option value="new_signups">New Signups</option>
+                    <option value="active_buyers">Active Buyers</option>
+                    <option value="inactive_members">Inactive Members</option>
+                    <option value="pending_activation">Pending Activation</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Schedule</span>
+                  <input id="notificationScheduleInput" type="datetime-local" />
+                </label>
+                <label>
+                  <span>CTA Label</span>
+                  <input id="notificationCtaLabelInput" type="text" placeholder="Shop now" />
+                </label>
+                <label>
+                  <span>CTA Route</span>
+                  <input id="notificationCtaRouteInput" type="text" placeholder="/app/shop" />
+                </label>
+              </div>
+              <label>
+                <span>Headline</span>
+                <input id="notificationHeadlineInput" type="text" placeholder="Your package is ready" required />
+              </label>
+              <label>
+                <span>Message</span>
+                <textarea id="notificationMessageInput" rows="5" placeholder="Write the notification body here"></textarea>
+              </label>
+              <div class="table-actions">
+                <button type="submit">Queue Draft</button>
+                <button type="button" class="ghost" id="resetNotificationButton">Reset</button>
+              </div>
+            </form>
+          </article>
+
+          <article class="panel">
+            <div class="section-head">
+              <h3>Notification Preview</h3>
+              <span class="muted">How the message will look</span>
+            </div>
+            <article class="notification-preview-card">
+              <div class="notification-preview-card__meta">
+                <span id="notificationPreviewChannel">IN_APP</span>
+                <span id="notificationPreviewAudience">all_members</span>
+              </div>
+              <strong id="notificationPreviewHeadline">Draft headline</strong>
+              <p id="notificationPreviewMessage">Notification message preview.</p>
+              <div class="notification-preview-card__cta">
+                <button type="button" class="ghost" id="notificationPreviewCta">CTA</button>
+                <span class="muted" id="notificationPreviewSchedule">Send now</span>
+              </div>
+            </article>
+          </article>
+        </section>
+
+        <section class="panel" data-menu-section="notifications">
+          <div class="section-head">
+            <h3>Notification Queue</h3>
+            <span class="muted">Local draft queue and send planning</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Campaign</th>
+                  <th>Channel</th>
+                  <th>Audience</th>
+                  <th>Headline</th>
+                  <th>Schedule</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="notificationQueueTable"></tbody>
+            </table>
+          </div>
         </section>
       </main>
     </div>

@@ -9,7 +9,10 @@ import { PoolModule } from "../../../packages/modules/pool";
 import { WalletsModule } from "../../../packages/modules/wallets";
 import { AdminSettingsController } from "./admin-settings.controller";
 import { AdminUiController } from "./admin-ui.controller";
+import { ContentController } from "./content.controller";
 import { HealthController } from "./health.controller";
+import { NotificationsController } from "./notifications.controller";
+import { ShippingController } from "./shipping.controller";
 
 @Module({
   imports: [
@@ -26,6 +29,9 @@ import { HealthController } from "./health.controller";
     AdminUiController,
     AdminSettingsController,
     AdminMatrixSettingsController,
+    ContentController,
+    NotificationsController,
+    ShippingController,
   ],
   providers: [],
 })

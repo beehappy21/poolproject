@@ -92,6 +92,81 @@ const supplierCountMetric = document.getElementById("supplierCountMetric");
 const categoryCountMetric = document.getElementById("categoryCountMetric");
 const catalogProductCountMetric = document.getElementById("catalogProductCountMetric");
 const productDetailCountMetric = document.getElementById("productDetailCountMetric");
+const workspaceTitle = document.getElementById("workspaceTitle");
+const workspaceDescription = document.getElementById("workspaceDescription");
+const workspaceAdminName = document.getElementById("workspaceAdminName");
+const workspaceAdminMeta = document.getElementById("workspaceAdminMeta");
+const ecommerceSectionDescription = document.getElementById("ecommerceSectionDescription");
+const contentForm = document.getElementById("contentForm");
+const contentKeyInput = document.getElementById("contentKeyInput");
+const contentPlacementSelect = document.getElementById("contentPlacementSelect");
+const contentTitleInput = document.getElementById("contentTitleInput");
+const contentAudienceSelect = document.getElementById("contentAudienceSelect");
+const contentStartInput = document.getElementById("contentStartInput");
+const contentEndInput = document.getElementById("contentEndInput");
+const contentSummaryInput = document.getElementById("contentSummaryInput");
+const contentBodyInput = document.getElementById("contentBodyInput");
+const resetContentButton = document.getElementById("resetContentButton");
+const contentPreviewPlacement = document.getElementById("contentPreviewPlacement");
+const contentPreviewTitle = document.getElementById("contentPreviewTitle");
+const contentPreviewAudience = document.getElementById("contentPreviewAudience");
+const contentPreviewSummary = document.getElementById("contentPreviewSummary");
+const contentPreviewBody = document.getElementById("contentPreviewBody");
+const notificationForm = document.getElementById("notificationForm");
+const notificationNameInput = document.getElementById("notificationNameInput");
+const notificationChannelSelect = document.getElementById("notificationChannelSelect");
+const notificationAudienceSelect = document.getElementById("notificationAudienceSelect");
+const notificationScheduleInput = document.getElementById("notificationScheduleInput");
+const notificationCtaLabelInput = document.getElementById("notificationCtaLabelInput");
+const notificationCtaRouteInput = document.getElementById("notificationCtaRouteInput");
+const notificationHeadlineInput = document.getElementById("notificationHeadlineInput");
+const notificationMessageInput = document.getElementById("notificationMessageInput");
+const resetNotificationButton = document.getElementById("resetNotificationButton");
+const notificationPreviewChannel = document.getElementById("notificationPreviewChannel");
+const notificationPreviewAudience = document.getElementById("notificationPreviewAudience");
+const notificationPreviewHeadline = document.getElementById("notificationPreviewHeadline");
+const notificationPreviewMessage = document.getElementById("notificationPreviewMessage");
+const notificationPreviewCta = document.getElementById("notificationPreviewCta");
+const notificationPreviewSchedule = document.getElementById("notificationPreviewSchedule");
+const salesOrdersTotalMetric = document.getElementById("salesOrdersTotalMetric");
+const salesPendingMetric = document.getElementById("salesPendingMetric");
+const salesApprovedMetric = document.getElementById("salesApprovedMetric");
+const salesAveragePvMetric = document.getElementById("salesAveragePvMetric");
+const salesLatestOrderLabel = document.getElementById("salesLatestOrderLabel");
+const salesLatestCommissionLabel = document.getElementById("salesLatestCommissionLabel");
+const salesPackageInventoryLabel = document.getElementById("salesPackageInventoryLabel");
+const salesFocusLatestButton = document.getElementById("salesFocusLatestButton");
+const salesFocusPendingButton = document.getElementById("salesFocusPendingButton");
+const salesFocusCommissionButton = document.getElementById("salesFocusCommissionButton");
+const shippingJobsMetric = document.getElementById("shippingJobsMetric");
+const shippingPendingMetric = document.getElementById("shippingPendingMetric");
+const shippingTransitMetric = document.getElementById("shippingTransitMetric");
+const shippingDeliveredMetric = document.getElementById("shippingDeliveredMetric");
+const shippingForm = document.getElementById("shippingForm");
+const shippingOrderIdInput = document.getElementById("shippingOrderIdInput");
+const shippingStatusSelect = document.getElementById("shippingStatusSelect");
+const shippingCarrierInput = document.getElementById("shippingCarrierInput");
+const shippingTrackingInput = document.getElementById("shippingTrackingInput");
+const shippingWarehouseInput = document.getElementById("shippingWarehouseInput");
+const shippingDispatchInput = document.getElementById("shippingDispatchInput");
+const shippingNoteInput = document.getElementById("shippingNoteInput");
+const shippingUseLatestOrderButton = document.getElementById("shippingUseLatestOrderButton");
+const resetShippingButton = document.getElementById("resetShippingButton");
+const shippingPreviewStatus = document.getElementById("shippingPreviewStatus");
+const shippingPreviewWarehouse = document.getElementById("shippingPreviewWarehouse");
+const shippingPreviewOrder = document.getElementById("shippingPreviewOrder");
+const shippingPreviewCarrier = document.getElementById("shippingPreviewCarrier");
+const shippingPreviewNote = document.getElementById("shippingPreviewNote");
+const reportSalesPvMetric = document.getElementById("reportSalesPvMetric");
+const reportApprovedRateMetric = document.getElementById("reportApprovedRateMetric");
+const reportShipmentCoverageMetric = document.getElementById("reportShipmentCoverageMetric");
+const reportAveragePackageMetric = document.getElementById("reportAveragePackageMetric");
+const reportOrderMixLabel = document.getElementById("reportOrderMixLabel");
+const reportShipmentMixLabel = document.getElementById("reportShipmentMixLabel");
+const reportCatalogValueLabel = document.getElementById("reportCatalogValueLabel");
+const reportOpsInsight1 = document.getElementById("reportOpsInsight1");
+const reportOpsInsight2 = document.getElementById("reportOpsInsight2");
+const reportOpsInsight3 = document.getElementById("reportOpsInsight3");
 state.memberSearch = "";
 state.orderUserId = "";
 state.commissionOrderId = "";
@@ -137,6 +212,55 @@ state.products = [];
 state.productDetails = [];
 state.packageBuilderItems = [];
 state.packageCatalogItems = [];
+state.activeAdminMenu =
+  localStorage.getItem("adminActiveMenu") || "overview";
+state.activeEcommerceMenu =
+  localStorage.getItem("adminActiveEcommerceMenu") || "catalog";
+state.contentDrafts = [];
+state.notificationDrafts = [];
+state.shippingJobs = [];
+state.orderItems = [];
+state.commissionItems = [];
+
+const adminMenuConfig = {
+  overview: {
+    title: "Overview",
+    description:
+      "High-level command center plus recommended admin areas to add next.",
+  },
+  marketing: {
+    title: "ตั้งค่าแผนการตลาด",
+    description:
+      "Commission, matrix, pool, and core compensation configuration workspace.",
+  },
+  ecommerce: {
+    title: "ระบบ eCommerce",
+    description:
+      "Product creation, package setup, order operations, and sales-related workflows.",
+  },
+  members: {
+    title: "ข้อมูลสมาชิก / ค่าคอมมิชชั่น",
+    description:
+      "Member records, commission activity, profile lookup, and network-related operations.",
+  },
+  content: {
+    title: "Member Content",
+    description:
+      "Planned space for banners, tutorials, CMS blocks, and publishing controls for member-facing screens.",
+  },
+  notifications: {
+    title: "Notification",
+    description:
+      "Planned space for broadcast messaging, templates, targeting, and delivery reporting.",
+  },
+};
+
+const ecommerceMenuConfig = {
+  catalog: "จัดการสินค้า, product detail, package, และ catalog structure",
+  sales: "ดูคำสั่งซื้อ, ใช้งาน quick actions, และจัดการ flow งานขายรายวัน",
+  shipping: "พื้นที่สำหรับคิวจัดส่ง, tracking, packing, และสถานะขนส่ง",
+  reports: "สรุปยอดขาย, operational KPI, pool/fallback snapshots, และประวัติการทำงาน",
+};
 
 function parseLineSeparatedUrls(value) {
   return value
@@ -182,6 +306,387 @@ function renderProductDetailMediaPreview() {
         )
         .join("")
     : '<p class="muted">No images yet.</p>';
+}
+
+function renderContentPreview() {
+  if (!contentPreviewTitle) {
+    return;
+  }
+
+  contentPreviewPlacement.textContent =
+    contentPlacementSelect?.selectedOptions?.[0]?.textContent || "Placement";
+  contentPreviewTitle.textContent = contentTitleInput?.value.trim() || "Draft title";
+  contentPreviewAudience.textContent =
+    `Audience: ${contentAudienceSelect?.value || "all_members"}`;
+  contentPreviewSummary.textContent =
+    contentSummaryInput?.value.trim() || "Short summary will appear here.";
+  contentPreviewBody.textContent =
+    contentBodyInput?.value.trim() || "Detailed content preview.";
+}
+
+function renderContentDrafts() {
+  renderTableRows(
+    "contentDraftsTable",
+    state.contentDrafts,
+    (item) => `<tr>
+      <td>${escapeHtml(item.key)}</td>
+      <td>${escapeHtml(item.placement)}</td>
+      <td>${escapeHtml(item.title)}</td>
+      <td>${escapeHtml(item.audience)}</td>
+      <td>${escapeHtml(item.startAt || "-")}</td>
+      <td>${escapeHtml(item.status)}</td>
+    </tr>`,
+  );
+}
+
+function resetContentStudio() {
+  contentForm?.reset();
+  renderContentPreview();
+}
+
+function renderNotificationPreview() {
+  if (!notificationPreviewHeadline) {
+    return;
+  }
+
+  notificationPreviewChannel.textContent = (notificationChannelSelect?.value || "in_app").toUpperCase();
+  notificationPreviewAudience.textContent = notificationAudienceSelect?.value || "all_members";
+  notificationPreviewHeadline.textContent =
+    notificationHeadlineInput?.value.trim() || "Draft headline";
+  notificationPreviewMessage.textContent =
+    notificationMessageInput?.value.trim() || "Notification message preview.";
+  notificationPreviewCta.textContent =
+    notificationCtaLabelInput?.value.trim() || "CTA";
+  notificationPreviewSchedule.textContent =
+    notificationScheduleInput?.value || "Send now";
+}
+
+function renderSalesWorkspace() {
+  const visibleOrders = state.orderItems || [];
+  const pendingCount = visibleOrders.filter(
+    (item) => String(item.approvalStatus || "").toLowerCase() === "pending",
+  ).length;
+  const approvedCount = visibleOrders.filter(
+    (item) => String(item.approvalStatus || "").toLowerCase() === "approved",
+  ).length;
+  const totalPv = visibleOrders.reduce(
+    (sum, item) => sum + (Number(item.totalPv) || 0),
+    0,
+  );
+  const averagePv = visibleOrders.length ? (totalPv / visibleOrders.length).toFixed(2) : "0";
+
+  if (salesOrdersTotalMetric) {
+    salesOrdersTotalMetric.textContent = String(state.totals.orders || 0);
+  }
+
+  if (salesPendingMetric) {
+    salesPendingMetric.textContent = String(pendingCount);
+  }
+
+  if (salesApprovedMetric) {
+    salesApprovedMetric.textContent = String(approvedCount);
+  }
+
+  if (salesAveragePvMetric) {
+    salesAveragePvMetric.textContent = averagePv;
+  }
+
+  if (salesLatestOrderLabel) {
+    const latestOrder = visibleOrders[0];
+    salesLatestOrderLabel.textContent = latestOrder
+      ? `${latestOrder.orderNo} · ${latestOrder.approvalStatus} · PV ${latestOrder.totalPv}`
+      : "No order loaded";
+  }
+
+  if (salesLatestCommissionLabel) {
+    const latestCommission = state.latestCommission;
+    salesLatestCommissionLabel.textContent = latestCommission
+      ? `${latestCommission.commissionType} · ${latestCommission.amount} · order ${latestCommission.orderId}`
+      : "No commission loaded";
+  }
+
+  if (salesPackageInventoryLabel) {
+    salesPackageInventoryLabel.textContent = `${state.packageCatalogItems.length} packages available for sales`;
+  }
+}
+
+function renderNotificationQueue() {
+  renderTableRows(
+    "notificationQueueTable",
+    state.notificationDrafts,
+    (item) => `<tr>
+      <td>${escapeHtml(item.name)}</td>
+      <td>${escapeHtml(item.channel)}</td>
+      <td>${escapeHtml(item.audience)}</td>
+      <td>${escapeHtml(item.headline)}</td>
+      <td>${escapeHtml(item.scheduleAt || "-")}</td>
+      <td>${escapeHtml(item.status)}</td>
+    </tr>`,
+  );
+}
+
+function renderShippingPreview() {
+  if (!shippingPreviewOrder) {
+    return;
+  }
+
+  shippingPreviewStatus.textContent =
+    (shippingStatusSelect?.value || "pending_pack").toUpperCase();
+  shippingPreviewWarehouse.textContent =
+    shippingWarehouseInput?.value.trim() || "Warehouse";
+  shippingPreviewOrder.textContent =
+    shippingOrderIdInput?.value.trim() || "Order ID";
+  shippingPreviewCarrier.textContent = shippingCarrierInput?.value.trim()
+    ? `${shippingCarrierInput.value.trim()}${shippingTrackingInput?.value.trim() ? ` · ${shippingTrackingInput.value.trim()}` : ""}`
+    : "Carrier and tracking will appear here.";
+  shippingPreviewNote.textContent =
+    shippingNoteInput?.value.trim() || "Shipping note preview.";
+}
+
+function renderShippingQueue() {
+  renderTableRows(
+    "shippingQueueTable",
+    state.shippingJobs,
+    (item) => `<tr>
+      <td>${escapeHtml(item.orderId)}</td>
+      <td>${escapeHtml(item.status)}</td>
+      <td>${escapeHtml(item.carrier || "-")}</td>
+      <td>${escapeHtml(item.trackingNo || "-")}</td>
+      <td>${escapeHtml(item.warehouse || "-")}</td>
+      <td>${escapeHtml(item.dispatchAt || "-")}</td>
+    </tr>`,
+  );
+}
+
+function renderShippingWorkspace() {
+  const jobs = state.shippingJobs || [];
+  const pendingPack = jobs.filter((item) => item.status === "pending_pack").length;
+  const inTransit = jobs.filter((item) => item.status === "shipped").length;
+  const delivered = jobs.filter((item) => item.status === "delivered").length;
+
+  if (shippingJobsMetric) {
+    shippingJobsMetric.textContent = String(jobs.length);
+  }
+
+  if (shippingPendingMetric) {
+    shippingPendingMetric.textContent = String(pendingPack);
+  }
+
+  if (shippingTransitMetric) {
+    shippingTransitMetric.textContent = String(inTransit);
+  }
+
+  if (shippingDeliveredMetric) {
+    shippingDeliveredMetric.textContent = String(delivered);
+  }
+
+  renderShippingQueue();
+}
+
+function renderReportsWorkspace() {
+  const orders = state.orderItems || [];
+  const shipments = state.shippingJobs || [];
+  const packages = state.packageCatalogItems || [];
+  const totalPv = orders.reduce((sum, item) => sum + (Number(item.totalPv) || 0), 0);
+  const approvedCount = orders.filter(
+    (item) => String(item.approvalStatus || "").toLowerCase() === "approved",
+  ).length;
+  const pendingCount = orders.filter(
+    (item) => String(item.approvalStatus || "").toLowerCase() === "pending",
+  ).length;
+  const approvedRate = orders.length ? ((approvedCount / orders.length) * 100).toFixed(1) : "0.0";
+  const shipmentCoverage = approvedCount
+    ? ((shipments.length / approvedCount) * 100).toFixed(1)
+    : "0.0";
+  const averagePackagePrice = packages.length
+    ? (
+        packages.reduce((sum, item) => sum + (Number(item.memberPriceUsdt) || 0), 0) /
+        packages.length
+      ).toFixed(2)
+    : "0.00";
+  const deliveredCount = shipments.filter((item) => item.status === "delivered").length;
+  const shippedCount = shipments.filter((item) => item.status === "shipped").length;
+
+  if (reportSalesPvMetric) {
+    reportSalesPvMetric.textContent = `${totalPv}`;
+  }
+
+  if (reportApprovedRateMetric) {
+    reportApprovedRateMetric.textContent = `${approvedRate}%`;
+  }
+
+  if (reportShipmentCoverageMetric) {
+    reportShipmentCoverageMetric.textContent = `${shipmentCoverage}%`;
+  }
+
+  if (reportAveragePackageMetric) {
+    reportAveragePackageMetric.textContent = `${averagePackagePrice}`;
+  }
+
+  if (reportOrderMixLabel) {
+    reportOrderMixLabel.textContent = `${approvedCount} approved / ${pendingCount} pending from ${orders.length} visible orders`;
+  }
+
+  if (reportShipmentMixLabel) {
+    reportShipmentMixLabel.textContent = `${shippedCount} in transit / ${deliveredCount} delivered across ${shipments.length} shipment jobs`;
+  }
+
+  if (reportCatalogValueLabel) {
+    reportCatalogValueLabel.textContent = `${packages.length} packages with average member price ${averagePackagePrice}`;
+  }
+
+  if (reportOpsInsight1) {
+    reportOpsInsight1.textContent = pendingCount
+      ? `${pendingCount} pending orders need approval attention in the current visible set.`
+      : "No pending orders in the current visible set.";
+  }
+
+  if (reportOpsInsight2) {
+    reportOpsInsight2.textContent = approvedCount > shipments.length
+      ? `${approvedCount - shipments.length} approved orders still have no shipment job tracked locally.`
+      : "Shipment tracking covers all approved orders currently visible.";
+  }
+
+  if (reportOpsInsight3) {
+    reportOpsInsight3.textContent = `${state.totals.fallbacks || 0} fallback records and ${state.totals.pool || 0} pool cycles are available for report cross-checking.`;
+  }
+
+  renderTableRows(
+    "salesReportTable",
+    [
+      {
+        metric: "Visible Sales PV",
+        value: `${totalPv}`,
+        comment: "PV total from the currently loaded order page.",
+      },
+      {
+        metric: "Approved Rate",
+        value: `${approvedRate}%`,
+        comment: "Approved orders divided by visible orders.",
+      },
+      {
+        metric: "Shipment Coverage",
+        value: `${shipmentCoverage}%`,
+        comment: "Local shipment jobs compared with approved orders.",
+      },
+      {
+        metric: "Average Package Price",
+        value: `${averagePackagePrice}`,
+        comment: "Average member price from package catalog.",
+      },
+    ],
+    (row) => `<tr><td>${row.metric}</td><td>${row.value}</td><td>${row.comment}</td></tr>`,
+  );
+
+  renderTableRows(
+    "operationsReportTable",
+    [
+      {
+        area: "Orders",
+        status: pendingCount ? "attention" : "stable",
+        summary: pendingCount
+          ? `${pendingCount} pending orders awaiting approval.`
+          : "No pending orders in current view.",
+      },
+      {
+        area: "Shipping",
+        status: approvedCount > shipments.length ? "gap" : "covered",
+        summary:
+          approvedCount > shipments.length
+            ? `${approvedCount - shipments.length} approved orders have no local shipment job.`
+            : "Approved orders are covered by local shipment jobs.",
+      },
+      {
+        area: "Catalog",
+        status: packages.length ? "ready" : "empty",
+        summary: `${packages.length} packages available for commerce operations.`,
+      },
+    ],
+    (row) => `<tr><td>${row.area}</td><td>${row.status}</td><td>${row.summary}</td></tr>`,
+  );
+}
+
+function resetShippingWorkspace() {
+  shippingForm?.reset();
+  renderShippingPreview();
+}
+
+function resetNotificationStudio() {
+  notificationForm?.reset();
+  renderNotificationPreview();
+}
+
+function renderAdminWorkspaceHeader() {
+  const menu = adminMenuConfig[state.activeAdminMenu] || adminMenuConfig.overview;
+
+  if (workspaceTitle) {
+    workspaceTitle.textContent = menu.title;
+  }
+
+  if (workspaceDescription) {
+    workspaceDescription.textContent = menu.description;
+  }
+
+  if (ecommerceSectionDescription) {
+    ecommerceSectionDescription.textContent =
+      ecommerceMenuConfig[state.activeEcommerceMenu] || ecommerceMenuConfig.catalog;
+  }
+}
+
+function applyAdminMenuVisibility() {
+  const activeMenu = state.activeAdminMenu || "overview";
+  document.body.dataset.activeAdminMenu = activeMenu;
+
+  document.querySelectorAll("[data-menu-section]").forEach((element) => {
+    const sections = String(element.dataset.menuSection || "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    element.hidden = !sections.includes(activeMenu);
+  });
+
+  document.querySelectorAll("[data-menu-target]").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.menuTarget === activeMenu);
+  });
+
+  document.querySelectorAll("[data-ecommerce-section]").forEach((element) => {
+    const sections = String(element.dataset.ecommerceSection || "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    element.hidden = activeMenu !== "ecommerce" || !sections.includes(state.activeEcommerceMenu);
+  });
+
+  document.querySelectorAll("[data-ecommerce-target]").forEach((button) => {
+    button.classList.toggle(
+      "is-active",
+      activeMenu === "ecommerce" && button.dataset.ecommerceTarget === state.activeEcommerceMenu,
+    );
+  });
+}
+
+function setActiveAdminMenu(menu) {
+  if (!adminMenuConfig[menu]) {
+    return;
+  }
+
+  state.activeAdminMenu = menu;
+  localStorage.setItem("adminActiveMenu", menu);
+  renderAdminWorkspaceHeader();
+  applyAdminMenuVisibility();
+}
+
+function setActiveEcommerceMenu(menu) {
+  if (!ecommerceMenuConfig[menu]) {
+    return;
+  }
+
+  state.activeEcommerceMenu = menu;
+  localStorage.setItem("adminActiveEcommerceMenu", menu);
+  renderAdminWorkspaceHeader();
+  applyAdminMenuVisibility();
 }
 
 function setAuthState(isAuthenticated) {
@@ -797,6 +1302,16 @@ function renderSession(user) {
   sessionCard.innerHTML = user
     ? `<p class="eyebrow">Signed In</p><strong>${user.name}</strong><p class="muted">${user.memberCode}${user.email ? ` · ${user.email}` : ""}</p>`
     : `<p class="muted">Not signed in</p>`;
+
+  if (workspaceAdminName) {
+    workspaceAdminName.textContent = user ? user.name : "Not signed in";
+  }
+
+  if (workspaceAdminMeta) {
+    workspaceAdminMeta.textContent = user
+      ? `${user.memberCode}${user.email ? ` · ${user.email}` : ""}`
+      : "Sign in to access menu workspaces.";
+  }
 }
 
 async function loadSession() {
@@ -824,7 +1339,7 @@ async function loadDashboard() {
     orderQuery.set("userId", state.orderUserId);
   }
 
-  const [members, orders, poolCycles, fallbacks, packages, suppliers, categories, products, productDetails] = await Promise.all([
+  const [members, orders, poolCycles, fallbacks, packages, suppliers, categories, products, productDetails, contentItems, notificationItems, shippingJobs] = await Promise.all([
     request(
       `/members?page=${state.pages.members}&pageSize=${state.pageSize}${state.memberSearch ? `&query=${encodeURIComponent(state.memberSearch)}` : ""}`,
     ),
@@ -840,6 +1355,9 @@ async function loadDashboard() {
     request("/packages/categories"),
     request("/packages/products"),
     request("/packages/product-details"),
+    request("/content"),
+    request("/notifications"),
+    request("/shipping/jobs"),
     loadCommissionSettings(),
     loadMatrixSettings(),
     loadMatrixSummary(),
@@ -865,7 +1383,33 @@ async function loadDashboard() {
   state.categories = getListItems(categories);
   state.products = getListItems(products);
   state.productDetails = getListItems(productDetails);
+  state.contentDrafts = getListItems(contentItems);
+  state.notificationDrafts = getListItems(notificationItems);
+  state.shippingJobs = getListItems(shippingJobs);
   const commissionItems = getListItems(commissions);
+
+  memberItems.sort((left, right) => {
+    if (state.memberSort === "code_asc") {
+      return left.memberCode.localeCompare(right.memberCode);
+    }
+    if (state.memberSort === "name_asc") {
+      return left.name.localeCompare(right.name);
+    }
+    return Number(right.memberId) - Number(left.memberId);
+  });
+
+  orderItems.sort((left, right) => {
+    if (state.orderSort === "order_no_asc") {
+      return left.orderNo.localeCompare(right.orderNo);
+    }
+    if (state.orderSort === "pv_desc") {
+      return Number(right.totalPv) - Number(left.totalPv);
+    }
+    return Number(right.orderId) - Number(left.orderId);
+  });
+
+  state.orderItems = orderItems;
+  state.commissionItems = commissionItems;
   state.packageCatalogItems = packageItems;
   state.totals.members = getListTotal(members);
   state.totals.orders = getListTotal(orders);
@@ -977,6 +1521,9 @@ async function loadDashboard() {
   renderCatalogSelectors();
   renderPackageItemRows();
   renderProductDetailMediaPreview();
+  renderSalesWorkspace();
+  renderShippingWorkspace();
+  renderReportsWorkspace();
 
   const packageOptions = [
     '<option value="">Pick package ID</option>',
@@ -1232,6 +1779,18 @@ if (refreshButton) {
     task.catch((error) => setStatus(error.message));
   });
 }
+
+document.querySelectorAll("[data-menu-target]").forEach((button) => {
+  button.addEventListener("click", () => {
+    setActiveAdminMenu(button.dataset.menuTarget || "overview");
+  });
+});
+
+document.querySelectorAll("[data-ecommerce-target]").forEach((button) => {
+  button.addEventListener("click", () => {
+    setActiveEcommerceMenu(button.dataset.ecommerceTarget || "catalog");
+  });
+});
 
 if (clearHistoryButton) {
   clearHistoryButton.addEventListener("click", () => {
@@ -1778,6 +2337,206 @@ if (resetProductFormButton) {
   });
 }
 
+[
+  contentKeyInput,
+  contentPlacementSelect,
+  contentTitleInput,
+  contentAudienceSelect,
+  contentStartInput,
+  contentEndInput,
+  contentSummaryInput,
+  contentBodyInput,
+].forEach((element) => {
+  element?.addEventListener("input", renderContentPreview);
+  element?.addEventListener("change", renderContentPreview);
+});
+
+if (contentForm) {
+  contentForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    try {
+      const result = await request("/content", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: contentKeyInput.value.trim(),
+          placement: contentPlacementSelect.value,
+          title: contentTitleInput.value.trim(),
+          audience: contentAudienceSelect.value,
+          summary: contentSummaryInput.value.trim(),
+          body: contentBodyInput.value.trim(),
+          startAt: contentStartInput.value || undefined,
+          endAt: contentEndInput.value || undefined,
+        }),
+      });
+
+      setStatus("Content draft saved");
+      setActionOutput("Content draft saved", result);
+      await loadDashboard();
+    } catch (error) {
+      setStatus(error.message);
+      setActionOutput("Content draft save failed", { message: error.message });
+    }
+  });
+}
+
+if (resetContentButton) {
+  resetContentButton.addEventListener("click", () => {
+    resetContentStudio();
+    setStatus("Content studio reset");
+  });
+}
+
+[
+  notificationNameInput,
+  notificationChannelSelect,
+  notificationAudienceSelect,
+  notificationScheduleInput,
+  notificationCtaLabelInput,
+  notificationCtaRouteInput,
+  notificationHeadlineInput,
+  notificationMessageInput,
+].forEach((element) => {
+  element?.addEventListener("input", renderNotificationPreview);
+  element?.addEventListener("change", renderNotificationPreview);
+});
+
+if (notificationForm) {
+  notificationForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    try {
+      const result = await request("/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: notificationNameInput.value.trim(),
+          channel: notificationChannelSelect.value,
+          audience: notificationAudienceSelect.value,
+          headline: notificationHeadlineInput.value.trim(),
+          message: notificationMessageInput.value.trim(),
+          ctaLabel: notificationCtaLabelInput.value.trim() || undefined,
+          ctaRoute: notificationCtaRouteInput.value.trim() || undefined,
+          scheduleAt: notificationScheduleInput.value || undefined,
+        }),
+      });
+
+      setStatus("Notification draft queued");
+      setActionOutput("Notification draft queued", result);
+      await loadDashboard();
+    } catch (error) {
+      setStatus(error.message);
+      setActionOutput("Notification draft queue failed", { message: error.message });
+    }
+  });
+}
+
+if (resetNotificationButton) {
+  resetNotificationButton.addEventListener("click", () => {
+    resetNotificationStudio();
+    setStatus("Notification studio reset");
+  });
+}
+
+if (salesFocusLatestButton) {
+  salesFocusLatestButton.addEventListener("click", () => {
+    if (!state.latestOrderId) {
+      setStatus("No latest order found.");
+      return;
+    }
+
+    resetOrderFocus(state.latestOrderId);
+    loadOrderDetail(state.latestOrderId).catch((error) => setStatus(error.message));
+  });
+}
+
+if (salesFocusPendingButton) {
+  salesFocusPendingButton.addEventListener("click", () => {
+    if (orderStatusFilter) {
+      orderStatusFilter.value = "approved";
+      orderStatusFilter.value = "pending";
+    }
+    state.pages.orders = 1;
+    loadDashboard().catch((error) => setStatus(error.message));
+  });
+}
+
+if (salesFocusCommissionButton) {
+  salesFocusCommissionButton.addEventListener("click", () => {
+    if (!state.latestCommission) {
+      setStatus("No latest commission found.");
+      return;
+    }
+
+    resetOrderFocus(state.latestCommission.orderId || "");
+    resetBeneficiaryFocus(state.latestCommission.beneficiaryUserId || "");
+    loadDashboard().catch((error) => setStatus(error.message));
+  });
+}
+
+[
+  shippingOrderIdInput,
+  shippingStatusSelect,
+  shippingCarrierInput,
+  shippingTrackingInput,
+  shippingWarehouseInput,
+  shippingDispatchInput,
+  shippingNoteInput,
+].forEach((element) => {
+  element?.addEventListener("input", renderShippingPreview);
+  element?.addEventListener("change", renderShippingPreview);
+});
+
+if (shippingForm) {
+  shippingForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    try {
+      const result = await request("/shipping/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: shippingOrderIdInput.value.trim(),
+          status: shippingStatusSelect.value,
+          carrier: shippingCarrierInput.value.trim() || undefined,
+          trackingNo: shippingTrackingInput.value.trim() || undefined,
+          warehouse: shippingWarehouseInput.value.trim() || undefined,
+          dispatchAt: shippingDispatchInput.value || undefined,
+          note: shippingNoteInput.value.trim() || undefined,
+        }),
+      });
+
+      setStatus("Shipment job saved");
+      setActionOutput("Shipment job saved", result);
+      await loadDashboard();
+    } catch (error) {
+      setStatus(error.message);
+      setActionOutput("Shipment job save failed", { message: error.message });
+    }
+  });
+}
+
+if (shippingUseLatestOrderButton) {
+  shippingUseLatestOrderButton.addEventListener("click", () => {
+    if (!state.latestOrderId) {
+      setStatus("No latest order found.");
+      return;
+    }
+
+    shippingOrderIdInput.value = state.latestOrderId;
+    renderShippingPreview();
+    setStatus(`Loaded latest order ${state.latestOrderId} into shipping form`);
+  });
+}
+
+if (resetShippingButton) {
+  resetShippingButton.addEventListener("click", () => {
+    resetShippingWorkspace();
+    setStatus("Shipping workspace reset");
+  });
+}
+
 createMemberForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
@@ -1940,11 +2699,18 @@ if (matrixMemberForm) {
     );
   });
 }
-}
 
 (async function bootstrap() {
   setAuthState(false);
+  renderAdminWorkspaceHeader();
+  applyAdminMenuVisibility();
   renderHistory();
+  renderContentPreview();
+  renderContentDrafts();
+  renderNotificationPreview();
+  renderNotificationQueue();
+  renderShippingPreview();
+  renderShippingWorkspace();
   const user = await loadSession();
   if (user) {
     if (adminView === "dashboard") {
@@ -1956,22 +2722,3 @@ if (matrixMemberForm) {
     setStatus("Sign in to load dashboard");
   }
 })();
-  memberItems.sort((left, right) => {
-    if (state.memberSort === "code_asc") {
-      return left.memberCode.localeCompare(right.memberCode);
-    }
-    if (state.memberSort === "name_asc") {
-      return left.name.localeCompare(right.name);
-    }
-    return Number(right.memberId) - Number(left.memberId);
-  });
-
-  orderItems.sort((left, right) => {
-    if (state.orderSort === "order_no_asc") {
-      return left.orderNo.localeCompare(right.orderNo);
-    }
-    if (state.orderSort === "pv_desc") {
-      return Number(right.totalPv) - Number(left.totalPv);
-    }
-    return Number(right.orderId) - Number(left.orderId);
-  });
