@@ -565,7 +565,7 @@ model MatrixCycle {
   boardDepth         Int               @default(3)
   boardCount         Int               @default(3)
   organizationPvRate Decimal           @default(0.1) @db.Decimal(10, 8)
-  levelRatesSnapshot String            @default("[]") @db.Text
+  levelRatesSnapshot String            @default("[\"0.1\",\"0.05\",\"0.03\"]") @db.Text
   totalAccumulatedPv Decimal           @default(0) @db.Decimal(18, 8)
   currentBoardNo     Int               @default(1)
   status             MatrixCycleStatus @default(ACTIVE)
