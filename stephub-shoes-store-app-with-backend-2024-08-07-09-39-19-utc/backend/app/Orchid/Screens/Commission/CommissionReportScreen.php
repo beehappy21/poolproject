@@ -20,6 +20,7 @@ class CommissionReportScreen extends Screen
     public function query(Request $request): iterable
     {
         $mode = $this->resolveMode($request);
+        $title = 'Commission Report';
         $filters = [
             'memberFrom' => trim((string) $request->input('member_from', '')),
             'memberTo' => trim((string) $request->input('member_to', '')),
@@ -149,6 +150,14 @@ class CommissionReportScreen extends Screen
                 ])
                 ->values();
 
+            $reportTotals = [
+                'directAmount' => (string) $itemsCollection->sum(fn (array $row) => (float) $row['directAmount']),
+                'poolAmount' => (string) $itemsCollection->sum(fn (array $row) => (float) $row['poolAmount']),
+                'uniAmount' => (string) $itemsCollection->sum(fn (array $row) => (float) $row['uniAmount']),
+                'matrixAmount' => (string) $itemsCollection->sum(fn (array $row) => (float) $row['matrixAmount']),
+                'totalAmount' => (string) $itemsCollection->sum(fn (array $row) => (float) $row['totalAmount']),
+            ];
+
             $total = $itemsCollection->count();
             $items = $itemsCollection
                 ->slice(($page - 1) * $filters['pageSize'], $filters['pageSize'])
@@ -236,6 +245,11 @@ class CommissionReportScreen extends Screen
                     ]);
             }
 
+            $reportTotals = [
+                'basePv' => (string) $detailRows->sum(fn (array $row) => (float) $row['basePv']),
+                'amount' => (string) $detailRows->sum(fn (array $row) => (float) $row['amount']),
+            ];
+
             $total = $detailRows->count();
             $items = $detailRows
                 ->slice(($page - 1) * $filters['pageSize'], $filters['pageSize'])
@@ -257,6 +271,7 @@ class CommissionReportScreen extends Screen
         return [
             'filters' => $filters,
             'commissionReportRows' => $paginator,
+            'commissionReportTotals' => $reportTotals,
             'commissionNav' => CommissionSettingsScreen::commissionNav('report'),
             'commissionSection' => [
                 'title' => $mode === 'overview' ? 'Commission Report' : $title,

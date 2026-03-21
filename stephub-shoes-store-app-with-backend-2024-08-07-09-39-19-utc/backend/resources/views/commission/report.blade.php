@@ -1,6 +1,7 @@
 @php
     $filters = $filters ?? [];
     $rows = $commissionReportRows ?? null;
+    $totals = $commissionReportTotals ?? [];
     $section = $commissionSection ?? [];
     $accent = $section['accent'] ?? '#2563eb';
     $reportMode = $reportMode ?? 'overview';
@@ -29,6 +30,8 @@
     .commission-table { width:100%; border-collapse:separate; border-spacing:0; }
     .commission-table th,.commission-table td { padding:.9rem .85rem; border-bottom:1px solid #e2e8f0; text-align:left; vertical-align:top; white-space:nowrap; }
     .commission-table th { background:#f8fafc; color:#334155; font-weight:700; }
+    .commission-table tfoot td { background:#f8fafc; color:#0f172a; font-weight:700; border-top:2px solid #cbd5e1; }
+    .commission-table tfoot td.is-muted { color:#64748b; }
     .commission-empty { color:#64748b; padding:.5rem 0; }
     .commission-note { border:1px dashed color-mix(in srgb, {{ $accent }} 30%, #cbd5e1); border-radius:14px; padding:1.1rem 1.2rem; background:color-mix(in srgb, {{ $accent }} 5%, #fff); color:#334155; }
     @media (max-width:980px) { .commission-shell { grid-template-columns:1fr; } }
@@ -40,19 +43,19 @@
             <form method="GET" action="{{ url()->current() }}">
                 <div class="commission-filter-grid">
                     <div class="commission-field">
-                        <label>จาก</label>
-                        <input name="member_from" value="{{ $filters['memberFrom'] ?? '' }}" placeholder="รหัสหรือชื่อสมาชิก">
+                        <label>สมาชิกจาก</label>
+                        <input name="member_from" value="{{ $filters['memberFrom'] ?? '' }}" placeholder="รหัสสมาชิกหรือชื่อสมาชิก">
                     </div>
                     <div class="commission-field">
-                        <label>ถึง</label>
-                        <input name="member_to" value="{{ $filters['memberTo'] ?? '' }}" placeholder="รหัสหรือชื่อสมาชิก">
+                        <label>สมาชิกถึง</label>
+                        <input name="member_to" value="{{ $filters['memberTo'] ?? '' }}" placeholder="รหัสสมาชิกหรือชื่อสมาชิก">
                     </div>
                     <div class="commission-field">
-                        <label>Start</label>
+                        <label>วันที่เริ่ม</label>
                         <input type="date" name="date_from" value="{{ $filters['dateFrom'] ?? '' }}">
                     </div>
                     <div class="commission-field">
-                        <label>End</label>
+                        <label>วันที่สิ้นสุด</label>
                         <input type="date" name="date_to" value="{{ $filters['dateTo'] ?? '' }}">
                     </div>
                     <div class="commission-field">
@@ -122,6 +125,27 @@
                             </tr>
                         @endforelse
                     </tbody>
+                    @if (($rows instanceof \Illuminate\Contracts\Pagination\Paginator && count($rows->items()) > 0) || (is_iterable($rows) && count($rows) > 0))
+                        <tfoot>
+                            <tr>
+                                <td colspan="3">รวมทั้งหมด</td>
+                                @if ($reportMode === 'overview')
+                                    <td>{{ $formatDecimal($totals['directAmount'] ?? 0) }}</td>
+                                    <td>{{ $formatDecimal($totals['poolAmount'] ?? 0) }}</td>
+                                    <td>{{ $formatDecimal($totals['uniAmount'] ?? 0) }}</td>
+                                    <td>{{ $formatDecimal($totals['matrixAmount'] ?? 0) }}</td>
+                                    <td>{{ $formatDecimal($totals['totalAmount'] ?? 0) }}</td>
+                                @else
+                                    <td class="is-muted">-</td>
+                                    <td class="is-muted">-</td>
+                                    <td class="is-muted">-</td>
+                                    <td>{{ $formatDecimal($totals['basePv'] ?? 0) }}</td>
+                                    <td class="is-muted">-</td>
+                                    <td>{{ $formatDecimal($totals['amount'] ?? 0) }}</td>
+                                @endif
+                            </tr>
+                        </tfoot>
+                    @endif
                 </table>
             </div>
 
@@ -132,8 +156,8 @@
 
         <div class="commission-note">
             {{ $reportMode === 'overview'
-                ? 'รายงานนี้แสดงยอดคอมมิชชั่นรวมต่อสมาชิกในแต่ละวัน โดยแยกคอลัมน์ตามประเภทโบนัสหลัก'
-                : 'รายงานนี้แสดงรายการคอมมิชชั่นแบบละเอียด พร้อมค่าพีวี เปอร์เซ็นต์ และจำนวนเงินแบบทศนิยม 2 ตำแหน่ง' }}
+                ? 'รายงานนี้แสดงยอดคอมมิชชั่นรวมต่อสมาชิกในแต่ละวัน โดยแยกคอลัมน์ตามประเภทโบนัสหลัก และมีแถวรวมยอดจากผลลัพธ์ที่กรองทั้งหมด'
+                : 'รายงานนี้แสดงรายการคอมมิชชั่นแบบละเอียด พร้อมค่าพีวี เปอร์เซ็นต์ และจำนวนเงินแบบทศนิยม 2 ตำแหน่ง รวมยอดจากข้อมูลที่กรองทั้งหมด' }}
         </div>
     </section>
 </div>
