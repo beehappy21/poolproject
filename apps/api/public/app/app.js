@@ -19,6 +19,8 @@ const networkSummary = document.getElementById("networkSummary");
 const networkReferrals = document.getElementById("networkReferrals");
 const matrixCycles = document.getElementById("matrixCycles");
 const matrixMeta = document.getElementById("matrixMeta");
+const matrixPayoutsTable = document.getElementById("matrixPayoutsTable");
+const poolPayoutsTable = document.getElementById("poolPayoutsTable");
 
 let packageCatalog = [];
 
@@ -204,6 +206,42 @@ function renderCommissions(commissionResult) {
       : '<tr><td colspan="5" class="muted">No commissions</td></tr>';
 }
 
+function renderMatrixPayouts(result) {
+  const rows = Array.isArray(result) ? result : result?.items || [];
+
+  matrixPayoutsTable.innerHTML =
+    rows.length > 0
+      ? rows
+          .map(
+            (payout) => `<tr>
+              <td>${payout.boardNo}</td>
+              <td>${payout.levelNo}</td>
+              <td>${payout.amount}</td>
+              <td>${payout.status}</td>
+              <td>${payout.createdAt}</td>
+            </tr>`,
+          )
+          .join("")
+      : '<tr><td colspan="5" class="muted">No matrix payouts</td></tr>';
+}
+
+function renderPoolPayouts(rows) {
+  poolPayoutsTable.innerHTML =
+    rows.length > 0
+      ? rows
+          .map(
+            (payout) => `<tr>
+              <td>${payout.poolDate}</td>
+              <td>${payout.payoutAmount}</td>
+              <td>${payout.status}</td>
+              <td>${payout.beneficiaryCycleId ?? "-"}</td>
+              <td>${payout.createdAt}</td>
+            </tr>`,
+          )
+          .join("")
+      : '<tr><td colspan="5" class="muted">No pool payouts</td></tr>';
+}
+
 function getApprovalClassName(approvalStatus) {
   return approvalStatus === "approved" ? "status-ok" : "status-waiting";
 }
@@ -290,7 +328,16 @@ function renderNetwork(network) {
       : '<div class="stack-item"><p class="muted">No direct referrals yet.</p></div>';
 }
 
-function renderDashboard(data, orders, transactions, commissions, network, matrix) {
+function renderDashboard(
+  data,
+  orders,
+  transactions,
+  commissions,
+  network,
+  matrix,
+  matrixPayouts,
+  poolPayouts,
+) {
   document.getElementById("memberName").textContent = data.user.name;
   document.getElementById("memberMeta").textContent =
     `${data.user.memberCode}${data.user.email ? ` • ${data.user.email}` : ""}`;
@@ -307,13 +354,25 @@ function renderDashboard(data, orders, transactions, commissions, network, matri
   renderCommissions(commissions);
   renderNetwork(network);
   renderMatrix(matrix);
+  renderMatrixPayouts(matrixPayouts);
+  renderPoolPayouts(poolPayouts);
   renderSignedIn();
 }
 
 async function loadDashboard() {
   setStatus("Loading dashboard");
 
-  const [dashboardData, orders, packages, transactions, commissions, network, matrix] = await Promise.all([
+  const [
+    dashboardData,
+    orders,
+    packages,
+    transactions,
+    commissions,
+    network,
+    matrix,
+    matrixPayouts,
+    poolPayouts,
+  ] = await Promise.all([
     request("/auth/dashboard"),
     request("/auth/orders"),
     request("/packages"),
@@ -321,11 +380,22 @@ async function loadDashboard() {
     request("/auth/commissions"),
     request("/auth/network"),
     request("/auth/matrix"),
+    request("/auth/matrix-payouts"),
+    request("/auth/pool-payouts"),
   ]);
 
   packageCatalog = packages.filter((pkg) => pkg.status === "active");
   renderPackageOptions(packageCatalog);
-  renderDashboard(dashboardData, orders, transactions, commissions, network, matrix);
+  renderDashboard(
+    dashboardData,
+    orders,
+    transactions,
+    commissions,
+    network,
+    matrix,
+    matrixPayouts,
+    poolPayouts,
+  );
   setStatus("Dashboard loaded");
 }
 

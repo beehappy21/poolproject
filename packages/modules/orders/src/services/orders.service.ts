@@ -66,6 +66,8 @@ export interface OrdersServiceContract {
     sourceUserId: string;
     approvedAt: string;
     totalPv: string;
+    commissionSettingsSnapshot: string | null;
+    matrixSettingsSnapshot: string | null;
   } | null>;
 
   getApprovedOrder(orderId: string): Promise<{
@@ -73,6 +75,8 @@ export interface OrdersServiceContract {
     sourceUserId: string;
     approvedAt: string;
     totalPv: string;
+    commissionSettingsSnapshot: string | null;
+    matrixSettingsSnapshot: string | null;
   } | null>;
 
   listApprovedOrdersForPoolDate(poolDate: string): Promise<
@@ -89,6 +93,8 @@ export interface OrdersServiceContract {
     sourceUserId: string;
     approvedAt: string;
     totalPv: string;
+    commissionSettingsSnapshot: string | null;
+    matrixSettingsSnapshot: string | null;
     approvalFinalInNormalFlow: true;
     includedInPoolFundingSource: true;
   }>;
@@ -151,6 +157,8 @@ export class OrdersService implements OrdersServiceContract {
     sourceUserId: string;
     approvedAt: string;
     totalPv: string;
+    commissionSettingsSnapshot: string | null;
+    matrixSettingsSnapshot: string | null;
   } | null> {
     return this.ordersRepository.findApprovedOrderById(orderId);
   }
@@ -171,6 +179,8 @@ export class OrdersService implements OrdersServiceContract {
     sourceUserId: string;
     approvedAt: string;
     totalPv: string;
+    commissionSettingsSnapshot: string | null;
+    matrixSettingsSnapshot: string | null;
     approvalFinalInNormalFlow: true;
     includedInPoolFundingSource: true;
   }> {
@@ -203,6 +213,7 @@ export class OrdersService implements OrdersServiceContract {
         sourceUserId: approvedOrder.sourceUserId,
         approvedAt: approvedOrder.approvedAt,
         totalPv: approvedOrder.totalPv,
+        matrixSettingsSnapshot: approvedOrder.matrixSettingsSnapshot,
       });
       const walletPostingInputs = await this.postCommissionWalletEntries(orderId);
 
@@ -227,6 +238,7 @@ export class OrdersService implements OrdersServiceContract {
       sourceUserId: approvedOrder.sourceUserId,
       approvedAt: approvedOrder.approvedAt,
       totalPv: approvedOrder.totalPv,
+      matrixSettingsSnapshot: approvedOrder.matrixSettingsSnapshot,
     });
 
     await this.poolService.loadApprovedOrderFunding(
@@ -250,6 +262,8 @@ export class OrdersService implements OrdersServiceContract {
       orderId: string;
       sourceUserId: string;
       approvedAt: string;
+      commissionSettingsSnapshot: string | null;
+      matrixSettingsSnapshot: string | null;
       approvalFinalInNormalFlow: true;
       includedInPoolFundingSource: true;
       totalPv: string;

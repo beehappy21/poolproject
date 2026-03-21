@@ -58,7 +58,7 @@ function normalizePositiveInteger(value: unknown, fallback: number): number {
   return value;
 }
 
-function normalizeSettings(input: unknown): MatrixSettings {
+export function normalizeMatrixSettings(input: unknown): MatrixSettings {
   const candidate =
     input && typeof input === "object" ? (input as Record<string, unknown>) : {};
   const boardDepth = normalizePositiveInteger(
@@ -107,14 +107,32 @@ export function getDefaultMatrixSettings(): MatrixSettings {
 export function readMatrixSettings(): MatrixSettings {
   try {
     const raw = readFileSync(SETTINGS_PATH, "utf8");
-    return normalizeSettings(JSON.parse(raw));
+    return normalizeMatrixSettings(JSON.parse(raw));
   } catch {
     return getDefaultMatrixSettings();
   }
 }
 
+export function parseMatrixSettingsSnapshot(
+  snapshot: string | null | undefined,
+): MatrixSettings {
+  if (!snapshot) {
+    return getDefaultMatrixSettings();
+  }
+
+  try {
+    return normalizeMatrixSettings(JSON.parse(snapshot));
+  } catch {
+    return getDefaultMatrixSettings();
+  }
+}
+
+export function serializeMatrixSettingsSnapshot(input: MatrixSettings): string {
+  return JSON.stringify(normalizeMatrixSettings(input));
+}
+
 export function writeMatrixSettings(input: MatrixSettings): MatrixSettings {
-  const normalized = normalizeSettings(input);
+  const normalized = normalizeMatrixSettings(input);
 
   mkdirSync(join(process.cwd(), "runtime"), { recursive: true });
   writeFileSync(SETTINGS_PATH, `${JSON.stringify(normalized, null, 2)}\n`, "utf8");

@@ -355,6 +355,8 @@ model Order {
   approvedAt                DateTime?
   refundWindowEndsAt        DateTime?
   approvalBatchRef          String?                   @db.VarChar(100)
+  commissionSettingsSnapshot String?                  @db.Text
+  matrixSettingsSnapshot    String?                   @db.Text
   approvalStatus            ApprovalStatus            @default(PENDING)
   exceptionalReversalStatus ExceptionalReversalStatus @default(NONE)
   status                    OrderStatus               @default(PENDING)
@@ -456,10 +458,12 @@ model DailyPoolCycle {
   id                       BigInt               @id @default(autoincrement())
   cycleDate                DateTime             @db.Date
   snapshotAt               DateTime
+  evaluationAt             DateTime             @default(now())
   totalPv                  Decimal              @default(0) @db.Decimal(18, 8)
   fundingApprovedOrderCount Int                 @default(0)
   fundingTotalApprovedPv   Decimal              @default(0) @db.Decimal(18, 8)
   poolRate                 Decimal              @default(0.5) @db.Decimal(10, 8)
+  settingsSnapshot         String?              @db.Text
   poolFund                 Decimal              @default(0) @db.Decimal(18, 8)
   eligibleMemberCount      Int                  @default(0)
   payoutPerMember          Decimal              @default(0) @db.Decimal(18, 8)
@@ -561,6 +565,7 @@ model MatrixCycle {
   boardDepth         Int               @default(3)
   boardCount         Int               @default(3)
   organizationPvRate Decimal           @default(0.1) @db.Decimal(10, 8)
+  levelRatesSnapshot String            @default("[\"0.1\",\"0.05\",\"0.03\"]") @db.Text
   totalAccumulatedPv Decimal           @default(0) @db.Decimal(18, 8)
   currentBoardNo     Int               @default(1)
   status             MatrixCycleStatus @default(ACTIVE)

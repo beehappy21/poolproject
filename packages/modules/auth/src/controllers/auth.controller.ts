@@ -17,6 +17,7 @@ import { CommissionsService } from "../../../commissions";
 import { MatrixService } from "../../../matrix/src";
 import { MembersService } from "../../../members";
 import { OrdersService } from "../../../orders";
+import { PoolService } from "../../../pool";
 import { WalletsService } from "../../../wallets";
 import { AuthService } from "../services/auth.service";
 
@@ -29,6 +30,7 @@ export class AuthController {
     private readonly walletsService: WalletsService,
     private readonly commissionsService: CommissionsService,
     private readonly matrixService: MatrixService,
+    private readonly poolService: PoolService,
   ) {}
 
   @Post("login")
@@ -139,6 +141,29 @@ export class AuthController {
       userId: user.userId,
       cycles: await this.matrixService.getMemberMatrixCycles(user.userId),
     };
+  }
+
+  @Get("matrix-payouts")
+  async matrixPayouts(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+
+    return this.matrixService.listMatrixPayouts({
+      beneficiaryUserId: user.userId,
+      page: 1,
+      pageSize: 20,
+    });
+  }
+
+  @Get("pool-payouts")
+  async poolPayouts(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+    return this.poolService.listMemberPoolPayouts(user.userId);
   }
 
   @Post("activate-package")

@@ -8,6 +8,17 @@ import {
 } from "../../../../infrastructure/src/prisma/prisma.mappers";
 import { MatrixCycleSummary } from "../domain/matrix.types";
 
+function parseLevelRatesSnapshot(snapshot: string): string[] {
+  try {
+    const parsed = JSON.parse(snapshot);
+    return Array.isArray(parsed)
+      ? parsed.filter((value) => typeof value === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 @Injectable()
 export class PrismaMatrixRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -39,6 +50,7 @@ export class PrismaMatrixRepository {
     boardDepth: number;
     boardCount: number;
     organizationPvRate: string;
+    levelRatesSnapshot: string;
     boardOpenPvThresholds: string[];
   }) {
     return this.prisma.matrixCycle.create({
@@ -49,6 +61,7 @@ export class PrismaMatrixRepository {
         boardDepth: input.boardDepth,
         boardCount: input.boardCount,
         organizationPvRate: input.organizationPvRate,
+        levelRatesSnapshot: input.levelRatesSnapshot,
         currentBoardNo: 1,
         boards: {
           create: input.boardOpenPvThresholds.map((threshold, index) => ({
@@ -234,6 +247,7 @@ export class PrismaMatrixRepository {
       boardDepth: cycle.boardDepth,
       boardCount: cycle.boardCount,
       organizationPvRate: toDecimalString(cycle.organizationPvRate),
+      levelRatesSnapshot: parseLevelRatesSnapshot(cycle.levelRatesSnapshot),
       totalAccumulatedPv: toDecimalString(cycle.totalAccumulatedPv),
       currentBoardNo: cycle.currentBoardNo,
       status: cycle.status.toLowerCase(),

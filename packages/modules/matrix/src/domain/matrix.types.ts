@@ -18,6 +18,7 @@ export interface MatrixCycleSummary {
   boardDepth: number;
   boardCount: number;
   organizationPvRate: string;
+  levelRatesSnapshot: string[];
   totalAccumulatedPv: string;
   currentBoardNo: number;
   status: string;
