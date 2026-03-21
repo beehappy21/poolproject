@@ -169,6 +169,33 @@ async function updateCommissionSettings(adminToken, settings) {
   });
 }
 
+async function withTemporaryCommissionSettings(adminToken, nextSettings, callback) {
+  const originalSettings = await getCommissionSettings(adminToken);
+
+  await updateCommissionSettings(adminToken, {
+    directLevelRates:
+      nextSettings.directLevelRates || originalSettings.directLevelRates || ["0.2"],
+    uniLevelRates:
+      nextSettings.uniLevelRates || originalSettings.uniLevelRates || ["0.05"],
+    poolRate: nextSettings.poolRate || originalSettings.poolRate || "0.5",
+  });
+
+  try {
+    return await callback(originalSettings);
+  } finally {
+    await updateCommissionSettings(adminToken, {
+      directLevelRates:
+        originalSettings.directLevelRates && originalSettings.directLevelRates.length > 0
+          ? originalSettings.directLevelRates
+          : originalSettings.directRate
+            ? [originalSettings.directRate]
+            : ["0.2"],
+      uniLevelRates: originalSettings.uniLevelRates,
+      poolRate: originalSettings.poolRate,
+    });
+  }
+}
+
 async function getMatrixSettings(adminToken) {
   return request("/settings/matrix", {
     method: "GET",
@@ -542,76 +569,85 @@ async function scenarioUniCompression(adminToken, packageId) {
 }
 
 async function scenarioCapFallback(adminToken, packageId) {
-  const sponsor = await createMember({
-    memberCode: `SCN3S${RUN_SUFFIX}`,
-    name: "Scenario Cap Sponsor",
-    email: `scn3.sponsor.${RUN_SUFFIX}@example.com`,
-    sponsorCode: "ALICE",
-  });
-  await activatePackage(sponsor.memberId, packageId, adminToken);
+  return withTemporaryCommissionSettings(
+    adminToken,
+    {
+      directLevelRates: ["0.2"],
+    },
+    async () => {
+      const sponsor = await createMember({
+        memberCode: `SCN3S${RUN_SUFFIX}`,
+        name: "Scenario Cap Sponsor",
+        email: `scn3.sponsor.${RUN_SUFFIX}@example.com`,
+        sponsorCode: "ALICE",
+      });
+      await activatePackage(sponsor.memberId, packageId, adminToken);
 
-  const sponsorCycle = await prisma.memberPackageCycle.findFirst({
-    where: { userId: BigInt(sponsor.memberId) },
-    orderBy: [{ cycleNo: "desc" }],
-    select: {
-      id: true,
-      earningCap: true,
-    },
-  });
+      const sponsorCycle = await prisma.memberPackageCycle.findFirst({
+        where: { userId: BigInt(sponsor.memberId) },
+        orderBy: [{ cycleNo: "desc" }],
+        select: {
+          id: true,
+          earningCap: true,
+        },
+      });
 
-  await prisma.memberPackageCycle.update({
-    where: { id: sponsorCycle.id },
-    data: {
-      earnedTotalInCycle: sponsorCycle.earningCap,
-    },
-  });
+      await prisma.memberPackageCycle.update({
+        where: { id: sponsorCycle.id },
+        data: {
+          earnedTotalInCycle: sponsorCycle.earningCap,
+        },
+      });
 
-  const buyer = await createMember({
-    memberCode: `SCN3B${RUN_SUFFIX}`,
-    name: "Scenario Cap Buyer",
-    email: `scn3.buyer.${RUN_SUFFIX}@example.com`,
-    sponsorCode: sponsor.memberCode,
-  });
-  const orderId = await createProcessedOrder(buyer.memberId, packageId, adminToken);
+      const buyer = await createMember({
+        memberCode: `SCN3B${RUN_SUFFIX}`,
+        name: "Scenario Cap Buyer",
+        email: `scn3.buyer.${RUN_SUFFIX}@example.com`,
+        sponsorCode: sponsor.memberCode,
+      });
+      const orderId = await createProcessedOrder(buyer.memberId, packageId, adminToken);
 
-  const direct = await prisma.commissionLedger.findFirst({
-    where: {
-      orderId: BigInt(orderId),
-      commissionType: "DIRECT",
-    },
-    select: {
-      status: true,
-      companyFallbackReason: true,
-    },
-  });
-  const fallback = await prisma.companyBonusLedger.findFirst({
-    where: {
-      sourceType: "DIRECT",
-      sourceRefId: BigInt(orderId),
-    },
-    select: {
-      reason: true,
-      amount: true,
-    },
-  });
+      const direct = await prisma.commissionLedger.findFirst({
+        where: {
+          orderId: BigInt(orderId),
+          commissionType: "DIRECT",
+          beneficiaryUserId: BigInt(sponsor.memberId),
+        },
+        select: {
+          status: true,
+          companyFallbackReason: true,
+        },
+      });
+      const fallback = await prisma.companyBonusLedger.findFirst({
+        where: {
+          sourceType: "DIRECT",
+          sourceRefId: BigInt(orderId),
+        },
+        select: {
+          reason: true,
+          amount: true,
+        },
+      });
 
-  const pass =
-    direct?.status === "FALLBACK" &&
-    direct?.companyFallbackReason === "cap_blocked_all_receivable_cycles" &&
-    fallback?.reason === "cap_blocked_all_receivable_cycles";
+      const pass =
+        direct?.status === "FALLBACK" &&
+        direct?.companyFallbackReason === "cap_blocked_all_receivable_cycles" &&
+        fallback?.reason === "cap_blocked_all_receivable_cycles";
 
-  return {
-    scenario: "cap_fallback",
-    pass,
-    expected: "direct commission falls back to company when sponsor cycle is capped",
-    actual: {
-      orderId,
-      directStatus: direct?.status || null,
-      directReason: direct?.companyFallbackReason || null,
-      companyFallbackReason: fallback?.reason || null,
-      companyFallbackAmount: fallback?.amount?.toString() || null,
+      return {
+        scenario: "cap_fallback",
+        pass,
+        expected: "direct commission falls back to company when sponsor cycle is capped",
+        actual: {
+          orderId,
+          directStatus: direct?.status || null,
+          directReason: direct?.companyFallbackReason || null,
+          companyFallbackReason: fallback?.reason || null,
+          companyFallbackAmount: fallback?.amount?.toString() || null,
+        },
+      };
     },
-  };
+  );
 }
 
 async function scenarioPoolPositive(adminToken) {
@@ -700,77 +736,92 @@ async function scenarioPoolNoEligible(adminToken) {
 }
 
 async function scenarioMultiCycleAllocation(adminToken, packageId) {
-  const sponsor = await createMember({
-    memberCode: `SCN6S${RUN_SUFFIX}`,
-    name: "Scenario Multi Cycle Sponsor",
-    email: `scn6.sponsor.${RUN_SUFFIX}@example.com`,
-    sponsorCode: "ALICE",
-  });
-  await activatePackage(sponsor.memberId, packageId, adminToken);
-  await activatePackage(sponsor.memberId, packageId, adminToken);
-
-  const cycles = await prisma.memberPackageCycle.findMany({
-    where: { userId: BigInt(sponsor.memberId) },
-    orderBy: [{ cycleNo: "asc" }],
-    select: {
-      id: true,
-      cycleNo: true,
-      earningCap: true,
-      activatedAt: true,
+  return withTemporaryCommissionSettings(
+    adminToken,
+    {
+      directLevelRates: ["0.2"],
     },
-  });
+    async () => {
+      const sponsor = await createMember({
+        memberCode: `SCN6S${RUN_SUFFIX}`,
+        name: "Scenario Multi Cycle Sponsor",
+        email: `scn6.sponsor.${RUN_SUFFIX}@example.com`,
+        sponsorCode: "ALICE",
+      });
+      await activatePackage(sponsor.memberId, packageId, adminToken);
+      await activatePackage(sponsor.memberId, packageId, adminToken);
 
-  await prisma.memberPackageCycle.update({
-    where: { id: cycles[0].id },
-    data: {
-      earnedTotalInCycle: cycles[0].earningCap,
-    },
-  });
-
-  const buyer = await createMember({
-    memberCode: `SCN6B${RUN_SUFFIX}`,
-    name: "Scenario Multi Cycle Buyer",
-    email: `scn6.buyer.${RUN_SUFFIX}@example.com`,
-    sponsorCode: sponsor.memberCode,
-  });
-  const orderId = await createProcessedOrder(buyer.memberId, packageId, adminToken);
-
-  const direct = await prisma.commissionLedger.findFirst({
-    where: {
-      orderId: BigInt(orderId),
-      commissionType: "DIRECT",
-    },
-    select: {
-      status: true,
-      beneficiaryCycleId: true,
-      beneficiaryCycle: {
+      const cycles = await prisma.memberPackageCycle.findMany({
+        where: { userId: BigInt(sponsor.memberId) },
+        orderBy: [{ cycleNo: "asc" }],
         select: {
+          id: true,
           cycleNo: true,
+          earningCap: true,
+          activatedAt: true,
         },
-      },
-      companyFallbackReason: true,
-    },
-  });
+      });
 
-  const pass =
-    direct?.status === "APPROVED" &&
-    direct?.beneficiaryCycle?.cycleNo === 2;
+      await prisma.memberPackageCycle.update({
+        where: { id: cycles[0].id },
+        data: {
+          earnedTotalInCycle: cycles[0].earningCap,
+        },
+      });
 
-  return {
-    scenario: "multi_cycle_allocation",
-    pass,
-    expected: "when oldest cycle is capped, allocation moves to the next receivable cycle",
-    actual: {
-      orderId,
-      status: direct?.status || null,
-      beneficiaryCycleNo: direct?.beneficiaryCycle?.cycleNo || null,
-      fallbackReason: direct?.companyFallbackReason || null,
+      const buyer = await createMember({
+        memberCode: `SCN6B${RUN_SUFFIX}`,
+        name: "Scenario Multi Cycle Buyer",
+        email: `scn6.buyer.${RUN_SUFFIX}@example.com`,
+        sponsorCode: sponsor.memberCode,
+      });
+      const orderId = await createProcessedOrder(buyer.memberId, packageId, adminToken);
+
+      const direct = await prisma.commissionLedger.findFirst({
+        where: {
+          orderId: BigInt(orderId),
+          commissionType: "DIRECT",
+          beneficiaryUserId: BigInt(sponsor.memberId),
+        },
+        select: {
+          status: true,
+          beneficiaryCycleId: true,
+          beneficiaryCycle: {
+            select: {
+              cycleNo: true,
+            },
+          },
+          companyFallbackReason: true,
+        },
+      });
+
+      const pass =
+        direct?.status === "APPROVED" &&
+        direct?.beneficiaryCycle?.cycleNo === 2;
+
+      return {
+        scenario: "multi_cycle_allocation",
+        pass,
+        expected: "when oldest cycle is capped, allocation moves to the next receivable cycle",
+        actual: {
+          orderId,
+          status: direct?.status || null,
+          beneficiaryCycleNo: direct?.beneficiaryCycle?.cycleNo || null,
+          fallbackReason: direct?.companyFallbackReason || null,
+        },
+      };
     },
-  };
+  );
 }
 
 async function scenarioWalletNegativeOffset(adminToken, packageId) {
+  const originalCommissionSettings = await getCommissionSettings(adminToken);
   const originalMatrixSettings = await getMatrixSettings(adminToken);
+  await updateCommissionSettings(adminToken, {
+    directLevelRates: ["0.2"],
+    uniLevelRates: originalCommissionSettings.uniLevelRates,
+    poolRate: originalCommissionSettings.poolRate,
+  });
   await updateMatrixSettings(adminToken, {
     organizationPvRate: originalMatrixSettings.organizationPvRate,
     levelRates: originalMatrixSettings.levelRates,
@@ -870,6 +921,17 @@ async function scenarioWalletNegativeOffset(adminToken, packageId) {
       },
     };
   } finally {
+    await updateCommissionSettings(adminToken, {
+      directLevelRates:
+        originalCommissionSettings.directLevelRates &&
+        originalCommissionSettings.directLevelRates.length > 0
+          ? originalCommissionSettings.directLevelRates
+          : originalCommissionSettings.directRate
+            ? [originalCommissionSettings.directRate]
+            : ["0.2"],
+      uniLevelRates: originalCommissionSettings.uniLevelRates,
+      poolRate: originalCommissionSettings.poolRate,
+    });
     await updateMatrixSettings(adminToken, {
       organizationPvRate: originalMatrixSettings.organizationPvRate,
       levelRates: originalMatrixSettings.levelRates,

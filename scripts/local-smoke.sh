@@ -8,10 +8,32 @@ RUN_SUFFIX="$(date +%s)"
 PACKAGE_CODE="SMOKE${RUN_SUFFIX}"
 MEMBER_CODE="SMOKEUSER${RUN_SUFFIX}"
 MEMBER_EMAIL="smoke.${RUN_SUFFIX}@example.com"
+ORIGINAL_COMMISSION_SETTINGS_JSON=""
+AUTH_HEADER=""
 
 cd "$ROOT_DIR"
 
 cleanup() {
+  if [[ -n "${ORIGINAL_COMMISSION_SETTINGS_JSON:-}" && -n "${AUTH_HEADER:-}" ]]; then
+    RESTORE_COMMISSION_SETTINGS="$(node -e '
+const original = JSON.parse(process.argv[1]);
+process.stdout.write(JSON.stringify({
+  directLevelRates:
+    original.directLevelRates && original.directLevelRates.length > 0
+      ? original.directLevelRates
+      : original.directRate
+        ? [original.directRate]
+        : ["0.2"],
+  uniLevelRates: original.uniLevelRates,
+  poolRate: original.poolRate,
+}));
+' "$ORIGINAL_COMMISSION_SETTINGS_JSON")"
+    curl -s -X PUT "$API_BASE_URL/settings/commissions" \
+      -H "$AUTH_HEADER" \
+      -H 'content-type: application/json' \
+      -d "$RESTORE_COMMISSION_SETTINGS" >/dev/null 2>&1 || true
+  fi
+
   if [[ -n "${API_PID:-}" ]]; then
     kill "$API_PID" >/dev/null 2>&1 || true
     wait "$API_PID" >/dev/null 2>&1 || true
@@ -51,6 +73,8 @@ AUTH_JSON="$(curl -s -X POST "$API_BASE_URL/auth/login" \
   -d '{"identifier":"ALICE","password":"dev-password"}')"
 ACCESS_TOKEN="$(node -e 'const data = JSON.parse(process.argv[1]); process.stdout.write(data.accessToken);' "$AUTH_JSON")"
 AUTH_HEADER="Authorization: Bearer $ACCESS_TOKEN"
+ORIGINAL_COMMISSION_SETTINGS_JSON="$(curl -s "$API_BASE_URL/settings/commissions" \
+  -H "$AUTH_HEADER")"
 
 SETTINGS_UPDATE_JSON="$(curl -s -X PUT "$API_BASE_URL/settings/commissions" \
   -H "$AUTH_HEADER" \
