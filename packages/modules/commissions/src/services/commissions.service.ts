@@ -10,7 +10,7 @@ import {
   DirectCommissionFinalizationResult,
 } from "../domain/commissions.types";
 import { multiplyDecimalStrings } from "../../../../shared/utils/src/money.util";
-import { readCommissionSettings } from "../../../../shared/utils/src/commission-settings.util";
+import { parseCommissionSettingsSnapshot } from "../../../../shared/utils/src/commission-settings.util";
 import { MembersService } from "../../../members/src/services/members.service";
 import { MembersServiceContract } from "../../../members/src/services/members.service";
 import { OrdersService } from "../../../orders/src/services/orders.service";
@@ -138,6 +138,9 @@ export class CommissionsService implements CommissionsServiceContract {
   ): Promise<ApprovedOrderCommissionFlowResult> {
     const sourceOrder =
       await this.ordersService.handleApprovedOrderEvent(orderId);
+    const commissionSettings = parseCommissionSettingsSnapshot(
+      sourceOrder.commissionSettingsSnapshot,
+    );
     const candidateUserIds = await this.membersService.getUplineCandidateIds(
       sourceOrder.sourceUserId,
       sourceOrder.approvedAt,
@@ -147,6 +150,7 @@ export class CommissionsService implements CommissionsServiceContract {
       sourceUserId: sourceOrder.sourceUserId,
       evaluationAt: sourceOrder.approvedAt,
       candidateUserIds,
+      directLevelCount: commissionSettings.directLevelRates.length,
     });
 
     const directDrafts = await this.buildDirectDrafts(
@@ -156,11 +160,13 @@ export class CommissionsService implements CommissionsServiceContract {
       sourceOrder.totalPv,
       candidateUserIds,
       directCandidateUserIds,
+      commissionSettings,
     );
     const uniCandidateUserIds = await this.resolveUniBonusCandidatePath({
       sourceUserId: sourceOrder.sourceUserId,
       evaluationAt: sourceOrder.approvedAt,
       candidateUserIds,
+      uniLevelCount: commissionSettings.uniLevelRates.length,
     });
     const uniDrafts = await this.buildUniDrafts(
       sourceOrder.orderId,
@@ -169,6 +175,7 @@ export class CommissionsService implements CommissionsServiceContract {
       sourceOrder.totalPv,
       candidateUserIds,
       uniCandidateUserIds,
+      commissionSettings,
     );
 
     return {
@@ -179,9 +186,9 @@ export class CommissionsService implements CommissionsServiceContract {
   }
 
   async resolveDirectBonusCandidatePath(
-    input: CommissionCandidatePath,
+    input: CommissionCandidatePath & { directLevelCount?: number },
   ): Promise<string[]> {
-    const maxLevels = readCommissionSettings().directLevelRates.length;
+    const maxLevels = input.directLevelCount ?? 1;
     const activeCandidateUserIds: string[] = [];
 
     for (const candidateUserId of input.candidateUserIds) {
@@ -209,9 +216,9 @@ export class CommissionsService implements CommissionsServiceContract {
   }
 
   async resolveUniBonusCandidatePath(
-    input: CommissionCandidatePath,
+    input: CommissionCandidatePath & { uniLevelCount?: number },
   ): Promise<string[]> {
-    const maxLevels = readCommissionSettings().uniLevelRates.length;
+    const maxLevels = input.uniLevelCount ?? 1;
     const activeCandidateUserIds: string[] = [];
 
     for (const candidateUserId of input.candidateUserIds) {
@@ -436,8 +443,9 @@ export class CommissionsService implements CommissionsServiceContract {
     totalPv: string,
     candidateUserIds: string[],
     directCandidateUserIds: string[],
+    commissionSettings: ReturnType<typeof parseCommissionSettingsSnapshot>,
   ) {
-    const directLevelRates = readCommissionSettings().directLevelRates;
+    const directLevelRates = commissionSettings.directLevelRates;
     const maxLevels = directLevelRates.length;
     const drafts = await Promise.all(
       directCandidateUserIds.slice(0, maxLevels).map((candidateUserId, index) =>
@@ -592,8 +600,9 @@ export class CommissionsService implements CommissionsServiceContract {
     totalPv: string,
     candidateUserIds: string[],
     uniCandidateUserIds: string[],
+    commissionSettings: ReturnType<typeof parseCommissionSettingsSnapshot>,
   ) {
-    const uniLevelRates = readCommissionSettings().uniLevelRates;
+    const uniLevelRates = commissionSettings.uniLevelRates;
     const maxLevels = uniLevelRates.length;
     const drafts = await Promise.all(
       uniCandidateUserIds.slice(0, maxLevels).map((candidateUserId, index) =>

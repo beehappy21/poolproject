@@ -28,13 +28,15 @@ export interface PoolEligibilityMemberSnapshot {
   userId: string;
   memberActive: boolean;
   activeDirectReferralCount: number;
-  poolDate?: string;
+  evaluationAt?: string;
 }
 
 export interface PoolEligibilityDecision {
   userId: string;
   eligible: boolean;
   reasonCode: string;
+  memberActive: boolean;
+  activeDirectReferralCount: number;
 }
 
 export interface PoolRecipientDraftResult {
@@ -62,6 +64,7 @@ export interface PoolRecipientDraftResult {
 
 export interface DailyPoolFlowResult {
   poolDate: string;
+  evaluationAt: string;
   fundingSource: "approved_orders_only";
   approvedOrderIds: string[];
   sameDayContributionRequired: false;
@@ -70,6 +73,7 @@ export interface DailyPoolFlowResult {
   poolFund: string;
   payoutPerMember: string;
   eligibleRecipientCount: number;
+  eligibilityDecisions: PoolEligibilityDecision[];
   recipientDrafts: PoolRecipientDraftResult[];
   companyFallback: {
     fallbackToCompany: boolean;

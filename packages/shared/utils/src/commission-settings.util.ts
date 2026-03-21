@@ -53,7 +53,7 @@ function normalizeDirectLevelRates(value: unknown, legacyRate: unknown): string[
   return DEFAULT_SETTINGS.directLevelRates;
 }
 
-function normalizeSettings(input: unknown): CommissionSettings {
+export function normalizeCommissionSettings(input: unknown): CommissionSettings {
   const candidate =
     input && typeof input === "object" ? (input as Record<string, unknown>) : {};
 
@@ -80,16 +80,36 @@ export function getDefaultCommissionSettings(): CommissionSettings {
 export function readCommissionSettings(): CommissionSettings {
   try {
     const raw = readFileSync(SETTINGS_PATH, "utf8");
-    return normalizeSettings(JSON.parse(raw));
+    return normalizeCommissionSettings(JSON.parse(raw));
   } catch {
     return getDefaultCommissionSettings();
   }
 }
 
+export function parseCommissionSettingsSnapshot(
+  snapshot: string | null | undefined,
+): CommissionSettings {
+  if (!snapshot) {
+    return getDefaultCommissionSettings();
+  }
+
+  try {
+    return normalizeCommissionSettings(JSON.parse(snapshot));
+  } catch {
+    return getDefaultCommissionSettings();
+  }
+}
+
+export function serializeCommissionSettingsSnapshot(
+  input: CommissionSettings,
+): string {
+  return JSON.stringify(normalizeCommissionSettings(input));
+}
+
 export function writeCommissionSettings(
   input: CommissionSettings,
 ): CommissionSettings {
-  const normalized = normalizeSettings(input);
+  const normalized = normalizeCommissionSettings(input);
 
   mkdirSync(join(process.cwd(), "runtime"), { recursive: true });
   writeFileSync(`${SETTINGS_PATH}`, `${JSON.stringify(normalized, null, 2)}\n`, "utf8");

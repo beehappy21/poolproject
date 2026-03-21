@@ -5,6 +5,14 @@ import {
   buildUtcDayRange,
   toApprovedOrderSummary,
 } from "../../../../infrastructure/src/prisma/prisma.mappers";
+import {
+  readCommissionSettings,
+  serializeCommissionSettingsSnapshot,
+} from "../../../../shared/utils/src/commission-settings.util";
+import {
+  readMatrixSettings,
+  serializeMatrixSettingsSnapshot,
+} from "../../../../shared/utils/src/matrix-settings.util";
 
 export interface OrdersRepository {
   listOrders(filters?: {
@@ -72,6 +80,8 @@ export interface OrdersRepository {
     sourceUserId: string;
     approvedAt: string;
     totalPv: string;
+    commissionSettingsSnapshot: string | null;
+    matrixSettingsSnapshot: string | null;
   } | null>;
 
   findApprovedOrderById(orderId: string): Promise<{
@@ -79,6 +89,8 @@ export interface OrdersRepository {
     sourceUserId: string;
     approvedAt: string;
     totalPv: string;
+    commissionSettingsSnapshot: string | null;
+    matrixSettingsSnapshot: string | null;
   } | null>;
 
   findApprovedOrdersForPoolDate(poolDate: string): Promise<
@@ -239,11 +251,17 @@ export class PrismaOrdersRepository implements OrdersRepository {
 
   async approveOrder(orderId: string) {
     const approvedAt = new Date();
+    const commissionSettingsSnapshot = serializeCommissionSettingsSnapshot(
+      readCommissionSettings(),
+    );
+    const matrixSettingsSnapshot = serializeMatrixSettingsSnapshot(readMatrixSettings());
     const order = await this.prisma.order.update({
       where: { id: BigInt(orderId) },
       data: {
         paidAt: approvedAt,
         approvedAt,
+        commissionSettingsSnapshot,
+        matrixSettingsSnapshot,
         approvalStatus: "APPROVED",
         status: "APPROVED",
       },
@@ -252,10 +270,21 @@ export class PrismaOrdersRepository implements OrdersRepository {
         userId: true,
         approvedAt: true,
         totalPv: true,
+        commissionSettingsSnapshot: true,
+        matrixSettingsSnapshot: true,
       },
     });
 
-    return order ? toApprovedOrderSummary(order) : null;
+    return order
+      ? {
+          orderId: order.id.toString(),
+          sourceUserId: order.userId.toString(),
+          approvedAt: order.approvedAt?.toISOString() ?? "",
+          totalPv: order.totalPv.toString(),
+          commissionSettingsSnapshot: order.commissionSettingsSnapshot,
+          matrixSettingsSnapshot: order.matrixSettingsSnapshot,
+        }
+      : null;
   }
 
   async findApprovedOrderById(orderId: string): Promise<{
@@ -263,6 +292,8 @@ export class PrismaOrdersRepository implements OrdersRepository {
     sourceUserId: string;
     approvedAt: string;
     totalPv: string;
+    commissionSettingsSnapshot: string | null;
+    matrixSettingsSnapshot: string | null;
   } | null> {
     const order = await this.prisma.order.findFirst({
       where: {
@@ -275,10 +306,21 @@ export class PrismaOrdersRepository implements OrdersRepository {
         userId: true,
         approvedAt: true,
         totalPv: true,
+        commissionSettingsSnapshot: true,
+        matrixSettingsSnapshot: true,
       },
     });
 
-    return order ? toApprovedOrderSummary(order) : null;
+    return order
+      ? {
+          orderId: order.id.toString(),
+          sourceUserId: order.userId.toString(),
+          approvedAt: order.approvedAt?.toISOString() ?? "",
+          totalPv: order.totalPv.toString(),
+          commissionSettingsSnapshot: order.commissionSettingsSnapshot,
+          matrixSettingsSnapshot: order.matrixSettingsSnapshot,
+        }
+      : null;
   }
 
   async findApprovedOrdersForPoolDate(poolDate: string): Promise<

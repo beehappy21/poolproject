@@ -3,11 +3,10 @@ import { Injectable } from "@nestjs/common";
 import { MembersService } from "../../../members/src/services/members.service";
 import { MembersServiceContract } from "../../../members/src/services/members.service";
 import {
-  addDecimalStrings,
   compareDecimalStrings,
   multiplyDecimalStrings,
 } from "../../../../shared/utils/src/money.util";
-import { readMatrixSettings } from "../../../../shared/utils/src/matrix-settings.util";
+import { parseMatrixSettingsSnapshot } from "../../../../shared/utils/src/matrix-settings.util";
 import { WalletsService } from "../../../wallets/src/services/wallets.service";
 import { MatrixCycleSummary, MatrixOrderProcessingResult } from "../domain/matrix.types";
 import { PrismaMatrixRepository } from "../repositories/matrix.repository";
@@ -18,6 +17,7 @@ export interface MatrixServiceContract {
     sourceUserId: string;
     approvedAt: string;
     totalPv: string;
+    matrixSettingsSnapshot: string | null;
   }): Promise<MatrixOrderProcessingResult>;
 
   getMemberMatrixCycles(userId: string): Promise<MatrixCycleSummary[]>;
@@ -59,6 +59,7 @@ export class MatrixService implements MatrixServiceContract {
     sourceUserId: string;
     approvedAt: string;
     totalPv: string;
+    matrixSettingsSnapshot: string | null;
   }): Promise<MatrixOrderProcessingResult> {
     if (await this.matrixRepository.hasAccumulationForOrder(input.orderId)) {
       return {
@@ -71,11 +72,7 @@ export class MatrixService implements MatrixServiceContract {
       };
     }
 
-    const settings = readMatrixSettings();
-    const creditedPv = multiplyDecimalStrings(
-      input.totalPv,
-      settings.organizationPvRate,
-    );
+    const settings = parseMatrixSettingsSnapshot(input.matrixSettingsSnapshot);
     const uplineUserIds = await this.membersService.getUplineCandidateIds(
       input.sourceUserId,
       input.approvedAt,
@@ -91,9 +88,8 @@ export class MatrixService implements MatrixServiceContract {
         sourceUserId: input.sourceUserId,
         sourceOrderId: input.orderId,
         sourcePv: input.totalPv,
-        creditedPv,
         depthNo: index + 1,
-        settings,
+        sourceSettings: settings,
       });
 
       affectedMemberCount += 1;
@@ -133,13 +129,17 @@ export class MatrixService implements MatrixServiceContract {
     sourceUserId: string;
     sourceOrderId: string;
     sourcePv: string;
-    creditedPv: string;
     depthNo: number;
-    settings: ReturnType<typeof readMatrixSettings>;
+    sourceSettings: ReturnType<typeof parseMatrixSettingsSnapshot>;
   }): Promise<{ payoutCount: number; completedCycleCount: number }> {
     const cycle = await this.getOrCreateActiveCycle(
       input.beneficiaryUserId,
-      input.settings,
+      input.sourceSettings,
+    );
+    const levelRates = this.parseLevelRatesSnapshot(cycle.levelRatesSnapshot);
+    const creditedPv = multiplyDecimalStrings(
+      input.sourcePv,
+      cycle.organizationPvRate.toString(),
     );
     const cycleId = cycle.id.toString();
     const board = cycle.boards.find((entry) => entry.boardNo === cycle.currentBoardNo);
@@ -148,10 +148,10 @@ export class MatrixService implements MatrixServiceContract {
       throw new Error("Matrix board not found.");
     }
 
-    await this.matrixRepository.addAccumulationToCycle(cycleId, input.creditedPv);
+    await this.matrixRepository.addAccumulationToCycle(cycleId, creditedPv);
     await this.matrixRepository.addAccumulationToBoard(
       board.id.toString(),
-      input.creditedPv,
+      creditedPv,
     );
     await this.matrixRepository.createAccumulationEvent({
       cycleId,
@@ -160,7 +160,7 @@ export class MatrixService implements MatrixServiceContract {
       sourceOrderId: input.sourceOrderId,
       depthNo: input.depthNo,
       sourcePv: input.sourcePv,
-      creditedPv: input.creditedPv,
+      creditedPv,
     });
 
     const refreshedCycles = await this.matrixRepository.getMemberMatrixCycles(
@@ -200,7 +200,7 @@ export class MatrixService implements MatrixServiceContract {
       levelNo === 1
         ? null
         : this.resolveParentSlotNo(slotNo, latestCycle.boardWidth, latestCycle.boardDepth);
-    const rate = input.settings.levelRates[levelNo - 1] || "0";
+    const rate = levelRates[levelNo - 1] || "0";
     const payoutAmount = multiplyDecimalStrings(input.sourcePv, rate);
 
     const payout = await this.matrixRepository.createPositionAndPayout({
@@ -214,7 +214,7 @@ export class MatrixService implements MatrixServiceContract {
       levelNo,
       parentSlotNo,
       sourcePv: input.sourcePv,
-      creditedPv: input.creditedPv,
+      creditedPv,
       rate,
       payoutAmount,
     });
@@ -262,7 +262,7 @@ export class MatrixService implements MatrixServiceContract {
 
   private async getOrCreateActiveCycle(
     beneficiaryUserId: string,
-    settings: ReturnType<typeof readMatrixSettings>,
+    settings: ReturnType<typeof parseMatrixSettingsSnapshot>,
   ) {
     const latestCycle = await this.matrixRepository.getLatestCycle(beneficiaryUserId);
 
@@ -277,8 +277,20 @@ export class MatrixService implements MatrixServiceContract {
       boardDepth: settings.boardDepth,
       boardCount: settings.boardCount,
       organizationPvRate: settings.organizationPvRate,
+      levelRatesSnapshot: JSON.stringify(settings.levelRates),
       boardOpenPvThresholds: settings.boardOpenPvThresholds,
     });
+  }
+
+  private parseLevelRatesSnapshot(snapshot: string): string[] {
+    try {
+      const parsed = JSON.parse(snapshot);
+      return Array.isArray(parsed)
+        ? parsed.filter((value) => typeof value === "string")
+        : [];
+    } catch {
+      return [];
+    }
   }
 
   private resolveLevelNo(slotNo: number, width: number, depth: number): number {

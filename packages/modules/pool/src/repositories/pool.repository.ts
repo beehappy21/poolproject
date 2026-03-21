@@ -2,7 +2,6 @@ import { Injectable } from "@nestjs/common";
 
 import {
   PoolEligibilityDecision,
-  PoolEligibilityMemberSnapshot,
   PoolFundingResult,
   PoolRecipientDraftResult,
 } from "../domain/pool.types";
@@ -47,15 +46,16 @@ export interface PoolRepository {
   }>;
 
   createOrUpdatePoolCycle(input: PoolFundingResult & {
+    evaluationAt: string;
+    settingsSnapshot: string;
     eligibleMemberCount: number;
     payoutPerMember: string;
     companyFallbackAmount: string;
   }): Promise<{ poolCycleId: string }>;
 
   saveEligibilitySnapshots(
-    poolDate: string,
+    poolCycleId: string,
     decisions: PoolEligibilityDecision[],
-    snapshots: PoolEligibilityMemberSnapshot[],
   ): Promise<void>;
 
   createPoolPayoutDrafts(input: {
@@ -82,6 +82,18 @@ export interface PoolRepository {
       payoutAmount: string;
       status: string;
       blockReason: string | null;
+    }>
+  >;
+
+  listMemberPoolPayouts(userId: string): Promise<
+    Array<{
+      payoutId: string;
+      poolDate: string;
+      beneficiaryCycleId: string | null;
+      payoutAmount: string;
+      status: string;
+      blockReason: string | null;
+      createdAt: string;
     }>
   >;
 }
@@ -164,17 +176,22 @@ export class PrismaPoolRepository implements PoolRepository {
   }
 
   async createOrUpdatePoolCycle(input: PoolFundingResult & {
+    evaluationAt: string;
+    settingsSnapshot: string;
     eligibleMemberCount: number;
     payoutPerMember: string;
     companyFallbackAmount: string;
   }): Promise<{ poolCycleId: string }> {
+    const snapshotAt = new Date();
     const cycle = await this.prisma.dailyPoolCycle.upsert({
       where: { cycleDate: new Date(`${input.poolDate}T00:00:00.000Z`) },
       update: {
-        snapshotAt: new Date(),
+        snapshotAt,
+        evaluationAt: new Date(input.evaluationAt),
         fundingApprovedOrderCount: input.approvedOrderCount,
         fundingTotalApprovedPv: input.fundingTotalApprovedPv,
         poolRate: input.poolRate,
+        settingsSnapshot: input.settingsSnapshot,
         poolFund: input.poolFund,
         eligibleMemberCount: input.eligibleMemberCount,
         payoutPerMember: input.payoutPerMember,
@@ -183,11 +200,13 @@ export class PrismaPoolRepository implements PoolRepository {
       },
       create: {
         cycleDate: new Date(`${input.poolDate}T00:00:00.000Z`),
-        snapshotAt: new Date(),
+        snapshotAt,
+        evaluationAt: new Date(input.evaluationAt),
         totalPv: input.fundingTotalApprovedPv,
         fundingApprovedOrderCount: input.approvedOrderCount,
         fundingTotalApprovedPv: input.fundingTotalApprovedPv,
         poolRate: input.poolRate,
+        settingsSnapshot: input.settingsSnapshot,
         poolFund: input.poolFund,
         eligibleMemberCount: input.eligibleMemberCount,
         payoutPerMember: input.payoutPerMember,
@@ -201,13 +220,27 @@ export class PrismaPoolRepository implements PoolRepository {
   }
 
   async saveEligibilitySnapshots(
-    poolDate: string,
+    poolCycleId: string,
     decisions: PoolEligibilityDecision[],
-    snapshots: PoolEligibilityMemberSnapshot[],
   ): Promise<void> {
-    void poolDate;
-    void decisions;
-    void snapshots;
+    await this.prisma.dailyPoolEligibilitySnapshot.deleteMany({
+      where: { cycleId: BigInt(poolCycleId) },
+    });
+
+    if (decisions.length === 0) {
+      return;
+    }
+
+    await this.prisma.dailyPoolEligibilitySnapshot.createMany({
+      data: decisions.map((decision) => ({
+        cycleId: BigInt(poolCycleId),
+        userId: BigInt(decision.userId),
+        isMemberActive: decision.memberActive,
+        activeDirectReferralCount: decision.activeDirectReferralCount,
+        isEligible: decision.eligible,
+        reason: decision.reasonCode,
+      })),
+    });
   }
 
   async createPoolPayoutDrafts(input: {
@@ -300,6 +333,37 @@ export class PrismaPoolRepository implements PoolRepository {
       payoutAmount: payout.payoutAmount.toString(),
       status: payout.status.toLowerCase(),
       blockReason: payout.blockReason,
+    }));
+  }
+
+  async listMemberPoolPayouts(userId: string) {
+    const payouts = await this.prisma.dailyPoolPayout.findMany({
+      where: { userId: BigInt(userId) },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: 20,
+      select: {
+        id: true,
+        beneficiaryCycleId: true,
+        payoutAmount: true,
+        status: true,
+        blockReason: true,
+        createdAt: true,
+        cycle: {
+          select: {
+            cycleDate: true,
+          },
+        },
+      },
+    });
+
+    return payouts.map((payout) => ({
+      payoutId: payout.id.toString(),
+      poolDate: payout.cycle.cycleDate.toISOString().slice(0, 10),
+      beneficiaryCycleId: payout.beneficiaryCycleId?.toString() ?? null,
+      payoutAmount: payout.payoutAmount.toString(),
+      status: payout.status.toLowerCase(),
+      blockReason: payout.blockReason,
+      createdAt: payout.createdAt.toISOString(),
     }));
   }
 }

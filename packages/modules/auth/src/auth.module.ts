@@ -5,6 +5,7 @@ import { CommissionsModule } from "../../commissions";
 import { MatrixModule } from "../../matrix/src";
 import { MembersModule } from "../../members";
 import { OrdersModule } from "../../orders";
+import { PoolModule } from "../../pool";
 import { WalletsModule } from "../../wallets";
 import { AuthController } from "./controllers/auth.controller";
 import { PrismaAuthRepository } from "./repositories/auth.repository";
@@ -18,6 +19,7 @@ import { AuthService } from "./services/auth.service";
     WalletsModule,
     CommissionsModule,
     MatrixModule,
+    PoolModule,
   ],
   controllers: [AuthController],
   providers: [PrismaAuthRepository, AuthService],

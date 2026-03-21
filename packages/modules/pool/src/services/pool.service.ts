@@ -74,6 +74,7 @@ export interface PoolServiceContract {
 
   handleDailyPoolFlow(
     poolDate: string,
+    evaluationAt: string,
     snapshots: PoolEligibilityMemberSnapshot[],
   ): Promise<DailyPoolFlowResult>;
 
@@ -96,6 +97,18 @@ export interface PoolServiceContract {
       payoutAmount: string;
       status: string;
       blockReason: string | null;
+    }>
+  >;
+
+  listMemberPoolPayouts(userId: string): Promise<
+    Array<{
+      payoutId: string;
+      poolDate: string;
+      beneficiaryCycleId: string | null;
+      payoutAmount: string;
+      status: string;
+      blockReason: string | null;
+      createdAt: string;
     }>
   >;
 }
@@ -143,11 +156,13 @@ export class PoolService implements PoolServiceContract {
       snapshots.map((snapshot) =>
         this.qualificationService.evaluatePoolEligibility({
           userId: snapshot.userId,
-          evaluationAt: snapshot.poolDate ?? "",
+          evaluationAt: snapshot.evaluationAt ?? "",
         }).then((result) => ({
           userId: result.userId,
           eligible: result.eligible,
           reasonCode: result.reasonCode,
+          memberActive: result.memberActive,
+          activeDirectReferralCount: result.activeDirectReferralCount,
         })),
       ),
     );
@@ -170,6 +185,7 @@ export class PoolService implements PoolServiceContract {
     const approvedOrders =
       await this.ordersService.listApprovedOrdersForPoolDate(poolDate);
     const { poolRate } = readCommissionSettings();
+    const evaluationAt = this.resolvePoolEvaluationAt(poolDate);
     const funding = await this.computePoolFunding({
       poolDate,
       approvedOrderCount: approvedOrders.length,
@@ -177,23 +193,30 @@ export class PoolService implements PoolServiceContract {
       poolRate,
     });
     const uniqueUserIds = await this.membersService.getMemberIdsWithActiveCycles(
-      `${poolDate}T00:00:00.000Z`,
+      evaluationAt,
     );
     const flow = await this.handleDailyPoolFlow(
       poolDate,
+      evaluationAt,
       uniqueUserIds.map((userId) => ({
         userId,
         memberActive: false,
         activeDirectReferralCount: 0,
-        poolDate,
+        evaluationAt,
       })),
     );
     const { poolCycleId } = await this.poolRepository.createOrUpdatePoolCycle({
       ...funding,
+      evaluationAt,
+      settingsSnapshot: JSON.stringify({ poolRate }),
       eligibleMemberCount: flow.eligibleRecipientCount,
       payoutPerMember: flow.payoutPerMember,
       companyFallbackAmount: flow.companyFallback.amount,
     });
+    await this.poolRepository.saveEligibilitySnapshots(
+      poolCycleId,
+      flow.eligibilityDecisions,
+    );
     await this.poolRepository.createPoolPayoutDrafts({
       poolCycleId,
       recipientDrafts: flow.recipientDrafts,
@@ -231,8 +254,13 @@ export class PoolService implements PoolServiceContract {
     return this.poolRepository.listPoolPayouts(poolDate);
   }
 
+  async listMemberPoolPayouts(userId: string) {
+    return this.poolRepository.listMemberPoolPayouts(userId);
+  }
+
   async handleDailyPoolFlow(
     poolDate: string,
+    evaluationAt: string,
     snapshots: PoolEligibilityMemberSnapshot[],
   ): Promise<DailyPoolFlowResult> {
     const approvedOrders =
@@ -252,6 +280,7 @@ export class PoolService implements PoolServiceContract {
     if (eligibleUserIds.length === 0) {
       return {
         poolDate,
+        evaluationAt,
         fundingSource: "approved_orders_only",
         approvedOrderIds: approvedOrders.map((order) => order.orderId),
         sameDayContributionRequired: false,
@@ -260,6 +289,7 @@ export class PoolService implements PoolServiceContract {
         poolFund: funding.poolFund,
         payoutPerMember: "0",
         eligibleRecipientCount: 0,
+        eligibilityDecisions,
         recipientDrafts: [],
         companyFallback: {
           fallbackToCompany: true,
@@ -275,7 +305,7 @@ export class PoolService implements PoolServiceContract {
     );
     const recipientDrafts = await Promise.all(
       eligibleUserIds.map((userId) =>
-        this.buildRecipientDraft(poolDate, userId, payoutPerMember),
+        this.buildRecipientDraft(evaluationAt, userId, payoutPerMember),
       ),
     );
     const recipientLevelFallbackAmount = recipientDrafts.reduce(
@@ -288,6 +318,7 @@ export class PoolService implements PoolServiceContract {
 
     return {
       poolDate,
+      evaluationAt,
       fundingSource: "approved_orders_only",
       approvedOrderIds: approvedOrders.map((order) => order.orderId),
       sameDayContributionRequired: false,
@@ -296,6 +327,7 @@ export class PoolService implements PoolServiceContract {
       poolFund: funding.poolFund,
       payoutPerMember,
       eligibleRecipientCount: eligibleUserIds.length,
+      eligibilityDecisions,
       recipientDrafts,
       companyFallback: {
         fallbackToCompany:
@@ -310,17 +342,17 @@ export class PoolService implements PoolServiceContract {
   }
 
   private async buildRecipientDraft(
-    poolDate: string,
+    evaluationAt: string,
     userId: string,
     amount: string,
   ): Promise<PoolRecipientDraftResult> {
     const candidateCycles = await this.membersService.getMemberCycles(
       userId,
-      poolDate,
+      evaluationAt,
     );
     const allocation = await this.commissionsService.allocateBonusToCycle({
       beneficiaryUserId: userId,
-      evaluationAt: poolDate,
+      evaluationAt,
       bonusAmount: amount,
       candidateCycles,
     });
@@ -369,5 +401,9 @@ export class PoolService implements PoolServiceContract {
         earningType: "pool",
       });
     }
+  }
+
+  private resolvePoolEvaluationAt(poolDate: string): string {
+    return new Date(`${poolDate}T23:59:59.999Z`).toISOString();
   }
 }
