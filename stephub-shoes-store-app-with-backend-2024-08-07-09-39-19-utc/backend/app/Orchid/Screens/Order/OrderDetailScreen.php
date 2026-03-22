@@ -4,18 +4,36 @@ namespace App\Orchid\Screens\Order;
 
 use App\Models\Order;
 use App\Models\OrderLine;
+use App\Models\OrderSource;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Orchid\Screen\Actions\Button;
+use Orchid\Screen\Fields\Input;
+use Orchid\Screen\Fields\TextArea;
 use Orchid\Screen\Sight;
 use Orchid\Screen\Screen;
 use Orchid\Screen\TD;
 use Orchid\Support\Facades\Layout;
+use Orchid\Support\Facades\Alert;
 
 class OrderDetailScreen extends Screen {
   public $products;
   public $order;
+  public $sourceOrder;
 
   public function query(Order $order): iterable {
+    $sourceOrder = null;
+
+    if (!empty($order->source_order_id)) {
+      $sourceOrder = OrderSource::query()->find($order->source_order_id);
+    }
+
+    $this->order = Order::find($order->id);
+    $this->sourceOrder = $sourceOrder;
+
     return [
-      'order' => Order::find($order->id),
+      'order' => $this->order,
+      'sourceOrder' => $sourceOrder,
       'products' => OrderLine::query()
         ->where('source_order_id', $order->id)
         ->orderBy('id')
@@ -28,7 +46,80 @@ class OrderDetailScreen extends Screen {
   }
 
   public function commandBar(): iterable {
-    return [];
+    return [
+      Button::make('อนุมัติคำสั่งซื้อ')
+        ->icon('bs.check-circle')
+        ->confirm('ยืนยันการอนุมัติคำสั่งซื้อนี้?')
+        ->method('approveOrder')
+        ->canSee($this->canApproveOrder()),
+      Button::make('บันทึกว่าจัดส่งแล้ว')
+        ->icon('bs.truck')
+        ->confirm('ยืนยันว่าคำสั่งซื้อนี้ถูกจัดส่งแล้ว?')
+        ->method('markShipped')
+        ->canSee($this->canMarkShipped()),
+      Button::make('บันทึกว่าส่งถึงแล้ว')
+        ->icon('bs.check2-circle')
+        ->confirm('ยืนยันว่าคำสั่งซื้อนี้ส่งถึงลูกค้าแล้ว?')
+        ->method('markDelivered')
+        ->canSee($this->canMarkDelivered()),
+    ];
+  }
+
+  public function approveOrder(): RedirectResponse
+  {
+    if (!$this->order instanceof Order) {
+      abort(404);
+    }
+
+    if (!$this->sourceOrder instanceof OrderSource) {
+      abort(422, 'Source order not found.');
+    }
+
+    $approvedAt = now();
+
+    $this->sourceOrder->forceFill([
+      'approvedAt' => $approvedAt,
+      'approvalStatus' => 'APPROVED',
+      'status' => 'APPROVED',
+    ])->save();
+
+    Alert::info('You have successfully approved the order.');
+
+    return redirect()->route('platform.order.detail', $this->order->id);
+  }
+
+  public function markShipped(Request $request): RedirectResponse
+  {
+    if (!$this->sourceOrder instanceof OrderSource) {
+      abort(422, 'Source order not found.');
+    }
+
+    $this->sourceOrder->forceFill([
+      'shippedAt' => now(),
+      'shipmentTrackingNo' => $request->input('shipment.tracking_no') ?: null,
+      'shipmentCarrier' => $request->input('shipment.carrier') ?: null,
+      'shipmentNote' => $request->input('shipment.note') ?: null,
+    ])->save();
+
+    Alert::info('Shipment has been recorded.');
+
+    return redirect()->route('platform.order.detail', $this->order->id);
+  }
+
+  public function markDelivered(Request $request): RedirectResponse
+  {
+    if (!$this->sourceOrder instanceof OrderSource) {
+      abort(422, 'Source order not found.');
+    }
+
+    $this->sourceOrder->forceFill([
+      'deliveredAt' => now(),
+      'shipmentNote' => $request->input('shipment.note') ?: $this->sourceOrder->shipmentNote,
+    ])->save();
+
+    Alert::info('Delivery has been recorded.');
+
+    return redirect()->route('platform.order.detail', $this->order->id);
   }
 
   public function layout(): iterable {
@@ -117,10 +208,100 @@ class OrderDetailScreen extends Screen {
         Sight::make('created_at', 'Created:')->render(function (Order $order) {
           return optional($order->created_at)->format('d M, Y H:i');
         }),
+        Sight::make('paid_at', 'Transfer submitted:')->render(function (Order $order) {
+          return $order->paid_at ? optional($order->paid_at)->format('d M, Y H:i') : '-';
+        }),
         Sight::make('approved_at', 'Approved:')->render(function (Order $order) {
           return $order->approved_at ? optional($order->approved_at)->format('d M, Y H:i') : '-';
         }),
       ])->title('Date'),
+
+      Layout::legend('sourceOrder', [
+        Sight::make('transferSlipUrl', 'Transfer Slip:')->render(function ($sourceOrder) {
+          if (!$sourceOrder || empty($sourceOrder->transferSlipUrl)) {
+            return 'ยังไม่มีสลิปที่แนบเข้ามา';
+          }
+
+          $url = e($sourceOrder->transferSlipUrl);
+
+          return '<a href="' . $url . '" target="_blank" rel="noopener noreferrer">เปิดดูสลิป</a><br><img src="' . $url . '" alt="Transfer slip" style="max-width:320px;margin-top:12px;border-radius:8px;border:1px solid #d9dce3;" />';
+        }),
+        Sight::make('transferSubmittedAt', 'Slip Submitted:')->render(function ($sourceOrder) {
+          return $sourceOrder?->transferSubmittedAt
+            ? optional($sourceOrder->transferSubmittedAt)->format('d M, Y H:i')
+            : ($this->order?->paid_at ? optional($this->order->paid_at)->format('d M, Y H:i') : '-');
+        }),
+        Sight::make('transferSlipNote', 'Note:')->render(function ($sourceOrder) {
+          return $sourceOrder?->transferSlipNote ?: '-';
+        }),
+      ])->title('Transfer Review'),
+
+      Layout::rows([
+        Input::make('shipment.tracking_no')
+          ->title('Tracking No')
+          ->placeholder('TRACK123456')
+          ->value($this->sourceOrder?->shipmentTrackingNo),
+        Input::make('shipment.carrier')
+          ->title('Carrier')
+          ->placeholder('Flash, Kerry, Thailand Post')
+          ->value($this->sourceOrder?->shipmentCarrier),
+        TextArea::make('shipment.note')
+          ->title('Shipment Note')
+          ->rows(3)
+          ->placeholder('Optional shipping note')
+          ->value($this->sourceOrder?->shipmentNote),
+      ])->title('Shipment Update'),
+
+      Layout::legend('sourceOrder', [
+        Sight::make('shipmentTrackingNo', 'Tracking No:')->render(function ($sourceOrder) {
+          return $sourceOrder?->shipmentTrackingNo ?: '-';
+        }),
+        Sight::make('shipmentCarrier', 'Carrier:')->render(function ($sourceOrder) {
+          return $sourceOrder?->shipmentCarrier ?: '-';
+        }),
+        Sight::make('shipmentNote', 'Shipment Note:')->render(function ($sourceOrder) {
+          return $sourceOrder?->shipmentNote ?: '-';
+        }),
+        Sight::make('shippedAt', 'Shipped At:')->render(function ($sourceOrder) {
+          return $sourceOrder?->shippedAt
+            ? optional($sourceOrder->shippedAt)->format('d M, Y H:i')
+            : '-';
+        }),
+        Sight::make('deliveredAt', 'Delivered At:')->render(function ($sourceOrder) {
+          return $sourceOrder?->deliveredAt
+            ? optional($sourceOrder->deliveredAt)->format('d M, Y H:i')
+            : '-';
+        }),
+      ])->title('Shipment Status'),
     ];
+  }
+
+  private function canApproveOrder(): bool
+  {
+    if (!$this->order instanceof Order) {
+      return false;
+    }
+
+    return strtolower((string) $this->order->order_status) === 'paid';
+  }
+
+  private function canMarkShipped(): bool
+  {
+    if (!$this->sourceOrder instanceof OrderSource) {
+      return false;
+    }
+
+    return strtoupper((string) $this->sourceOrder->approvalStatus) === 'APPROVED'
+      && empty($this->sourceOrder->shippedAt);
+  }
+
+  private function canMarkDelivered(): bool
+  {
+    if (!$this->sourceOrder instanceof OrderSource) {
+      return false;
+    }
+
+    return !empty($this->sourceOrder->shippedAt)
+      && empty($this->sourceOrder->deliveredAt);
   }
 }

@@ -5,6 +5,7 @@ namespace App\Orchid\Screens\Product;
 use Orchid\Screen\TD;
 use Orchid\Screen\Screen;
 use Orchid\Support\Facades\Layout;
+use Orchid\Screen\Actions\Link;
 use App\Models\Product;
 
 class ProductListScreen extends Screen {
@@ -22,7 +23,11 @@ class ProductListScreen extends Screen {
   }
 
   public function commandBar(): iterable {
-    return [];
+    return [
+      Link::make('Create')
+        ->icon('bs.plus-circle')
+        ->route('platform.product.edit'),
+    ];
   }
 
   public function layout(): iterable {
@@ -38,7 +43,13 @@ class ProductListScreen extends Screen {
           ->sort()
           ->cantHide()
           ->render(function (Product $product) {
-            return e($product->name);
+            $productDetailId = (int) ($product->source_product_detail_id ?? 0);
+            $routeParameters = $productDetailId > 0
+              ? ['product' => $productDetailId]
+              : ['product_id' => $product->id];
+
+            return Link::make($product->name)
+              ->route('platform.product.edit', $routeParameters);
           }),
 
         TD::make('price', 'Price')

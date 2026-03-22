@@ -11,6 +11,13 @@ use Orchid\Screen\AsSource;
 
 class Order extends Model
 {
+    public const REPORT_BUCKET_ALL = 'all';
+    public const REPORT_BUCKET_AWAITING_PAYMENT = 'awaiting-payment';
+    public const REPORT_BUCKET_TRANSFER_REVIEW = 'transfer-review';
+    public const REPORT_BUCKET_AWAITING_SHIPMENT = 'awaiting-shipment';
+    public const REPORT_BUCKET_SHIPPED = 'shipped';
+    public const REPORT_BUCKET_DELIVERED = 'delivered';
+
     use AsSource;
     use Filterable;
     use HasFactory;
@@ -34,12 +41,20 @@ class Order extends Model
 
     protected $fillable = [];
 
+    protected $casts = [
+        'paid_at' => 'datetime',
+        'approved_at' => 'datetime',
+        'shipped_at' => 'datetime',
+        'delivered_at' => 'datetime',
+    ];
+
     protected $allowedSorts = [
         'name',
         'total',
         'created_at',
         'phone_number',
         'order_status',
+        'shipped_at',
     ];
 
     protected $allowedFilters = [
@@ -51,11 +66,95 @@ class Order extends Model
         'order_no' => Like::class,
     ];
 
+    public function scopeForReportBucket($query, ?string $bucket)
+    {
+        return match ($bucket) {
+            self::REPORT_BUCKET_AWAITING_PAYMENT => $query->where('order_status', 'pending'),
+            self::REPORT_BUCKET_TRANSFER_REVIEW => $query->where('order_status', 'paid'),
+            self::REPORT_BUCKET_AWAITING_SHIPMENT => $query
+                ->where('approval_status', 'APPROVED')
+                ->whereNull('shipped_at'),
+            self::REPORT_BUCKET_SHIPPED => $query
+                ->where('approval_status', 'APPROVED')
+                ->whereNotNull('shipped_at')
+                ->whereNull('delivered_at'),
+            self::REPORT_BUCKET_DELIVERED => $query
+                ->where('approval_status', 'APPROVED')
+                ->whereNotNull('delivered_at'),
+            default => $query,
+        };
+    }
+
+    public function scopeOrderByReportPriority($query, ?string $bucket = null)
+    {
+        if ($bucket === self::REPORT_BUCKET_SHIPPED) {
+            return $query
+                ->orderByDesc('shipped_at')
+                ->orderByDesc('updated_at')
+                ->orderByDesc('id');
+        }
+
+        if ($bucket === self::REPORT_BUCKET_DELIVERED) {
+            return $query
+                ->orderByDesc('delivered_at')
+                ->orderByDesc('shipped_at')
+                ->orderByDesc('id');
+        }
+
+        if ($bucket === self::REPORT_BUCKET_AWAITING_SHIPMENT) {
+            return $query
+                ->orderByDesc('approved_at')
+                ->orderByDesc('updated_at')
+                ->orderByDesc('id');
+        }
+
+        return $query
+            ->orderByRaw("case when lower(order_status) = 'paid' then 0 else 1 end")
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id');
+    }
+
+    public static function bucketLabel(?string $bucket): string
+    {
+        return match ($bucket) {
+            self::REPORT_BUCKET_AWAITING_PAYMENT => 'รายการสินค้ารอชำระ',
+            self::REPORT_BUCKET_TRANSFER_REVIEW => 'รายการรอตรวจสอบการโอน',
+            self::REPORT_BUCKET_AWAITING_SHIPMENT => 'รายการรอจัดส่ง',
+            self::REPORT_BUCKET_SHIPPED => 'รายการจัดส่งแล้ว',
+            self::REPORT_BUCKET_DELIVERED => 'รายการส่งถึงแล้ว',
+            default => 'รายการสั่งซื้อทั้งหมด',
+        };
+    }
+
+    public function hasTransferSlip(): bool
+    {
+        return strtolower((string) $this->order_status) === 'paid'
+            || !empty($this->paid_at);
+    }
+
+    public function getShipmentStatusAttribute(): string
+    {
+        if (!empty($this->delivered_at)) {
+            return 'delivered';
+        }
+
+        if (!empty($this->shipped_at)) {
+            return 'shipped';
+        }
+
+        if (strtolower((string) $this->approval_status) === 'approved') {
+            return 'awaiting-shipment';
+        }
+
+        return 'not-ready';
+    }
+
     public function getStatusBadgeHtmlAttribute(): string
     {
         $status = strtolower((string) ($this->order_status ?? 'pending'));
         $color = match ($status) {
             'approved' => 'success',
+            'paid' => 'primary',
             'pending' => 'warning',
             'canceled', 'cancelled' => 'danger',
             default => 'info',

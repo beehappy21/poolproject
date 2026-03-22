@@ -1,280 +1,451 @@
 # Project Handoff
 
-Updated: 2026-03-21
+Updated: 2026-03-22
 
-## Current Status
+## Current State
 
-The project now has working local flows for:
+Current local branch:
 
-- admin login and dashboard
-- member signup via referral link
-- referral code generation and referral fallback to `TH0000001`
-- member profile completion after signup
-- package creation, activation, and order processing
-- direct commission with multi-level direct rates
-- compressed unilevel commission
-- matrix cycles, matrix payouts, and wallet posting
-- daily pool close and pool payouts
-- member wallet, matrix, and payout visibility
-- product catalog foundation for supplier/category/product/product detail/package composition
+- `feat/member-profile-import`
 
-Main verification that currently passes:
+Recent merged PRs:
 
-- `npm run lint`
-- `bash scripts/local-smoke.sh`
-- `bash scripts/calc-scenarios.sh`
+- PR #9: `Add Stephub commission reports and settings UX`
+  - https://github.com/beehappy21/poolproject/pull/9
+- PR #10: `Add product detail editor flow and commission export wiring`
+  - https://github.com/beehappy21/poolproject/pull/10
+- PR #11: `Add member003 commission sandbox test kit`
+  - https://github.com/beehappy21/poolproject/pull/11
 
-## Latest Important Change
+Current local worktree:
 
-The latest unfinished feature area is the new product catalog model.
+- product admin create form improvements were committed and pushed in `3441cf1`
+- local worktree still has separate in-progress matrix sandbox / admin files from other parallel work
+- large local dump/workbook noise is hidden with `.git/info/exclude`
+- repo `git status` is not fully clean right now because of that parallel work
 
-The admin product area has been expanded from a simple `package` form into a catalog flow:
+Main working area:
 
-- `supplier`
-- `category`
-- `product`
-- `product detail`
-- `package` built from one or more product details
+- Stephub admin: `http://127.0.0.1:8001/admin`
+- Stephub app: `http://127.0.0.1:3001`
 
-This is now backed by new Prisma models and new `/packages/*` endpoints, and the admin page can create these records.
+## What Is Working
 
-Important: catalog `% pool` data is stored now, but it is not yet wired into the live pool calculation engine.
+Stephub admin now has working commission areas:
 
-## Main Files To Know
+- `Commission Setting`
+- `Commission Report`
+- `Commission Report > Direct Bonus`
+- `Commission Report > Unilevel Bonus`
+- `Commission Report > Matrix Bonus`
+- `Commission Report > Pool Bonus`
 
-### Product Catalog
+Commission settings behavior:
 
-- `prisma/schema.prisma`
-- `packages/modules/packages/src/controllers/packages.controller.ts`
-- `packages/modules/packages/src/services/packages.service.ts`
-- `packages/modules/packages/src/repositories/packages.repository.ts`
-- `apps/api/public/admin/index.html`
-- `apps/api/public/admin/app.js`
-- `apps/api/public/admin/styles.css`
+- main settings page shows latest saved summary
+- content-area settings menu is shown only on the main settings page
+- `Direct / Unilevel / Pool` pages allow editing and saving rates
+- `Matrix` page supports board width, personal PV threshold, board thresholds, board rates, and dynamic board/level rows
+- entering `0` is supported for direct/unilevel/matrix arrays
 
-### Referral / Signup / Member App
+Commission report behavior:
 
-- `packages/modules/members/src/controllers/members.controller.ts`
-- `packages/modules/members/src/repositories/members.repository.ts`
-- `packages/modules/auth/src/controllers/auth.controller.ts`
-- `packages/modules/auth/src/repositories/auth.repository.ts`
-- `apps/api/public/signup/index.html`
-- `apps/api/public/signup/app.js`
-- `apps/api/public/app/index.html`
-- `apps/api/public/app/app.js`
+- main report shows daily totals per member
+- report modes include:
+  - direct
+  - unilevel
+  - matrix
+  - pool
+  - overview total
+- report pages use Thai labels
+- report tables show 2 decimal places
+- report pages show totals row and summary cards
 
-### Commission / Matrix / Pool
+Export behavior:
 
-- `packages/modules/commissions/src/services/commissions.service.ts`
-- `packages/modules/matrix/src/services/matrix.service.ts`
-- `packages/modules/pool/src/services/pool.service.ts`
-- `packages/shared/utils/src/commission-settings.util.ts`
-- `packages/shared/utils/src/matrix-settings.util.ts`
-- `scripts/local-smoke.sh`
-- `scripts/calc-scenarios.sh`
-- `scripts/calc-scenarios.js`
+- report page supports `CSV`, `Excel`, and `PDF`
+- `CSV` and `Excel` use export cursor/meta flow instead of reusing screen pagination flow
+- `PDF` has a guardrail and rejects exports over `500` rows
 
-## Current Product Catalog Data Model
+Product admin behavior:
 
-New models added in `prisma/schema.prisma`:
+- product list can open existing editable detail records
+- create flow can open without a bound Product model
+- product edit/create redirect now uses product detail ids consistently
+- product create/edit now supports supplier/category-assisted product family selection
+- product form supports primary image plus gallery images up to `10` total
+- PV default formula is `(member price - cost price) x 80%`
+- admin can override PV manually with an explicit warning state
+- product create smoke test passed
+- product update smoke test passed
+- commission export route is wired in platform routes
 
-- `Supplier`
-- `ProductCategory`
-- `Product`
-- `ProductDetail`
-- `PackageItem`
+Order transfer and shipping behavior:
 
-`Package` now also stores:
+- BAO order list supports:
+  - `ทั้งหมด`
+  - `รอชำระ`
+  - `รอตรวจสอบการโอน`
+  - `รอจัดส่ง`
+  - `จัดส่งแล้ว`
+  - `ส่งถึงแล้ว`
+- member app can submit transfer slips from order detail
+- BAO order detail shows transfer slip, transfer note, and transfer submitted time
+- BAO approval now writes through source `Order` instead of trying to update `stephub_orders_v1`
+- BAO order detail supports shipment update fields:
+  - tracking number
+  - carrier
+  - shipment note
+- BAO can mark an approved order as shipped from the same order detail page
+- BAO can mark a shipped order as delivered from the same order detail page
+- app order detail shows shipment status, tracking number, carrier, and shipment note
+- compat view `stephub_orders_v1` now includes shipping fields
+- order report pages now show summary cards for:
+  - total orders
+  - total sales amount
+  - total PV
+- BAO now has `Order Reports` menu with report shortcuts
+- order report pages support `CSV`, `Excel`, and `PDF` export per current bucket
+- shipped bucket now excludes delivered orders
+- delivered bucket is available in BAO, API, and order report export
 
-- `costPriceUsdt`
-- `memberPriceUsdt`
-- `retailPriceUsdt`
-- `poolRate`
-- relation to `PackageItem`
+Stephub app behavior:
 
-Current package behavior:
+- sign in now uses the live API and works from the browser app with local CORS enabled
+- profile and order history use live member session data
+- home, categories, shop, product, cart empty, wishlist empty, and order history empty now use package-oriented copy and live package data
+- product detail is package-aware and shows package code, PV, active days, included items, and status
+- checkout creates real orders through `/auth/orders`
+- shipping and payment info is read from the local store and shown back on checkout
+- order success screen shows the real `orderNo`
+- order history shows live order states:
+  - `Awaiting Payment`
+  - `Transfer Review`
+  - `Awaiting Shipment`
+  - `Shipped`
+  - `Delivered`
+- order history shows timeline, approval status, submitted slip time, approved time, delivered time, tracking, carrier, and transfer note when available
+- member can submit transfer slips from the Stephub app using image upload instead of pasting a URL
+- transfer slip images are resized in-browser before upload
+- Stephub app `npm run build` is currently clean with no warnings
 
-- if built from `productDetailItems`, totals are computed from selected details
-- `Package.priceUsdt` is currently set from total `memberPriceUsdt`
-- existing order flow still works because orders still buy by `packageId`
+## Important Files
 
-## New Product Catalog API
+### Commission Settings
 
-Implemented endpoints:
+- [CommissionSettingsScreen.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Commission/CommissionSettingsScreen.php)
+- [CommissionSettingsController.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Http/Controllers/Platform/CommissionSettingsController.php)
+- [PoolprojectSettingsStore.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Support/PoolprojectSettingsStore.php)
+- [settings.blade.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/resources/views/commission/settings.blade.php)
 
-- `GET /packages`
-- `POST /packages`
-- `GET /packages/suppliers`
-- `POST /packages/suppliers`
-- `GET /packages/categories`
-- `POST /packages/categories`
-- `GET /packages/products`
-- `POST /packages/products`
-- `GET /packages/product-details`
-- `POST /packages/product-details`
-- `POST /packages/:packageId/status`
+### Commission Reports
 
-Current request rules:
+- [CommissionReportScreen.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Commission/CommissionReportScreen.php)
+- [CommissionReportBuilder.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Support/CommissionReportBuilder.php)
+- [CommissionReportController.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Http/Controllers/Platform/CommissionReportController.php)
+- [report.blade.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/resources/views/commission/report.blade.php)
+- [report-export-pdf.blade.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/resources/views/commission/report-export-pdf.blade.php)
 
-- product detail `poolRate` is sent as decimal `0..1`
-- admin UI currently accepts pool as percent and converts before submit
-- package creation requires at least one selected product detail in the new builder flow
+### Product Edit Flow
 
-## Admin UI State
+- [ProductDetailRecord.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Models/ProductDetailRecord.php)
+- [ProductEditScreen.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Product/ProductEditScreen.php)
+- [ProductListScreen.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Product/ProductListScreen.php)
+- [edit-form.blade.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/resources/views/product/edit-form.blade.php)
 
-The admin page now has a product catalog section with:
+### Routes and Menu
 
-- create supplier form
-- create category form
-- create product form
-- create product detail form
-- package builder
-- live package preview
-- catalog snapshot counters
-- package table with:
-  - cost
-  - member
-  - retail
-  - PV
-  - pool %
-  - active days
-  - earning cap
-  - item count
+- [PlatformProvider.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/PlatformProvider.php)
+- [platform.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/routes/platform.php)
 
-What works in the UI:
+### Orders Transfer And Shipping
 
-- creating catalog entities in order
-- adding product details into package builder
-- live preview totals from selected items
-- package creation from selected items
-- package list rendering with expanded columns
+- [schema.prisma](/Users/macbook/poolproject/prisma/schema.prisma)
+- [create_stephub_compat_views.sql](/Users/macbook/poolproject/scripts/migrations/create_stephub_compat_views.sql)
+- [auth.controller.ts](/Users/macbook/poolproject/packages/modules/auth/src/controllers/auth.controller.ts)
+- [orders.controller.ts](/Users/macbook/poolproject/packages/modules/orders/src/controllers/orders.controller.ts)
+- [orders.service.ts](/Users/macbook/poolproject/packages/modules/orders/src/services/orders.service.ts)
+- [orders.repository.ts](/Users/macbook/poolproject/packages/modules/orders/src/repositories/orders.repository.ts)
+- [Order.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Models/Order.php)
+- [OrderSource.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Models/OrderSource.php)
+- [OrderListScreen.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Order/OrderListScreen.php)
+- [OrderDetailScreen.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Order/OrderDetailScreen.php)
+- [OrderReportController.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Http/Controllers/Platform/OrderReportController.php)
+- [report-summary.blade.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/resources/views/order/report-summary.blade.php)
+- [report-export-pdf.blade.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/resources/views/order/report-export-pdf.blade.php)
+- [index.html](/Users/macbook/poolproject/apps/api/public/app/index.html)
+- [app.js](/Users/macbook/poolproject/apps/api/public/app/app.js)
+- [styles.css](/Users/macbook/poolproject/apps/api/public/app/styles.css)
 
-What is still incomplete in the UI:
+### Stephub App
 
-- no separate tables yet for suppliers, categories, products, product details
-- no edit/delete actions for catalog entities
-- package clone does not yet reconstruct existing `PackageItem` rows back into the builder
+- [main.ts](/Users/macbook/poolproject/apps/api/src/main.ts)
+- [index.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/config/index.tsx)
+- [InputField.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/custom/InputField.tsx)
+- [BottomTabBar.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/navigation/BottomTabBar.tsx)
+- [Header.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/components/Header.tsx)
+- [Home.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/tabs/Home.tsx)
+- [Categories.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/tabs/Categories.tsx)
+- [Shop.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/Shop.tsx)
+- [Product.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/Product.tsx)
+- [Checkout.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/Checkout.tsx)
+- [ShippingAndPaymentInfo.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/ShippingAndPaymentInfo.tsx)
+- [OrderHistory.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/OrderHistory.tsx)
+- [OrderSuccessful.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/OrderSuccessful.tsx)
+- [OrderFailed.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/OrderFailed.tsx)
+- [CartEmpty.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/tabs/CartEmpty.tsx)
+- [WishlistEmpty.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/tabs/WishlistEmpty.tsx)
+- [OrderHistoryEmpty.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/OrderHistoryEmpty.tsx)
+- [liveCatalog.ts](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/utils/liveCatalog.ts)
+- [paymentSlice.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/store/slices/paymentSlice.tsx)
 
-## Referral / Signup Notes
+### Commission Sandbox
 
-Current member onboarding behavior:
+- [commission_sandbox.md](/Users/macbook/poolproject/docs/technical-design/commission_sandbox.md)
+- [commission-sandbox.js](/Users/macbook/poolproject/scripts/commission-sandbox.js)
+- [matrix-sandbox.js](/Users/macbook/poolproject/scripts/matrix-sandbox.js)
+- [member003-members.json](/Users/macbook/poolproject/scripts/member003-members.json)
+- [member003-pv-table.json](/Users/macbook/poolproject/scripts/member003-pv-table.json)
+- [run_member003_direct_test.sh](/Users/macbook/poolproject/scripts/run_member003_direct_test.sh)
+- [run_member003_matrix_test.sh](/Users/macbook/poolproject/scripts/run_member003_matrix_test.sh)
 
-- referral links use `referralCode`, not `memberCode`
-- signup accepts `email or phone` plus password
-- password rule is alphanumeric, minimum 6 chars
-- if no `ref`, sponsor falls back to `TH0000001`
-- if `TH0000001` does not exist, signup fails clearly
-- signup auto-logs in and redirects to `/app`
-- member completes profile later inside `/app`
+## Current Report Shape
 
-## Commission / Matrix / Pool Notes
+Main report columns:
 
-Current status:
+- `วันที่`
+- `รหัสสมาชิก`
+- `ชื่อสมาชิก`
+- `โบนัสแนะนำ`
+- `พูลโบนัส`
+- `ยูนิลีเวล`
+- `เมทริกซ์`
+- `จำนวนรวม`
 
-- direct commission supports multi-level direct rates
-- unilevel still works
-- matrix payouts are posted to wallet
-- member app exposes matrix and payout history
-- commission/matrix/pool consistency fixes were already merged before this round
+Direct / Unilevel columns:
 
-Open business-rule gap:
+- `วันที่`
+- `รหัสสมาชิก`
+- `ชื่อสมาชิก`
+- `จาก`
+- `ชื่อ`
+- `ลำดับชั้น`
+- `พีวี`
+- `เปอร์เซ็นต์`
+- `จำนวน`
 
-- catalog-level `poolRate` is not yet applied to `pool.service.ts`
-- current live pool logic still uses existing global pool settings flow
+Matrix columns:
 
-## How To Run
+- `วันที่`
+- `รหัสสมาชิก`
+- `ชื่อสมาชิก`
+- `จาก`
+- `ชื่อ`
+- `บอร์ด`
+- `ลำดับชั้น`
+- `พีวี`
+- `เปอร์เซ็นต์`
+- `จำนวน`
 
-### Lint
+Pool columns:
 
-```bash
-npm run lint
-```
+- `วันที่`
+- `รหัสสมาชิก`
+- `ชื่อสมาชิก`
+- `พีวี`
+- `เปอร์เซ็นต์`
+- `จำนวน`
 
-### Prisma
+## Verification Already Done
 
-```bash
-npm run prisma:generate
-npm run prisma:push
-```
+These were verified during the recent rounds:
 
-### Local smoke
+- `php -l` on the commission PHP files
+- report queries checked against local Postgres data
+- detail report modes use DB pagination
+- overview uses DB-side union/aggregate pagination
+- `CSV` and `Excel` export paths use export cursor/meta flow
+- `PDF` export guardrail rejects `> 500` rows
+- `bash scripts/run_member003_direct_test.sh`
+- `bash scripts/run_member003_matrix_test.sh`
+- `PYTHONPYCACHEPREFIX=/tmp/pycache-member003 python3 -m py_compile ...` for the sandbox Python scripts
+- `php -l` on the latest product admin files
+- product create page loads after fixing `stephub_products_v1.id` lookup
+- product create smoke test created `ProductDetail.id = 12`
+- product update smoke test updated `ProductDetail.id = 12`
+- transfer slip smoke flow passed:
+  - create order
+  - submit transfer slip
+  - BAO detail shows slip and allows approve
+- shipping smoke flow passed on `Order.id = 260`
+  - app order moved to `paid`
+  - BAO approve succeeded
+  - BAO mark shipped succeeded
+  - tracking `TRACK-260-SMOKE` persisted
+  - app order detail returned `shippedAt`, `shipmentTrackingNo`, `shipmentCarrier`, and `shipmentNote`
+  - BAO shipped bucket includes `Order.id = 260`
+- delivered smoke flow passed on `Order.id = 260`
+  - BAO mark delivered succeeded
+  - `deliveredAt` persisted to source order and compat view
+  - shipment note updated to `Delivered to customer at doorstep`
+  - BAO bucket moved from `shipped` to `delivered`
+  - app order detail returned `deliveredAt`
+- end-to-end sales smoke passed on `Order.id = 262`
+  - create order
+  - member submit transfer slip
+  - admin approve
+  - admin mark shipped
+  - admin mark delivered
+  - app order detail returned `approved / approved`, `shippedAt`, `deliveredAt`
+  - API delivered bucket includes `Order.id = 262`
+  - API shipped bucket no longer includes `Order.id = 262`
+- Stephub app browser smoke passed:
+  - sign in at `http://127.0.0.1:3001`
+  - browse live packages
+  - create order from checkout
+  - view order history with live statuses
+  - upload transfer slip image from the app
+  - BAO received the slip and approval succeeded
+- Stephub app `npm run build` now compiles successfully with no warnings
+- order report summary query returned:
+  - `all`: `173` orders, amount `19860`, pv `19860`
+  - `shipped`: `1` order, amount `100`, pv `100`
+- order report CSV export route returned `text/csv` attachment for bucket `shipped`
+- order report `CSV / Excel / PDF` export responses all returned correct attachment content types for bucket `shipped`
 
-```bash
-bash scripts/local-smoke.sh
-```
+## Deploy Readiness
 
-### Calculation scenarios
+Current readiness:
 
-```bash
-bash scripts/calc-scenarios.sh
-```
+- core sales flow is working locally end-to-end
+- API health is up on `:3000`
+- BAO login is up on `:8001/admin/login`
+- BAO order routes and export routes are reachable and protected by auth
 
-### Local UI
+Main deployment risks still open:
 
-After API is running:
+- Nest side still relies on `prisma db push` flow in [package.json](/Users/macbook/poolproject/package.json)
+- compat views must be applied separately from [create_stephub_compat_views.sql](/Users/macbook/poolproject/scripts/migrations/create_stephub_compat_views.sql)
+- the compat view script already includes `stephub_orders_v1` and shipping fields, so this SQL step is required for order reporting on a fresh target DB
+- BAO env is still local-oriented:
+  - `APP_URL=http://127.0.0.1:8001`
+  - `FILESYSTEM_DISK=local`
+  - `QUEUE_CONNECTION=sync`
+  - `SESSION_DRIVER=file`
+- BAO `.env` is still using `DB_CONNECTION=sqlite` with a local sqlite path for the Laravel app side
+- root API `.env` still points at local Postgres only:
+  - `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/poolproject?schema=public`
+- BAO mail config still contains placeholder/local values in [backend/.env](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/.env)
+- PHP 8.5 deprecation warnings are noisy across the Laravel/Orchid stack
+- BAO public storage link is currently missing:
+  - [public/storage](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/public/storage)
+  - [storage/app/public](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/storage/app/public)
 
-- admin: `http://127.0.0.1:3000/admin`
-- signup: `http://127.0.0.1:3000/signup`
-- member app: `http://127.0.0.1:3000/app`
+Staging / production checklist:
 
-## Important Runtime Notes
+1. Database
+- apply Prisma schema changes on the target DB
+- apply compat views from [create_stephub_compat_views.sql](/Users/macbook/poolproject/scripts/migrations/create_stephub_compat_views.sql)
+- verify order fields exist:
+  - `transferSubmittedAt`
+  - `transferSlipUrl`
+  - `transferSlipNote`
+  - `shippedAt`
+  - `deliveredAt`
+  - `shipmentTrackingNo`
+  - `shipmentCarrier`
+  - `shipmentNote`
 
-- local DB schema has already been pushed successfully for the new catalog models
-- Prisma client has already been regenerated successfully
-- `runtime/` remains file-backed for settings/session artifacts
-- `logs/` and `runtime/` are gitignored
+2. API runtime
+- run `npm run build`
+- start the API with the built code
+- verify `GET /health`
+- verify latest routes are loaded:
+  - `POST /orders/:id/deliver`
+  - order bucket `delivered`
 
-If the API needs to be run interactively and localhost DB access fails in sandbox, the previously working pattern was:
+3. BAO runtime
+- set real `APP_URL`
+- verify session and cookie domain settings
+- verify `storage` URLs resolve correctly from BAO
+- check BAO login, delivered list, order detail, and order export after deploy
 
-```bash
-DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/poolproject?schema=public npm run start:api
-```
+4. Storage and uploads
+- decide whether production uses local disk or S3
+- verify product image URLs and transfer slip URLs resolve from the final domain
+- if using local disk on BAO, verify `storage:link` and public asset serving
+- current local state still needs `public/storage` linkage on the BAO side
 
-## What Is Still Not Production-Ready
+5. Operational checks
+- verify product create/update with real images
+- verify one full sales flow on staging:
+  - order
+  - slip
+  - approve
+  - shipped
+  - delivered
+- verify `CSV / Excel / PDF` exports from BAO after login
 
-- product catalog edit/delete lifecycle
-- package composition history / full builder reload
-- catalog-specific automated smoke coverage
-- catalog-specific calc scenarios
-- pool calculation driven by package or product-level `poolRate`
-- deeper transaction/concurrency hardening
-- payout reconciliation lifecycle
-- richer role/permission controls
+6. Cleanup before go-live
+- decide whether to keep or remove smoke rows:
+  - `ProductDetail.id = 12`
+  - `Order.id = 260`
+  - `Order.id = 262`
+- decide whether to keep local-only helper data out of deploy docs
+
+## What Still Needs Browser Verification
+
+1. Recheck commission pages in browser:
+- `/admin/commission/settings`
+- `/admin/commission/report`
+- `/admin/commission/report/direct`
+- `/admin/commission/report/unilevel`
+- `/admin/commission/report/matrix`
+- `/admin/commission/report/pool`
+
+2. Recheck export in browser:
+- `CSV`
+- `Excel`
+- `PDF`
+
+Especially verify:
+
+- Thai font rendering in PDF
+- Excel readability / column widths
+- export keeps current filters
+- PDF limit message is understandable
+
+For product admin, still worth checking manually in browser:
+
+- gallery upload UX with real images
+- supplier/category/product-family filtering behavior
+- PV auto/manual toggle wording and clarity
+- whether to keep or remove smoke product `ProductDetail.id = 12`
 
 ## Best Next Steps
 
-1. Finish the product catalog admin UI.
-   - add tables for suppliers, categories, products, product details
-   - add prefill or quick-jump actions between catalog levels
-   - add package detail breakdown view
+1. Browser-smoke the commission report/export flow after the merged changes.
 
-2. Extend package read APIs.
-   - include `PackageItem` rows in package list/detail responses
-   - enable true `Clone to Studio` from existing package composition
+2. Clean up or keep the smoke test product row `ProductDetail.id = 12`.
 
-3. Lock the business rule for `% pool`.
-   - decide whether pool uses `package.poolRate`
-   - or weighted aggregation from `productDetail.poolRate`
-   - then wire that into live pool funding logic
+3. Decide whether to keep or clean up smoke test orders such as `Order.id = 260`.
 
-4. Add verification.
-   - extend `scripts/local-smoke.sh` with catalog creation flow
-   - add calc or integration scenario for package built from product details
+4. Decide whether any remaining UX cleanup is needed in commission report:
+- wording
+- spacing
+- summary card clarity
 
-5. Then refine UX.
-   - edit/delete/archive states
-   - validations and duplicate guards
-   - better catalog search/filtering
+5. If product admin continues next, focus on:
+- gallery UX polish
+- product update/remove follow-up
+- whether supplier/category should remain helper-only or become persisted schema fields
 
-## Suggested Restart Point
+6. If orders continue next, likely follow-ups are:
+- delivered search/filter polish in BAO
+- delivered-specific summary/export review
+- optional cleanup of smoke test orders such as `Order.id = 260`
 
-If resuming next round, start here:
+8. Before real deploy, work through the `Deploy Readiness` checklist above and record which environment values and SQL/view steps were actually applied.
 
-1. Open `/admin` and manually verify the new product catalog section.
-2. Add list tables for:
-   - suppliers
-   - categories
-   - products
-   - product details
-3. Extend package API to return `packageItems` so `Clone to Studio` can rebuild a package from saved data.
-4. Decide and implement the real `poolRate` business rule.
+7. Keep `.git/info/exclude` local-only.
+- do not move those dump-ignore rules into repo `.gitignore` unless the team explicitly wants that behavior

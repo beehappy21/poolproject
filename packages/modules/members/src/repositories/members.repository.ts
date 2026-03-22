@@ -23,6 +23,13 @@ export interface MembersRepository {
         referralCode: string;
         name: string;
         sponsorId: string | null;
+        nationalId?: string | null;
+        uplineUserId?: string | null;
+        placementSide?: "LEFT" | "RIGHT" | null;
+        rankCode?: string | null;
+        honorTitle?: string | null;
+        mobileCenterCode?: string | null;
+        joinedAt?: string | null;
       }>
     | {
         items: Array<{
@@ -31,6 +38,13 @@ export interface MembersRepository {
           referralCode: string;
           name: string;
           sponsorId: string | null;
+          nationalId?: string | null;
+          uplineUserId?: string | null;
+          placementSide?: "LEFT" | "RIGHT" | null;
+          rankCode?: string | null;
+          honorTitle?: string | null;
+          mobileCenterCode?: string | null;
+          joinedAt?: string | null;
         }>;
         total: number;
         page: number;
@@ -77,6 +91,13 @@ export interface MembersRepository {
     referralCode: string;
     name: string;
     sponsorId: string | null;
+    nationalId?: string | null;
+    uplineUserId?: string | null;
+    placementSide?: "LEFT" | "RIGHT" | null;
+    rankCode?: string | null;
+    honorTitle?: string | null;
+    mobileCenterCode?: string | null;
+    joinedAt?: string | null;
   } | null>;
 
   findActiveDirectReferralCount(
@@ -102,6 +123,13 @@ export interface MembersRepository {
     referralCode: string;
     name: string;
     sponsorId: string | null;
+    nationalId?: string | null;
+    uplineUserId?: string | null;
+    placementSide?: "LEFT" | "RIGHT" | null;
+    rankCode?: string | null;
+    honorTitle?: string | null;
+    mobileCenterCode?: string | null;
+    joinedAt?: string | null;
   } | null>;
 
   createMember(input: {
@@ -161,6 +189,42 @@ export interface MembersRepository {
 export class PrismaMembersRepository implements MembersRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  private async toMemberSummary(
+    member: {
+      id: bigint;
+      memberCode: string;
+      referralCode: string | null;
+      name: string;
+      sponsorId: bigint | null;
+      memberProfile?: {
+        nationalId: string | null;
+        uplineUserId: bigint | null;
+        placementSide: "LEFT" | "RIGHT" | null;
+        rankCode: string | null;
+        honorTitle: string | null;
+        mobileCenterCode: string | null;
+        joinedAtOverride: Date | null;
+      } | null;
+    },
+  ) {
+    return {
+      memberId: toIdString(member.id),
+      memberCode: member.memberCode,
+      referralCode: await this.ensureUserReferralCode(member),
+      name: member.name,
+      sponsorId: member.sponsorId ? toIdString(member.sponsorId) : null,
+      nationalId: member.memberProfile?.nationalId ?? null,
+      uplineUserId: member.memberProfile?.uplineUserId
+        ? toIdString(member.memberProfile.uplineUserId)
+        : null,
+      placementSide: member.memberProfile?.placementSide ?? null,
+      rankCode: member.memberProfile?.rankCode ?? null,
+      honorTitle: member.memberProfile?.honorTitle ?? null,
+      mobileCenterCode: member.memberProfile?.mobileCenterCode ?? null,
+      joinedAt: member.memberProfile?.joinedAtOverride?.toISOString() ?? null,
+    };
+  }
+
   private async ensureUserReferralCode(user: {
     id: bigint;
     referralCode: string | null;
@@ -194,27 +258,95 @@ export class PrismaMembersRepository implements MembersRepository {
 
     let member = await this.prisma.user.findUnique({
       where: { memberCode: normalizedCode },
-      select: { id: true, memberCode: true, referralCode: true, name: true, sponsorId: true },
+      select: {
+        id: true,
+        memberCode: true,
+        referralCode: true,
+        name: true,
+        sponsorId: true,
+        memberProfile: {
+          select: {
+            nationalId: true,
+            uplineUserId: true,
+            placementSide: true,
+            rankCode: true,
+            honorTitle: true,
+            mobileCenterCode: true,
+            joinedAtOverride: true,
+          },
+        },
+      },
     });
 
     if (!member && upperCode !== normalizedCode) {
       member = await this.prisma.user.findUnique({
         where: { memberCode: upperCode },
-        select: { id: true, memberCode: true, referralCode: true, name: true, sponsorId: true },
+        select: {
+          id: true,
+          memberCode: true,
+          referralCode: true,
+          name: true,
+          sponsorId: true,
+          memberProfile: {
+            select: {
+              nationalId: true,
+              uplineUserId: true,
+              placementSide: true,
+              rankCode: true,
+              honorTitle: true,
+              mobileCenterCode: true,
+              joinedAtOverride: true,
+            },
+          },
+        },
       });
     }
 
     if (!member) {
       member = await this.prisma.user.findUnique({
         where: { referralCode: normalizedCode },
-        select: { id: true, memberCode: true, referralCode: true, name: true, sponsorId: true },
+        select: {
+          id: true,
+          memberCode: true,
+          referralCode: true,
+          name: true,
+          sponsorId: true,
+          memberProfile: {
+            select: {
+              nationalId: true,
+              uplineUserId: true,
+              placementSide: true,
+              rankCode: true,
+              honorTitle: true,
+              mobileCenterCode: true,
+              joinedAtOverride: true,
+            },
+          },
+        },
       });
     }
 
     if (!member && upperCode !== normalizedCode) {
       member = await this.prisma.user.findUnique({
         where: { referralCode: upperCode },
-        select: { id: true, memberCode: true, referralCode: true, name: true, sponsorId: true },
+        select: {
+          id: true,
+          memberCode: true,
+          referralCode: true,
+          name: true,
+          sponsorId: true,
+          memberProfile: {
+            select: {
+              nationalId: true,
+              uplineUserId: true,
+              placementSide: true,
+              rankCode: true,
+              honorTitle: true,
+              mobileCenterCode: true,
+              joinedAtOverride: true,
+            },
+          },
+        },
       });
     }
 
@@ -236,7 +368,24 @@ export class PrismaMembersRepository implements MembersRepository {
             },
           ],
         },
-        select: { id: true, memberCode: true, referralCode: true, name: true, sponsorId: true },
+        select: {
+          id: true,
+          memberCode: true,
+          referralCode: true,
+          name: true,
+          sponsorId: true,
+          memberProfile: {
+            select: {
+              nationalId: true,
+              uplineUserId: true,
+              placementSide: true,
+              rankCode: true,
+              honorTitle: true,
+              mobileCenterCode: true,
+              joinedAtOverride: true,
+            },
+          },
+        },
       });
     }
 
@@ -361,18 +510,27 @@ export class PrismaMembersRepository implements MembersRepository {
           ? (filters.page - 1) * filters.pageSize
           : undefined,
       take: filters?.pageSize ?? 100,
-      select: { id: true, memberCode: true, referralCode: true, name: true, sponsorId: true },
+      select: {
+        id: true,
+        memberCode: true,
+        referralCode: true,
+        name: true,
+        sponsorId: true,
+        memberProfile: {
+          select: {
+            nationalId: true,
+            uplineUserId: true,
+            placementSide: true,
+            rankCode: true,
+            honorTitle: true,
+            mobileCenterCode: true,
+            joinedAtOverride: true,
+          },
+        },
+      },
     });
 
-    const items = await Promise.all(
-      members.map(async (member) => ({
-        memberId: toIdString(member.id),
-        memberCode: member.memberCode,
-        referralCode: await this.ensureUserReferralCode(member),
-        name: member.name,
-        sponsorId: member.sponsorId ? toIdString(member.sponsorId) : null,
-      })),
-    );
+    const items = await Promise.all(members.map((member) => this.toMemberSummary(member)));
 
     if (!filters?.page || !filters?.pageSize) {
       return items;
@@ -394,21 +552,37 @@ export class PrismaMembersRepository implements MembersRepository {
     referralCode: string;
     name: string;
     sponsorId: string | null;
+    nationalId?: string | null;
+    uplineUserId?: string | null;
+    placementSide?: "LEFT" | "RIGHT" | null;
+    rankCode?: string | null;
+    honorTitle?: string | null;
+    mobileCenterCode?: string | null;
+    joinedAt?: string | null;
   } | null> {
     const member = await this.prisma.user.findUnique({
       where: { id: BigInt(memberId) },
-      select: { id: true, memberCode: true, referralCode: true, name: true, sponsorId: true },
+      select: {
+        id: true,
+        memberCode: true,
+        referralCode: true,
+        name: true,
+        sponsorId: true,
+        memberProfile: {
+          select: {
+            nationalId: true,
+            uplineUserId: true,
+            placementSide: true,
+            rankCode: true,
+            honorTitle: true,
+            mobileCenterCode: true,
+            joinedAtOverride: true,
+          },
+        },
+      },
     });
 
-    return member
-      ? {
-          memberId: toIdString(member.id),
-          memberCode: member.memberCode,
-          referralCode: await this.ensureUserReferralCode(member),
-          name: member.name,
-          sponsorId: member.sponsorId ? toIdString(member.sponsorId) : null,
-        }
-      : null;
+    return member ? this.toMemberSummary(member) : null;
   }
 
   async findMemberNetwork(memberId: string) {
@@ -599,18 +773,17 @@ export class PrismaMembersRepository implements MembersRepository {
     referralCode: string;
     name: string;
     sponsorId: string | null;
+    nationalId?: string | null;
+    uplineUserId?: string | null;
+    placementSide?: "LEFT" | "RIGHT" | null;
+    rankCode?: string | null;
+    honorTitle?: string | null;
+    mobileCenterCode?: string | null;
+    joinedAt?: string | null;
   } | null> {
     const member = await this.findMemberCodeSummaryRecord(memberCode);
 
-    return member
-      ? {
-          memberId: toIdString(member.id),
-          memberCode: member.memberCode,
-          referralCode: await this.ensureUserReferralCode(member),
-          name: member.name,
-          sponsorId: member.sponsorId ? toIdString(member.sponsorId) : null,
-        }
-      : null;
+    return member ? this.toMemberSummary(member) : null;
   }
 
   async createMember(input: {

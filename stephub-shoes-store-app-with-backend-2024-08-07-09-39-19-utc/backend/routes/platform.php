@@ -30,6 +30,8 @@ use App\Orchid\Screens\Review\ReviewListScreen;
 use App\Orchid\Screens\Review\ReviewDetailScreen;
 use App\Orchid\Screens\Audience\AudienceListScreen;
 use App\Orchid\Screens\Audience\AudienceEditScreen;
+use App\Orchid\Screens\Member\MemberListScreen;
+use App\Orchid\Screens\Member\MemberEditScreen;
 use App\Orchid\Screens\Size\SizeListScreen;
 use App\Orchid\Screens\Size\SizeEditScreen;
 use App\Orchid\Screens\Product\ProductListScreen;
@@ -38,6 +40,11 @@ use App\Orchid\Screens\Package\PackageListScreen;
 use App\Orchid\Screens\Package\PackageEditScreen;
 use App\Orchid\Screens\Supplier\SupplierListScreen;
 use App\Orchid\Screens\Supplier\SupplierEditScreen;
+use App\Orchid\Screens\Commission\CommissionSettingsScreen;
+use App\Orchid\Screens\Commission\CommissionReportScreen;
+use App\Http\Controllers\Platform\CommissionReportController;
+use App\Http\Controllers\Platform\OrderReportController;
+use App\Http\Controllers\Platform\CommissionSettingsController;
 use App\Orchid\Screens\Tag\TagListScreen;
 use App\Orchid\Screens\Tag\TagEditScreen;
 
@@ -66,6 +73,56 @@ Route::screen('package/list', PackageListScreen::class)
 Route::screen('package/edit/{package?}', PackageEditScreen::class)
   ->name('platform.package.edit');
 
+// Platform > Commission Settings
+Route::screen('commission/settings', CommissionSettingsScreen::class)
+  ->defaults('section', 'settings')
+  ->name('platform.commission.settings');
+
+Route::screen('commission/direct', CommissionSettingsScreen::class)
+  ->defaults('section', 'direct')
+  ->name('platform.commission.direct');
+
+Route::screen('commission/unilevel', CommissionSettingsScreen::class)
+  ->defaults('section', 'unilevel')
+  ->name('platform.commission.unilevel');
+
+Route::screen('commission/matrix', CommissionSettingsScreen::class)
+  ->defaults('section', 'matrix')
+  ->name('platform.commission.matrix');
+
+Route::screen('commission/pool', CommissionSettingsScreen::class)
+  ->defaults('section', 'pool')
+  ->name('platform.commission.pool');
+
+Route::screen('commission/report', CommissionReportScreen::class)
+  ->defaults('reportMode', 'overview')
+  ->name('platform.commission.report');
+
+Route::screen('commission/report/direct', CommissionReportScreen::class)
+  ->defaults('reportMode', 'direct')
+  ->name('platform.commission.report.direct');
+
+Route::screen('commission/report/unilevel', CommissionReportScreen::class)
+  ->defaults('reportMode', 'unilevel')
+  ->name('platform.commission.report.unilevel');
+
+Route::screen('commission/report/matrix', CommissionReportScreen::class)
+  ->defaults('reportMode', 'matrix')
+  ->name('platform.commission.report.matrix');
+
+Route::screen('commission/report/pool', CommissionReportScreen::class)
+  ->defaults('reportMode', 'pool')
+  ->name('platform.commission.report.pool');
+
+Route::get('commission/report/export/{reportMode?}', [CommissionReportController::class, 'export'])
+  ->name('platform.commission.report.export');
+
+Route::post('commission/save', [CommissionSettingsController::class, 'saveCommission'])
+  ->name('platform.commission.save');
+
+Route::post('commission/save-matrix', [CommissionSettingsController::class, 'saveMatrix'])
+  ->name('platform.commission.saveMatrix');
+
 // Platform > Suppliers
 Route::screen('supplier/list', SupplierListScreen::class)
   ->name('platform.supplier.list');
@@ -87,6 +144,13 @@ Route::screen('audience/list', AudienceListScreen::class)
 Route::screen('audience/edit/{audience?}', AudienceEditScreen::class)
   ->name('platform.audience.edit');
 
+// Platform > Members
+Route::screen('member/list', MemberListScreen::class)
+  ->name('platform.member.list');
+
+Route::screen('member/edit/{member}', MemberEditScreen::class)
+  ->name('platform.member.edit');
+
 // Platform > Sizes
 Route::screen('size/list', SizeListScreen::class)
   ->name('platform.size.list');
@@ -103,7 +167,31 @@ Route::screen('review/detail/{review?}', ReviewDetailScreen::class)
 
 // Platform > Orders
 Route::screen('order/list', OrderListScreen::class)
+  ->defaults('bucket', 'all')
   ->name('platform.order.list');
+
+Route::screen('order/list/awaiting-payment', OrderListScreen::class)
+  ->defaults('bucket', 'awaiting-payment')
+  ->name('platform.order.awaitingPayment');
+
+Route::screen('order/list/transfer-review', OrderListScreen::class)
+  ->defaults('bucket', 'transfer-review')
+  ->name('platform.order.transferReview');
+
+Route::screen('order/list/awaiting-shipment', OrderListScreen::class)
+  ->defaults('bucket', 'awaiting-shipment')
+  ->name('platform.order.awaitingShipment');
+
+Route::screen('order/list/shipped', OrderListScreen::class)
+  ->defaults('bucket', 'shipped')
+  ->name('platform.order.shipped');
+
+Route::screen('order/list/delivered', OrderListScreen::class)
+  ->defaults('bucket', 'delivered')
+  ->name('platform.order.delivered');
+
+Route::get('order/export/{bucket?}', [OrderReportController::class, 'export'])
+  ->name('platform.order.export');
 
 Route::screen('order/detail/{order?}', OrderDetailScreen::class)
   ->name('platform.order.detail');

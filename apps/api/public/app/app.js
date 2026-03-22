@@ -14,6 +14,12 @@ const actionOutput = document.getElementById("actionOutput");
 const orderGuide = document.getElementById("orderGuide");
 const orderDetailOutput = document.getElementById("orderDetailOutput");
 const orderTimeline = document.getElementById("orderTimeline");
+const transferSlipForm = document.getElementById("transferSlipForm");
+const transferSlipFileInput = document.getElementById("transferSlipFileInput");
+const transferSlipUrlInput = document.getElementById("transferSlipUrlInput");
+const transferSlipNoteInput = document.getElementById("transferSlipNoteInput");
+const transferSlipPreview = document.getElementById("transferSlipPreview");
+const transferSlipPreviewImage = document.getElementById("transferSlipPreviewImage");
 const transactionsTable = document.getElementById("transactionsTable");
 const commissionsTable = document.getElementById("commissionsTable");
 const networkSummary = document.getElementById("networkSummary");
@@ -24,6 +30,8 @@ const matrixPayoutsTable = document.getElementById("matrixPayoutsTable");
 const poolPayoutsTable = document.getElementById("poolPayoutsTable");
 
 let packageCatalog = [];
+let selectedOrderId = null;
+let transferSlipDataUrl = "";
 
 function setStatus(message) {
   statusLine.textContent = message;
@@ -106,13 +114,14 @@ function renderOrders(orderResult) {
               <td>${order.orderNo}</td>
               <td>${order.status}</td>
               <td><span class="status-chip ${getApprovalClassName(order.approvalStatus)}">${order.approvalStatus}</span></td>
+              <td>${formatShipmentStatus(order)}</td>
               <td>${order.totalPv}</td>
               <td>${order.createdAt}</td>
               <td><button type="button" class="ghost inspect-order-button" data-order-id="${order.orderId}">Detail</button></td>
             </tr>`,
           )
           .join("")
-      : '<tr><td colspan="6" class="muted">No orders</td></tr>';
+      : '<tr><td colspan="7" class="muted">No orders</td></tr>';
 
   renderOrderGuide(rows);
 }
@@ -283,11 +292,16 @@ function renderOrderGuide(orders) {
 
   const pendingCount = orders.filter((order) => order.approvalStatus !== "approved").length;
   const approvedCount = orders.length - pendingCount;
+  const awaitingShipmentCount = orders.filter(
+    (order) => order.approvalStatus === "approved" && !order.shippedAt,
+  ).length;
+  const shippedCount = orders.filter((order) => !!order.shippedAt).length;
 
   orderGuide.innerHTML = [
     `<div class="stack-item">
       <strong>${approvedCount} approved / ${pendingCount} pending</strong>
       <p class="muted">Pending orders still need admin approval. Approved orders are ready for downstream processing and earnings allocation.</p>
+      <p class="muted">Shipment: ${awaitingShipmentCount} awaiting shipment • ${shippedCount} shipped</p>
     </div>`,
     pendingCount > 0
       ? `<div class="stack-item">
@@ -299,6 +313,24 @@ function renderOrderGuide(orders) {
           <p class="muted">Your visible orders are approved. Check commissions and wallet activity below for resulting earnings.</p>
         </div>`,
   ].join("");
+}
+
+function formatShipmentStatus(order) {
+  if (order.deliveredAt) {
+    return "delivered";
+  }
+
+  if (order.shippedAt) {
+    return order.shipmentTrackingNo
+      ? `shipped • ${order.shipmentTrackingNo}`
+      : "shipped";
+  }
+
+  if (order.approvalStatus === "approved") {
+    return "awaiting-shipment";
+  }
+
+  return "not-ready";
 }
 
 function renderNetwork(network) {
@@ -404,6 +436,7 @@ async function loadDashboard() {
 }
 
 async function loadOrderDetail(orderId) {
+  selectedOrderId = orderId;
   setStatus(`Loading order ${orderId}`);
   const snapshot = await request(`/auth/orders/${orderId}`);
   const commissionRows = Array.isArray(snapshot.commissions)
@@ -418,10 +451,19 @@ async function loadOrderDetail(orderId) {
       <strong>${snapshot.order.orderNo}</strong>
       <p class="muted">Status ${snapshot.order.status} • Approval ${snapshot.order.approvalStatus}</p>
       <p class="muted">PV ${snapshot.order.totalPv} • Created ${snapshot.order.createdAt}</p>
+      <p class="muted">${snapshot.order.transferSubmittedAt ? `Slip submitted ${snapshot.order.transferSubmittedAt}` : "No transfer slip submitted yet"}</p>
+      <p class="muted">Shipment ${formatShipmentStatus(snapshot.order)}</p>
     </div>`,
     `<div class="stack-item">
       <strong>Timeline</strong>
-      <p class="muted">${snapshot.order.approvalStatus === "approved" ? "1. Created  2. Approved  3. Ready for processing" : "1. Created  2. Waiting for admin approval  3. Processing will happen after approval"}</p>
+      <p class="muted">${snapshot.order.shippedAt ? "1. Created  2. Slip submitted  3. Approved  4. Shipped" : snapshot.order.approvalStatus === "approved" ? "1. Created  2. Slip submitted  3. Approved  4. Awaiting shipment" : "1. Created  2. Waiting for admin approval  3. Processing will happen after approval"}</p>
+    </div>`,
+    `<div class="stack-item">
+      <strong>Shipment</strong>
+      <p class="muted">${snapshot.order.shippedAt ? `Shipped at ${snapshot.order.shippedAt}` : "Not shipped yet"}</p>
+      <p class="muted">${snapshot.order.shipmentCarrier ? `Carrier ${snapshot.order.shipmentCarrier}` : "Carrier not set"}</p>
+      <p class="muted">${snapshot.order.shipmentTrackingNo ? `Tracking ${snapshot.order.shipmentTrackingNo}` : "Tracking number not set"}</p>
+      <p class="muted">${snapshot.order.shipmentNote || "No shipment note"}</p>
     </div>`,
     `<div class="stack-item">
       <strong>Commissions</strong>
@@ -435,7 +477,60 @@ async function loadOrderDetail(orderId) {
     </div>`,
   ].join("");
   orderDetailOutput.textContent = JSON.stringify(snapshot, null, 2);
+  syncTransferSlipForm(snapshot.order);
   setStatus(`Loaded order ${orderId}`);
+}
+
+function syncTransferSlipForm(order) {
+  const canSubmitSlip =
+    order &&
+    order.approvalStatus !== "approved";
+
+  transferSlipForm.classList.toggle("hidden", !canSubmitSlip);
+
+  if (!canSubmitSlip) {
+    transferSlipDataUrl = "";
+    transferSlipFileInput.value = "";
+    transferSlipUrlInput.value = "";
+    transferSlipNoteInput.value = "";
+    transferSlipPreview.classList.add("hidden");
+    transferSlipPreviewImage.removeAttribute("src");
+    return;
+  }
+
+  transferSlipDataUrl = order.transferSlipUrl || "";
+  transferSlipUrlInput.value = order.transferSlipUrl || "";
+  transferSlipNoteInput.value = order.transferSlipNote || "";
+  setTransferSlipPreview(order.transferSlipUrl || "");
+}
+
+function setTransferSlipPreview(url) {
+  if (!url) {
+    transferSlipPreview.classList.add("hidden");
+    transferSlipPreviewImage.removeAttribute("src");
+    return;
+  }
+
+  transferSlipPreview.classList.remove("hidden");
+  transferSlipPreviewImage.src = url;
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+        return;
+      }
+
+      reject(new Error("Unable to read the selected file."));
+    };
+
+    reader.onerror = () => reject(new Error("Unable to read the selected file."));
+    reader.readAsDataURL(file);
+  });
 }
 
 loginForm.addEventListener("submit", async (event) => {
@@ -564,6 +659,73 @@ orderForm.addEventListener("submit", async (event) => {
   } catch (error) {
     setStatus(error.message);
     setActionResult("Order create failed", { message: error.message });
+  }
+});
+
+transferSlipFileInput.addEventListener("change", async () => {
+  const [file] = Array.from(transferSlipFileInput.files || []);
+
+  if (!file) {
+    transferSlipDataUrl = transferSlipUrlInput.value.trim();
+    setTransferSlipPreview(transferSlipDataUrl);
+    return;
+  }
+
+  if (file.size > 2 * 1024 * 1024) {
+    setStatus("Slip image must be 2 MB or smaller.");
+    transferSlipFileInput.value = "";
+    return;
+  }
+
+  try {
+    transferSlipDataUrl = await readFileAsDataUrl(file);
+    transferSlipUrlInput.value = transferSlipDataUrl;
+    setTransferSlipPreview(transferSlipDataUrl);
+  } catch (error) {
+    setStatus(error.message);
+  }
+});
+
+transferSlipUrlInput.addEventListener("input", () => {
+  if (transferSlipFileInput.files && transferSlipFileInput.files.length > 0) {
+    return;
+  }
+
+  transferSlipDataUrl = transferSlipUrlInput.value.trim();
+  setTransferSlipPreview(transferSlipDataUrl);
+});
+
+transferSlipForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  try {
+    if (!selectedOrderId) {
+      throw new Error("Select an order first.");
+    }
+
+    const transferSlipUrl = transferSlipUrlInput.value.trim() || transferSlipDataUrl;
+
+    if (!transferSlipUrl) {
+      throw new Error("Transfer slip image or URL is required.");
+    }
+
+    setStatus("Submitting transfer slip");
+    const result = await request(`/auth/orders/${selectedOrderId}/submit-transfer-slip`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        transferSlipUrl,
+        transferSlipNote: transferSlipNoteInput.value.trim() || undefined,
+      }),
+    });
+
+    setActionResult("Transfer slip submitted", result);
+    await loadDashboard();
+    await loadOrderDetail(selectedOrderId);
+    setStatus("Transfer slip submitted");
+  } catch (error) {
+    setStatus(error.message);
+    setActionResult("Transfer slip submit failed", { message: error.message });
   }
 });
 

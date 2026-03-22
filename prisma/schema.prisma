@@ -41,6 +41,11 @@ enum CatalogStatus {
   INACTIVE
 }
 
+enum PlacementSide {
+  LEFT
+  RIGHT
+}
+
 enum EarningCapType {
   FIXED_AMOUNT
   PRICE_MULTIPLE
@@ -280,6 +285,8 @@ model User {
 
   sponsor                        User?                          @relation("UserSponsorTree", fields: [sponsorId], references: [id])
   directReferrals                User[]                         @relation("UserSponsorTree")
+  memberProfile                  MemberProfile?                 @relation("UserMemberProfile")
+  memberProfileUplineRefs        MemberProfile[]                @relation("MemberProfileUplineUser")
   packageCycles                  MemberPackageCycle[]
   orders                         Order[]
   beneficiaryCommissions         CommissionLedger[]             @relation("CommissionBeneficiaryUser")
@@ -309,6 +316,27 @@ model User {
   matrixBeneficiaryPayouts       MatrixPayout[]                 @relation("MatrixPayoutBeneficiaryUser")
   matrixSourcePayouts            MatrixPayout[]                 @relation("MatrixPayoutSourceUser")
   matrixAccumulationEvents       MatrixAccumulationEvent[]      @relation("MatrixAccumulationSourceUser")
+}
+
+model MemberProfile {
+  id               BigInt         @id @default(autoincrement())
+  userId           BigInt         @unique
+  nationalId       String?        @unique @db.VarChar(30)
+  uplineUserId     BigInt?
+  placementSide    PlacementSide?
+  rankCode         String?        @db.VarChar(50)
+  honorTitle       String?        @db.VarChar(100)
+  mobileCenterCode String?        @db.VarChar(100)
+  joinedAtOverride DateTime?      @db.Date
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  user       User  @relation("UserMemberProfile", fields: [userId], references: [id])
+  uplineUser User? @relation("MemberProfileUplineUser", fields: [uplineUserId], references: [id])
+
+  @@index([uplineUserId])
+  @@index([placementSide])
+  @@index([rankCode])
 }
 
 model Supplier {
@@ -488,7 +516,15 @@ model Order {
   totalUsdt                  Decimal                   @default(0) @db.Decimal(18, 8)
   totalPv                    Decimal                   @default(0) @db.Decimal(18, 8)
   paidAt                     DateTime?
+  transferSubmittedAt        DateTime?
+  transferSlipUrl            String?                   @db.Text
+  transferSlipNote           String?                   @db.Text
   approvedAt                 DateTime?
+  shippedAt                  DateTime?
+  deliveredAt                DateTime?
+  shipmentTrackingNo         String?                   @db.VarChar(100)
+  shipmentCarrier            String?                   @db.VarChar(100)
+  shipmentNote               String?                   @db.Text
   refundWindowEndsAt         DateTime?
   approvalBatchRef           String?                   @db.VarChar(100)
   commissionSettingsSnapshot String?                   @db.Text
@@ -509,6 +545,9 @@ model Order {
   @@index([userId, status])
   @@index([approvedAt])
   @@index([approvalStatus])
+  @@index([transferSubmittedAt])
+  @@index([shippedAt])
+  @@index([deliveredAt])
 }
 
 model OrderItem {
