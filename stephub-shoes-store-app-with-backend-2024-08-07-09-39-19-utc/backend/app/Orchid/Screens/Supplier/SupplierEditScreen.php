@@ -7,7 +7,6 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Orchid\Screen\Actions\Button;
 use Orchid\Screen\Fields\Input;
-use Orchid\Screen\Fields\Relation;
 use Orchid\Screen\Fields\Select;
 use Orchid\Screen\Screen;
 use Orchid\Support\Facades\Alert;
@@ -61,14 +60,14 @@ class SupplierEditScreen extends Screen
                     ->required(!$this->supplier->exists),
                 Input::make('supplier.slug')
                     ->title('Slug:'),
-                Input::make('supplier.imageUrl')
+                Input::make('supplier.image_url')
                     ->title('Image URL:'),
                 Input::make('supplier.description')
                     ->title('Description:'),
-                Input::make('supplier.sortOrder')
+                Input::make('supplier.sort_order')
                     ->title('Sort order:')
                     ->type('number'),
-                Select::make('supplier.isFeatured')
+                Select::make('supplier.is_featured')
                     ->title('Featured:')
                     ->options([
                         0 => 'No',

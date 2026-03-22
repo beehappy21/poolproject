@@ -62,7 +62,7 @@ class CategoryEditScreen extends Screen
     {
         return [
             Layout::rows([
-                Select::make('category.supplierId')
+                Select::make('category.supplier_id')
                     ->title('Supplier:')
                     ->options($this->supplierOptions)
                     ->required(),
@@ -74,14 +74,14 @@ class CategoryEditScreen extends Screen
                     ->required(!$this->category->exists),
                 Input::make('category.slug')
                     ->title('Slug:'),
-                Input::make('category.imageUrl')
+                Input::make('category.image_url')
                     ->title('Image URL:'),
                 Input::make('category.description')
                     ->title('Description:'),
-                Input::make('category.sortOrder')
+                Input::make('category.sort_order')
                     ->title('Sort order:')
                     ->type('number'),
-                Select::make('category.isFeatured')
+                Select::make('category.is_featured')
                     ->title('Featured:')
                     ->options([
                         0 => 'No',

@@ -3,6 +3,7 @@
 namespace App\Orchid\Screens\Package;
 
 use App\Models\CatalogPackage;
+use Orchid\Screen\Actions\Link;
 use Orchid\Screen\Fields\Input;
 use Orchid\Screen\Screen;
 use Orchid\Screen\TD;
@@ -35,7 +36,8 @@ class PackageListScreen extends Screen
                     ->sort()
                     ->cantHide()
                     ->filter(Input::make())
-                    ->render(fn (CatalogPackage $package) => e($package->name)),
+                    ->render(fn (CatalogPackage $package) => Link::make($package->name)
+                        ->route('platform.package.edit', ['package' => $package])),
                 TD::make('code', 'Code')
                     ->cantHide()
                     ->filter(Input::make())
@@ -58,6 +60,12 @@ class PackageListScreen extends Screen
                     ->sort()
                     ->cantHide()
                     ->render(fn (CatalogPackage $package) => optional($package->updated_at)->format('M j, Y')),
+                TD::make('actions', 'Actions')
+                    ->cantHide()
+                    ->align(TD::ALIGN_CENTER)
+                    ->render(fn (CatalogPackage $package) => Link::make('Open')
+                        ->icon('bs.box-arrow-up-right')
+                        ->route('platform.package.edit', ['package' => $package])),
             ]),
         ];
     }
