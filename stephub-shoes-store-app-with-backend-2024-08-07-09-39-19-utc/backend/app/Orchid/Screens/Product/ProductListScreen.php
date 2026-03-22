@@ -46,7 +46,7 @@ class ProductListScreen extends Screen {
             $productDetailId = (int) ($product->source_product_detail_id ?? 0);
             $routeParameters = $productDetailId > 0
               ? ['product' => $productDetailId]
-              : ['product_id' => $product->product_id];
+              : ['product_id' => $product->id];
 
             return Link::make($product->name)
               ->route('platform.product.edit', $routeParameters);
