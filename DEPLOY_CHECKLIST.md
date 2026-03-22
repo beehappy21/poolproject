@@ -74,6 +74,8 @@ docker exec -i <postgres-container> psql \
 - approve from BAO
 - mark shipped from BAO
 - mark delivered from BAO
+- run `npm run smoke:cashback` after API deploy when commission settings or wallet posting changed
+- run `npm run smoke:bao:cashback` after BAO deploy when commission report or export changed
 
 3. Reports
 - verify BAO order buckets:
@@ -90,3 +92,5 @@ docker exec -i <postgres-container> psql \
   - `ProductDetail.id = 12`
   - `Order.id = 260`
   - `Order.id = 262`
+- remove cashback smoke artifacts if they were created:
+  - `npm run cleanup:cashback-smoke -- --apply`

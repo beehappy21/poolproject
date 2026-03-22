@@ -9,7 +9,10 @@ import {
   CommissionFinalizationResult,
   DirectCommissionFinalizationResult,
 } from "../domain/commissions.types";
-import { multiplyDecimalStrings } from "../../../../shared/utils/src/money.util";
+import {
+  compareDecimalStrings,
+  multiplyDecimalStrings,
+} from "../../../../shared/utils/src/money.util";
 import { parseCommissionSettingsSnapshot } from "../../../../shared/utils/src/commission-settings.util";
 import { MembersService } from "../../../members/src/services/members.service";
 import { MembersServiceContract } from "../../../members/src/services/members.service";
@@ -145,6 +148,13 @@ export class CommissionsService implements CommissionsServiceContract {
       sourceOrder.sourceUserId,
       sourceOrder.approvedAt,
     );
+    const cashbackDrafts = await this.buildCashbackDrafts(
+      sourceOrder.orderId,
+      sourceOrder.sourceUserId,
+      sourceOrder.approvedAt,
+      sourceOrder.totalPv,
+      commissionSettings,
+    );
 
     const directCandidateUserIds = await this.resolveDirectBonusCandidatePath({
       sourceUserId: sourceOrder.sourceUserId,
@@ -180,6 +190,7 @@ export class CommissionsService implements CommissionsServiceContract {
 
     return {
       sourceOrderId: sourceOrder.orderId,
+      cashbackDrafts,
       directDrafts,
       uniDrafts,
     };
@@ -347,6 +358,61 @@ export class CommissionsService implements CommissionsServiceContract {
     return this.commissionsRepository.listCompanyFallbackEntries(filters);
   }
 
+  private async buildCashbackDrafts(
+    sourceOrderId: string,
+    sourceUserId: string,
+    evaluationAt: string,
+    totalPv: string,
+    commissionSettings: ReturnType<typeof parseCommissionSettingsSnapshot>,
+  ) {
+    const basePv = totalPv;
+    const rate = commissionSettings.cashbackRate;
+    const amount = multiplyDecimalStrings(basePv, rate);
+
+    if (
+      compareDecimalStrings(rate, "0") <= 0 ||
+      compareDecimalStrings(amount, "0") <= 0
+    ) {
+      return [];
+    }
+
+    const allocation = await this.allocateBonusToCycle({
+      beneficiaryUserId: sourceUserId,
+      evaluationAt,
+      bonusAmount: amount,
+      candidateCycles: [],
+    });
+    const finalization = this.buildFinalizationFromAllocation(allocation);
+
+    await this.persistCommissionItem(
+      {
+        sourceType: "cashback",
+        sourceRefId: sourceOrderId,
+        sourceUserId,
+        beneficiaryUserId: sourceUserId,
+        evaluationAt,
+        basePv,
+        rate,
+        amount,
+      },
+      finalization,
+    );
+
+    return [
+      {
+        sourceType: "cashback" as const,
+        sourceOrderId,
+        beneficiaryUserId:
+          finalization.commissionStatus === "fallback" ? null : sourceUserId,
+        rate,
+        basePv,
+        amount,
+        allocation,
+        finalization,
+      },
+    ];
+  }
+
   private async buildDirectDraft(
     sourceOrderId: string,
     sourceUserId: string,
@@ -356,9 +422,31 @@ export class CommissionsService implements CommissionsServiceContract {
     levelNo: number,
     rate: string,
     candidateUserId: string | null,
-  ) {
+  ): Promise<
+    | {
+        sourceType: "direct";
+        sourceOrderId: string;
+        level: number;
+        levelNo: number;
+        basePv: string;
+        rate: string;
+        amount: string;
+        beneficiaryUserId: string | null;
+        candidateUserId: string | null;
+        rollupApplied: boolean;
+        rollupDepth: number;
+        allocation: BonusToCycleAllocationResult | null;
+        finalization: DirectCommissionFinalizationResult;
+      }
+    | null
+  > {
     const basePv = totalPv;
     const amount = multiplyDecimalStrings(basePv, rate);
+
+    if (this.shouldSkipCommission(rate, amount)) {
+      return null;
+    }
+
     const candidateIndex = candidateUserId
       ? candidateUserIds.indexOf(candidateUserId)
       : -1;
@@ -446,9 +534,8 @@ export class CommissionsService implements CommissionsServiceContract {
     commissionSettings: ReturnType<typeof parseCommissionSettingsSnapshot>,
   ) {
     const directLevelRates = commissionSettings.directLevelRates;
-    const maxLevels = directLevelRates.length;
     const drafts = await Promise.all(
-      directCandidateUserIds.slice(0, maxLevels).map((candidateUserId, index) =>
+      directLevelRates.map((rate, index) =>
         this.buildDirectDraft(
           sourceOrderId,
           sourceUserId,
@@ -456,32 +543,18 @@ export class CommissionsService implements CommissionsServiceContract {
           totalPv,
           candidateUserIds,
           index + 1,
-          directLevelRates[index],
-          candidateUserId,
+          rate,
+          directCandidateUserIds[index] ?? null,
         ),
       ),
     );
 
-    const missingLevelCount = Math.max(maxLevels - drafts.length, 0);
-
-    if (missingLevelCount === 0) {
-      return drafts;
-    }
-
-    const fallbackDrafts = Array.from({ length: missingLevelCount }, (_, index) =>
-      this.buildDirectDraft(
-        sourceOrderId,
-        sourceUserId,
-        evaluationAt,
-        totalPv,
-        candidateUserIds,
-        drafts.length + index + 1,
-        directLevelRates[drafts.length + index],
-        null,
-      ),
+    return drafts.filter(
+      (
+        draft,
+      ): draft is NonNullable<Awaited<ReturnType<typeof this.buildDirectDraft>>> =>
+        draft !== null,
     );
-
-    return [...drafts, ...(await Promise.all(fallbackDrafts))];
   }
 
   private buildMissingBeneficiaryFinalization(): CommissionFinalizationResult {
@@ -543,9 +616,29 @@ export class CommissionsService implements CommissionsServiceContract {
     candidateUserId: string | null,
     levelNo: number,
     rate: string,
-  ) {
+  ): Promise<
+    | {
+        sourceType: "uni";
+        sourceOrderId: string;
+        level: number;
+        levelNo: number;
+        beneficiaryUserId: string | null;
+        candidateUserId: string | null;
+        rate: string;
+        amount: string;
+        rollupApplied: boolean;
+        allocation: BonusToCycleAllocationResult | null;
+        finalization: CommissionFinalizationResult;
+      }
+    | null
+  > {
     const basePv = totalPv;
     const amount = multiplyDecimalStrings(basePv, rate);
+
+    if (this.shouldSkipCommission(rate, amount)) {
+      return null;
+    }
+
     const candidateIndex = candidateUserId
       ? candidateUserIds.indexOf(candidateUserId)
       : -1;
@@ -603,42 +696,34 @@ export class CommissionsService implements CommissionsServiceContract {
     commissionSettings: ReturnType<typeof parseCommissionSettingsSnapshot>,
   ) {
     const uniLevelRates = commissionSettings.uniLevelRates;
-    const maxLevels = uniLevelRates.length;
     const drafts = await Promise.all(
-      uniCandidateUserIds.slice(0, maxLevels).map((candidateUserId, index) =>
+      uniLevelRates.map((rate, index) =>
         this.buildUniDraft(
           sourceOrderId,
           sourceUserId,
           evaluationAt,
           totalPv,
           candidateUserIds,
-          candidateUserId,
+          uniCandidateUserIds[index] ?? null,
           index + 1,
-          uniLevelRates[index],
+          rate,
         ),
       ),
     );
 
-    const missingLevelCount = Math.max(maxLevels - drafts.length, 0);
-
-    if (missingLevelCount === 0) {
-      return drafts;
-    }
-
-    const fallbackDrafts = Array.from({ length: missingLevelCount }, (_, index) =>
-      this.buildUniDraft(
-        sourceOrderId,
-        sourceUserId,
-        evaluationAt,
-        totalPv,
-        candidateUserIds,
-        null,
-        drafts.length + index + 1,
-        uniLevelRates[drafts.length + index],
-      ),
+    return drafts.filter(
+      (
+        draft,
+      ): draft is NonNullable<Awaited<ReturnType<typeof this.buildUniDraft>>> =>
+        draft !== null,
     );
+  }
 
-    return [...drafts, ...(await Promise.all(fallbackDrafts))];
+  private shouldSkipCommission(rate: string, amount: string): boolean {
+    return (
+      compareDecimalStrings(rate, "0") <= 0 ||
+      compareDecimalStrings(amount, "0") <= 0
+    );
   }
 
   private buildUniMissingBeneficiaryFinalization(): CommissionFinalizationResult {
@@ -653,6 +738,10 @@ export class CommissionsService implements CommissionsServiceContract {
     input: CommissionFinalizationInput,
     finalization: CommissionFinalizationResult,
   ): Promise<void> {
+    if (this.shouldSkipCommission(input.rate, input.amount)) {
+      return;
+    }
+
     const { commissionId } =
       await this.commissionsRepository.createCommissionDraft(input);
 
