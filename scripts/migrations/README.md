@@ -11,12 +11,14 @@ Current views:
 - `stephub_categories_v1`
 - `stephub_products_v1`
 - `stephub_suppliers_v1`
+- `stephub_members_v1`
 
 These are intended for:
 
 - Stephub Laravel bridge models
 - catalog list screens
 - storefront compatibility experiments
+- member list compatibility screens
 
 Example apply command from a machine with PostgreSQL client access:
 
@@ -36,3 +38,15 @@ The file [`add_stephub_presentation_fields.sql`](/Users/macbook/poolproject/scri
 - `sortOrder`
 - `isFeatured`
 - product detail merchandising flags and rating fields
+
+## Member Profile
+
+The file [`add_member_profile.sql`](/Users/macbook/poolproject/scripts/migrations/add_member_profile.sql) adds a `MemberProfile` extension table for member-reporting fields that do not belong directly on `User`, such as:
+
+- `nationalId`
+- `uplineUserId`
+- `placementSide`
+- `rankCode`
+- `honorTitle`
+- `mobileCenterCode`
+- `joinedAtOverride`

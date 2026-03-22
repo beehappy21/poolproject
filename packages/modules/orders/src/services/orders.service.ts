@@ -4,6 +4,12 @@ export interface OrdersServiceContract {
   listOrders(filters?: {
     userId?: string;
     approvalStatus?: "pending" | "approved";
+    bucket?:
+      | "awaiting-payment"
+      | "transfer-review"
+      | "awaiting-shipment"
+      | "shipped"
+      | "delivered";
     orderNo?: string;
     page?: number;
     pageSize?: number;
@@ -16,7 +22,15 @@ export interface OrdersServiceContract {
         approvalStatus: string;
         totalUsdt: string;
         totalPv: string;
+        transferSubmittedAt: string | null;
+        transferSlipUrl: string | null;
+        transferSlipNote: string | null;
         approvedAt: string | null;
+        shippedAt: string | null;
+        deliveredAt: string | null;
+        shipmentTrackingNo: string | null;
+        shipmentCarrier: string | null;
+        shipmentNote: string | null;
         createdAt: string;
       }>
     | {
@@ -28,7 +42,15 @@ export interface OrdersServiceContract {
           approvalStatus: string;
           totalUsdt: string;
           totalPv: string;
+          transferSubmittedAt: string | null;
+          transferSlipUrl: string | null;
+          transferSlipNote: string | null;
           approvedAt: string | null;
+          shippedAt: string | null;
+          deliveredAt: string | null;
+          shipmentTrackingNo: string | null;
+          shipmentCarrier: string | null;
+          shipmentNote: string | null;
           createdAt: string;
         }>;
         total: number;
@@ -45,7 +67,15 @@ export interface OrdersServiceContract {
     approvalStatus: string;
     totalUsdt: string;
     totalPv: string;
+    transferSubmittedAt: string | null;
+    transferSlipUrl: string | null;
+    transferSlipNote: string | null;
     approvedAt: string | null;
+    shippedAt: string | null;
+    deliveredAt: string | null;
+    shipmentTrackingNo: string | null;
+    shipmentCarrier: string | null;
+    shipmentNote: string | null;
     createdAt: string;
   } | null>;
 
@@ -60,6 +90,46 @@ export interface OrdersServiceContract {
     totalUsdt: string;
     totalPv: string;
   }>;
+
+  submitTransferSlip(input: {
+    orderId: string;
+    transferSlipUrl: string;
+    transferSlipNote?: string;
+  }): Promise<{
+    orderId: string;
+    status: string;
+    approvalStatus: string;
+    paidAt: string | null;
+    transferSubmittedAt: string | null;
+    transferSlipUrl: string | null;
+    transferSlipNote: string | null;
+  } | null>;
+
+  markOrderShipped(input: {
+    orderId: string;
+    shipmentTrackingNo?: string;
+    shipmentCarrier?: string;
+    shipmentNote?: string;
+  }): Promise<{
+    orderId: string;
+    status: string;
+    approvalStatus: string;
+    shippedAt: string | null;
+    shipmentTrackingNo: string | null;
+    shipmentCarrier: string | null;
+    shipmentNote: string | null;
+  } | null>;
+
+  markOrderDelivered(input: {
+    orderId: string;
+    shipmentNote?: string;
+  }): Promise<{
+    orderId: string;
+    status: string;
+    approvalStatus: string;
+    deliveredAt: string | null;
+    shipmentNote: string | null;
+  } | null>;
 
   approveOrder(orderId: string): Promise<{
     orderId: string;
@@ -134,9 +204,23 @@ export class OrdersService implements OrdersServiceContract {
     return this.ordersRepository.createOrder(input);
   }
 
+  async submitTransferSlip(input: {
+    orderId: string;
+    transferSlipUrl: string;
+    transferSlipNote?: string;
+  }) {
+    return this.ordersRepository.submitTransferSlip(input);
+  }
+
   async listOrders(filters?: {
     userId?: string;
     approvalStatus?: "pending" | "approved";
+    bucket?:
+      | "awaiting-payment"
+      | "transfer-review"
+      | "awaiting-shipment"
+      | "shipped"
+      | "delivered";
     orderNo?: string;
     page?: number;
     pageSize?: number;
@@ -146,6 +230,22 @@ export class OrdersService implements OrdersServiceContract {
 
   async getOrder(orderId: string) {
     return this.ordersRepository.findOrderById(orderId);
+  }
+
+  async markOrderShipped(input: {
+    orderId: string;
+    shipmentTrackingNo?: string;
+    shipmentCarrier?: string;
+    shipmentNote?: string;
+  }) {
+    return this.ordersRepository.markOrderShipped(input);
+  }
+
+  async markOrderDelivered(input: {
+    orderId: string;
+    shipmentNote?: string;
+  }) {
+    return this.ordersRepository.markOrderDelivered(input);
   }
 
   async approveOrder(orderId: string) {

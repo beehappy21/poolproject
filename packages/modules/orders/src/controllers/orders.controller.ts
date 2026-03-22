@@ -20,6 +20,7 @@ export class OrdersController {
   async listOrders(
     @Query("userId") userId?: string,
     @Query("approvalStatus") approvalStatus?: string,
+    @Query("bucket") bucket?: string,
     @Query("orderNo") orderNo?: string,
     @Query("page") page?: string,
     @Query("pageSize") pageSize?: string,
@@ -36,9 +37,33 @@ export class OrdersController {
       throw new NotFoundException("approvalStatus must be pending or approved.");
     }
 
+    const normalizedBucket = bucket
+      ? requireNonEmptyString(bucket, "bucket").toLowerCase()
+      : undefined;
+
+    if (
+      normalizedBucket &&
+      normalizedBucket !== "awaiting-payment" &&
+      normalizedBucket !== "transfer-review" &&
+      normalizedBucket !== "awaiting-shipment" &&
+      normalizedBucket !== "shipped" &&
+      normalizedBucket !== "delivered"
+    ) {
+      throw new NotFoundException(
+        "bucket must be awaiting-payment, transfer-review, awaiting-shipment, shipped, or delivered.",
+      );
+    }
+
     return this.ordersService.listOrders({
       userId: userId ? requirePositiveIntegerString(userId, "userId") : undefined,
       approvalStatus: normalizedApprovalStatus as "pending" | "approved" | undefined,
+      bucket: normalizedBucket as
+        | "awaiting-payment"
+        | "transfer-review"
+        | "awaiting-shipment"
+        | "shipped"
+        | "delivered"
+        | undefined,
       orderNo: orderNo ? requireNonEmptyString(orderNo, "orderNo") : undefined,
       page: optionalPositiveInteger(page, "page"),
       pageSize: optionalPositiveInteger(pageSize, "pageSize"),
@@ -52,6 +77,93 @@ export class OrdersController {
         userId: requirePositiveIntegerString(body.userId, "userId"),
         packageId: requirePositiveIntegerString(body.packageId, "packageId"),
       });
+    } catch (error) {
+      rethrowHttpError(error);
+    }
+  }
+
+  @Post(":orderId/submit-transfer-slip")
+  async submitTransferSlip(
+    @Param("orderId") orderId: string,
+    @Body() body: { transferSlipUrl: string; transferSlipNote?: string },
+  ) {
+    try {
+      const order = await this.ordersService.submitTransferSlip({
+        orderId: requirePositiveIntegerString(orderId, "orderId"),
+        transferSlipUrl: requireNonEmptyString(
+          body.transferSlipUrl,
+          "transferSlipUrl",
+        ),
+        transferSlipNote: body.transferSlipNote
+          ? requireNonEmptyString(body.transferSlipNote, "transferSlipNote")
+          : undefined,
+      });
+
+      if (!order) {
+        throw new NotFoundException("Order not found.");
+      }
+
+      return order;
+    } catch (error) {
+      rethrowHttpError(error);
+    }
+  }
+
+  @Post(":orderId/ship")
+  async markOrderShipped(
+    @Param("orderId") orderId: string,
+    @Body()
+    body: {
+      shipmentTrackingNo?: string;
+      shipmentCarrier?: string;
+      shipmentNote?: string;
+    },
+  ) {
+    try {
+      const order = await this.ordersService.markOrderShipped({
+        orderId: requirePositiveIntegerString(orderId, "orderId"),
+        shipmentTrackingNo: body.shipmentTrackingNo
+          ? requireNonEmptyString(body.shipmentTrackingNo, "shipmentTrackingNo")
+          : undefined,
+        shipmentCarrier: body.shipmentCarrier
+          ? requireNonEmptyString(body.shipmentCarrier, "shipmentCarrier")
+          : undefined,
+        shipmentNote: body.shipmentNote
+          ? requireNonEmptyString(body.shipmentNote, "shipmentNote")
+          : undefined,
+      });
+
+      if (!order) {
+        throw new NotFoundException("Order not found.");
+      }
+
+      return order;
+    } catch (error) {
+      rethrowHttpError(error);
+    }
+  }
+
+  @Post(":orderId/deliver")
+  async markOrderDelivered(
+    @Param("orderId") orderId: string,
+    @Body()
+    body: {
+      shipmentNote?: string;
+    },
+  ) {
+    try {
+      const order = await this.ordersService.markOrderDelivered({
+        orderId: requirePositiveIntegerString(orderId, "orderId"),
+        shipmentNote: body.shipmentNote
+          ? requireNonEmptyString(body.shipmentNote, "shipmentNote")
+          : undefined,
+      });
+
+      if (!order) {
+        throw new NotFoundException("Order not found.");
+      }
+
+      return order;
     } catch (error) {
       rethrowHttpError(error);
     }

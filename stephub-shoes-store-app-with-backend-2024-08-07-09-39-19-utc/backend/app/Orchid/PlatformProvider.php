@@ -42,6 +42,31 @@ class PlatformProvider extends OrchidServiceProvider {
         ->icon('bs.box-seam')
         ->route('platform.package.list'),
 
+      Menu::make('Commission Setting')
+        ->title('Commission Setting')
+        ->icon('bs-cash-stack')
+        ->route('platform.commission.settings'),
+
+      Menu::make('Commission Report')
+        ->icon('bs-table')
+        ->list([
+          Menu::make('Commission Report')
+            ->icon('bs-table')
+            ->route('platform.commission.report'),
+          Menu::make('Direct Bonus')
+            ->icon('bs-cash')
+            ->route('platform.commission.report.direct'),
+          Menu::make('Unilevel Bonus')
+            ->icon('bs-diagram-3')
+            ->route('platform.commission.report.unilevel'),
+          Menu::make('Matrix Bonus')
+            ->icon('bs-grid-3x3-gap')
+            ->route('platform.commission.report.matrix'),
+          Menu::make('Pool Bonus')
+            ->icon('bs-droplet')
+            ->route('platform.commission.report.pool'),
+        ]),
+
       Menu::make('Suppliers')
         ->icon('bs.truck')
         ->route('platform.supplier.list'),
@@ -55,6 +80,27 @@ class PlatformProvider extends OrchidServiceProvider {
         })
         ->route('platform.order.list'),
 
+      Menu::make('Order Reports')
+        ->title('Reports')
+        ->icon('bs.clipboard-data')
+        ->list([
+          Menu::make('Sales Report')
+            ->icon('bs-receipt')
+            ->route('platform.order.list'),
+          Menu::make('Awaiting Payment')
+            ->icon('bs-clock-history')
+            ->route('platform.order.awaitingPayment'),
+          Menu::make('Transfer Review')
+            ->icon('bs-search')
+            ->route('platform.order.transferReview'),
+          Menu::make('Awaiting Shipment')
+            ->icon('bs-box-seam')
+            ->route('platform.order.awaitingShipment'),
+          Menu::make('Shipped Orders')
+            ->icon('bs-truck')
+            ->route('platform.order.shipped'),
+        ]),
+
       Menu::make('Carousel')
         ->icon('bs.collection-play')
         ->route('platform.slide.list'),
@@ -63,9 +109,9 @@ class PlatformProvider extends OrchidServiceProvider {
         ->icon('bs.grid')
         ->route('platform.category.list'),
 
-      Menu::make('Audience')
+      Menu::make('Members')
         ->icon('bs.people')
-        ->route('platform.audience.list'),
+        ->route('platform.member.list'),
 
       Menu::make('Sizes')
         ->icon('bs.bounding-box')

@@ -1,0 +1,87 @@
+{
+  "scenarioName": "basic-commission-sandbox",
+  "settings": {
+    "directLevelRates": ["0.2"],
+    "uniLevelRates": [
+      "0.01",
+      "0.01",
+      "0.01",
+      "0.01",
+      "0.01",
+      "0.005",
+      "0.005",
+      "0.005",
+      "0.005",
+      "0.005",
+      "0.005",
+      "0.005",
+      "0.005",
+      "0.005",
+      "0.005"
+    ],
+    "poolRate": "0.5"
+  },
+  "members": [
+    {
+      "id": "alice",
+      "name": "Alice",
+      "active": true,
+      "earningCap": "1000",
+      "earnedToDate": "0"
+    },
+    {
+      "id": "bob",
+      "name": "Bob",
+      "sponsorId": "alice",
+      "active": true,
+      "earningCap": "500",
+      "earnedToDate": "0"
+    },
+    {
+      "id": "carol",
+      "name": "Carol",
+      "sponsorId": "bob",
+      "active": false,
+      "earningCap": "500",
+      "earnedToDate": "0"
+    },
+    {
+      "id": "dave",
+      "name": "Dave",
+      "sponsorId": "carol",
+      "active": true,
+      "earningCap": "500",
+      "earnedToDate": "0"
+    },
+    {
+      "id": "erin",
+      "name": "Erin",
+      "sponsorId": "alice",
+      "active": true,
+      "earningCap": "250",
+      "earnedToDate": "0"
+    },
+    {
+      "id": "frank",
+      "name": "Frank",
+      "sponsorId": "alice",
+      "active": true,
+      "earningCap": "250",
+      "earnedToDate": "245"
+    }
+  ],
+  "orders": [
+    {
+      "id": "ord-001",
+      "buyerId": "dave",
+      "pv": "100",
+      "date": "2026-03-22"
+    },
+    {
+      "id": "ord-002",
+      "buyerId": "erin",
+      "pv": "60",
+      "date": "2026-03-22"
+    }
+  ]
+}
