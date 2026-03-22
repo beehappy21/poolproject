@@ -16,6 +16,9 @@ Recent merged PRs:
   - https://github.com/beehappy21/poolproject/pull/10
 - PR #11: `Add member003 commission sandbox test kit`
   - https://github.com/beehappy21/poolproject/pull/11
+- PR #12: `feat: integrate Stephub PWA with live package and order flow`
+  - https://github.com/beehappy21/poolproject/pull/12
+  - merged into `main` as `e66e54b536dc5acd6ab6bccbea2427ab506be554`
 
 Current local worktree:
 
@@ -23,11 +26,18 @@ Current local worktree:
 - local worktree still has separate in-progress matrix sandbox / admin files from other parallel work
 - large local dump/workbook noise is hidden with `.git/info/exclude`
 - repo `git status` is not fully clean right now because of that parallel work
+- a clean post-merge `main` worktree is available at `/tmp/poolproject-main-clean`
+- `/tmp/poolproject-main-clean` is currently checked out at `e66e54b`
 
 Main working area:
 
 - Stephub admin: `http://127.0.0.1:8001/admin`
 - Stephub app: `http://127.0.0.1:3001`
+
+Recommended starting point for the next round:
+
+- use `/tmp/poolproject-main-clean` if you need the latest merged code without touching the noisy local worktree
+- use `/Users/macbook/poolproject` only when you intentionally need the in-progress local files that were not part of the merge
 
 ## What Is Working
 
@@ -384,6 +394,8 @@ Staging / production checklist:
   - approve
   - shipped
   - delivered
+- run `npm run smoke:cashback` if commission, wallet posting, or cashback settings changed
+- run `npm run smoke:bao:cashback` if Stephub BAO cashback report/export changed
 - verify `CSV / Excel / PDF` exports from BAO after login
 
 6. Cleanup before go-live
@@ -391,6 +403,7 @@ Staging / production checklist:
   - `ProductDetail.id = 12`
   - `Order.id = 260`
   - `Order.id = 262`
+- if cashback smoke created `CASHSMK*` members locally, remove them with `npm run cleanup:cashback-smoke -- --apply`
 - decide whether to keep local-only helper data out of deploy docs
 
 ## What Still Needs Browser Verification
@@ -424,28 +437,30 @@ For product admin, still worth checking manually in browser:
 
 ## Best Next Steps
 
-1. Browser-smoke the commission report/export flow after the merged changes.
+1. For any new work on merged code, start from `/tmp/poolproject-main-clean` and avoid the noisy root worktree unless needed.
 
-2. Clean up or keep the smoke test product row `ProductDetail.id = 12`.
+2. Before deploy/staging work, walk through [DEPLOY_CHECKLIST.md](/Users/macbook/poolproject/DEPLOY_CHECKLIST.md) and record which DB/env/storage steps were actually applied.
 
-3. Decide whether to keep or clean up smoke test orders such as `Order.id = 260`.
+3. Clean up or keep the smoke test product row `ProductDetail.id = 12`.
 
-4. Decide whether any remaining UX cleanup is needed in commission report:
+4. Decide whether to keep or clean up smoke test orders such as `Order.id = 260` and `Order.id = 262`.
+
+5. Browser-smoke the commission report/export flow after the merged changes.
+
+6. Decide whether any remaining UX cleanup is needed in commission report:
 - wording
 - spacing
 - summary card clarity
 
-5. If product admin continues next, focus on:
+7. If product admin continues next, focus on:
 - gallery UX polish
 - product update/remove follow-up
 - whether supplier/category should remain helper-only or become persisted schema fields
 
-6. If orders continue next, likely follow-ups are:
+8. If orders continue next, likely follow-ups are:
 - delivered search/filter polish in BAO
 - delivered-specific summary/export review
 - optional cleanup of smoke test orders such as `Order.id = 260`
 
-8. Before real deploy, work through the `Deploy Readiness` checklist above and record which environment values and SQL/view steps were actually applied.
-
-7. Keep `.git/info/exclude` local-only.
+9. Keep `.git/info/exclude` local-only.
 - do not move those dump-ignore rules into repo `.gitignore` unless the team explicitly wants that behavior
