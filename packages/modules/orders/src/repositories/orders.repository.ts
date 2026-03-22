@@ -22,7 +22,8 @@ export interface OrdersRepository {
       | "awaiting-payment"
       | "transfer-review"
       | "awaiting-shipment"
-      | "shipped";
+      | "shipped"
+      | "delivered";
     orderNo?: string;
     page?: number;
     pageSize?: number;
@@ -133,6 +134,17 @@ export interface OrdersRepository {
     shipmentNote: string | null;
   } | null>;
 
+  markOrderDelivered(input: {
+    orderId: string;
+    shipmentNote?: string;
+  }): Promise<{
+    orderId: string;
+    status: string;
+    approvalStatus: string;
+    deliveredAt: string | null;
+    shipmentNote: string | null;
+  } | null>;
+
   approveOrder(orderId: string): Promise<{
     orderId: string;
     sourceUserId: string;
@@ -172,7 +184,8 @@ export class PrismaOrdersRepository implements OrdersRepository {
       | "awaiting-payment"
       | "transfer-review"
       | "awaiting-shipment"
-      | "shipped";
+      | "shipped"
+      | "delivered";
     orderNo?: string;
     page?: number;
     pageSize?: number;
@@ -200,6 +213,12 @@ export class PrismaOrdersRepository implements OrdersRepository {
               ? {
                   approvalStatus: "APPROVED" as const,
                   shippedAt: { not: null },
+                  deliveredAt: null,
+                }
+            : filters?.bucket === "delivered"
+              ? {
+                  approvalStatus: "APPROVED" as const,
+                  deliveredAt: { not: null },
                 }
           : {};
 
@@ -222,6 +241,8 @@ export class PrismaOrdersRepository implements OrdersRepository {
             ? [{ approvedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }]
             : filters?.bucket === "shipped"
               ? [{ shippedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }]
+              : filters?.bucket === "delivered"
+                ? [{ deliveredAt: "desc" }, { shippedAt: "desc" }, { id: "desc" }]
           : filters?.bucket === "awaiting-payment"
             ? [{ createdAt: "desc" }, { id: "desc" }]
             : [{ paidAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
@@ -454,6 +475,37 @@ export class PrismaOrdersRepository implements OrdersRepository {
           shippedAt: order.shippedAt?.toISOString() ?? null,
           shipmentTrackingNo: order.shipmentTrackingNo ?? null,
           shipmentCarrier: order.shipmentCarrier ?? null,
+          shipmentNote: order.shipmentNote ?? null,
+        }
+      : null;
+  }
+
+  async markOrderDelivered(input: {
+    orderId: string;
+    shipmentNote?: string;
+  }) {
+    const deliveredAt = new Date();
+    const order = await this.prisma.order.update({
+      where: { id: BigInt(input.orderId) },
+      data: {
+        deliveredAt,
+        shipmentNote: input.shipmentNote ?? undefined,
+      },
+      select: {
+        id: true,
+        status: true,
+        approvalStatus: true,
+        deliveredAt: true,
+        shipmentNote: true,
+      },
+    });
+
+    return order
+      ? {
+          orderId: order.id.toString(),
+          status: order.status.toLowerCase(),
+          approvalStatus: order.approvalStatus.toLowerCase(),
+          deliveredAt: order.deliveredAt?.toISOString() ?? null,
           shipmentNote: order.shipmentNote ?? null,
         }
       : null;

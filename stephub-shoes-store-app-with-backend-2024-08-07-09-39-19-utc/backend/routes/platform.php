@@ -186,6 +186,10 @@ Route::screen('order/list/shipped', OrderListScreen::class)
   ->defaults('bucket', 'shipped')
   ->name('platform.order.shipped');
 
+Route::screen('order/list/delivered', OrderListScreen::class)
+  ->defaults('bucket', 'delivered')
+  ->name('platform.order.delivered');
+
 Route::get('order/export/{bucket?}', [OrderReportController::class, 'export'])
   ->name('platform.order.export');
 

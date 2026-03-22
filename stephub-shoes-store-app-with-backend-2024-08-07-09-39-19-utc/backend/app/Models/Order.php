@@ -16,6 +16,7 @@ class Order extends Model
     public const REPORT_BUCKET_TRANSFER_REVIEW = 'transfer-review';
     public const REPORT_BUCKET_AWAITING_SHIPMENT = 'awaiting-shipment';
     public const REPORT_BUCKET_SHIPPED = 'shipped';
+    public const REPORT_BUCKET_DELIVERED = 'delivered';
 
     use AsSource;
     use Filterable;
@@ -75,7 +76,11 @@ class Order extends Model
                 ->whereNull('shipped_at'),
             self::REPORT_BUCKET_SHIPPED => $query
                 ->where('approval_status', 'APPROVED')
-                ->whereNotNull('shipped_at'),
+                ->whereNotNull('shipped_at')
+                ->whereNull('delivered_at'),
+            self::REPORT_BUCKET_DELIVERED => $query
+                ->where('approval_status', 'APPROVED')
+                ->whereNotNull('delivered_at'),
             default => $query,
         };
     }
@@ -86,6 +91,13 @@ class Order extends Model
             return $query
                 ->orderByDesc('shipped_at')
                 ->orderByDesc('updated_at')
+                ->orderByDesc('id');
+        }
+
+        if ($bucket === self::REPORT_BUCKET_DELIVERED) {
+            return $query
+                ->orderByDesc('delivered_at')
+                ->orderByDesc('shipped_at')
                 ->orderByDesc('id');
         }
 
@@ -109,6 +121,7 @@ class Order extends Model
             self::REPORT_BUCKET_TRANSFER_REVIEW => 'รายการรอตรวจสอบการโอน',
             self::REPORT_BUCKET_AWAITING_SHIPMENT => 'รายการรอจัดส่ง',
             self::REPORT_BUCKET_SHIPPED => 'รายการจัดส่งแล้ว',
+            self::REPORT_BUCKET_DELIVERED => 'รายการส่งถึงแล้ว',
             default => 'รายการสั่งซื้อทั้งหมด',
         };
     }

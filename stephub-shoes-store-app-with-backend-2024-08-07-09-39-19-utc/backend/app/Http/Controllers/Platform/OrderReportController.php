@@ -201,6 +201,7 @@ class OrderReportController extends Controller
             Order::REPORT_BUCKET_TRANSFER_REVIEW,
             Order::REPORT_BUCKET_AWAITING_SHIPMENT,
             Order::REPORT_BUCKET_SHIPPED => $value,
+            Order::REPORT_BUCKET_DELIVERED => $value,
             default => Order::REPORT_BUCKET_ALL,
         };
     }

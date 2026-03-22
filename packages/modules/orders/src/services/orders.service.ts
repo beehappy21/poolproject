@@ -8,7 +8,8 @@ export interface OrdersServiceContract {
       | "awaiting-payment"
       | "transfer-review"
       | "awaiting-shipment"
-      | "shipped";
+      | "shipped"
+      | "delivered";
     orderNo?: string;
     page?: number;
     pageSize?: number;
@@ -119,6 +120,17 @@ export interface OrdersServiceContract {
     shipmentNote: string | null;
   } | null>;
 
+  markOrderDelivered(input: {
+    orderId: string;
+    shipmentNote?: string;
+  }): Promise<{
+    orderId: string;
+    status: string;
+    approvalStatus: string;
+    deliveredAt: string | null;
+    shipmentNote: string | null;
+  } | null>;
+
   approveOrder(orderId: string): Promise<{
     orderId: string;
     sourceUserId: string;
@@ -207,7 +219,8 @@ export class OrdersService implements OrdersServiceContract {
       | "awaiting-payment"
       | "transfer-review"
       | "awaiting-shipment"
-      | "shipped";
+      | "shipped"
+      | "delivered";
     orderNo?: string;
     page?: number;
     pageSize?: number;
@@ -226,6 +239,13 @@ export class OrdersService implements OrdersServiceContract {
     shipmentNote?: string;
   }) {
     return this.ordersRepository.markOrderShipped(input);
+  }
+
+  async markOrderDelivered(input: {
+    orderId: string;
+    shipmentNote?: string;
+  }) {
+    return this.ordersRepository.markOrderDelivered(input);
   }
 
   async approveOrder(orderId: string) {

@@ -73,6 +73,9 @@ class OrderListScreen extends Screen {
       Link::make('จัดส่งแล้ว')
         ->icon('bs.truck')
         ->route('platform.order.shipped'),
+      Link::make('ส่งถึงแล้ว')
+        ->icon('bs.check2-circle')
+        ->route('platform.order.delivered'),
     ];
   }
 

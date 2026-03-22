@@ -87,6 +87,7 @@ Order transfer and shipping behavior:
   - `รอตรวจสอบการโอน`
   - `รอจัดส่ง`
   - `จัดส่งแล้ว`
+  - `ส่งถึงแล้ว`
 - member app can submit transfer slips from order detail
 - BAO order detail shows transfer slip, transfer note, and transfer submitted time
 - BAO approval now writes through source `Order` instead of trying to update `stephub_orders_v1`
@@ -95,6 +96,7 @@ Order transfer and shipping behavior:
   - carrier
   - shipment note
 - BAO can mark an approved order as shipped from the same order detail page
+- BAO can mark a shipped order as delivered from the same order detail page
 - app order detail shows shipment status, tracking number, carrier, and shipment note
 - compat view `stephub_orders_v1` now includes shipping fields
 - order report pages now show summary cards for:
@@ -102,8 +104,9 @@ Order transfer and shipping behavior:
   - total sales amount
   - total PV
 - BAO now has `Order Reports` menu with report shortcuts
-- order report pages support `CSV` export per current bucket
 - order report pages support `CSV`, `Excel`, and `PDF` export per current bucket
+- shipped bucket now excludes delivered orders
+- delivered bucket is available in BAO, API, and order report export
 
 ## Important Files
 
@@ -238,6 +241,12 @@ These were verified during the recent rounds:
   - tracking `TRACK-260-SMOKE` persisted
   - app order detail returned `shippedAt`, `shipmentTrackingNo`, `shipmentCarrier`, and `shipmentNote`
   - BAO shipped bucket includes `Order.id = 260`
+- delivered smoke flow passed on `Order.id = 260`
+  - BAO mark delivered succeeded
+  - `deliveredAt` persisted to source order and compat view
+  - shipment note updated to `Delivered to customer at doorstep`
+  - BAO bucket moved from `shipped` to `delivered`
+  - app order detail returned `deliveredAt`
 - order report summary query returned:
   - `all`: `173` orders, amount `19860`, pv `19860`
   - `shipped`: `1` order, amount `100`, pv `100`
@@ -292,9 +301,9 @@ For product admin, still worth checking manually in browser:
 - whether supplier/category should remain helper-only or become persisted schema fields
 
 6. If orders continue next, likely follow-ups are:
-- delivered status action
-- shipping report/export
-- shipping filters/search polish in BAO
+- delivered search/filter polish in BAO
+- delivered-specific summary/export review
+- optional cleanup of smoke test orders such as `Order.id = 260`
 
 7. Keep `.git/info/exclude` local-only.
 - do not move those dump-ignore rules into repo `.gitignore` unless the team explicitly wants that behavior

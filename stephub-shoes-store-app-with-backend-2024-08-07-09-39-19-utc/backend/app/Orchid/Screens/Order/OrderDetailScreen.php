@@ -57,6 +57,11 @@ class OrderDetailScreen extends Screen {
         ->confirm('ยืนยันว่าคำสั่งซื้อนี้ถูกจัดส่งแล้ว?')
         ->method('markShipped')
         ->canSee($this->canMarkShipped()),
+      Button::make('บันทึกว่าส่งถึงแล้ว')
+        ->icon('bs.check2-circle')
+        ->confirm('ยืนยันว่าคำสั่งซื้อนี้ส่งถึงลูกค้าแล้ว?')
+        ->method('markDelivered')
+        ->canSee($this->canMarkDelivered()),
     ];
   }
 
@@ -97,6 +102,22 @@ class OrderDetailScreen extends Screen {
     ])->save();
 
     Alert::info('Shipment has been recorded.');
+
+    return redirect()->route('platform.order.detail', $this->order->id);
+  }
+
+  public function markDelivered(Request $request): RedirectResponse
+  {
+    if (!$this->sourceOrder instanceof OrderSource) {
+      abort(422, 'Source order not found.');
+    }
+
+    $this->sourceOrder->forceFill([
+      'deliveredAt' => now(),
+      'shipmentNote' => $request->input('shipment.note') ?: $this->sourceOrder->shipmentNote,
+    ])->save();
+
+    Alert::info('Delivery has been recorded.');
 
     return redirect()->route('platform.order.detail', $this->order->id);
   }
@@ -246,6 +267,11 @@ class OrderDetailScreen extends Screen {
             ? optional($sourceOrder->shippedAt)->format('d M, Y H:i')
             : '-';
         }),
+        Sight::make('deliveredAt', 'Delivered At:')->render(function ($sourceOrder) {
+          return $sourceOrder?->deliveredAt
+            ? optional($sourceOrder->deliveredAt)->format('d M, Y H:i')
+            : '-';
+        }),
       ])->title('Shipment Status'),
     ];
   }
@@ -267,5 +293,15 @@ class OrderDetailScreen extends Screen {
 
     return strtoupper((string) $this->sourceOrder->approvalStatus) === 'APPROVED'
       && empty($this->sourceOrder->shippedAt);
+  }
+
+  private function canMarkDelivered(): bool
+  {
+    if (!$this->sourceOrder instanceof OrderSource) {
+      return false;
+    }
+
+    return !empty($this->sourceOrder->shippedAt)
+      && empty($this->sourceOrder->deliveredAt);
   }
 }

@@ -46,10 +46,11 @@ export class OrdersController {
       normalizedBucket !== "awaiting-payment" &&
       normalizedBucket !== "transfer-review" &&
       normalizedBucket !== "awaiting-shipment" &&
-      normalizedBucket !== "shipped"
+      normalizedBucket !== "shipped" &&
+      normalizedBucket !== "delivered"
     ) {
       throw new NotFoundException(
-        "bucket must be awaiting-payment, transfer-review, awaiting-shipment, or shipped.",
+        "bucket must be awaiting-payment, transfer-review, awaiting-shipment, shipped, or delivered.",
       );
     }
 
@@ -61,6 +62,7 @@ export class OrdersController {
         | "transfer-review"
         | "awaiting-shipment"
         | "shipped"
+        | "delivered"
         | undefined,
       orderNo: orderNo ? requireNonEmptyString(orderNo, "orderNo") : undefined,
       page: optionalPositiveInteger(page, "page"),
@@ -126,6 +128,32 @@ export class OrdersController {
         shipmentCarrier: body.shipmentCarrier
           ? requireNonEmptyString(body.shipmentCarrier, "shipmentCarrier")
           : undefined,
+        shipmentNote: body.shipmentNote
+          ? requireNonEmptyString(body.shipmentNote, "shipmentNote")
+          : undefined,
+      });
+
+      if (!order) {
+        throw new NotFoundException("Order not found.");
+      }
+
+      return order;
+    } catch (error) {
+      rethrowHttpError(error);
+    }
+  }
+
+  @Post(":orderId/deliver")
+  async markOrderDelivered(
+    @Param("orderId") orderId: string,
+    @Body()
+    body: {
+      shipmentNote?: string;
+    },
+  ) {
+    try {
+      const order = await this.ordersService.markOrderDelivered({
+        orderId: requirePositiveIntegerString(orderId, "orderId"),
         shipmentNote: body.shipmentNote
           ? requireNonEmptyString(body.shipmentNote, "shipmentNote")
           : undefined,
