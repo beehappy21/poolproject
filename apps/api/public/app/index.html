@@ -146,6 +146,25 @@
               <p class="muted">Select an order row to inspect it.</p>
             </div>
           </div>
+          <form id="transferSlipForm" class="login-form compact-form hidden">
+            <label>
+              <span>Transfer Slip Image</span>
+              <input id="transferSlipFileInput" type="file" accept="image/*" />
+            </label>
+            <label>
+              <span>Or Slip URL / Data URL</span>
+              <input id="transferSlipUrlInput" type="text" placeholder="https://... or data:image/..." />
+            </label>
+            <label>
+              <span>Note</span>
+              <input id="transferSlipNoteInput" type="text" placeholder="Optional note for admin" />
+            </label>
+            <div id="transferSlipPreview" class="hidden slip-preview-card">
+              <p class="eyebrow">Slip Preview</p>
+              <img id="transferSlipPreviewImage" alt="Transfer slip preview" />
+            </div>
+            <button id="transferSlipSubmitButton" type="submit">Submit Transfer Slip</button>
+          </form>
           <pre id="orderDetailOutput" class="result-output">No order selected yet.</pre>
         </section>
 
@@ -177,6 +196,7 @@
                   <th>Order</th>
                   <th>Status</th>
                   <th>Approval</th>
+                  <th>Shipment</th>
                   <th>PV</th>
                   <th>Created</th>
                   <th>Detail</th>

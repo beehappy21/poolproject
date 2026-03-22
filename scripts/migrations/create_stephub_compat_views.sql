@@ -187,6 +187,11 @@ select
   coalesce(sum(oi."qty"), 0)::integer as total_units,
   o."paidAt" as paid_at,
   o."approvedAt" as approved_at,
+  o."shippedAt" as shipped_at,
+  o."deliveredAt" as delivered_at,
+  o."shipmentTrackingNo" as shipment_tracking_no,
+  o."shipmentCarrier" as shipment_carrier,
+  o."shipmentNote" as shipment_note,
   o."createdAt" as created_at,
   o."updatedAt" as updated_at
 from "Order" o
@@ -207,6 +212,11 @@ group by
   o."totalPv",
   o."paidAt",
   o."approvedAt",
+  o."shippedAt",
+  o."deliveredAt",
+  o."shipmentTrackingNo",
+  o."shipmentCarrier",
+  o."shipmentNote",
   o."createdAt",
   o."updatedAt";
 

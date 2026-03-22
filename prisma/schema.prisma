@@ -516,7 +516,15 @@ model Order {
   totalUsdt                  Decimal                   @default(0) @db.Decimal(18, 8)
   totalPv                    Decimal                   @default(0) @db.Decimal(18, 8)
   paidAt                     DateTime?
+  transferSubmittedAt        DateTime?
+  transferSlipUrl            String?                   @db.Text
+  transferSlipNote           String?                   @db.Text
   approvedAt                 DateTime?
+  shippedAt                  DateTime?
+  deliveredAt                DateTime?
+  shipmentTrackingNo         String?                   @db.VarChar(100)
+  shipmentCarrier            String?                   @db.VarChar(100)
+  shipmentNote               String?                   @db.Text
   refundWindowEndsAt         DateTime?
   approvalBatchRef           String?                   @db.VarChar(100)
   commissionSettingsSnapshot String?                   @db.Text
@@ -537,6 +545,9 @@ model Order {
   @@index([userId, status])
   @@index([approvedAt])
   @@index([approvalStatus])
+  @@index([transferSubmittedAt])
+  @@index([shippedAt])
+  @@index([deliveredAt])
 }
 
 model OrderItem {

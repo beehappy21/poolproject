@@ -79,6 +79,25 @@ Product admin behavior:
 - product update smoke test passed
 - commission export route is wired in platform routes
 
+Order transfer and shipping behavior:
+
+- BAO order list supports:
+  - `ทั้งหมด`
+  - `รอชำระ`
+  - `รอตรวจสอบการโอน`
+  - `รอจัดส่ง`
+  - `จัดส่งแล้ว`
+- member app can submit transfer slips from order detail
+- BAO order detail shows transfer slip, transfer note, and transfer submitted time
+- BAO approval now writes through source `Order` instead of trying to update `stephub_orders_v1`
+- BAO order detail supports shipment update fields:
+  - tracking number
+  - carrier
+  - shipment note
+- BAO can mark an approved order as shipped from the same order detail page
+- app order detail shows shipment status, tracking number, carrier, and shipment note
+- compat view `stephub_orders_v1` now includes shipping fields
+
 ## Important Files
 
 ### Commission Settings
@@ -107,6 +126,22 @@ Product admin behavior:
 
 - [PlatformProvider.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/PlatformProvider.php)
 - [platform.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/routes/platform.php)
+
+### Orders Transfer And Shipping
+
+- [schema.prisma](/Users/macbook/poolproject/prisma/schema.prisma)
+- [create_stephub_compat_views.sql](/Users/macbook/poolproject/scripts/migrations/create_stephub_compat_views.sql)
+- [auth.controller.ts](/Users/macbook/poolproject/packages/modules/auth/src/controllers/auth.controller.ts)
+- [orders.controller.ts](/Users/macbook/poolproject/packages/modules/orders/src/controllers/orders.controller.ts)
+- [orders.service.ts](/Users/macbook/poolproject/packages/modules/orders/src/services/orders.service.ts)
+- [orders.repository.ts](/Users/macbook/poolproject/packages/modules/orders/src/repositories/orders.repository.ts)
+- [Order.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Models/Order.php)
+- [OrderSource.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Models/OrderSource.php)
+- [OrderListScreen.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Order/OrderListScreen.php)
+- [OrderDetailScreen.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Order/OrderDetailScreen.php)
+- [index.html](/Users/macbook/poolproject/apps/api/public/app/index.html)
+- [app.js](/Users/macbook/poolproject/apps/api/public/app/app.js)
+- [styles.css](/Users/macbook/poolproject/apps/api/public/app/styles.css)
 
 ### Commission Sandbox
 
@@ -182,6 +217,17 @@ These were verified during the recent rounds:
 - product create page loads after fixing `stephub_products_v1.id` lookup
 - product create smoke test created `ProductDetail.id = 12`
 - product update smoke test updated `ProductDetail.id = 12`
+- transfer slip smoke flow passed:
+  - create order
+  - submit transfer slip
+  - BAO detail shows slip and allows approve
+- shipping smoke flow passed on `Order.id = 260`
+  - app order moved to `paid`
+  - BAO approve succeeded
+  - BAO mark shipped succeeded
+  - tracking `TRACK-260-SMOKE` persisted
+  - app order detail returned `shippedAt`, `shipmentTrackingNo`, `shipmentCarrier`, and `shipmentNote`
+  - BAO shipped bucket includes `Order.id = 260`
 
 ## What Still Needs Browser Verification
 
@@ -218,15 +264,22 @@ For product admin, still worth checking manually in browser:
 
 2. Clean up or keep the smoke test product row `ProductDetail.id = 12`.
 
-3. Decide whether any remaining UX cleanup is needed in commission report:
+3. Decide whether to keep or clean up smoke test orders such as `Order.id = 260`.
+
+4. Decide whether any remaining UX cleanup is needed in commission report:
 - wording
 - spacing
 - summary card clarity
 
-4. If product admin continues next, focus on:
+5. If product admin continues next, focus on:
 - gallery UX polish
 - product update/remove follow-up
 - whether supplier/category should remain helper-only or become persisted schema fields
 
-5. Keep `.git/info/exclude` local-only.
+6. If orders continue next, likely follow-ups are:
+- delivered status action
+- shipping report/export
+- shipping filters/search polish in BAO
+
+7. Keep `.git/info/exclude` local-only.
 - do not move those dump-ignore rules into repo `.gitignore` unless the team explicitly wants that behavior

@@ -99,6 +99,20 @@ export class AuthController {
     });
   }
 
+  @Get("orders/shipping")
+  async shippingOrders(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+
+    return this.ordersService.listOrders({
+      userId: user.userId,
+      page: 1,
+      pageSize: 10,
+    });
+  }
+
   @Get("transactions")
   async transactions(
     @Headers("authorization") authorization?: string,
@@ -192,6 +206,30 @@ export class AuthController {
     return this.ordersService.createOrder({
       userId: user.userId,
       packageId: requirePositiveIntegerString(body?.packageId, "packageId"),
+    });
+  }
+
+  @Post("orders/:orderId/submit-transfer-slip")
+  async submitOwnTransferSlip(
+    @Param("orderId") orderId: string,
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+    @Body() body?: { transferSlipUrl?: string; transferSlipNote?: string },
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+    const validatedOrderId = requirePositiveIntegerString(orderId, "orderId");
+    const order = await this.ordersService.getOrder(validatedOrderId);
+
+    if (!order || order.sourceUserId !== user.userId) {
+      throw new UnauthorizedException("Order not found for session.");
+    }
+
+    return this.ordersService.submitTransferSlip({
+      orderId: validatedOrderId,
+      transferSlipUrl: requireNonEmptyString(body?.transferSlipUrl, "transferSlipUrl"),
+      transferSlipNote: body?.transferSlipNote
+        ? requireNonEmptyString(body.transferSlipNote, "transferSlipNote")
+        : undefined,
     });
   }
 

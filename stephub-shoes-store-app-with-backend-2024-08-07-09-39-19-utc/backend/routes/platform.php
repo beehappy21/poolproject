@@ -166,7 +166,24 @@ Route::screen('review/detail/{review?}', ReviewDetailScreen::class)
 
 // Platform > Orders
 Route::screen('order/list', OrderListScreen::class)
+  ->defaults('bucket', 'all')
   ->name('platform.order.list');
+
+Route::screen('order/list/awaiting-payment', OrderListScreen::class)
+  ->defaults('bucket', 'awaiting-payment')
+  ->name('platform.order.awaitingPayment');
+
+Route::screen('order/list/transfer-review', OrderListScreen::class)
+  ->defaults('bucket', 'transfer-review')
+  ->name('platform.order.transferReview');
+
+Route::screen('order/list/awaiting-shipment', OrderListScreen::class)
+  ->defaults('bucket', 'awaiting-shipment')
+  ->name('platform.order.awaitingShipment');
+
+Route::screen('order/list/shipped', OrderListScreen::class)
+  ->defaults('bucket', 'shipped')
+  ->name('platform.order.shipped');
 
 Route::screen('order/detail/{order?}', OrderDetailScreen::class)
   ->name('platform.order.detail');
