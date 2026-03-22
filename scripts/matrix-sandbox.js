@@ -63,20 +63,34 @@ function loadScenario(filePath) {
 }
 
 function buildSlotLevels(width, depth) {
-  const levels = [];
+  const slots = [];
+  let nextSlotIndex = 1;
+  let currentParents = [0];
+
   for (let level = 1; level <= depth; level += 1) {
-    const count = width ** level;
-    for (let index = 0; index < count; index += 1) {
-      levels.push(level);
+    const nextParents = [];
+    for (const parentSlot of currentParents) {
+      for (let branchIndex = 0; branchIndex < width; branchIndex += 1) {
+        slots.push({
+          slotIndex: nextSlotIndex,
+          levelNo: level,
+          parentSlot,
+        });
+        nextParents.push(nextSlotIndex);
+        nextSlotIndex += 1;
+      }
     }
+    currentParents = nextParents;
   }
-  return levels;
+
+  return slots;
 }
 
 function buildMemberState(member) {
   return {
     ...member,
     personalPv: parseDecimal(member.personalPv ?? "0"),
+    commissionBalance: parseDecimal(member.commissionBalance ?? "0"),
     active: Boolean(member.active),
     openedBoards: [],
   };
@@ -94,6 +108,52 @@ function resolvePlacementParent(member, memberMap) {
     return {
       parentId: member.uplineId,
       relation: "upline",
+    };
+  }
+
+  return null;
+}
+
+function collectWorklineAncestors(member, memberMap) {
+  const ancestors = [];
+  const seen = new Set([member.id]);
+  let currentId = member.uplineId;
+
+  while (currentId && memberMap.has(currentId) && !seen.has(currentId)) {
+    const current = memberMap.get(currentId);
+    ancestors.push(current);
+    seen.add(currentId);
+    currentId = current.uplineId;
+  }
+
+  return ancestors;
+}
+
+function findLatestOpenRound(member, boardNo) {
+  return member.openedBoards
+    .filter((entry) => entry.boardNo === boardNo && entry.status === "OPEN")
+    .sort((left, right) => right.roundNo - left.roundNo)[0] ?? null;
+}
+
+function resolveReentryBeneficiary(sourceMember, memberMap) {
+  const ancestors = collectWorklineAncestors(sourceMember, memberMap);
+  const roundTwoAncestor = ancestors.find((ancestor) =>
+    ancestor.openedBoards.some(
+      (entry) => entry.boardNo === 1 && entry.roundNo === 2 && entry.status === "OPEN",
+    ),
+  );
+  if (roundTwoAncestor) {
+    return {
+      beneficiary: roundTwoAncestor,
+      relation: "upline_reentry_round2",
+    };
+  }
+
+  const openBoardOneAncestor = ancestors.find((ancestor) => findLatestOpenRound(ancestor, 1));
+  if (openBoardOneAncestor) {
+    return {
+      beneficiary: openBoardOneAncestor,
+      relation: "upline_reentry_open_board1",
     };
   }
 
@@ -175,10 +235,44 @@ function maybeOpenNextBoard(member, completedBoardNo, scenarioSettings, report, 
   });
 }
 
-function queueOpeningEvent(queue, payload) {
-  queue.push({
-    ...payload,
+function maybeOpenBoardOneNextRound(member, completedRoundNo, settings, report, queue) {
+  const nextRoundNo = completedRoundNo + 1;
+  const reentryCost = parseDecimal(settings.organizationPvRate);
+  if (member.commissionBalance <= reentryCost) {
+    return null;
+  }
+
+  if (hasBoardRound(member, 1, nextRoundNo)) {
+    return member.openedBoards.find((entry) => entry.boardNo === 1 && entry.roundNo === nextRoundNo) ?? null;
+  }
+
+  member.commissionBalance -= reentryCost;
+  const nextRound = ensureRound(member, 1, nextRoundNo, settings, report);
+  queueOpeningEvent(queue, {
+    memberId: member.id,
+    boardNo: 1,
+    roundNo: nextRoundNo,
+    sourceType: "round_reentry",
   });
+  return nextRound;
+}
+
+function queueOpeningEvent(queue, payload) {
+  const event = {
+    ...payload,
+  };
+  if (event.sourceType === "round_reentry") {
+    queue.push(event);
+    return;
+  }
+
+  const firstReentryIndex = queue.findIndex((queued) => queued.sourceType === "round_reentry");
+  if (firstReentryIndex === -1) {
+    queue.push(event);
+    return;
+  }
+
+  queue.splice(firstReentryIndex, 0, event);
 }
 
 function maybeOpenEligibleBoards(member, settings, report, queue) {
@@ -194,15 +288,79 @@ function maybeOpenEligibleBoards(member, settings, report, queue) {
   }
 }
 
+function shouldSpillToUplineBoardTwo(sourceMember, memberMap) {
+  const placement = resolvePlacementParent(sourceMember, memberMap);
+  if (!placement) {
+    return null;
+  }
+
+  const upline = memberMap.get(placement.parentId);
+  if (!upline) {
+    return null;
+  }
+
+  const uplineBoardTwo = upline.openedBoards.find((entry) => entry.boardNo === 2 && entry.roundNo === 1);
+  if (!uplineBoardTwo || uplineBoardTwo.status === "COMPLETED") {
+    return null;
+  }
+
+  return upline;
+}
+
+function findPlacementSlot(round, sourceMemberId) {
+  return round.placements.find((entry) => entry.sourceMemberId === sourceMemberId) ?? null;
+}
+
+function collectDescendantSlots(round, parentSlot) {
+  const descendants = [];
+  const pending = [parentSlot];
+
+  while (pending.length > 0) {
+    const currentParent = pending.shift();
+    const children = round.slotLevels
+      .filter((slot) => slot.parentSlot === currentParent)
+      .sort((left, right) => left.slotIndex - right.slotIndex);
+    for (const child of children) {
+      descendants.push(child);
+      pending.push(child.slotIndex);
+    }
+  }
+
+  return descendants;
+}
+
+function nextAvailableSlot(round, sourceMemberId) {
+  const occupied = new Set(round.placements.map((entry) => entry.slotIndex));
+  const sourcePlacement = findPlacementSlot(round, sourceMemberId);
+
+  if (sourcePlacement) {
+    const descendantOpenSlot = collectDescendantSlots(round, sourcePlacement.slotIndex)
+      .find((slot) => !occupied.has(slot.slotIndex));
+    if (descendantOpenSlot) {
+      return descendantOpenSlot;
+    }
+  }
+
+  return round.slotLevels.find((slot) => !occupied.has(slot.slotIndex)) ?? null;
+}
+
 function processQueue(queue, settings, memberMap, report) {
   while (queue.length > 0) {
     const event = queue.shift();
     const sourceMember = memberMap.get(event.memberId);
-    const placement = resolvePlacementParent(sourceMember, memberMap);
+    const reentryTarget = sourceMember && event.sourceType === "round_reentry"
+      ? resolveReentryBeneficiary(sourceMember, memberMap)
+      : null;
+    const placement = reentryTarget
+      ? {
+          parentId: reentryTarget.beneficiary.id,
+          relation: reentryTarget.relation,
+        }
+      : resolvePlacementParent(sourceMember, memberMap);
 
-    if (!placement) {
+    if (!sourceMember || !placement) {
       report.companyFallbacks.push({
-        memberId: sourceMember.id,
+        memberId: sourceMember?.id ?? event.memberId,
         boardNo: event.boardNo,
         roundNo: event.roundNo,
         reasonCode: "no_matrix_upline",
@@ -214,17 +372,32 @@ function processQueue(queue, settings, memberMap, report) {
 
     const beneficiary = memberMap.get(placement.parentId);
     const round = nextOpenRound(beneficiary, event.boardNo, settings, report);
-    const slotIndex = round.filledSlots + 1;
-    const levelNo = round.slotLevels[round.filledSlots];
+    const slot = nextAvailableSlot(round, sourceMember.id);
+    if (!slot) {
+      report.companyFallbacks.push({
+        memberId: sourceMember.id,
+        boardNo: event.boardNo,
+        roundNo: event.roundNo,
+        reasonCode: "board_round_full_without_reentry_slot",
+        sourceType: event.sourceType,
+        sourceOrderId: event.sourceOrderId ?? null,
+      });
+      continue;
+    }
+
+    const slotIndex = slot.slotIndex;
+    const levelNo = slot.levelNo;
     const rate = settings.boardLevelRates[event.boardNo - 1]?.[levelNo - 1] ?? "0";
     const amount = multiplyDecimal(settings.organizationPvRate, rate);
 
     round.filledSlots += 1;
+    beneficiary.commissionBalance += amount;
     round.placements.push({
       sourceMemberId: sourceMember.id,
       sourceRoundNo: event.roundNo,
       slotIndex,
       levelNo,
+      parentSlot: slot.parentSlot,
     });
 
     report.placements.push({
@@ -246,14 +419,23 @@ function processQueue(queue, settings, memberMap, report) {
     if (round.filledSlots === round.slotLevels.length) {
       round.status = "COMPLETED";
       maybeOpenNextBoard(beneficiary, event.boardNo, settings, report, queue);
-      const nextRound = ensureRound(beneficiary, event.boardNo, round.roundNo + 1, settings, report);
-      queueOpeningEvent(queue, {
-        memberId: beneficiary.id,
-        boardNo: event.boardNo,
-        roundNo: nextRound.roundNo,
-        sourceType: "round_reentry",
-        sourceOrderId: event.sourceOrderId ?? null,
-      });
+
+      if (event.boardNo === 1) {
+        maybeOpenBoardOneNextRound(beneficiary, round.roundNo, settings, report, queue);
+
+        if (round.roundNo >= 2) {
+          const upline = shouldSpillToUplineBoardTwo(beneficiary, memberMap);
+          if (upline) {
+            queueOpeningEvent(queue, {
+              memberId: beneficiary.id,
+              boardNo: 2,
+              roundNo: 1,
+              sourceType: "spill_to_upline_board2",
+              sourceOrderId: event.sourceOrderId ?? null,
+            });
+          }
+        }
+      }
     }
   }
 }
@@ -363,7 +545,9 @@ function buildReport(input) {
       "Board 1 opens when personal PV accumulated from approved 700 PV orders reaches the configured threshold.",
       "Placement prefers sponsor line first; upline + side is used as fallback when sponsor placement is unavailable.",
       "Every new placement into a board pays immediately using organizationPvRate * board level rate.",
-      "When a round completes, the next round opens immediately and creates a new placement event for the member's upline.",
+      "When Board 1 completes and accumulated commission is greater than 700, Board 1 next round opens immediately and 700 commission is deducted as the reentry cost.",
+      "A Board 1 reentry point does not go back into the completed round; it climbs the upline workline to the nearest open Board 1 Round 2, otherwise the nearest open Board 1 round.",
+      "When Board 1 round 2 or later completes while the upline's Board 2 round 1 is still open, the completion creates a spill point into that upline Board 2 round 1.",
     ],
     report,
   };
