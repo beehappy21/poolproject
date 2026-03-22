@@ -41,6 +41,7 @@ use App\Orchid\Screens\Package\PackageEditScreen;
 use App\Orchid\Screens\Supplier\SupplierListScreen;
 use App\Orchid\Screens\Supplier\SupplierEditScreen;
 use App\Orchid\Screens\Commission\CommissionSettingsScreen;
+use App\Orchid\Screens\Commission\CommissionReportScreen;
 use App\Http\Controllers\Platform\CommissionSettingsController;
 use App\Orchid\Screens\Tag\TagListScreen;
 use App\Orchid\Screens\Tag\TagEditScreen;
@@ -90,6 +91,26 @@ Route::screen('commission/matrix', CommissionSettingsScreen::class)
 Route::screen('commission/pool', CommissionSettingsScreen::class)
   ->defaults('section', 'pool')
   ->name('platform.commission.pool');
+
+Route::screen('commission/report', CommissionReportScreen::class)
+  ->defaults('reportMode', 'overview')
+  ->name('platform.commission.report');
+
+Route::screen('commission/report/direct', CommissionReportScreen::class)
+  ->defaults('reportMode', 'direct')
+  ->name('platform.commission.report.direct');
+
+Route::screen('commission/report/unilevel', CommissionReportScreen::class)
+  ->defaults('reportMode', 'unilevel')
+  ->name('platform.commission.report.unilevel');
+
+Route::screen('commission/report/matrix', CommissionReportScreen::class)
+  ->defaults('reportMode', 'matrix')
+  ->name('platform.commission.report.matrix');
+
+Route::screen('commission/report/pool', CommissionReportScreen::class)
+  ->defaults('reportMode', 'pool')
+  ->name('platform.commission.report.pool');
 
 Route::post('commission/save', [CommissionSettingsController::class, 'saveCommission'])
   ->name('platform.commission.save');

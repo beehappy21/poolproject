@@ -16,6 +16,11 @@ class PoolprojectSettingsStore
         'boardCount' => 3,
         'organizationPvRate' => '0.1',
         'levelRates' => ['0.1', '0.05', '0.03'],
+        'boardLevelRates' => [
+            ['0.1', '0.05', '0.03'],
+            ['0.1', '0.05', '0.03'],
+            ['0.1', '0.05', '0.03'],
+        ],
         'boardOpenPvThresholds' => ['100', '100', '100'],
     ];
 
@@ -104,6 +109,16 @@ class PoolprojectSettingsStore
         $boardWidth = self::normalizePositiveInt($input['boardWidth'] ?? null, self::DEFAULT_MATRIX_SETTINGS['boardWidth']);
         $boardDepth = self::normalizePositiveInt($input['boardDepth'] ?? null, self::DEFAULT_MATRIX_SETTINGS['boardDepth']);
         $boardCount = self::normalizePositiveInt($input['boardCount'] ?? null, self::DEFAULT_MATRIX_SETTINGS['boardCount']);
+        $normalizedLevelRates = self::normalizeDecimalArray(
+            $input['levelRates'] ?? null,
+            self::DEFAULT_MATRIX_SETTINGS['levelRates'],
+            $boardDepth
+        );
+        $normalizedBoardLevelRates = self::normalizeBoardLevelRates(
+            $input['boardLevelRates'] ?? null,
+            $boardCount,
+            $normalizedLevelRates
+        );
 
         return [
             'boardWidth' => $boardWidth,
@@ -113,11 +128,8 @@ class PoolprojectSettingsStore
                 $input['organizationPvRate'] ?? null,
                 self::DEFAULT_MATRIX_SETTINGS['organizationPvRate']
             ),
-            'levelRates' => self::normalizeDecimalArray(
-                $input['levelRates'] ?? null,
-                self::DEFAULT_MATRIX_SETTINGS['levelRates'],
-                $boardDepth
-            ),
+            'levelRates' => $normalizedLevelRates,
+            'boardLevelRates' => $normalizedBoardLevelRates,
             'boardOpenPvThresholds' => self::normalizeDecimalArray(
                 $input['boardOpenPvThresholds'] ?? null,
                 self::DEFAULT_MATRIX_SETTINGS['boardOpenPvThresholds'],
@@ -126,18 +138,45 @@ class PoolprojectSettingsStore
         ];
     }
 
+    private static function normalizeBoardLevelRates(mixed $value, int $boardCount, array $fallbackRates): array
+    {
+        if (!is_array($value)) {
+            return array_map(
+                static fn () => $fallbackRates,
+                range(1, max($boardCount, 1))
+            );
+        }
+
+        $normalizedBoards = [];
+        foreach ($value as $boardRates) {
+            $normalizedBoards[] = self::normalizeDecimalArray($boardRates, $fallbackRates);
+        }
+
+        if (count($normalizedBoards) !== $boardCount) {
+            return array_map(
+                static fn () => $fallbackRates,
+                range(1, max($boardCount, 1))
+            );
+        }
+
+        return $normalizedBoards;
+    }
+
     private static function normalizeDecimalArray(mixed $value, array $fallback, ?int $expectedLength = null): array
     {
         if (!is_array($value)) {
             return $fallback;
         }
 
-        $normalized = array_values(array_filter(array_map(
-            static fn ($item) => is_string($item) && preg_match('/^\d+(\.\d+)?$/', trim($item))
-                ? trim($item)
-                : null,
-            $value
-        )));
+        $normalized = array_values(array_filter(
+            array_map(
+                static fn ($item) => is_string($item) && preg_match('/^\d+(\.\d+)?$/', trim($item))
+                    ? trim($item)
+                    : null,
+                $value
+            ),
+            static fn (?string $item) => $item !== null
+        ));
 
         if ($expectedLength !== null && count($normalized) !== $expectedLength) {
             return $fallback;
