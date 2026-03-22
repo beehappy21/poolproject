@@ -27,6 +27,7 @@ Current local worktree:
 Main working area:
 
 - Stephub admin: `http://127.0.0.1:8001/admin`
+- Stephub app: `http://127.0.0.1:3001`
 
 ## What Is Working
 
@@ -108,6 +109,26 @@ Order transfer and shipping behavior:
 - shipped bucket now excludes delivered orders
 - delivered bucket is available in BAO, API, and order report export
 
+Stephub app behavior:
+
+- sign in now uses the live API and works from the browser app with local CORS enabled
+- profile and order history use live member session data
+- home, categories, shop, product, cart empty, wishlist empty, and order history empty now use package-oriented copy and live package data
+- product detail is package-aware and shows package code, PV, active days, included items, and status
+- checkout creates real orders through `/auth/orders`
+- shipping and payment info is read from the local store and shown back on checkout
+- order success screen shows the real `orderNo`
+- order history shows live order states:
+  - `Awaiting Payment`
+  - `Transfer Review`
+  - `Awaiting Shipment`
+  - `Shipped`
+  - `Delivered`
+- order history shows timeline, approval status, submitted slip time, approved time, delivered time, tracking, carrier, and transfer note when available
+- member can submit transfer slips from the Stephub app using image upload instead of pasting a URL
+- transfer slip images are resized in-browser before upload
+- Stephub app `npm run build` is currently clean with no warnings
+
 ## Important Files
 
 ### Commission Settings
@@ -155,6 +176,28 @@ Order transfer and shipping behavior:
 - [index.html](/Users/macbook/poolproject/apps/api/public/app/index.html)
 - [app.js](/Users/macbook/poolproject/apps/api/public/app/app.js)
 - [styles.css](/Users/macbook/poolproject/apps/api/public/app/styles.css)
+
+### Stephub App
+
+- [main.ts](/Users/macbook/poolproject/apps/api/src/main.ts)
+- [index.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/config/index.tsx)
+- [InputField.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/custom/InputField.tsx)
+- [BottomTabBar.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/navigation/BottomTabBar.tsx)
+- [Header.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/components/Header.tsx)
+- [Home.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/tabs/Home.tsx)
+- [Categories.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/tabs/Categories.tsx)
+- [Shop.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/Shop.tsx)
+- [Product.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/Product.tsx)
+- [Checkout.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/Checkout.tsx)
+- [ShippingAndPaymentInfo.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/ShippingAndPaymentInfo.tsx)
+- [OrderHistory.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/OrderHistory.tsx)
+- [OrderSuccessful.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/OrderSuccessful.tsx)
+- [OrderFailed.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/OrderFailed.tsx)
+- [CartEmpty.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/tabs/CartEmpty.tsx)
+- [WishlistEmpty.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/tabs/WishlistEmpty.tsx)
+- [OrderHistoryEmpty.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/OrderHistoryEmpty.tsx)
+- [liveCatalog.ts](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/utils/liveCatalog.ts)
+- [paymentSlice.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/store/slices/paymentSlice.tsx)
 
 ### Commission Sandbox
 
@@ -256,6 +299,14 @@ These were verified during the recent rounds:
   - app order detail returned `approved / approved`, `shippedAt`, `deliveredAt`
   - API delivered bucket includes `Order.id = 262`
   - API shipped bucket no longer includes `Order.id = 262`
+- Stephub app browser smoke passed:
+  - sign in at `http://127.0.0.1:3001`
+  - browse live packages
+  - create order from checkout
+  - view order history with live statuses
+  - upload transfer slip image from the app
+  - BAO received the slip and approval succeeded
+- Stephub app `npm run build` now compiles successfully with no warnings
 - order report summary query returned:
   - `all`: `173` orders, amount `19860`, pv `19860`
   - `shipped`: `1` order, amount `100`, pv `100`

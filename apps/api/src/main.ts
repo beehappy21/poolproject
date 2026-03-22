@@ -6,9 +6,28 @@ import { ApiAppModule } from "./app.module";
 import { apiConfig } from "./config/api.config";
 import { shouldAuditRequest, writeAuditEntry } from "./http/audit.util";
 
+const expressBodyParsers = require("express") as {
+  json: (options?: Record<string, unknown>) => any;
+  urlencoded: (options?: Record<string, unknown>) => any;
+};
+
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(ApiAppModule);
   const authService = app.get(AuthService);
+
+  // Slip uploads are currently sent as base64 data URLs from the Stephub web app.
+  app.use(expressBodyParsers.json({ limit: "12mb" }));
+  app.use(expressBodyParsers.urlencoded({ extended: true, limit: "12mb" }));
+
+  app.enableCors({
+    origin: [
+      "http://127.0.0.1:3001",
+      "http://localhost:3001",
+      "http://127.0.0.1:3000",
+      "http://localhost:3000",
+    ],
+    credentials: true,
+  });
 
   app.use(async (request: any, response: any, next: () => void) => {
     const startedAt = Date.now();
