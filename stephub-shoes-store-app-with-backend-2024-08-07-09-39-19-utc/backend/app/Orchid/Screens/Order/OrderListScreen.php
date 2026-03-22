@@ -49,9 +49,15 @@ class OrderListScreen extends Screen {
 
   public function commandBar(): iterable {
     return [
-      Link::make('Export CSV')
+      Link::make('CSV')
         ->icon('bs.download')
-        ->route('platform.order.export', ['bucket' => $this->bucket]),
+        ->route('platform.order.export', ['bucket' => $this->bucket, 'format' => 'csv']),
+      Link::make('Excel')
+        ->icon('bs.file-earmark-spreadsheet')
+        ->route('platform.order.export', ['bucket' => $this->bucket, 'format' => 'xlsx']),
+      Link::make('PDF')
+        ->icon('bs.file-earmark-pdf')
+        ->route('platform.order.export', ['bucket' => $this->bucket, 'format' => 'pdf']),
       Link::make('ทั้งหมด')
         ->icon('bs.list-ul')
         ->route('platform.order.list'),
