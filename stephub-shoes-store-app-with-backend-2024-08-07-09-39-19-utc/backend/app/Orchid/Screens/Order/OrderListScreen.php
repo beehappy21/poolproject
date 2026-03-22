@@ -16,9 +16,17 @@ class OrderListScreen extends Screen {
   public function query(Request $request): iterable {
     $this->bucket = (string) ($request->route('bucket') ?? Order::REPORT_BUCKET_ALL);
 
+    $baseQuery = Order::query()->forReportBucket($this->bucket);
+    $summaryQuery = clone $baseQuery;
+    $summary = [
+      'totalOrders' => (int) $summaryQuery->count(),
+      'totalAmount' => (float) ((clone $baseQuery)->sum('total')),
+      'totalPv' => (float) ((clone $baseQuery)->sum('total_pv')),
+    ];
+
     return [
-      'order' => Order::query()
-        ->forReportBucket($this->bucket)
+      'summary' => $summary,
+      'order' => $baseQuery
         ->orderByReportPriority($this->bucket)
         ->paginate(10)
     ];
@@ -28,8 +36,22 @@ class OrderListScreen extends Screen {
     return Order::bucketLabel($this->bucket);
   }
 
+  public function description(): ?string
+  {
+    return match ($this->bucket) {
+      Order::REPORT_BUCKET_AWAITING_PAYMENT => 'ออเดอร์ที่ยังรอสมาชิกชำระเงิน',
+      Order::REPORT_BUCKET_TRANSFER_REVIEW => 'ออเดอร์ที่แนบสลิปแล้วและรอเจ้าหน้าที่ตรวจสอบ',
+      Order::REPORT_BUCKET_AWAITING_SHIPMENT => 'ออเดอร์ที่อนุมัติแล้วและพร้อมจัดส่ง',
+      Order::REPORT_BUCKET_SHIPPED => 'ออเดอร์ที่บันทึกการจัดส่งแล้ว',
+      default => 'ภาพรวมรายการขายทั้งหมดและสถานะล่าสุดของแต่ละออเดอร์',
+    };
+  }
+
   public function commandBar(): iterable {
     return [
+      Link::make('Export CSV')
+        ->icon('bs.download')
+        ->route('platform.order.export', ['bucket' => $this->bucket]),
       Link::make('ทั้งหมด')
         ->icon('bs.list-ul')
         ->route('platform.order.list'),
@@ -50,6 +72,7 @@ class OrderListScreen extends Screen {
 
   public function layout(): iterable {
     return [
+      Layout::view('order.report-summary'),
       Layout::table('order', [
         TD::make('id', 'ID')
           ->cantHide()

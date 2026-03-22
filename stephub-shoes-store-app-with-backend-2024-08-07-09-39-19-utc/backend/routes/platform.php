@@ -43,6 +43,7 @@ use App\Orchid\Screens\Supplier\SupplierEditScreen;
 use App\Orchid\Screens\Commission\CommissionSettingsScreen;
 use App\Orchid\Screens\Commission\CommissionReportScreen;
 use App\Http\Controllers\Platform\CommissionReportController;
+use App\Http\Controllers\Platform\OrderReportController;
 use App\Http\Controllers\Platform\CommissionSettingsController;
 use App\Orchid\Screens\Tag\TagListScreen;
 use App\Orchid\Screens\Tag\TagEditScreen;
@@ -184,6 +185,9 @@ Route::screen('order/list/awaiting-shipment', OrderListScreen::class)
 Route::screen('order/list/shipped', OrderListScreen::class)
   ->defaults('bucket', 'shipped')
   ->name('platform.order.shipped');
+
+Route::get('order/export/{bucket?}', [OrderReportController::class, 'export'])
+  ->name('platform.order.export');
 
 Route::screen('order/detail/{order?}', OrderDetailScreen::class)
   ->name('platform.order.detail');

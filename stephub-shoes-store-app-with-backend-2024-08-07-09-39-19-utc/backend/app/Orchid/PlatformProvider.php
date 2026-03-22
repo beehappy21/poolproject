@@ -80,6 +80,27 @@ class PlatformProvider extends OrchidServiceProvider {
         })
         ->route('platform.order.list'),
 
+      Menu::make('Order Reports')
+        ->title('Reports')
+        ->icon('bs.clipboard-data')
+        ->list([
+          Menu::make('Sales Report')
+            ->icon('bs-receipt')
+            ->route('platform.order.list'),
+          Menu::make('Awaiting Payment')
+            ->icon('bs-clock-history')
+            ->route('platform.order.awaitingPayment'),
+          Menu::make('Transfer Review')
+            ->icon('bs-search')
+            ->route('platform.order.transferReview'),
+          Menu::make('Awaiting Shipment')
+            ->icon('bs-box-seam')
+            ->route('platform.order.awaitingShipment'),
+          Menu::make('Shipped Orders')
+            ->icon('bs-truck')
+            ->route('platform.order.shipped'),
+        ]),
+
       Menu::make('Carousel')
         ->icon('bs.collection-play')
         ->route('platform.slide.list'),

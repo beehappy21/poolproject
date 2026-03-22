@@ -97,6 +97,12 @@ Order transfer and shipping behavior:
 - BAO can mark an approved order as shipped from the same order detail page
 - app order detail shows shipment status, tracking number, carrier, and shipment note
 - compat view `stephub_orders_v1` now includes shipping fields
+- order report pages now show summary cards for:
+  - total orders
+  - total sales amount
+  - total PV
+- BAO now has `Order Reports` menu with report shortcuts
+- order report pages support `CSV` export per current bucket
 
 ## Important Files
 
@@ -139,6 +145,8 @@ Order transfer and shipping behavior:
 - [OrderSource.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Models/OrderSource.php)
 - [OrderListScreen.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Order/OrderListScreen.php)
 - [OrderDetailScreen.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Order/OrderDetailScreen.php)
+- [OrderReportController.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Http/Controllers/Platform/OrderReportController.php)
+- [report-summary.blade.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/resources/views/order/report-summary.blade.php)
 - [index.html](/Users/macbook/poolproject/apps/api/public/app/index.html)
 - [app.js](/Users/macbook/poolproject/apps/api/public/app/app.js)
 - [styles.css](/Users/macbook/poolproject/apps/api/public/app/styles.css)
@@ -228,6 +236,10 @@ These were verified during the recent rounds:
   - tracking `TRACK-260-SMOKE` persisted
   - app order detail returned `shippedAt`, `shipmentTrackingNo`, `shipmentCarrier`, and `shipmentNote`
   - BAO shipped bucket includes `Order.id = 260`
+- order report summary query returned:
+  - `all`: `173` orders, amount `19860`, pv `19860`
+  - `shipped`: `1` order, amount `100`, pv `100`
+- order report CSV export route returned `text/csv` attachment for bucket `shipped`
 
 ## What Still Needs Browser Verification
 
