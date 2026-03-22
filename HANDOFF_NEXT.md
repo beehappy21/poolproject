@@ -19,9 +19,10 @@ Recent merged PRs:
 
 Current local worktree:
 
-- only `HANDOFF_NEXT.md` is modified
+- product admin create form improvements were committed and pushed in `3441cf1`
+- local worktree still has separate in-progress matrix sandbox / admin files from other parallel work
 - large local dump/workbook noise is hidden with `.git/info/exclude`
-- repo `git status` is intentionally clean for day-to-day work
+- repo `git status` is not fully clean right now because of that parallel work
 
 Main working area:
 
@@ -70,6 +71,12 @@ Product admin behavior:
 - product list can open existing editable detail records
 - create flow can open without a bound Product model
 - product edit/create redirect now uses product detail ids consistently
+- product create/edit now supports supplier/category-assisted product family selection
+- product form supports primary image plus gallery images up to `10` total
+- PV default formula is `(member price - cost price) x 80%`
+- admin can override PV manually with an explicit warning state
+- product create smoke test passed
+- product update smoke test passed
 - commission export route is wired in platform routes
 
 ## Important Files
@@ -94,6 +101,7 @@ Product admin behavior:
 - [ProductDetailRecord.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Models/ProductDetailRecord.php)
 - [ProductEditScreen.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Product/ProductEditScreen.php)
 - [ProductListScreen.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Product/ProductListScreen.php)
+- [edit-form.blade.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/resources/views/product/edit-form.blade.php)
 
 ### Routes and Menu
 
@@ -170,6 +178,10 @@ These were verified during the recent rounds:
 - `bash scripts/run_member003_direct_test.sh`
 - `bash scripts/run_member003_matrix_test.sh`
 - `PYTHONPYCACHEPREFIX=/tmp/pycache-member003 python3 -m py_compile ...` for the sandbox Python scripts
+- `php -l` on the latest product admin files
+- product create page loads after fixing `stephub_products_v1.id` lookup
+- product create smoke test created `ProductDetail.id = 12`
+- product update smoke test updated `ProductDetail.id = 12`
 
 ## What Still Needs Browser Verification
 
@@ -193,16 +205,28 @@ Especially verify:
 - export keeps current filters
 - PDF limit message is understandable
 
+For product admin, still worth checking manually in browser:
+
+- gallery upload UX with real images
+- supplier/category/product-family filtering behavior
+- PV auto/manual toggle wording and clarity
+- whether to keep or remove smoke product `ProductDetail.id = 12`
+
 ## Best Next Steps
 
 1. Browser-smoke the commission report/export flow after the merged changes.
 
-2. Decide whether any remaining UX cleanup is needed in commission report:
+2. Clean up or keep the smoke test product row `ProductDetail.id = 12`.
+
+3. Decide whether any remaining UX cleanup is needed in commission report:
 - wording
 - spacing
 - summary card clarity
 
-3. If product admin is next, continue from the editable product detail flow that is already merged.
+4. If product admin continues next, focus on:
+- gallery UX polish
+- product update/remove follow-up
+- whether supplier/category should remain helper-only or become persisted schema fields
 
-4. Keep `.git/info/exclude` local-only.
+5. Keep `.git/info/exclude` local-only.
 - do not move those dump-ignore rules into repo `.gitignore` unless the team explicitly wants that behavior
