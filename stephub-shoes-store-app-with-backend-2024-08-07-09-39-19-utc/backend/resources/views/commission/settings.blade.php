@@ -55,7 +55,14 @@
     .commission-board-rate-card { border:1px solid #e2e8f0; border-radius:14px; padding:1rem; background:#f8fafc; }
     .commission-board-rate-header { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:.85rem; }
     .commission-board-rate-title { margin:0; font-size:1rem; color:#0f172a; font-weight:700; }
+    .commission-settings-layout { display:grid; gap:1.25rem; grid-template-columns:minmax(240px, 280px) minmax(0, 1fr); align-items:start; }
+    .commission-settings-nav { display:grid; gap:.8rem; }
+    .commission-settings-nav a { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:1rem 1.1rem; border:1px solid #e2e8f0; border-radius:14px; background:#fff; color:#334155; font-weight:700; text-decoration:none; }
+    .commission-settings-nav a.is-active { border-color:color-mix(in srgb, {{ $accent }} 35%, #cbd5e1); background:color-mix(in srgb, {{ $accent }} 8%, #fff); color:{{ $accent }}; }
+    .commission-settings-nav a:hover { background:#f8fafc; }
+    .commission-settings-nav span:last-child { color:#94a3b8; }
     @media (max-width:980px) { .commission-shell { grid-template-columns:1fr; } }
+    @media (max-width:980px) { .commission-settings-layout { grid-template-columns:1fr; } }
 </style>
 
 @php
@@ -136,23 +143,36 @@
         </div>
 
         @if ($activeKey === 'settings')
-            <div class="commission-panel">
-                <div class="commission-eyebrow">Latest Commission Settings</div>
-                <table class="commission-summary-table">
-                    <tbody>
-                        @foreach ($latestSummaryRows as $row)
-                            <tr>
-                                <th>{{ $row['label'] }}</th>
-                                <td>
-                                    <span class="commission-summary-value">{{ $row['value'] !== '' ? $row['value'] : '-' }}</span>
-                                    @if (!empty($row['note']))
-                                        <span class="commission-summary-note">{{ $row['note'] }}</span>
-                                    @endif
-                                </td>
-                            </tr>
+            <div class="commission-settings-layout">
+                <div class="commission-panel">
+                    <div class="commission-eyebrow">Commission Menu</div>
+                    <div class="commission-settings-nav">
+                        @foreach (collect($nav)->whereIn('key', ['settings', 'direct', 'unilevel', 'matrix', 'pool']) as $item)
+                            <a href="{{ $item['route'] }}" @class(['is-active' => !empty($item['isActive'])])>
+                                <span>{{ $item['title'] }}</span>
+                                <span>&rsaquo;</span>
+                            </a>
                         @endforeach
-                    </tbody>
-                </table>
+                    </div>
+                </div>
+                <div class="commission-panel">
+                    <div class="commission-eyebrow">Latest Commission Settings</div>
+                    <table class="commission-summary-table">
+                        <tbody>
+                            @foreach ($latestSummaryRows as $row)
+                                <tr>
+                                    <th>{{ $row['label'] }}</th>
+                                    <td>
+                                        <span class="commission-summary-value">{{ $row['value'] !== '' ? $row['value'] : '-' }}</span>
+                                        @if (!empty($row['note']))
+                                            <span class="commission-summary-note">{{ $row['note'] }}</span>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
             </div>
         @endif
 

@@ -42,6 +42,7 @@ use App\Orchid\Screens\Supplier\SupplierListScreen;
 use App\Orchid\Screens\Supplier\SupplierEditScreen;
 use App\Orchid\Screens\Commission\CommissionSettingsScreen;
 use App\Orchid\Screens\Commission\CommissionReportScreen;
+use App\Http\Controllers\Platform\CommissionReportController;
 use App\Http\Controllers\Platform\CommissionSettingsController;
 use App\Orchid\Screens\Tag\TagListScreen;
 use App\Orchid\Screens\Tag\TagEditScreen;
@@ -111,6 +112,9 @@ Route::screen('commission/report/matrix', CommissionReportScreen::class)
 Route::screen('commission/report/pool', CommissionReportScreen::class)
   ->defaults('reportMode', 'pool')
   ->name('platform.commission.report.pool');
+
+Route::get('commission/report/export/{reportMode?}', [CommissionReportController::class, 'export'])
+  ->name('platform.commission.report.export');
 
 Route::post('commission/save', [CommissionSettingsController::class, 'saveCommission'])
   ->name('platform.commission.save');
