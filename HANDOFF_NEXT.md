@@ -247,11 +247,100 @@ These were verified during the recent rounds:
   - shipment note updated to `Delivered to customer at doorstep`
   - BAO bucket moved from `shipped` to `delivered`
   - app order detail returned `deliveredAt`
+- end-to-end sales smoke passed on `Order.id = 262`
+  - create order
+  - member submit transfer slip
+  - admin approve
+  - admin mark shipped
+  - admin mark delivered
+  - app order detail returned `approved / approved`, `shippedAt`, `deliveredAt`
+  - API delivered bucket includes `Order.id = 262`
+  - API shipped bucket no longer includes `Order.id = 262`
 - order report summary query returned:
   - `all`: `173` orders, amount `19860`, pv `19860`
   - `shipped`: `1` order, amount `100`, pv `100`
 - order report CSV export route returned `text/csv` attachment for bucket `shipped`
 - order report `CSV / Excel / PDF` export responses all returned correct attachment content types for bucket `shipped`
+
+## Deploy Readiness
+
+Current readiness:
+
+- core sales flow is working locally end-to-end
+- API health is up on `:3000`
+- BAO login is up on `:8001/admin/login`
+- BAO order routes and export routes are reachable and protected by auth
+
+Main deployment risks still open:
+
+- Nest side still relies on `prisma db push` flow in [package.json](/Users/macbook/poolproject/package.json)
+- compat views must be applied separately from [create_stephub_compat_views.sql](/Users/macbook/poolproject/scripts/migrations/create_stephub_compat_views.sql)
+- the compat view script already includes `stephub_orders_v1` and shipping fields, so this SQL step is required for order reporting on a fresh target DB
+- BAO env is still local-oriented:
+  - `APP_URL=http://127.0.0.1:8001`
+  - `FILESYSTEM_DISK=local`
+  - `QUEUE_CONNECTION=sync`
+  - `SESSION_DRIVER=file`
+- BAO `.env` is still using `DB_CONNECTION=sqlite` with a local sqlite path for the Laravel app side
+- root API `.env` still points at local Postgres only:
+  - `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/poolproject?schema=public`
+- BAO mail config still contains placeholder/local values in [backend/.env](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/.env)
+- PHP 8.5 deprecation warnings are noisy across the Laravel/Orchid stack
+- BAO public storage link is currently missing:
+  - [public/storage](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/public/storage)
+  - [storage/app/public](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/storage/app/public)
+
+Staging / production checklist:
+
+1. Database
+- apply Prisma schema changes on the target DB
+- apply compat views from [create_stephub_compat_views.sql](/Users/macbook/poolproject/scripts/migrations/create_stephub_compat_views.sql)
+- verify order fields exist:
+  - `transferSubmittedAt`
+  - `transferSlipUrl`
+  - `transferSlipNote`
+  - `shippedAt`
+  - `deliveredAt`
+  - `shipmentTrackingNo`
+  - `shipmentCarrier`
+  - `shipmentNote`
+
+2. API runtime
+- run `npm run build`
+- start the API with the built code
+- verify `GET /health`
+- verify latest routes are loaded:
+  - `POST /orders/:id/deliver`
+  - order bucket `delivered`
+
+3. BAO runtime
+- set real `APP_URL`
+- verify session and cookie domain settings
+- verify `storage` URLs resolve correctly from BAO
+- check BAO login, delivered list, order detail, and order export after deploy
+
+4. Storage and uploads
+- decide whether production uses local disk or S3
+- verify product image URLs and transfer slip URLs resolve from the final domain
+- if using local disk on BAO, verify `storage:link` and public asset serving
+- current local state still needs `public/storage` linkage on the BAO side
+
+5. Operational checks
+- verify product create/update with real images
+- verify one full sales flow on staging:
+  - order
+  - slip
+  - approve
+  - shipped
+  - delivered
+- verify `CSV / Excel / PDF` exports from BAO after login
+
+6. Cleanup before go-live
+- decide whether to keep or remove smoke rows:
+  - `ProductDetail.id = 12`
+  - `Order.id = 260`
+  - `Order.id = 262`
+- decide whether to keep local-only helper data out of deploy docs
 
 ## What Still Needs Browser Verification
 
@@ -304,6 +393,8 @@ For product admin, still worth checking manually in browser:
 - delivered search/filter polish in BAO
 - delivered-specific summary/export review
 - optional cleanup of smoke test orders such as `Order.id = 260`
+
+8. Before real deploy, work through the `Deploy Readiness` checklist above and record which environment values and SQL/view steps were actually applied.
 
 7. Keep `.git/info/exclude` local-only.
 - do not move those dump-ignore rules into repo `.gitignore` unless the team explicitly wants that behavior
