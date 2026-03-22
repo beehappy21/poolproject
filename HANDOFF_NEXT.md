@@ -1,280 +1,208 @@
 # Project Handoff
 
-Updated: 2026-03-21
+Updated: 2026-03-22
 
-## Current Status
+## Current State
 
-The project now has working local flows for:
+Current local branch:
 
-- admin login and dashboard
-- member signup via referral link
-- referral code generation and referral fallback to `TH0000001`
-- member profile completion after signup
-- package creation, activation, and order processing
-- direct commission with multi-level direct rates
-- compressed unilevel commission
-- matrix cycles, matrix payouts, and wallet posting
-- daily pool close and pool payouts
-- member wallet, matrix, and payout visibility
-- product catalog foundation for supplier/category/product/product detail/package composition
+- `feat/member-profile-import`
 
-Main verification that currently passes:
+Recent merged PRs:
 
-- `npm run lint`
-- `bash scripts/local-smoke.sh`
-- `bash scripts/calc-scenarios.sh`
+- PR #9: `Add Stephub commission reports and settings UX`
+  - https://github.com/beehappy21/poolproject/pull/9
+- PR #10: `Add product detail editor flow and commission export wiring`
+  - https://github.com/beehappy21/poolproject/pull/10
+- PR #11: `Add member003 commission sandbox test kit`
+  - https://github.com/beehappy21/poolproject/pull/11
 
-## Latest Important Change
+Current local worktree:
 
-The latest unfinished feature area is the new product catalog model.
+- only `HANDOFF_NEXT.md` is modified
+- large local dump/workbook noise is hidden with `.git/info/exclude`
+- repo `git status` is intentionally clean for day-to-day work
 
-The admin product area has been expanded from a simple `package` form into a catalog flow:
+Main working area:
 
-- `supplier`
-- `category`
-- `product`
-- `product detail`
-- `package` built from one or more product details
+- Stephub admin: `http://127.0.0.1:8001/admin`
 
-This is now backed by new Prisma models and new `/packages/*` endpoints, and the admin page can create these records.
+## What Is Working
 
-Important: catalog `% pool` data is stored now, but it is not yet wired into the live pool calculation engine.
+Stephub admin now has working commission areas:
 
-## Main Files To Know
+- `Commission Setting`
+- `Commission Report`
+- `Commission Report > Direct Bonus`
+- `Commission Report > Unilevel Bonus`
+- `Commission Report > Matrix Bonus`
+- `Commission Report > Pool Bonus`
 
-### Product Catalog
+Commission settings behavior:
 
-- `prisma/schema.prisma`
-- `packages/modules/packages/src/controllers/packages.controller.ts`
-- `packages/modules/packages/src/services/packages.service.ts`
-- `packages/modules/packages/src/repositories/packages.repository.ts`
-- `apps/api/public/admin/index.html`
-- `apps/api/public/admin/app.js`
-- `apps/api/public/admin/styles.css`
+- main settings page shows latest saved summary
+- content-area settings menu is shown only on the main settings page
+- `Direct / Unilevel / Pool` pages allow editing and saving rates
+- `Matrix` page supports board width, personal PV threshold, board thresholds, board rates, and dynamic board/level rows
+- entering `0` is supported for direct/unilevel/matrix arrays
 
-### Referral / Signup / Member App
+Commission report behavior:
 
-- `packages/modules/members/src/controllers/members.controller.ts`
-- `packages/modules/members/src/repositories/members.repository.ts`
-- `packages/modules/auth/src/controllers/auth.controller.ts`
-- `packages/modules/auth/src/repositories/auth.repository.ts`
-- `apps/api/public/signup/index.html`
-- `apps/api/public/signup/app.js`
-- `apps/api/public/app/index.html`
-- `apps/api/public/app/app.js`
+- main report shows daily totals per member
+- report modes include:
+  - direct
+  - unilevel
+  - matrix
+  - pool
+  - overview total
+- report pages use Thai labels
+- report tables show 2 decimal places
+- report pages show totals row and summary cards
 
-### Commission / Matrix / Pool
+Export behavior:
 
-- `packages/modules/commissions/src/services/commissions.service.ts`
-- `packages/modules/matrix/src/services/matrix.service.ts`
-- `packages/modules/pool/src/services/pool.service.ts`
-- `packages/shared/utils/src/commission-settings.util.ts`
-- `packages/shared/utils/src/matrix-settings.util.ts`
-- `scripts/local-smoke.sh`
-- `scripts/calc-scenarios.sh`
-- `scripts/calc-scenarios.js`
+- report page supports `CSV`, `Excel`, and `PDF`
+- `CSV` and `Excel` use export cursor/meta flow instead of reusing screen pagination flow
+- `PDF` has a guardrail and rejects exports over `500` rows
 
-## Current Product Catalog Data Model
+Product admin behavior:
 
-New models added in `prisma/schema.prisma`:
+- product list can open existing editable detail records
+- create flow can open without a bound Product model
+- product edit/create redirect now uses product detail ids consistently
+- commission export route is wired in platform routes
 
-- `Supplier`
-- `ProductCategory`
-- `Product`
-- `ProductDetail`
-- `PackageItem`
+## Important Files
 
-`Package` now also stores:
+### Commission Settings
 
-- `costPriceUsdt`
-- `memberPriceUsdt`
-- `retailPriceUsdt`
-- `poolRate`
-- relation to `PackageItem`
+- [CommissionSettingsScreen.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Commission/CommissionSettingsScreen.php)
+- [CommissionSettingsController.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Http/Controllers/Platform/CommissionSettingsController.php)
+- [PoolprojectSettingsStore.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Support/PoolprojectSettingsStore.php)
+- [settings.blade.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/resources/views/commission/settings.blade.php)
 
-Current package behavior:
+### Commission Reports
 
-- if built from `productDetailItems`, totals are computed from selected details
-- `Package.priceUsdt` is currently set from total `memberPriceUsdt`
-- existing order flow still works because orders still buy by `packageId`
+- [CommissionReportScreen.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Commission/CommissionReportScreen.php)
+- [CommissionReportBuilder.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Support/CommissionReportBuilder.php)
+- [CommissionReportController.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Http/Controllers/Platform/CommissionReportController.php)
+- [report.blade.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/resources/views/commission/report.blade.php)
+- [report-export-pdf.blade.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/resources/views/commission/report-export-pdf.blade.php)
 
-## New Product Catalog API
+### Product Edit Flow
 
-Implemented endpoints:
+- [ProductDetailRecord.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Models/ProductDetailRecord.php)
+- [ProductEditScreen.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Product/ProductEditScreen.php)
+- [ProductListScreen.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Product/ProductListScreen.php)
 
-- `GET /packages`
-- `POST /packages`
-- `GET /packages/suppliers`
-- `POST /packages/suppliers`
-- `GET /packages/categories`
-- `POST /packages/categories`
-- `GET /packages/products`
-- `POST /packages/products`
-- `GET /packages/product-details`
-- `POST /packages/product-details`
-- `POST /packages/:packageId/status`
+### Routes and Menu
 
-Current request rules:
+- [PlatformProvider.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/PlatformProvider.php)
+- [platform.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/routes/platform.php)
 
-- product detail `poolRate` is sent as decimal `0..1`
-- admin UI currently accepts pool as percent and converts before submit
-- package creation requires at least one selected product detail in the new builder flow
+### Commission Sandbox
 
-## Admin UI State
+- [commission_sandbox.md](/Users/macbook/poolproject/docs/technical-design/commission_sandbox.md)
+- [commission-sandbox.js](/Users/macbook/poolproject/scripts/commission-sandbox.js)
+- [matrix-sandbox.js](/Users/macbook/poolproject/scripts/matrix-sandbox.js)
+- [member003-members.json](/Users/macbook/poolproject/scripts/member003-members.json)
+- [member003-pv-table.json](/Users/macbook/poolproject/scripts/member003-pv-table.json)
+- [run_member003_direct_test.sh](/Users/macbook/poolproject/scripts/run_member003_direct_test.sh)
+- [run_member003_matrix_test.sh](/Users/macbook/poolproject/scripts/run_member003_matrix_test.sh)
 
-The admin page now has a product catalog section with:
+## Current Report Shape
 
-- create supplier form
-- create category form
-- create product form
-- create product detail form
-- package builder
-- live package preview
-- catalog snapshot counters
-- package table with:
-  - cost
-  - member
-  - retail
-  - PV
-  - pool %
-  - active days
-  - earning cap
-  - item count
+Main report columns:
 
-What works in the UI:
+- `วันที่`
+- `รหัสสมาชิก`
+- `ชื่อสมาชิก`
+- `โบนัสแนะนำ`
+- `พูลโบนัส`
+- `ยูนิลีเวล`
+- `เมทริกซ์`
+- `จำนวนรวม`
 
-- creating catalog entities in order
-- adding product details into package builder
-- live preview totals from selected items
-- package creation from selected items
-- package list rendering with expanded columns
+Direct / Unilevel columns:
 
-What is still incomplete in the UI:
+- `วันที่`
+- `รหัสสมาชิก`
+- `ชื่อสมาชิก`
+- `จาก`
+- `ชื่อ`
+- `ลำดับชั้น`
+- `พีวี`
+- `เปอร์เซ็นต์`
+- `จำนวน`
 
-- no separate tables yet for suppliers, categories, products, product details
-- no edit/delete actions for catalog entities
-- package clone does not yet reconstruct existing `PackageItem` rows back into the builder
+Matrix columns:
 
-## Referral / Signup Notes
+- `วันที่`
+- `รหัสสมาชิก`
+- `ชื่อสมาชิก`
+- `จาก`
+- `ชื่อ`
+- `บอร์ด`
+- `ลำดับชั้น`
+- `พีวี`
+- `เปอร์เซ็นต์`
+- `จำนวน`
 
-Current member onboarding behavior:
+Pool columns:
 
-- referral links use `referralCode`, not `memberCode`
-- signup accepts `email or phone` plus password
-- password rule is alphanumeric, minimum 6 chars
-- if no `ref`, sponsor falls back to `TH0000001`
-- if `TH0000001` does not exist, signup fails clearly
-- signup auto-logs in and redirects to `/app`
-- member completes profile later inside `/app`
+- `วันที่`
+- `รหัสสมาชิก`
+- `ชื่อสมาชิก`
+- `พีวี`
+- `เปอร์เซ็นต์`
+- `จำนวน`
 
-## Commission / Matrix / Pool Notes
+## Verification Already Done
 
-Current status:
+These were verified during the recent rounds:
 
-- direct commission supports multi-level direct rates
-- unilevel still works
-- matrix payouts are posted to wallet
-- member app exposes matrix and payout history
-- commission/matrix/pool consistency fixes were already merged before this round
+- `php -l` on the commission PHP files
+- report queries checked against local Postgres data
+- detail report modes use DB pagination
+- overview uses DB-side union/aggregate pagination
+- `CSV` and `Excel` export paths use export cursor/meta flow
+- `PDF` export guardrail rejects `> 500` rows
+- `bash scripts/run_member003_direct_test.sh`
+- `bash scripts/run_member003_matrix_test.sh`
+- `PYTHONPYCACHEPREFIX=/tmp/pycache-member003 python3 -m py_compile ...` for the sandbox Python scripts
 
-Open business-rule gap:
+## What Still Needs Browser Verification
 
-- catalog-level `poolRate` is not yet applied to `pool.service.ts`
-- current live pool logic still uses existing global pool settings flow
+1. Recheck commission pages in browser:
+- `/admin/commission/settings`
+- `/admin/commission/report`
+- `/admin/commission/report/direct`
+- `/admin/commission/report/unilevel`
+- `/admin/commission/report/matrix`
+- `/admin/commission/report/pool`
 
-## How To Run
+2. Recheck export in browser:
+- `CSV`
+- `Excel`
+- `PDF`
 
-### Lint
+Especially verify:
 
-```bash
-npm run lint
-```
-
-### Prisma
-
-```bash
-npm run prisma:generate
-npm run prisma:push
-```
-
-### Local smoke
-
-```bash
-bash scripts/local-smoke.sh
-```
-
-### Calculation scenarios
-
-```bash
-bash scripts/calc-scenarios.sh
-```
-
-### Local UI
-
-After API is running:
-
-- admin: `http://127.0.0.1:3000/admin`
-- signup: `http://127.0.0.1:3000/signup`
-- member app: `http://127.0.0.1:3000/app`
-
-## Important Runtime Notes
-
-- local DB schema has already been pushed successfully for the new catalog models
-- Prisma client has already been regenerated successfully
-- `runtime/` remains file-backed for settings/session artifacts
-- `logs/` and `runtime/` are gitignored
-
-If the API needs to be run interactively and localhost DB access fails in sandbox, the previously working pattern was:
-
-```bash
-DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/poolproject?schema=public npm run start:api
-```
-
-## What Is Still Not Production-Ready
-
-- product catalog edit/delete lifecycle
-- package composition history / full builder reload
-- catalog-specific automated smoke coverage
-- catalog-specific calc scenarios
-- pool calculation driven by package or product-level `poolRate`
-- deeper transaction/concurrency hardening
-- payout reconciliation lifecycle
-- richer role/permission controls
+- Thai font rendering in PDF
+- Excel readability / column widths
+- export keeps current filters
+- PDF limit message is understandable
 
 ## Best Next Steps
 
-1. Finish the product catalog admin UI.
-   - add tables for suppliers, categories, products, product details
-   - add prefill or quick-jump actions between catalog levels
-   - add package detail breakdown view
+1. Browser-smoke the commission report/export flow after the merged changes.
 
-2. Extend package read APIs.
-   - include `PackageItem` rows in package list/detail responses
-   - enable true `Clone to Studio` from existing package composition
+2. Decide whether any remaining UX cleanup is needed in commission report:
+- wording
+- spacing
+- summary card clarity
 
-3. Lock the business rule for `% pool`.
-   - decide whether pool uses `package.poolRate`
-   - or weighted aggregation from `productDetail.poolRate`
-   - then wire that into live pool funding logic
+3. If product admin is next, continue from the editable product detail flow that is already merged.
 
-4. Add verification.
-   - extend `scripts/local-smoke.sh` with catalog creation flow
-   - add calc or integration scenario for package built from product details
-
-5. Then refine UX.
-   - edit/delete/archive states
-   - validations and duplicate guards
-   - better catalog search/filtering
-
-## Suggested Restart Point
-
-If resuming next round, start here:
-
-1. Open `/admin` and manually verify the new product catalog section.
-2. Add list tables for:
-   - suppliers
-   - categories
-   - products
-   - product details
-3. Extend package API to return `packageItems` so `Clone to Studio` can rebuild a package from saved data.
-4. Decide and implement the real `poolRate` business rule.
+4. Keep `.git/info/exclude` local-only.
+- do not move those dump-ignore rules into repo `.gitignore` unless the team explicitly wants that behavior
