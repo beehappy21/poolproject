@@ -127,7 +127,7 @@ class CommissionReportController extends Controller
     private function headersForMode(string $mode): array
     {
         return match ($mode) {
-            'overview' => ['วันที่', 'รหัสสมาชิก', 'ชื่อสมาชิก', 'โบนัสแนะนำ', 'พูลโบนัส', 'ยูนิลีเวล', 'เมทริกซ์', 'จำนวนรวม'],
+            'overview' => ['วันที่', 'รหัสสมาชิก', 'ชื่อสมาชิก', 'โบนัสแนะนำ', 'Cash Back', 'พูลโบนัส', 'ยูนิลีเวล', 'เมทริกซ์', 'จำนวนรวม'],
             'matrix' => ['วันที่', 'รหัสสมาชิก', 'ชื่อสมาชิก', 'จาก', 'ชื่อ', 'Board', 'ลำดับชั้น', 'พีวี', 'เปอร์เซ็นต์', 'จำนวน'],
             'pool' => ['วันที่', 'รหัสสมาชิก', 'ชื่อสมาชิก', 'พีวี', 'เปอร์เซ็นต์', 'จำนวน'],
             default => ['วันที่', 'รหัสสมาชิก', 'ชื่อสมาชิก', 'จาก', 'ชื่อ', 'ลำดับชั้น', 'พีวี', 'เปอร์เซ็นต์', 'จำนวน'],
@@ -142,6 +142,7 @@ class CommissionReportController extends Controller
                 $row['beneficiaryMemberCode'],
                 $row['beneficiaryName'],
                 number_format((float) $row['directAmount'], 2, '.', ''),
+                number_format((float) $row['cashbackAmount'], 2, '.', ''),
                 number_format((float) $row['poolAmount'], 2, '.', ''),
                 number_format((float) $row['uniAmount'], 2, '.', ''),
                 number_format((float) $row['matrixAmount'], 2, '.', ''),
@@ -208,6 +209,7 @@ class CommissionReportController extends Controller
                 '',
                 '',
                 $this->formatDecimal((float) ($totals['directAmount'] ?? 0)),
+                $this->formatDecimal((float) ($totals['cashbackAmount'] ?? 0)),
                 $this->formatDecimal((float) ($totals['poolAmount'] ?? 0)),
                 $this->formatDecimal((float) ($totals['uniAmount'] ?? 0)),
                 $this->formatDecimal((float) ($totals['matrixAmount'] ?? 0)),

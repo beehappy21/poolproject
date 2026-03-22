@@ -148,7 +148,8 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
         commissionType: input.sourceType.toUpperCase() as
           | "DIRECT"
           | "UNI"
-          | "POOL",
+          | "POOL"
+          | "CASHBACK",
         levelNo: input.levelNo ?? null,
         tierNo: input.tierNo ?? null,
         rate: input.rate,
@@ -203,9 +204,14 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
         sourceType: input.sourceType.toUpperCase() as
           | "DIRECT"
           | "UNI"
-          | "POOL",
+          | "POOL"
+          | "CASHBACK",
         sourceRefId: BigInt(input.sourceRefId),
-        bonusType: input.sourceType.toUpperCase() as "DIRECT" | "UNI" | "POOL",
+        bonusType: input.sourceType.toUpperCase() as
+          | "DIRECT"
+          | "UNI"
+          | "POOL"
+          | "CASHBACK",
         amount: input.amount,
         reason: input.reasonCode,
       },
@@ -225,7 +231,11 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
           ? BigInt(filters.beneficiaryUserId)
           : undefined,
         commissionType: filters?.commissionType
-          ? filters.commissionType.toUpperCase() as "DIRECT" | "UNI" | "POOL"
+          ? filters.commissionType.toUpperCase() as
+              | "DIRECT"
+              | "UNI"
+              | "POOL"
+              | "CASHBACK"
           : undefined,
       };
     const entries = await this.prisma.commissionLedger.findMany({
@@ -294,7 +304,11 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
           ? BigInt(filters.sourceRefId)
           : undefined,
         sourceType: filters?.sourceType
-          ? filters.sourceType.toUpperCase() as "DIRECT" | "UNI" | "POOL"
+          ? filters.sourceType.toUpperCase() as
+              | "DIRECT"
+              | "UNI"
+              | "POOL"
+              | "CASHBACK"
           : undefined,
       };
     const entries = await this.prisma.companyBonusLedger.findMany({

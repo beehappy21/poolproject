@@ -8,6 +8,7 @@ class PoolprojectSettingsStore
         'directLevelRates' => ['0.2'],
         'uniLevelRates' => ['0.05', '0.05', '0.05', '0.05', '0.05'],
         'poolRate' => '0.5',
+        'cashbackRate' => '0',
     ];
 
     private const DEFAULT_MATRIX_SETTINGS = [
@@ -96,11 +97,13 @@ class PoolprojectSettingsStore
         $direct = self::normalizeDecimalArray($input['directLevelRates'] ?? null, self::DEFAULT_COMMISSION_SETTINGS['directLevelRates']);
         $uni = self::normalizeDecimalArray($input['uniLevelRates'] ?? null, self::DEFAULT_COMMISSION_SETTINGS['uniLevelRates']);
         $poolRate = self::normalizeDecimalString($input['poolRate'] ?? null, self::DEFAULT_COMMISSION_SETTINGS['poolRate']);
+        $cashbackRate = self::normalizeDecimalString($input['cashbackRate'] ?? null, self::DEFAULT_COMMISSION_SETTINGS['cashbackRate']);
 
         return [
             'directLevelRates' => $direct,
             'uniLevelRates' => $uni,
             'poolRate' => $poolRate,
+            'cashbackRate' => $cashbackRate,
         ];
     }
 

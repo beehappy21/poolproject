@@ -22,6 +22,7 @@ export interface ApprovedOrderOrchestrationResult {
   steps: ApprovedOrderOrchestrationStep[];
   commissionDrafts: {
     directStatus: "approved" | "held" | "fallback" | "withdrawable";
+    cashbackCount: number;
     directCount: number;
     uniCount: number;
     hasFallback: boolean;

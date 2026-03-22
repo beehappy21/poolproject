@@ -15,7 +15,7 @@ export interface WalletPostingInput {
   amount: string;
   holdRequired: boolean;
   direction?: "credit" | "debit";
-  earningType?: "direct" | "uni" | "pool" | "matrix";
+  earningType?: "direct" | "uni" | "pool" | "matrix" | "cashback";
 }
 
 export interface WalletPostingResult {

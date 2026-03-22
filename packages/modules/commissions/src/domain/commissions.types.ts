@@ -28,7 +28,7 @@ export interface BonusToCycleAllocationResult {
 }
 
 export interface CommissionFinalizationInput {
-  sourceType: "direct" | "uni" | "pool";
+  sourceType: "direct" | "uni" | "pool" | "cashback";
   sourceRefId: string;
   sourceUserId: string;
   beneficiaryUserId: string | null;
@@ -107,6 +107,16 @@ export interface UniCommissionDraftResult {
 
 export interface ApprovedOrderCommissionFlowResult {
   sourceOrderId: string;
+  cashbackDrafts: Array<{
+    sourceType: "cashback";
+    sourceOrderId: string;
+    beneficiaryUserId: string | null;
+    rate: string;
+    basePv: string;
+    amount: string;
+    allocation: BonusToCycleAllocationResult | null;
+    finalization: CommissionFinalizationResult;
+  }>;
   directDrafts: DirectCommissionDraftResult[];
   uniDrafts: UniCommissionDraftResult[];
 }

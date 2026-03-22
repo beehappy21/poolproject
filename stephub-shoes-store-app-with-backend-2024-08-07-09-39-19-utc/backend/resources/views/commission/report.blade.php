@@ -125,6 +125,7 @@
                             <th>ชื่อสมาชิก</th>
                             @if ($reportMode === 'overview')
                                 <th>โบนัสแนะนำ</th>
+                                <th>Cash Back</th>
                                 <th>พูลโบนัส</th>
                                 <th>ยูนิลีเวล</th>
                                 <th>เมทริกซ์</th>
@@ -159,6 +160,7 @@
                                 <td>{{ $row['beneficiaryName'] }}</td>
                                 @if ($reportMode === 'overview')
                                 <td>{{ $formatDecimal($row['directAmount']) }}</td>
+                                <td>{{ $formatDecimal($row['cashbackAmount']) }}</td>
                                 <td>{{ $formatDecimal($row['poolAmount']) }}</td>
                                 <td>{{ $formatDecimal($row['uniAmount']) }}</td>
                                 <td>{{ $formatDecimal($row['matrixAmount']) }}</td>
@@ -186,7 +188,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="{{ $reportMode === 'overview' ? '8' : ($reportMode === 'pool' ? '6' : ($reportMode === 'matrix' ? '10' : '9')) }}" class="commission-empty">ยังไม่มีข้อมูลคอมมิชชั่นในช่วงเวลาหรือเงื่อนไขที่เลือก</td>
+                                <td colspan="{{ $reportMode === 'overview' ? '9' : ($reportMode === 'pool' ? '6' : ($reportMode === 'matrix' ? '10' : '9')) }}" class="commission-empty">ยังไม่มีข้อมูลคอมมิชชั่นในช่วงเวลาหรือเงื่อนไขที่เลือก</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -196,6 +198,7 @@
                                 <td colspan="3">รวมทั้งหมด</td>
                                 @if ($reportMode === 'overview')
                                 <td>{{ $formatDecimal($totals['directAmount'] ?? 0) }}</td>
+                                <td>{{ $formatDecimal($totals['cashbackAmount'] ?? 0) }}</td>
                                 <td>{{ $formatDecimal($totals['poolAmount'] ?? 0) }}</td>
                                 <td>{{ $formatDecimal($totals['uniAmount'] ?? 0) }}</td>
                                 <td>{{ $formatDecimal($totals['matrixAmount'] ?? 0) }}</td>
@@ -233,7 +236,7 @@
 
         <div class="commission-note">
             {{ $reportMode === 'overview'
-                ? 'รายงานนี้แสดงยอดคอมมิชชั่นรวมต่อสมาชิกในแต่ละวัน โดยแยกคอลัมน์ตามประเภทโบนัสหลัก และมีแถวรวมยอดจากผลลัพธ์ที่กรองทั้งหมด'
+                ? 'รายงานนี้แสดงยอดคอมมิชชั่นรวมต่อสมาชิกในแต่ละวัน โดยแยกคอลัมน์ตามประเภทโบนัสหลักรวมถึง cash back และมีแถวรวมยอดจากผลลัพธ์ที่กรองทั้งหมด'
                 : ($reportMode === 'pool'
                     ? 'สูตรของพูลโบนัสคือ PV approved รวมของวัน x % pool แล้วหารด้วยจำนวนสมาชิกที่ eligible โดย eligible ต้อง active และมี direct active อย่างน้อย 2 คน'
                     : 'รายงานนี้แสดงรายการคอมมิชชั่นแบบละเอียด พร้อมค่าพีวี เปอร์เซ็นต์ และจำนวนเงินแบบทศนิยม 2 ตำแหน่ง รวมยอดจากข้อมูลที่กรองทั้งหมด') }}

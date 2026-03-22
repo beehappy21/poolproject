@@ -14,6 +14,7 @@ class CommissionReportBuilder
         'unilevel' => 'รายงานรายการคอมมิชชั่นตามสมาชิก ช่วงเวลา และสายแนะนำ',
         'matrix' => 'รายงานโบนัสเมทริกซ์ แยกตามบอร์ด ชั้น และสมาชิกต้นทาง',
         'pool' => 'รายงานพูลโบนัส โดยยึดสูตร PV approved รวมของวัน x % pool แล้วหารด้วยจำนวนสมาชิกที่ eligible ในวันนั้น',
+        'cashback' => 'รายงาน cash back จากยอด PV ซื้อส่วนตัวของสมาชิกที่ถูกอนุมัติ',
     ];
 
     private const DETAIL_TITLES = [
@@ -21,13 +22,14 @@ class CommissionReportBuilder
         'unilevel' => 'รายงานยูนิลีเวลโบนัส',
         'matrix' => 'รายงานเมทริกซ์โบนัส',
         'pool' => 'รายงานพูลโบนัส',
+        'cashback' => 'รายงาน Cash Back Bonus',
     ];
 
     public static function normalizeMode(?string $mode): string
     {
         $mode = (string) ($mode ?? 'overview');
 
-        return in_array($mode, ['overview', 'direct', 'unilevel', 'matrix', 'pool'], true) ? $mode : 'overview';
+        return in_array($mode, ['overview', 'direct', 'unilevel', 'matrix', 'pool', 'cashback'], true) ? $mode : 'overview';
     }
 
     public static function filtersFromRequest(Request $request): array
@@ -221,14 +223,10 @@ class CommissionReportBuilder
             'direct' => 'DIRECT',
             'unilevel' => 'UNI',
             'pool' => 'POOL',
+            'cashback' => 'CASHBACK',
             default => 'DIRECT',
         };
-        $title = match ($mode) {
-            'direct' => 'รายงานโบนัสแนะนำ',
-            'unilevel' => 'รายงานยูนิลีเวลโบนัส',
-            'pool' => 'รายงานพูลโบนัส',
-            default => 'รายงานโบนัสแนะนำ',
-        };
+        $title = self::DETAIL_TITLES[$mode] ?? self::DETAIL_TITLES['direct'];
 
         $detailQuery = (clone $baseQuery)
             ->leftJoin(DB::raw('"User" as source'), function ($join) {
@@ -284,9 +282,7 @@ class CommissionReportBuilder
 
         return [
             'title' => $title,
-            'description' => $mode === 'pool'
-                ? 'รายงานพูลโบนัส โดยยึดสูตร PV approved รวมของวัน x % pool แล้วหารด้วยจำนวนสมาชิกที่ eligible ในวันนั้น'
-                : 'รายงานรายการคอมมิชชั่นตามสมาชิก ช่วงเวลา และสายแนะนำ',
+            'description' => self::DETAIL_DESCRIPTIONS[$mode] ?? self::DETAIL_DESCRIPTIONS['direct'],
             'rows' => $detailRows,
             'totals' => $totals,
             'summaryCards' => $summaryCards,
@@ -312,6 +308,7 @@ class CommissionReportBuilder
                 beneficiary_member_code,
                 beneficiary_name,
                 coalesce(sum(direct_amount), 0) as direct_amount,
+                coalesce(sum(cashback_amount), 0) as cashback_amount,
                 coalesce(sum(pool_amount), 0) as pool_amount,
                 coalesce(sum(uni_amount), 0) as uni_amount,
                 coalesce(sum(matrix_amount), 0) as matrix_amount,
@@ -336,6 +333,7 @@ class CommissionReportBuilder
                 coalesce(beneficiary."memberCode", \'-\') as beneficiary_member_code,
                 coalesce(beneficiary."name", \'-\') as beneficiary_name,
                 coalesce(sum(case when cl."commissionType" = \'DIRECT\' then cl."commissionAmount" else 0 end), 0) as direct_amount,
+                coalesce(sum(case when cl."commissionType" = \'CASHBACK\' then cl."commissionAmount" else 0 end), 0) as cashback_amount,
                 coalesce(sum(case when cl."commissionType" = \'POOL\' then cl."commissionAmount" else 0 end), 0) as pool_amount,
                 coalesce(sum(case when cl."commissionType" = \'UNI\' then cl."commissionAmount" else 0 end), 0) as uni_amount,
                 0 as matrix_amount,
@@ -352,6 +350,7 @@ class CommissionReportBuilder
                 coalesce(beneficiary."memberCode", \'-\') as beneficiary_member_code,
                 coalesce(beneficiary."name", \'-\') as beneficiary_name,
                 0 as direct_amount,
+                0 as cashback_amount,
                 0 as pool_amount,
                 0 as uni_amount,
                 coalesce(sum(mp."payoutAmount"), 0) as matrix_amount,
@@ -368,6 +367,7 @@ class CommissionReportBuilder
             ->selectRaw(
                 'count(*) as total_count,
                 coalesce(sum(direct_amount), 0) as direct_amount,
+                coalesce(sum(cashback_amount), 0) as cashback_amount,
                 coalesce(sum(pool_amount), 0) as pool_amount,
                 coalesce(sum(uni_amount), 0) as uni_amount,
                 coalesce(sum(matrix_amount), 0) as matrix_amount,
@@ -378,6 +378,7 @@ class CommissionReportBuilder
         return $row ?? (object) [
             'total_count' => 0,
             'direct_amount' => '0',
+            'cashback_amount' => '0',
             'pool_amount' => '0',
             'uni_amount' => '0',
             'matrix_amount' => '0',
@@ -392,6 +393,7 @@ class CommissionReportBuilder
             'beneficiaryMemberCode' => $row->beneficiary_member_code ?: '-',
             'beneficiaryName' => $row->beneficiary_name ?: '-',
             'directAmount' => (string) $row->direct_amount,
+            'cashbackAmount' => (string) $row->cashback_amount,
             'poolAmount' => (string) $row->pool_amount,
             'uniAmount' => (string) $row->uni_amount,
             'matrixAmount' => (string) $row->matrix_amount,
@@ -403,6 +405,7 @@ class CommissionReportBuilder
     {
         return [
             'directAmount' => (string) ($row->direct_amount ?? '0'),
+            'cashbackAmount' => (string) ($row->cashback_amount ?? '0'),
             'poolAmount' => (string) ($row->pool_amount ?? '0'),
             'uniAmount' => (string) ($row->uni_amount ?? '0'),
             'matrixAmount' => (string) ($row->matrix_amount ?? '0'),
@@ -420,6 +423,7 @@ class CommissionReportBuilder
             'summaryCards' => [
                 ['label' => 'รายการที่พบ', 'value' => (string) $totalCount, 'note' => 'จำนวนแถวหลังกรองทั้งหมด', 'format' => 'count'],
                 ['label' => 'โบนัสแนะนำรวม', 'value' => $totals['directAmount'], 'note' => 'ยอด direct bonus', 'format' => 'decimal'],
+                ['label' => 'Cash back รวม', 'value' => $totals['cashbackAmount'], 'note' => 'ยอด cashback bonus', 'format' => 'decimal'],
                 ['label' => 'ยูนิลีเวลรวม', 'value' => $totals['uniAmount'], 'note' => 'ยอด unilevel bonus', 'format' => 'decimal'],
                 ['label' => 'เมทริกซ์รวม', 'value' => $totals['matrixAmount'], 'note' => 'ยอด matrix payout', 'format' => 'decimal'],
                 ['label' => 'ยอดรวมทั้งหมด', 'value' => $totals['totalAmount'], 'note' => 'รวมทุกประเภทคอมมิชชั่น', 'format' => 'decimal'],
@@ -498,6 +502,7 @@ class CommissionReportBuilder
             'direct' => 'DIRECT',
             'unilevel' => 'UNI',
             'pool' => 'POOL',
+            'cashback' => 'CASHBACK',
             default => 'DIRECT',
         };
         $query = self::ledgerDetailQuery($filters, $commissionType);
@@ -672,6 +677,7 @@ class CommissionReportBuilder
             'direct' => 'DIRECT',
             'unilevel' => 'UNI',
             'pool' => 'POOL',
+            'cashback' => 'CASHBACK',
             default => 'DIRECT',
         };
         $totalsRow = (clone self::ledgerDetailQuery($filters, $commissionType))

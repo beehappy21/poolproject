@@ -5,6 +5,7 @@ export interface CommissionSettings {
   directLevelRates: string[];
   uniLevelRates: string[];
   poolRate: string;
+  cashbackRate: string;
 }
 
 const SETTINGS_PATH = join(
@@ -17,6 +18,7 @@ const DEFAULT_SETTINGS: CommissionSettings = {
   directLevelRates: ["0.2"],
   uniLevelRates: ["0.05", "0.05", "0.05", "0.05", "0.05"],
   poolRate: "0.5",
+  cashbackRate: "0",
 };
 
 function isDecimalString(value: unknown): value is string {
@@ -66,6 +68,9 @@ export function normalizeCommissionSettings(input: unknown): CommissionSettings 
     poolRate: isDecimalString(candidate.poolRate)
       ? candidate.poolRate.trim()
       : DEFAULT_SETTINGS.poolRate,
+    cashbackRate: isDecimalString(candidate.cashbackRate)
+      ? candidate.cashbackRate.trim()
+      : DEFAULT_SETTINGS.cashbackRate,
   };
 }
 
@@ -74,6 +79,7 @@ export function getDefaultCommissionSettings(): CommissionSettings {
     directLevelRates: [...DEFAULT_SETTINGS.directLevelRates],
     uniLevelRates: [...DEFAULT_SETTINGS.uniLevelRates],
     poolRate: DEFAULT_SETTINGS.poolRate,
+    cashbackRate: DEFAULT_SETTINGS.cashbackRate,
   };
 }
 

@@ -55,6 +55,7 @@ export class AdminSettingsController {
         requireDecimalRateString(value, `uniLevelRates[${index}]`),
       ),
       poolRate: requireDecimalRateString(payload.poolRate, "poolRate"),
+      cashbackRate: requireDecimalRateString(payload.cashbackRate, "cashbackRate"),
     });
 
     return {

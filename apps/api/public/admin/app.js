@@ -31,6 +31,7 @@ const commissionSettingsForm = document.getElementById("commissionSettingsForm")
 const directLevelsList = document.getElementById("directLevelsList");
 const addDirectLevelButton = document.getElementById("addDirectLevelButton");
 const poolRateSettingsInput = document.getElementById("poolRateSettingsInput");
+const cashbackRateSettingsInput = document.getElementById("cashbackRateSettingsInput");
 const uniLevelsList = document.getElementById("uniLevelsList");
 const addUniLevelButton = document.getElementById("addUniLevelButton");
 const matrixSettingsForm = document.getElementById("matrixSettingsForm");
@@ -197,6 +198,7 @@ state.settings = {
   directLevelRates: ["0.2"],
   uniLevelRates: ["0.05", "0.05", "0.05", "0.05", "0.05"],
   poolRate: "0.5",
+  cashbackRate: "0",
 };
 state.matrixSettings = {
   boardWidth: 2,
@@ -957,11 +959,19 @@ function renderSimpleValueRows(listElement, values, inputKey, labelPrefix) {
 }
 
 function renderCommissionSettings() {
-  if (!poolRateSettingsInput || !directLevelsList || !uniLevelsList) {
+  if (
+    !poolRateSettingsInput ||
+    !cashbackRateSettingsInput ||
+    !directLevelsList ||
+    !uniLevelsList
+  ) {
     return;
   }
 
   poolRateSettingsInput.value = decimalToPercentString(state.settings.poolRate);
+  cashbackRateSettingsInput.value = decimalToPercentString(
+    state.settings.cashbackRate,
+  );
   renderRateLevelRows(
     directLevelsList,
     state.settings.directLevelRates.map(decimalToPercentString),
@@ -1001,6 +1011,7 @@ async function loadCommissionSettings() {
           : ["0.2"],
     uniLevelRates: settings.uniLevelRates,
     poolRate: settings.poolRate,
+    cashbackRate: settings.cashbackRate || "0",
   };
   renderCommissionSettings();
 }
@@ -1175,6 +1186,7 @@ async function saveCommissionSettings() {
       directLevelRates: collectDirectLevelRates(),
       uniLevelRates: collectUniLevelRates(),
       poolRate: percentToDecimalString(poolRateSettingsInput.value),
+      cashbackRate: percentToDecimalString(cashbackRateSettingsInput.value),
     }),
   });
 
@@ -1182,12 +1194,13 @@ async function saveCommissionSettings() {
     directLevelRates: result.directLevelRates,
     uniLevelRates: result.uniLevelRates,
     poolRate: result.poolRate,
+    cashbackRate: result.cashbackRate,
   };
   renderCommissionSettings();
   setActionOutput("Commission settings saved", result);
   pushHistory(
     "Commission Settings",
-    `Saved ${result.directLevels} direct levels, ${result.uniLevels} uni levels, pool ${decimalToPercentString(result.poolRate)}%`,
+    `Saved ${result.directLevels} direct levels, ${result.uniLevels} uni levels, pool ${decimalToPercentString(result.poolRate)}%, cashback ${decimalToPercentString(result.cashbackRate)}%`,
   );
 }
 

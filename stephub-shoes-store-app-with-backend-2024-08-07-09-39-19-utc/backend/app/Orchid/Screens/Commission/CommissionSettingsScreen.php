@@ -21,6 +21,7 @@ class CommissionSettingsScreen extends Screen
                 ['label' => 'Unilevel bonus', 'value' => 'Needs config UI', 'note' => 'Level rates, qualification, fallback handling'],
                 ['label' => 'Matrix bonus', 'value' => 'Needs config UI', 'note' => 'Board thresholds and payout ladders'],
                 ['label' => 'Pool bonus', 'value' => 'Needs config UI', 'note' => 'Daily pool share, hold and release policy'],
+                ['label' => 'Cash back', 'value' => 'Needs config UI', 'note' => 'Personal PV x cashback % on approval'],
             ],
             'bullets' => [
                 'Use this section as the Stephub-style home for commission configuration.',
@@ -93,6 +94,22 @@ class CommissionSettingsScreen extends Screen
                 'Later we can connect it to pool.service and commission snapshots.',
             ],
         ],
+        'cashback' => [
+            'title' => 'Cash Back',
+            'routeName' => 'platform.commission.cashback',
+            'eyebrow' => 'Commission Setting',
+            'description' => 'Cash back configuration for personal purchase PV, paid immediately when an order is approved.',
+            'accent' => '#8b5cf6',
+            'cards' => [
+                ['label' => 'Calculation base', 'value' => 'Personal PV', 'note' => 'Uses the approved order PV of the buyer'],
+                ['label' => 'Payout timing', 'value' => 'On approval', 'note' => 'Creates ledger and wallet credit immediately after approval'],
+                ['label' => 'Reversal flow', 'value' => 'Same as commissions', 'note' => 'Reprocess and reversal behavior follow the standard commission flow'],
+            ],
+            'bullets' => [
+                'Use this page to set the cashback percentage applied to each member\'s own approved PV.',
+                'Cashback should appear alongside other commission reports and reuse the same ledger history model.',
+            ],
+        ],
     ];
 
     private array $sectionConfig = self::SECTIONS['settings'];
@@ -152,6 +169,11 @@ class CommissionSettingsScreen extends Screen
     public function pool(Request $request): iterable
     {
         return $this->resolveSectionPayload('pool');
+    }
+
+    public function cashback(Request $request): iterable
+    {
+        return $this->resolveSectionPayload('cashback');
     }
 
     private function resolveSectionPayload(string $section): iterable
