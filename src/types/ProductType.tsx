@@ -1,0 +1,36 @@
+import {ReviewType} from './ReviewType';
+
+export type ProductType = {
+  id: number;
+  packageId?: string;
+  packageCode?: string;
+  name: string;
+  price: number;
+  pv?: number;
+  activeDays?: number;
+  status?: string;
+  itemCount?: number;
+  rating: number;
+  ratingCount?: number;
+  image: string;
+  images: string[];
+  sizes: string[];
+  size: string;
+  colors: any[];
+  color: string;
+  description: string;
+  categories: string;
+  is_bestseller: boolean;
+  is_featured: boolean;
+  is_out_of_stock: boolean;
+  oldPrice?: number;
+  quantity?: number;
+  reviews: ReviewType[];
+  types: string[];
+  isNew: boolean;
+  isTop: boolean;
+  isFeatured: boolean;
+  audience: string[];
+  promotion: string;
+  tags: string[];
+};

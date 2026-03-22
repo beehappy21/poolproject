@@ -1,0 +1,49 @@
+
+@font-face {
+  font-family: 'Mulish-Black';
+  font-style: normal;
+  font-weight: 700;
+  src: url('./Mulish-Black.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Mulish-Bold';
+  font-style: normal;
+  font-weight: 700;
+  src: url('./Mulish-Bold.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Mulish-ExtraBold';
+  font-style: normal;
+  font-weight: 800;
+  src: url('./Mulish-ExtraBold.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Mulish-ExtraLight';
+  font-style: normal;
+  font-weight: 200;
+  src: url('./Mulish-ExtraLight.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Mulish-Light';
+  font-style: normal;
+  font-weight: 300;
+  src: url('./Mulish-Light.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Mulish-Regular';
+  font-style: normal;
+  font-weight: 400;
+  src: url('./Mulish-Regular.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Mulish-SemiBold';
+  font-style: normal;
+  font-weight: 600;
+  src: url('./Mulish-SemiBold.ttf') format('truetype');
+}
