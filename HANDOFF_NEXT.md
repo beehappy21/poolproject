@@ -103,6 +103,7 @@ Order transfer and shipping behavior:
   - total PV
 - BAO now has `Order Reports` menu with report shortcuts
 - order report pages support `CSV` export per current bucket
+- order report pages support `CSV`, `Excel`, and `PDF` export per current bucket
 
 ## Important Files
 
@@ -147,6 +148,7 @@ Order transfer and shipping behavior:
 - [OrderDetailScreen.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Order/OrderDetailScreen.php)
 - [OrderReportController.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Http/Controllers/Platform/OrderReportController.php)
 - [report-summary.blade.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/resources/views/order/report-summary.blade.php)
+- [report-export-pdf.blade.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/resources/views/order/report-export-pdf.blade.php)
 - [index.html](/Users/macbook/poolproject/apps/api/public/app/index.html)
 - [app.js](/Users/macbook/poolproject/apps/api/public/app/app.js)
 - [styles.css](/Users/macbook/poolproject/apps/api/public/app/styles.css)
@@ -240,6 +242,7 @@ These were verified during the recent rounds:
   - `all`: `173` orders, amount `19860`, pv `19860`
   - `shipped`: `1` order, amount `100`, pv `100`
 - order report CSV export route returned `text/csv` attachment for bucket `shipped`
+- order report `CSV / Excel / PDF` export responses all returned correct attachment content types for bucket `shipped`
 
 ## What Still Needs Browser Verification
 
