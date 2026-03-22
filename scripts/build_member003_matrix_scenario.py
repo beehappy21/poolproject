@@ -4,6 +4,7 @@ import json
 import sys
 import zipfile
 import xml.etree.ElementTree as ET
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -98,16 +99,38 @@ def load_member_rows_from_source(source_path: Path) -> List[Dict[str, Optional[s
     return load_member_rows(source_path)
 
 
-def build_orders(pv_table: Dict[str, object]) -> List[Dict[str, str]]:
-    orders = []
-    for index, member_id in enumerate(sorted(pv_table["pvByMemberId"].keys()), start=1):
-        orders.append(
-            {
-                "invoiceNo": f"member003-matrix-{index:03d}",
-                "memberId": member_id,
-                "pv": pv_table["pvByMemberId"].get(member_id, pv_table["defaultPv"]),
-            }
-        )
+def build_orders(orders_payload: Dict[str, object]) -> List[Dict[str, str]]:
+    def resolve_order_type(bill_type: Optional[str]) -> str:
+        normalized = (bill_type or "").strip()
+        if normalized == "บิลอัตโนมัติ":
+            return "reentry"
+        return "normal"
+
+    orders = [
+        {
+            "invoiceNo": row["invoiceNo"],
+            "memberId": row["memberId"],
+            "pv": row["pv"],
+            "invoiceDate": row.get("invoiceDate"),
+            "billType": row.get("billType"),
+            "orderType": resolve_order_type(row.get("billType")),
+            "isReentry": resolve_order_type(row.get("billType")) == "reentry",
+            "status": row.get("status"),
+        }
+        for row in orders_payload["orders"]
+    ]
+
+    def sort_key(row: Dict[str, str]):
+        raw_date = (row.get("invoiceDate") or "").strip()
+        if raw_date:
+            day, month, year = [int(part) for part in raw_date.split("/")]
+            normalized_date = datetime(year - 543, month, day)
+        else:
+            normalized_date = datetime.max
+
+        return (normalized_date, row["invoiceNo"])
+
+    orders.sort(key=sort_key)
     return orders
 
 
@@ -115,18 +138,22 @@ def main() -> None:
     member_source_path = (
         Path(sys.argv[1]) if len(sys.argv) > 1 else Path("scripts/member003-members.json")
     )
-    pv_table_path = (
-        Path(sys.argv[2]) if len(sys.argv) > 2 else Path("scripts/member003-pv-table.json")
+    orders_path = (
+        Path(sys.argv[2]) if len(sys.argv) > 2 else Path("runtime/allsale-pv700-orders.json")
+    )
+    matrix_settings_path = (
+        Path(sys.argv[3]) if len(sys.argv) > 3 else Path("runtime/matrix-settings.json")
     )
     output_path = (
-        Path(sys.argv[3])
-        if len(sys.argv) > 3
+        Path(sys.argv[4])
+        if len(sys.argv) > 4
         else Path("runtime/member003-matrix-scenario.json")
     )
 
     rows = load_member_rows_from_source(member_source_path)
-    pv_table = json.loads(pv_table_path.read_text(encoding="utf-8"))
-    orders = build_orders(pv_table)
+    orders_payload = json.loads(orders_path.read_text(encoding="utf-8"))
+    matrix_settings = json.loads(matrix_settings_path.read_text(encoding="utf-8"))
+    orders = build_orders(orders_payload)
 
     members = []
     for row in rows:
@@ -146,14 +173,12 @@ def main() -> None:
     scenario = {
         "scenarioName": "member003-matrix-board1-pv-700",
         "settings": {
-            "boardWidth": 2,
+            "boardWidth": matrix_settings["boardWidth"],
             "boardDepth": 2,
-            "boardCount": 1,
-            "organizationPvRate": "700",
-            "boardOpenPvThresholds": ["700"],
-            "boardLevelRates": [
-                ["0.2", "0.2"]
-            ],
+            "boardCount": matrix_settings["boardCount"],
+            "organizationPvRate": str(matrix_settings["organizationPvRate"]),
+            "boardOpenPvThresholds": [str(value) for value in matrix_settings["boardOpenPvThresholds"]],
+            "boardLevelRates": [[str(rate) for rate in board[:2]] for board in matrix_settings["boardLevelRates"]],
         },
         "members": members,
         "orders": orders,
@@ -166,9 +191,12 @@ def main() -> None:
         "scenarioName": scenario["scenarioName"],
         "memberCount": len(members),
         "orderCount": len(orders),
+        "normalOrderCount": sum(1 for order in orders if order["orderType"] == "normal"),
+        "reentryOrderCount": sum(1 for order in orders if order["orderType"] == "reentry"),
         "rootLikeMembers": [member["id"] for member in members if not member.get("uplineId")][:20],
         "memberSourcePath": str(member_source_path),
-        "pvTablePath": str(pv_table_path),
+        "ordersPath": str(orders_path),
+        "matrixSettingsPath": str(matrix_settings_path),
         "outputPath": str(output_path),
     }
     print(json.dumps(summary, ensure_ascii=False, indent=2))
