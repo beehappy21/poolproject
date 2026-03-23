@@ -748,6 +748,7 @@ class CommissionReportBuilder
             'direct' => 'DIRECT',
             'unilevel' => 'UNI',
             'pool' => 'POOL',
+            'cashback' => 'CASHBACK',
             default => 'DIRECT',
         };
 
