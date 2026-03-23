@@ -17,6 +17,7 @@ import {
   optionalString,
   optionalUrlString,
 } from "../../../../../apps/api/src/http/request.util";
+import { readManualPaymentSettings } from "../../../../shared/utils/src/manual-payment-settings.util";
 import { CommissionsService } from "../../../commissions";
 import { MatrixService } from "../../../matrix/src";
 import { MembersService } from "../../../members";
@@ -100,6 +101,15 @@ export class AuthController {
       page: 1,
       pageSize: 10,
     });
+  }
+
+  @Get("payment-instructions")
+  async paymentInstructions(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    await this.requireSessionUser(authorization, cookieHeader);
+    return readManualPaymentSettings();
   }
 
   @Get("orders/shipping")

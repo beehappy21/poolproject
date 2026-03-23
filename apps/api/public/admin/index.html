@@ -282,6 +282,58 @@
         <section class="grid two-up" data-menu-section="marketing">
           <article class="panel">
             <div class="section-head">
+              <h3>Manual Payment Instructions</h3>
+              <span class="muted">Bank account, PromptPay, and QR shown on Order History</span>
+            </div>
+            <form id="manualPaymentSettingsForm" class="settings-form">
+              <div class="settings-grid">
+                <label>
+                  <span>Account Name</span>
+                  <input id="manualPaymentAccountNameInput" type="text" />
+                </label>
+                <label>
+                  <span>Bank Name</span>
+                  <input id="manualPaymentBankNameInput" type="text" />
+                </label>
+                <label>
+                  <span>Account Number</span>
+                  <input id="manualPaymentAccountNumberInput" type="text" />
+                </label>
+                <label>
+                  <span>PromptPay Name</span>
+                  <input id="manualPaymentPromptPayNameInput" type="text" />
+                </label>
+                <label>
+                  <span>PromptPay Number</span>
+                  <input id="manualPaymentPromptPayNumberInput" type="text" />
+                </label>
+                <label>
+                  <span>QR Image URL</span>
+                  <input id="manualPaymentQrImageUrlInput" type="text" placeholder="https://..." />
+                </label>
+              </div>
+              <label>
+                <span>Payment Note</span>
+                <textarea id="manualPaymentNoteInput" rows="4" placeholder="ข้อความที่จะแสดงให้ลูกค้าเห็นตอนชำระเงิน"></textarea>
+              </label>
+              <div class="table-actions">
+                <button type="submit">Save Payment Instructions</button>
+              </div>
+            </form>
+          </article>
+
+          <article class="panel detail-panel">
+            <div class="section-head">
+              <h3>Payment Preview</h3>
+              <span class="muted">Current bank transfer instructions for customers</span>
+            </div>
+            <pre id="manualPaymentSettingsOutput" class="detail-output">Load payment instructions to inspect account name, PromptPay, and QR.</pre>
+          </article>
+        </section>
+
+        <section class="grid two-up" data-menu-section="marketing">
+          <article class="panel">
+            <div class="section-head">
               <h3>Matrix Settings</h3>
               <span class="muted">2x3, 3 boards, percent inputs</span>
             </div>

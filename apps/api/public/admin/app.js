@@ -57,6 +57,15 @@ const walletDiscountSpendEnabledSelect = document.getElementById("walletDiscount
 const walletOrderCashMethodsInput = document.getElementById("walletOrderCashMethodsInput");
 const walletTopupMethodsInput = document.getElementById("walletTopupMethodsInput");
 const walletSettingsOutput = document.getElementById("walletSettingsOutput");
+const manualPaymentSettingsForm = document.getElementById("manualPaymentSettingsForm");
+const manualPaymentAccountNameInput = document.getElementById("manualPaymentAccountNameInput");
+const manualPaymentBankNameInput = document.getElementById("manualPaymentBankNameInput");
+const manualPaymentAccountNumberInput = document.getElementById("manualPaymentAccountNumberInput");
+const manualPaymentPromptPayNameInput = document.getElementById("manualPaymentPromptPayNameInput");
+const manualPaymentPromptPayNumberInput = document.getElementById("manualPaymentPromptPayNumberInput");
+const manualPaymentQrImageUrlInput = document.getElementById("manualPaymentQrImageUrlInput");
+const manualPaymentNoteInput = document.getElementById("manualPaymentNoteInput");
+const manualPaymentSettingsOutput = document.getElementById("manualPaymentSettingsOutput");
 const walletTopupRequestUserFilterInput = document.getElementById("walletTopupRequestUserFilterInput");
 const walletTopupRequestStatusFilter = document.getElementById("walletTopupRequestStatusFilter");
 const matrixPayoutBeneficiaryInput = document.getElementById("matrixPayoutBeneficiaryInput");
@@ -257,6 +266,15 @@ state.walletSettings = {
   discountWalletSpendEnabled: true,
   orderCashPaymentMethods: ["bank_transfer", "promptpay_qr", "cash"],
   walletTopupPaymentMethods: ["manual_bank", "promptpay_qr", "cash"],
+};
+state.manualPaymentSettings = {
+  accountName: "",
+  bankName: "",
+  accountNumber: "",
+  promptPayName: "",
+  promptPayNumber: "",
+  qrImageUrl: "",
+  note: "",
 };
 state.walletTopupRequests = [];
 state.walletTopupRequestUserId = "";
@@ -1125,6 +1143,28 @@ function renderWalletSettings() {
   }
 }
 
+function renderManualPaymentSettings() {
+  if (!manualPaymentAccountNameInput || !state.manualPaymentSettings) {
+    return;
+  }
+
+  manualPaymentAccountNameInput.value = state.manualPaymentSettings.accountName || "";
+  manualPaymentBankNameInput.value = state.manualPaymentSettings.bankName || "";
+  manualPaymentAccountNumberInput.value = state.manualPaymentSettings.accountNumber || "";
+  manualPaymentPromptPayNameInput.value = state.manualPaymentSettings.promptPayName || "";
+  manualPaymentPromptPayNumberInput.value = state.manualPaymentSettings.promptPayNumber || "";
+  manualPaymentQrImageUrlInput.value = state.manualPaymentSettings.qrImageUrl || "";
+  manualPaymentNoteInput.value = state.manualPaymentSettings.note || "";
+
+  if (manualPaymentSettingsOutput) {
+    manualPaymentSettingsOutput.textContent = JSON.stringify(
+      state.manualPaymentSettings,
+      null,
+      2,
+    );
+  }
+}
+
 function collectRateInputs(selector) {
   return Array.from(document.querySelectorAll(selector)).map((input) =>
     input.value.trim(),
@@ -1171,6 +1211,20 @@ async function loadWalletSettings() {
   renderWalletSettings();
 }
 
+async function loadManualPaymentSettings() {
+  const settings = await request("/settings/manual-payment");
+  state.manualPaymentSettings = {
+    accountName: settings.accountName || "",
+    bankName: settings.bankName || "",
+    accountNumber: settings.accountNumber || "",
+    promptPayName: settings.promptPayName || "",
+    promptPayNumber: settings.promptPayNumber || "",
+    qrImageUrl: settings.qrImageUrl || "",
+    note: settings.note || "",
+  };
+  renderManualPaymentSettings();
+}
+
 async function saveWalletSettings() {
   const result = await request("/settings/wallets", {
     method: "PUT",
@@ -1205,6 +1259,38 @@ async function saveWalletSettings() {
   pushHistory(
     "Wallet Settings",
     `Saved cash methods ${state.walletSettings.orderCashPaymentMethods.join(", ")} and top-up methods ${state.walletSettings.walletTopupPaymentMethods.join(", ")}`,
+  );
+}
+
+async function saveManualPaymentSettings() {
+  const result = await request("/settings/manual-payment", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      accountName: manualPaymentAccountNameInput.value.trim(),
+      bankName: manualPaymentBankNameInput.value.trim(),
+      accountNumber: manualPaymentAccountNumberInput.value.trim(),
+      promptPayName: manualPaymentPromptPayNameInput.value.trim(),
+      promptPayNumber: manualPaymentPromptPayNumberInput.value.trim(),
+      qrImageUrl: manualPaymentQrImageUrlInput.value.trim(),
+      note: manualPaymentNoteInput.value.trim(),
+    }),
+  });
+
+  state.manualPaymentSettings = {
+    accountName: result.accountName || "",
+    bankName: result.bankName || "",
+    accountNumber: result.accountNumber || "",
+    promptPayName: result.promptPayName || "",
+    promptPayNumber: result.promptPayNumber || "",
+    qrImageUrl: result.qrImageUrl || "",
+    note: result.note || "",
+  };
+  renderManualPaymentSettings();
+  setActionOutput("Manual payment settings saved", result);
+  pushHistory(
+    "Manual Payment",
+    `Saved ${state.manualPaymentSettings.bankName} ${state.manualPaymentSettings.accountNumber}`,
   );
 }
 
@@ -1602,6 +1688,7 @@ async function loadDashboard() {
     request("/shipping/jobs"),
     loadCommissionSettings(),
     loadWalletSettings(),
+    loadManualPaymentSettings(),
     loadMatrixSettings(),
     loadMatrixSummary(),
     loadMatrixPayouts(),
@@ -3101,6 +3188,19 @@ if (walletSettingsForm) {
     } catch (error) {
       setStatus(error.message);
       setActionOutput("Wallet settings failed", { message: error.message });
+    }
+  });
+}
+
+if (manualPaymentSettingsForm) {
+  manualPaymentSettingsForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    try {
+      await saveManualPaymentSettings();
+    } catch (error) {
+      setStatus(error.message);
+      setActionOutput("Manual payment settings failed", { message: error.message });
     }
   });
 }

@@ -13,6 +13,10 @@ import {
   readWalletSettings,
   writeWalletSettings,
 } from "../../../packages/shared/utils/src/wallet-settings.util";
+import {
+  readManualPaymentSettings,
+  writeManualPaymentSettings,
+} from "../../../packages/shared/utils/src/manual-payment-settings.util";
 
 const MAX_DIRECT_LEVELS = 10;
 const MAX_UNI_LEVELS = 20;
@@ -118,6 +122,26 @@ export class AdminSettingsController {
             .map((value) => optionalString(value))
             .filter((value): value is string => Boolean(value))
         : undefined,
+    });
+  }
+
+  @Get("manual-payment")
+  getManualPaymentSettings() {
+    return readManualPaymentSettings();
+  }
+
+  @Put("manual-payment")
+  updateManualPaymentSettings(@Body() body: Record<string, unknown>) {
+    const payload = body ?? {};
+
+    return writeManualPaymentSettings({
+      accountName: optionalString(payload.accountName) ?? undefined,
+      bankName: optionalString(payload.bankName) ?? undefined,
+      accountNumber: optionalString(payload.accountNumber) ?? undefined,
+      promptPayName: optionalString(payload.promptPayName) ?? undefined,
+      promptPayNumber: optionalString(payload.promptPayNumber) ?? undefined,
+      qrImageUrl: optionalString(payload.qrImageUrl) ?? "",
+      note: optionalString(payload.note) ?? undefined,
     });
   }
 }

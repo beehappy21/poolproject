@@ -110,6 +110,22 @@ class CommissionSettingsScreen extends Screen
                 'Cashback should appear alongside other commission reports and reuse the same ledger history model.',
             ],
         ],
+        'manual-payment' => [
+            'title' => 'Manual Payment',
+            'routeName' => 'platform.commission.manualPayment',
+            'eyebrow' => 'Payment Settings',
+            'description' => 'ตั้งค่าบัญชีรับเงิน, PromptPay, QR, และข้อความแนะนำที่ลูกค้าจะเห็นใน Order History ตอนรอชำระเงิน.',
+            'accent' => '#0f766e',
+            'cards' => [
+                ['label' => 'ช่องทางหลัก', 'value' => 'Bank Transfer / PromptPay', 'note' => 'ใช้กับออเดอร์ที่รอชำระและรอส่งสลิป'],
+                ['label' => 'QR Payment', 'value' => 'รองรับ URL รูปภาพ', 'note' => 'ใส่ลิงก์ภาพ QR เพื่อให้ลูกค้าเปิดจากหน้าออเดอร์ได้'],
+                ['label' => 'ข้อความแนะนำ', 'value' => 'จัดการจากหน้าจอนี้', 'note' => 'บอกยอดที่ต้องโอน วิธีส่งสลิป และเงื่อนไขเพิ่มเติม'],
+            ],
+            'bullets' => [
+                'ใช้หน้านี้เป็นจุดแก้หลักของข้อมูลรับเงินสำหรับ Stephub admin บนพอร์ต 8001',
+                'ข้อมูลที่บันทึกจะถูกอ่านจาก runtime/manual-payment-settings.json และหน้าแอปลูกค้าจะดึงไปแสดงต่อ',
+            ],
+        ],
     ];
 
     private array $sectionConfig = self::SECTIONS['settings'];
@@ -176,6 +192,11 @@ class CommissionSettingsScreen extends Screen
         return $this->resolveSectionPayload('cashback');
     }
 
+    public function manualPayment(Request $request): iterable
+    {
+        return $this->resolveSectionPayload('manual-payment');
+    }
+
     private function resolveSectionPayload(string $section): iterable
     {
         $this->sectionConfig = self::SECTIONS[$section] ?? self::SECTIONS['settings'];
@@ -192,6 +213,7 @@ class CommissionSettingsScreen extends Screen
             ],
             'commissionSettings' => PoolprojectSettingsStore::readCommissionSettings(),
             'matrixSettings' => PoolprojectSettingsStore::readMatrixSettings(),
+            'manualPaymentSettings' => PoolprojectSettingsStore::readManualPaymentSettings(),
             'commissionNav' => self::commissionNav($section),
         ];
     }

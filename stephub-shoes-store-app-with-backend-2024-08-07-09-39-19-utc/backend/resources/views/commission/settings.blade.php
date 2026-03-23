@@ -16,6 +16,15 @@
         'levelRates' => ['0.1', '0.05', '0.03'],
         'boardOpenPvThresholds' => ['100', '100', '100'],
     ];
+    $manualPaymentSettings = $manualPaymentSettings ?? [
+        'accountName' => 'Stephub Co., Ltd.',
+        'bankName' => 'Kasikornbank',
+        'accountNumber' => '123-4-56789-0',
+        'promptPayName' => 'Stephub Co., Ltd.',
+        'promptPayNumber' => '0812345678',
+        'qrImageUrl' => '',
+        'note' => 'กรุณาโอนตามยอดที่แสดงในคำสั่งซื้อ และอัปโหลดสลิปเพื่อรอตรวจสอบ',
+    ];
     $activeKey = $section['key'] ?? null;
 @endphp
 
@@ -39,6 +48,8 @@
     .commission-field { display:flex; flex-direction:column; gap:.45rem; }
     .commission-field label { font-weight:600; color:#334155; }
     .commission-field input { border:1px solid #cbd5e1; border-radius:10px; padding:.8rem .9rem; width:100%; }
+    .commission-field textarea { border:1px solid #cbd5e1; border-radius:10px; padding:.8rem .9rem; width:100%; min-height:140px; resize:vertical; }
+    .commission-field input[type="file"] { border:1px dashed #94a3b8; background:#f8fafc; padding:.9rem; }
     .commission-save { margin-top:1rem; display:inline-flex; align-items:center; gap:.5rem; border:0; border-radius:10px; padding:.8rem 1rem; color:#fff; background:{{ $accent }}; font-weight:700; }
     .commission-save:hover { opacity:.92; }
     .commission-toolbar { display:flex; flex-wrap:wrap; gap:.75rem; margin-top:1rem; }
@@ -52,6 +63,9 @@
     .commission-summary-value { color:#0f172a; font-weight:600; }
     .commission-summary-note { display:block; margin-top:.3rem; color:#64748b; font-size:.9rem; }
     .commission-helper { margin-top:.45rem; color:#64748b; font-size:.9rem; line-height:1.6; }
+    .commission-image-preview { margin-top:.85rem; max-width:260px; border-radius:14px; border:1px solid #e2e8f0; background:#fff; overflow:hidden; }
+    .commission-image-preview img { display:block; width:100%; height:auto; }
+    .commission-upload-note { margin-top:.55rem; color:#0f766e; font-size:.9rem; line-height:1.6; }
     .commission-board-rate-list { display:grid; gap:1rem; margin-top:1rem; }
     .commission-board-rate-card { border:1px solid #e2e8f0; border-radius:14px; padding:1rem; background:#f8fafc; }
     .commission-board-rate-header { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:.85rem; }
@@ -75,6 +89,13 @@
     $matrixBoardWidth = old('boardWidth', $matrixSettings['boardWidth'] ?? 2);
     $matrixThresholds = old('boardOpenPvThresholds', $matrixSettings['boardOpenPvThresholds'] ?? ['100', '100', '100']);
     $matrixBoardLevelRates = old('boardLevelRates', $matrixSettings['boardLevelRates'] ?? []);
+    $manualAccountName = old('accountName', $manualPaymentSettings['accountName'] ?? '');
+    $manualBankName = old('bankName', $manualPaymentSettings['bankName'] ?? '');
+    $manualAccountNumber = old('accountNumber', $manualPaymentSettings['accountNumber'] ?? '');
+    $manualPromptPayName = old('promptPayName', $manualPaymentSettings['promptPayName'] ?? '');
+    $manualPromptPayNumber = old('promptPayNumber', $manualPaymentSettings['promptPayNumber'] ?? '');
+    $manualQrImageUrl = $manualPaymentSettings['qrImageUrl'] ?? '';
+    $manualPaymentNote = old('note', $manualPaymentSettings['note'] ?? '');
     if (!is_array($matrixBoardLevelRates) || $matrixBoardLevelRates === []) {
         $matrixBoardLevelRates = array_map(
             fn () => ($matrixSettings['levelRates'] ?? ['0.1', '0.05', '0.03']),
@@ -124,6 +145,11 @@
             'value' => collect($matrixSettings['boardOpenPvThresholds'] ?? [])->map(fn ($value, $index) => 'B' . ($index + 1) . ': ' . $value)->implode(', '),
             'note' => count($matrixSettings['boardOpenPvThresholds'] ?? []) . ' configured boards. บอร์ดถัดไปเปิดเมื่อบอร์ดก่อนหน้าครบ',
         ],
+        [
+            'label' => 'Manual payment',
+            'value' => ($manualPaymentSettings['bankName'] ?? '-') . ' / ' . ($manualPaymentSettings['accountNumber'] ?? '-'),
+            'note' => 'PromptPay: ' . ($manualPaymentSettings['promptPayNumber'] ?? '-'),
+        ],
     ];
 @endphp
 
@@ -154,7 +180,7 @@
                 <div class="commission-panel">
                     <div class="commission-eyebrow">Commission Menu</div>
                     <div class="commission-settings-nav">
-                        @foreach (collect($nav)->whereIn('key', ['settings', 'direct', 'unilevel', 'matrix', 'pool', 'cashback']) as $item)
+                        @foreach (collect($nav)->whereIn('key', ['settings', 'direct', 'unilevel', 'matrix', 'pool', 'cashback', 'manual-payment']) as $item)
                             <a href="{{ $item['route'] }}" @class(['is-active' => !empty($item['isActive'])])>
                                 <span>{{ $item['title'] }}</span>
                                 <span>&rsaquo;</span>
@@ -258,6 +284,66 @@
                     formmethod="POST"
                 >
                     Save Commission Settings
+                </button>
+            </div>
+        @endif
+
+        @if ($activeKey === 'manual-payment')
+            <div class="commission-panel">
+                <div class="commission-eyebrow">Manual Payment Instructions</div>
+                <div class="commission-form-grid">
+                    <div class="commission-field">
+                        <label>Account name</label>
+                        <input name="accountName" value="{{ $manualAccountName }}" required>
+                    </div>
+                    <div class="commission-field">
+                        <label>Bank name</label>
+                        <input name="bankName" value="{{ $manualBankName }}" required>
+                    </div>
+                    <div class="commission-field">
+                        <label>Account number</label>
+                        <input name="accountNumber" value="{{ $manualAccountNumber }}" required>
+                    </div>
+                    <div class="commission-field">
+                        <label>PromptPay name</label>
+                        <input name="promptPayName" value="{{ $manualPromptPayName }}" required>
+                    </div>
+                    <div class="commission-field">
+                        <label>PromptPay number</label>
+                        <input name="promptPayNumber" value="{{ $manualPromptPayNumber }}" required>
+                    </div>
+                    <div class="commission-field">
+                        <label>QR image file</label>
+                        <input type="file" id="qrImageFileInput" name="qrImageFile" accept="image/*">
+                        <div class="commission-helper">
+                            อัปโหลดรูป QR ได้ตรงจากเครื่อง แล้วระบบจะนำไปแสดงในหน้า Order History ของลูกค้า
+                        </div>
+                        <div id="qrUploadNote" class="commission-upload-note"></div>
+                        @if (!empty($manualQrImageUrl))
+                            <div class="commission-image-preview" id="qrPreviewContainer">
+                                <img src="{{ $manualQrImageUrl }}" alt="Current QR payment image" id="qrPreviewImage">
+                            </div>
+                        @else
+                            <div class="commission-image-preview" id="qrPreviewContainer" style="display:none;">
+                                <img src="" alt="QR payment preview" id="qrPreviewImage">
+                            </div>
+                        @endif
+                    </div>
+                </div>
+                <div class="commission-form-grid">
+                    <div class="commission-field" style="grid-column:1 / -1;">
+                        <label>Payment note</label>
+                        <textarea name="note" required>{{ $manualPaymentNote }}</textarea>
+                    </div>
+                </div>
+                <button
+                    type="submit"
+                    class="commission-save"
+                    formaction="{{ route('platform.commission.saveManualPayment') }}"
+                    formmethod="POST"
+                    formenctype="multipart/form-data"
+                >
+                    Save Manual Payment
                 </button>
             </div>
         @endif
@@ -375,6 +461,75 @@
 
 <script>
     (function () {
+        const qrFileInput = document.getElementById('qrImageFileInput');
+        const qrUploadNote = document.getElementById('qrUploadNote');
+        const qrPreviewContainer = document.getElementById('qrPreviewContainer');
+        const qrPreviewImage = document.getElementById('qrPreviewImage');
+        const QR_MAX_DIMENSION = 1600;
+        const QR_OUTPUT_QUALITY = 0.82;
+        const QR_MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
+
+        function updateQrPreview(src) {
+            if (!qrPreviewContainer || !qrPreviewImage) return;
+            if (!src) {
+                qrPreviewContainer.style.display = 'none';
+                qrPreviewImage.removeAttribute('src');
+                return;
+            }
+
+            qrPreviewImage.src = src;
+            qrPreviewContainer.style.display = 'block';
+        }
+
+        function setQrUploadNote(message) {
+            if (!qrUploadNote) return;
+            qrUploadNote.textContent = message || '';
+        }
+
+        async function resizeQrFile(file) {
+            const dataUrl = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => reject(new Error('Unable to read QR image.'));
+                reader.readAsDataURL(file);
+            });
+
+            const image = await new Promise((resolve, reject) => {
+                const nextImage = new Image();
+                nextImage.onload = () => resolve(nextImage);
+                nextImage.onerror = () => reject(new Error('Unable to load QR image.'));
+                nextImage.src = dataUrl;
+            });
+
+            const scale = Math.min(
+                1,
+                QR_MAX_DIMENSION / Math.max(image.width, image.height)
+            );
+            const canvas = document.createElement('canvas');
+            const width = Math.max(1, Math.round(image.width * scale));
+            const height = Math.max(1, Math.round(image.height * scale));
+            canvas.width = width;
+            canvas.height = height;
+
+            const context = canvas.getContext('2d');
+            if (!context) {
+                throw new Error('Unable to prepare QR image.');
+            }
+
+            context.drawImage(image, 0, 0, width, height);
+
+            const blob = await new Promise((resolve, reject) => {
+                canvas.toBlob(
+                    (result) => result ? resolve(result) : reject(new Error('Unable to compress QR image.')),
+                    'image/jpeg',
+                    QR_OUTPUT_QUALITY
+                );
+            });
+
+            const safeName = (file.name || 'qr-image').replace(/\.[^.]+$/, '');
+            return new File([blob], `${safeName}-optimized.jpg`, { type: 'image/jpeg' });
+        }
+
         function renumber(containerId, labelPrefix) {
             const container = document.getElementById(containerId);
             if (!container) return;
@@ -432,6 +587,33 @@
                 window.requestAnimationFrame(syncBoardRateCards);
             }
         });
+
+        if (qrFileInput) {
+            qrFileInput.addEventListener('change', async function (event) {
+                const file = event.target.files && event.target.files[0];
+                if (!file) {
+                    setQrUploadNote('');
+                    return;
+                }
+
+                try {
+                    const nextFile = await resizeQrFile(file);
+
+                    const transfer = new DataTransfer();
+                    transfer.items.add(nextFile);
+                    qrFileInput.files = transfer.files;
+                    setQrUploadNote(
+                        nextFile.size < file.size
+                            ? `ระบบย่อรูปให้แล้วจาก ${(file.size / 1024 / 1024).toFixed(2)}MB เหลือ ${(nextFile.size / 1024 / 1024).toFixed(2)}MB`
+                            : `ระบบเตรียมรูปสำหรับอัปโหลดแล้ว (${(nextFile.size / 1024 / 1024).toFixed(2)}MB)`
+                    );
+                    updateQrPreview(URL.createObjectURL(nextFile));
+                } catch (error) {
+                    console.error(error);
+                    setQrUploadNote('ไม่สามารถย่อรูปอัตโนมัติได้ กรุณาลองเลือกรูปใหม่');
+                }
+            });
+        }
 
         function syncBoardRateCards() {
             const thresholdContainer = document.getElementById('matrixThresholdList');

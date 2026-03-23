@@ -16,6 +16,8 @@ type LiveOrder = {
   approvalStatus: string;
   totalUsdt: string;
   totalPv: string;
+  cashDueUsdt: string;
+  cashPaymentMethod: string | null;
   transferSubmittedAt: string | null;
   transferSlipUrl: string | null;
   transferSlipNote: string | null;
@@ -26,6 +28,16 @@ type LiveOrder = {
   shipmentCarrier: string | null;
   shipmentNote: string | null;
   createdAt: string;
+};
+
+type PaymentInstructions = {
+  accountName: string;
+  bankName: string;
+  accountNumber: string;
+  promptPayName: string;
+  promptPayNumber: string;
+  qrImageUrl: string;
+  note: string;
 };
 
 const MAX_TRANSFER_SLIP_DIMENSION = 1600;
@@ -86,6 +98,8 @@ export const OrderHistory: FC = () => {
   const user = hooks.useAppSelector((state: RootState) => state.userSlice.user);
   const [loading, setLoading] = useState(false);
   const [ordersData, setOrdersData] = useState<LiveOrder[]>([]);
+  const [paymentInstructions, setPaymentInstructions] =
+    useState<PaymentInstructions | null>(null);
   const [pageErrorMessage, setPageErrorMessage] = useState('');
   const [submitErrorMessage, setSubmitErrorMessage] = useState('');
   const [submittingOrderId, setSubmittingOrderId] = useState<string | null>(null);
@@ -157,6 +171,10 @@ export const OrderHistory: FC = () => {
     return !order.transferSubmittedAt && order.approvalStatus !== 'approved';
   };
 
+  const shouldShowPaymentInstructions = (order: LiveOrder): boolean => {
+    return order.approvalStatus !== 'approved';
+  };
+
   const getOrders = useCallback(async (): Promise<void> => {
     if (!user?.accessToken) {
       setOrdersData([]);
@@ -184,6 +202,29 @@ export const OrderHistory: FC = () => {
       setPageErrorMessage('Unable to load your order history right now.');
     } finally {
       setLoading(false);
+    }
+  }, [user?.accessToken]);
+
+  const getPaymentInstructions = useCallback(async (): Promise<void> => {
+    if (!user?.accessToken) {
+      setPaymentInstructions(null);
+      return;
+    }
+
+    try {
+      const response = await axios.get<PaymentInstructions>(
+        URLS.AUTH_PAYMENT_INSTRUCTIONS,
+        {
+          headers: {
+            Authorization: `Bearer ${user.accessToken}`,
+          },
+          withCredentials: true,
+        },
+      );
+      setPaymentInstructions(response.data);
+    } catch (error) {
+      console.error(error);
+      setPaymentInstructions(null);
     }
   }, [user?.accessToken]);
 
@@ -243,7 +284,8 @@ export const OrderHistory: FC = () => {
 
   useEffect(() => {
     getOrders();
-  }, [getOrders]);
+    getPaymentInstructions();
+  }, [getOrders, getPaymentInstructions]);
 
   const renderHeader = () => {
     return <components.Header goBack={true} title='Order History' />;
@@ -507,6 +549,117 @@ export const OrderHistory: FC = () => {
                       </a>
                     ) : null}
                   </div>
+                  {shouldShowPaymentInstructions(order) && paymentInstructions ? (
+                    <div
+                      style={{
+                        marginBottom: 22,
+                        padding: 16,
+                        borderRadius: 16,
+                        backgroundColor: '#FFFFFF',
+                        border: '1px solid #E8EFF4',
+                        display: 'grid',
+                        gap: 8,
+                      }}
+                    >
+                      <span
+                        style={{
+                          ...theme.fonts.Mulish_700Bold,
+                          fontSize: 15,
+                          lineHeight: 1.5,
+                          color: theme.colors.mainColor,
+                        }}
+                      >
+                        Payment Instructions
+                      </span>
+                      <span
+                        style={{
+                          ...theme.fonts.Mulish_700Bold,
+                          fontSize: 18,
+                          lineHeight: 1.5,
+                          color: '#FF4343',
+                        }}
+                      >
+                        Amount Due: $
+                        {Number(
+                          order.cashDueUsdt || order.totalUsdt || 0,
+                        ).toFixed(2)}
+                      </span>
+                      <span
+                        style={{
+                          ...theme.fonts.Mulish_400Regular,
+                          fontSize: 14,
+                          lineHeight: 1.5,
+                          color: theme.colors.textColor,
+                        }}
+                      >
+                        Payment Method: {order.cashPaymentMethod || 'bank_transfer'}
+                      </span>
+                      <span
+                        style={{
+                          ...theme.fonts.Mulish_400Regular,
+                          fontSize: 14,
+                          lineHeight: 1.5,
+                          color: theme.colors.textColor,
+                        }}
+                      >
+                        Bank: {paymentInstructions.bankName}
+                      </span>
+                      <span
+                        style={{
+                          ...theme.fonts.Mulish_400Regular,
+                          fontSize: 14,
+                          lineHeight: 1.5,
+                          color: theme.colors.textColor,
+                        }}
+                      >
+                        Account Name: {paymentInstructions.accountName}
+                      </span>
+                      <span
+                        style={{
+                          ...theme.fonts.Mulish_400Regular,
+                          fontSize: 14,
+                          lineHeight: 1.5,
+                          color: theme.colors.textColor,
+                        }}
+                      >
+                        Account Number: {paymentInstructions.accountNumber}
+                      </span>
+                      <span
+                        style={{
+                          ...theme.fonts.Mulish_400Regular,
+                          fontSize: 14,
+                          lineHeight: 1.5,
+                          color: theme.colors.textColor,
+                        }}
+                      >
+                        PromptPay: {paymentInstructions.promptPayName} •{' '}
+                        {paymentInstructions.promptPayNumber}
+                      </span>
+                      {paymentInstructions.qrImageUrl ? (
+                        <img
+                          alt='Payment QR'
+                          src={paymentInstructions.qrImageUrl}
+                          style={{
+                            width: '100%',
+                            maxWidth: 260,
+                            borderRadius: 12,
+                            border: '1px solid #E8EFF4',
+                            backgroundColor: theme.colors.white,
+                          }}
+                        />
+                      ) : null}
+                      <span
+                        style={{
+                          ...theme.fonts.Mulish_400Regular,
+                          fontSize: 13,
+                          lineHeight: 1.7,
+                          color: theme.colors.textColor,
+                        }}
+                      >
+                        {paymentInstructions.note}
+                      </span>
+                    </div>
+                  ) : null}
                   {canSubmitTransferSlip(order) ? (
                     <div
                       style={{
