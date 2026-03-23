@@ -4,40 +4,47 @@ Updated: 2026-03-23
 
 ## Branch
 
-- Current branch: `feat/member-profile-import`
-- Draft PR: `https://github.com/beehappy21/poolproject/pull/14`
+- Current branch: `main`
+- Latest merged PR: `#15` `https://github.com/beehappy21/poolproject/pull/15`
+- Main is currently at merge commit `56bb3ed`
 
-## Main Commits On Branch
+## Recently Merged Work
 
-- `3a00c63` Add cashback smoke and cleanup scripts
-- `e44ab42` Add cashback commission settings and BAO report support
-- `fe753d8` Polish Stephub order status UI and BAO catalog screens
-- `2f2a455` Add member003 legacy matrix analysis toolkit
-- `f44f396` Update handoff notes for cashback and clean worktree flow
+- PR `#14` is already merged into `main`
+- PR `#15` is already merged into `main`
+- Recent pool/commission summary commits:
+  - `03632e5` Add configurable pool rule coverage and commission summaries
+  - `9e652b6` Snapshot pool item rates on orders and fix pool-rate precision
+  - `56bb3ed` Merge PR `#15` into `main`
 
 ## What To Do Next
 
-1. Review PR `#14` in 4 logical groups:
-   - cashback runtime + BAO support
-   - cashback smoke/cleanup scripts
-   - Stephub order status UI + BAO catalog screen polish
-   - member003 legacy matrix analysis toolkit
-2. Browser-check the real UI flows:
+1. Browser-check the real UI flows that now matter most after the merges:
    - BAO cashback settings/report/export
    - Stephub order list/detail shipment state flow
-3. Default recommendation: keep the matrix legacy analysis as research-only unless we explicitly want docs/scripts-heavy reverse-engineering work in `main`
-4. If deployment work continues, follow `DEPLOY_CHECKLIST.md`
+2. If deployment work continues, follow `DEPLOY_CHECKLIST.md`
+3. Use `docs/technical-design/commission_plan_summary.md` as the single summary for plan-calculation status
+4. Keep `member003` legacy matrix analysis positioned as research/sandbox work unless we explicitly want to productionize it further
+
+## Latest Verified Status
+
+- Pool rules are merged into `main` and verified locally for:
+  - default `50%` funding
+  - `CUSTOM_RATE`
+  - `DISABLED`
+  - `POOL_ONLY` partial payout to cap
+  - `ALL_COMMISSIONS` partial payout to remaining combined cap
+  - `ALL_COMMISSIONS` full-flow accumulation from real `process-approved` direct/uni commissions before next-day pool close
+- Pool funding now snapshots rate config on `OrderItem`, so later package edits do not retroactively change historical pool funding
+- Effective pool-rate snapshots were updated to use decimal-safe math instead of JS `Number`
+- Commission plan summary doc is up to date and can be used as the current handoff source for direct / unilevel / pool / matrix / cashback status
 
 ## Review Notes
 
-- PR `#14` is a wide branch with `57` changed files and about `6k` inserted lines versus `main`
-- The first three groups are product/runtime-facing and align with already smoke-tested BAO / Stephub work
-- The matrix legacy group is mostly:
-  - sandbox scripts
-  - reverse-engineering docs
-  - validation utilities
-- Current matrix docs describe a separate sandbox-only legacy placement engine and explicitly avoid changing production matrix code
-- Unless we want that research history in `main`, splitting or parking the matrix legacy work remains the safer merge choice
+- No open merge blocker remains from the configurable pool rules work that landed in PR `#15`
+- The remaining highest-value follow-up is browser verification of BAO cashback and Stephub shipment-state flows
+- Current matrix docs still describe a separate sandbox-only legacy placement engine and do not change production matrix code
+- If matrix work resumes, treat it as a product decision rather than a merge-readiness issue
 
 ## Useful Commands
 
@@ -65,11 +72,13 @@ Updated: 2026-03-23
   - `POOL_ONLY` partial payout to cap
   - `ALL_COMMISSIONS` partial payout to remaining combined cap
   - `ALL_COMMISSIONS` full-flow accumulation from real `process-approved` direct/uni commissions before next-day pool close
+- Latest smoke suite after merge: `npm run smoke:pool:all`
 - Test matrix and latest expected numbers are documented in `docs/technical-design/pool_rule_test_matrix.md`
 
 ## Commission Summary
 
 - Full cross-plan summary now lives in `docs/technical-design/commission_plan_summary.md`
+- Use this doc first before reopening direct / unilevel / pool / cashback investigation work
 
 ## Current Local State
 
