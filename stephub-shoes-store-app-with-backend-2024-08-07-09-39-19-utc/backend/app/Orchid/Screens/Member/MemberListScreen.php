@@ -3,6 +3,7 @@
 namespace App\Orchid\Screens\Member;
 
 use App\Models\Member;
+use Illuminate\Http\Request;
 use Orchid\Screen\Actions\Link;
 use Orchid\Screen\Fields\Input;
 use Orchid\Screen\Screen;
@@ -11,10 +12,28 @@ use Orchid\Support\Facades\Layout;
 
 class MemberListScreen extends Screen
 {
-    public function query(): iterable
+    public function query(Request $request): iterable
     {
+        $search = trim((string) $request->query('search', ''));
+        $members = Member::query()->orderBy('seq_no');
+
+        if ($search !== '') {
+            $members->where(function ($query) use ($search) {
+                $like = '%' . $search . '%';
+                $query
+                    ->where('member_code', 'ilike', $like)
+                    ->orWhere('full_name', 'ilike', $like)
+                    ->orWhere('sponsor_code', 'ilike', $like)
+                    ->orWhere('upline_code', 'ilike', $like)
+                    ->orWhere('national_id', 'ilike', $like)
+                    ->orWhere('email', 'ilike', $like)
+                    ->orWhere('phone', 'ilike', $like);
+            });
+        }
+
         return [
-            'members' => Member::query()->orderBy('seq_no')->paginate(20),
+            'search' => $search,
+            'members' => $members->paginate(20)->appends(['search' => $search]),
         ];
     }
 
@@ -36,6 +55,7 @@ class MemberListScreen extends Screen
     public function layout(): iterable
     {
         return [
+            Layout::view('member.search-bar'),
             Layout::table('members', [
                 TD::make('seq_no', 'ลำดับที่')
                     ->sort()

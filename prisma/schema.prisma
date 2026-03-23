@@ -300,7 +300,7 @@ model User {
   referralCode         String?      @unique @db.VarChar(20)
   name                 String       @db.VarChar(255)
   email                String?      @unique @db.VarChar(255)
-  phone                String?      @unique @db.VarChar(50)
+  phone                String?      @db.VarChar(50)
   passwordHash         String       @db.VarChar(255)
   walletAddress        String?      @db.VarChar(255)
   walletVerifiedAt     DateTime?
@@ -356,7 +356,7 @@ model User {
 model MemberProfile {
   id               BigInt         @id @default(autoincrement())
   userId           BigInt         @unique
-  nationalId       String?        @unique @db.VarChar(30)
+  nationalId       String?        @db.VarChar(30)
   uplineUserId     BigInt?
   placementSide    PlacementSide?
   rankCode         String?        @db.VarChar(50)
@@ -370,6 +370,7 @@ model MemberProfile {
   uplineUser User? @relation("MemberProfileUplineUser", fields: [uplineUserId], references: [id])
 
   @@index([uplineUserId])
+  @@index([nationalId])
   @@index([placementSide])
   @@index([rankCode])
 }
