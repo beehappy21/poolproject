@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import collections
 import subprocess
 import sys
 import tempfile
@@ -58,16 +57,9 @@ def sql_literal(value: str | None) -> str:
 
 
 def build_sql(rows: list[dict[str, str]]) -> tuple[str, dict[str, int]]:
-    national_id_counts = collections.Counter(
-        row.get("เลขบัตรประชาชน", "").strip()
-        for row in rows
-        if row.get("เลขบัตรประชาชน", "").strip()
-    )
-
     stats = {
         "rows_seen": len(rows),
         "member_code_rows": 0,
-        "national_id_skipped_duplicates": 0,
     }
     statements: list[str] = ["begin;"]
 
@@ -84,10 +76,6 @@ def build_sql(rows: list[dict[str, str]]) -> tuple[str, dict[str, int]]:
         honor_title = row.get("เกียรติยศ", "").strip() or None
         mobile_center = row.get("โมบายเซ็นเตอร์", "").strip() or None
         national_id = row.get("เลขบัตรประชาชน", "").strip() or None
-
-        if national_id and national_id_counts[national_id] > 1:
-            national_id = None
-            stats["national_id_skipped_duplicates"] += 1
 
         statements.append(
             textwrap.dedent(
@@ -169,8 +157,6 @@ def main() -> int:
 
     print(f"rows_seen={stats['rows_seen']}")
     print(f"member_code_rows={stats['member_code_rows']}")
-    print(f"national_id_skipped_duplicates={stats['national_id_skipped_duplicates']}")
-
     if not args.apply:
         print("dry_run=yes")
         preview = "\n".join(sql.splitlines()[:20])

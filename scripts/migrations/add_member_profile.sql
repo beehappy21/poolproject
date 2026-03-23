@@ -29,7 +29,8 @@ create table if not exists "MemberProfile" (
 );
 
 create unique index if not exists "MemberProfile_userId_key" on "MemberProfile" ("userId");
-create unique index if not exists "MemberProfile_nationalId_key"
+drop index if exists "MemberProfile_nationalId_key";
+create index if not exists "MemberProfile_nationalId_idx"
   on "MemberProfile" ("nationalId")
   where "nationalId" is not null;
 create index if not exists "MemberProfile_uplineUserId_idx" on "MemberProfile" ("uplineUserId");

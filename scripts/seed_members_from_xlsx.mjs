@@ -71,6 +71,11 @@ function clean(value) {
   return trimmed === "" ? null : trimmed;
 }
 
+function deriveMemberPassword(nationalId, fallbackPassword) {
+  const digits = String(nationalId ?? "").replace(/\D/g, "");
+  return digits.length >= 6 ? digits.slice(-6) : fallbackPassword;
+}
+
 function getReservedEmails(rows) {
   const workbookCounts = new Map();
   for (const row of rows) {
@@ -137,17 +142,26 @@ where "email" is not null
   };
 }
 
-function buildSql(rows, passwordHash, reservedEmails) {
+function buildSql(rows, reservedEmails) {
   const statements = ["begin;"];
   let createCandidates = 0;
   let sponsorCandidates = 0;
   let emailSkipped = 0;
+  let passwordFromNationalId = 0;
+  let passwordFallbackCount = 0;
 
   for (const row of rows) {
     if (!row.memberCode) {
       continue;
     }
     createCandidates += 1;
+    const password = deriveMemberPassword(row.nationalId, defaultPassword);
+    const passwordHash = hashPassword(password);
+    if (password === defaultPassword) {
+      passwordFallbackCount += 1;
+    } else {
+      passwordFromNationalId += 1;
+    }
     const normalizedEmail = row.email?.toLowerCase() ?? null;
     const safeEmail = normalizedEmail && !reservedEmails.has(normalizedEmail) ? row.email : null;
     if (normalizedEmail && !safeEmail) {
@@ -184,6 +198,13 @@ select
 where not exists (
   select 1 from public."User" u where u."memberCode" = ${sqlLiteral(row.memberCode)}
 );`.trim());
+
+    statements.push(`
+update public."User"
+set
+  "passwordHash" = ${sqlLiteral(passwordHash)},
+  "updatedAt" = now()
+where "memberCode" = ${sqlLiteral(row.memberCode)};`.trim());
   }
 
   for (const row of rows) {
@@ -206,6 +227,8 @@ where u."memberCode" = ${sqlLiteral(row.memberCode)}
     createCandidates,
     sponsorCandidates,
     emailSkipped,
+    passwordFromNationalId,
+    passwordFallbackCount,
   };
 }
 
@@ -249,17 +272,23 @@ function main() {
       memberCode: clean(row["รหัสสมาชิก"]),
       joinedDate: parseDate(row["วันที่สมัคร"]),
       sponsorCode: clean(row["รหัสผู้แนะนำ"]),
+      nationalId: clean(row["เลขบัตรประชาชน"]),
       fullName: clean(row["ชื่อเต็ม"]),
       email: clean(row["อีเมล"]),
       phone: clean(row["มือถือ"]),
     }))
     .filter((row) => row.memberCode);
 
-  const passwordHash = hashPassword(defaultPassword);
   const { reservedEmails, workbookDuplicateCount, existingDbConflictCount } = getReservedEmails(rows);
-  const { sql, createCandidates, sponsorCandidates, emailSkipped } = buildSql(
+  const {
+    sql,
+    createCandidates,
+    sponsorCandidates,
+    emailSkipped,
+    passwordFromNationalId,
+    passwordFallbackCount,
+  } = buildSql(
     rows,
-    passwordHash,
     reservedEmails,
   );
 
@@ -274,7 +303,9 @@ function main() {
   console.log(`email_skipped=${emailSkipped}`);
   console.log(`email_duplicates_in_workbook=${workbookDuplicateCount}`);
   console.log(`email_conflicts_in_db=${existingDbConflictCount}`);
-  console.log(`default_password=${defaultPassword}`);
+  console.log(`password_from_national_id=${passwordFromNationalId}`);
+  console.log(`password_fallback_default=${passwordFallbackCount}`);
+  console.log(`fallback_password=${defaultPassword}`);
 
   if (!apply) {
     console.log("dry_run=yes");
