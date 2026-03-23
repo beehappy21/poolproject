@@ -22,7 +22,7 @@ export const Shop: React.FC = () => {
   const navigate = hooks.useAppNavigate();
 
   const location = useLocation();
-  const title = location.state?.title || 'แพ็กเกจ';
+  const title = location.state?.title || 'สินค้า';
   const products = location.state?.products || [];
 
   const [sort, setSort] = useState(sortingBy[0]);
@@ -246,7 +246,7 @@ export const Shop: React.FC = () => {
                   lineHeight: 1.7,
                 }}
               >
-                ไม่พบแพ็กเกจที่ตรงกับตัวกรองที่เลือก
+                ไม่พบสินค้าที่ตรงกับตัวกรองที่เลือก
               </div>
             </div>
           ) : null}

@@ -58,6 +58,10 @@ export class PackagesService {
     return this.packagesRepository.listProductDetails();
   }
 
+  async listStorefrontProducts() {
+    return this.packagesRepository.listStorefrontProducts();
+  }
+
   async createPackage(input: {
     code: string;
     name: string;

@@ -91,14 +91,14 @@ export const CartEmpty: React.FC = () => {
             lineHeight: 1.7,
           }}
         >
-          เลือกแพ็กเกจที่ต้องการก่อน{'\n'}แล้วค่อยสร้างคำสั่งซื้อ
+          เลือกสินค้าที่ต้องการก่อน{'\n'}แล้วค่อยสร้างคำสั่งซื้อ
         </p>
         <components.Button
-          title='เลือกแพ็กเกจ'
+          title='เลือกสินค้า'
           onClick={() => {
             dispatch(actions.resetFilters());
             navigate('/Shop', {
-              state: {products: productsData, title: 'แพ็กเกจ'},
+              state: {products: productsData, title: 'สินค้า'},
             });
           }}
           containerStyle={{marginBottom: 0, width: '100%'}}

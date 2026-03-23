@@ -124,7 +124,18 @@ function resolveRouteAccess(
     return "public";
   }
 
-  if (method === "GET" && path === "/packages") {
+  if (
+    method === "GET" &&
+    (
+      path === "/packages" ||
+      path === "/packages/storefront-products" ||
+      path === "/products" ||
+      path === "/products/suppliers" ||
+      path === "/products/categories" ||
+      path === "/products/details" ||
+      path === "/products/storefront"
+    )
+  ) {
     return "public";
   }
 

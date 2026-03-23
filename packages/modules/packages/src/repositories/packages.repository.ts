@@ -248,6 +248,38 @@ export interface PackagesRepository {
     }>
   >;
 
+  listStorefrontProducts(): Promise<
+    Array<{
+      productDetailId: string;
+      packageId?: string;
+      packageCode?: string;
+      productId: string;
+      productCode: string;
+      productName: string;
+      categoryCode: string;
+      categoryName: string;
+      supplierCode: string;
+      supplierName: string;
+      code: string;
+      name: string;
+      shortDescription: string | null;
+      description: string | null;
+      primaryImageUrl: string | null;
+      youtubeUrl: string | null;
+      imageUrls: string[];
+      memberPriceUsdt: string;
+      retailPriceUsdt: string;
+      pv: string;
+      ratingAvg: string;
+      ratingCount: number;
+      isNew: boolean;
+      isTop: boolean;
+      isFeatured: boolean;
+      isBestSeller: boolean;
+      status: string;
+    }>
+  >;
+
   createPackage(input: {
     code: string;
     name: string;
@@ -584,6 +616,105 @@ export class PrismaPackagesRepository implements PackagesRepository {
       commissionCapMultiple: detail.commissionCapMultiple.toString(),
       status: detail.status.toLowerCase(),
     }));
+  }
+
+  async listStorefrontProducts() {
+    const details = await this.prisma.productDetail.findMany({
+      where: {
+        status: "ACTIVE",
+        product: {
+          status: "ACTIVE",
+          category: { status: "ACTIVE" },
+          supplier: { status: "ACTIVE" },
+        },
+      },
+      orderBy: [
+        { isFeatured: "desc" },
+        { isTop: "desc" },
+        { sortOrder: "asc" },
+        { createdAt: "asc" },
+        { id: "asc" },
+      ],
+      include: {
+        product: {
+          select: {
+            code: true,
+            name: true,
+            category: {
+              select: {
+                code: true,
+                name: true,
+              },
+            },
+            supplier: {
+              select: {
+                code: true,
+                name: true,
+              },
+            },
+          },
+        },
+        packageItems: {
+          where: {
+            package: {
+              status: "ACTIVE",
+            },
+          },
+          orderBy: [
+            { package: { createdAt: "asc" } },
+            { package: { id: "asc" } },
+          ],
+          select: {
+            package: {
+              select: {
+                id: true,
+                code: true,
+              },
+            },
+          },
+          take: 1,
+        },
+      },
+    });
+
+    return details.map((detail) => {
+      const storefrontPackage = detail.packageItems[0]?.package;
+
+      return {
+        productDetailId: detail.id.toString(),
+        packageId: storefrontPackage?.id?.toString(),
+        packageCode: storefrontPackage?.code,
+        productId: detail.productId.toString(),
+        productCode: detail.product.code,
+        productName: detail.product.name,
+        categoryCode: detail.product.category.code,
+        categoryName: detail.product.category.name,
+        supplierCode: detail.product.supplier.code,
+        supplierName: detail.product.supplier.name,
+        code: detail.code,
+        name: detail.name,
+        shortDescription: detail.shortDescription,
+        description: detail.description,
+        primaryImageUrl: detail.primaryImageUrl,
+        youtubeUrl: detail.youtubeUrl,
+        imageUrls: [
+          detail.primaryImageUrl,
+          ...detail.imageUrls,
+        ].filter((value, index, array): value is string => {
+          return Boolean(value) && array.indexOf(value) === index;
+        }),
+        memberPriceUsdt: detail.memberPriceUsdt.toString(),
+        retailPriceUsdt: detail.retailPriceUsdt.toString(),
+        pv: detail.pv.toString(),
+        ratingAvg: detail.ratingAvg.toString(),
+        ratingCount: detail.ratingCount,
+        isNew: detail.isNew,
+        isTop: detail.isTop,
+        isFeatured: detail.isFeatured,
+        isBestSeller: detail.isBestSeller,
+        status: detail.status.toLowerCase(),
+      };
+    });
   }
 
   async createPackage(input: {

@@ -99,13 +99,48 @@ export interface OrdersServiceContract {
     pickupBranchName: string | null;
     pickupBranchNote: string | null;
     createdAt: string;
+    items: Array<{
+      orderItemId: string;
+      packageId: string | null;
+      packageCode: string | null;
+      packageName: string | null;
+      productDetailId: string | null;
+      productCode: string | null;
+      productName: string | null;
+      productImageUrl: string | null;
+      quantity: number;
+      unitPriceUsdt: string;
+      unitPv: string;
+      lineTotalUsdt: string;
+      lineTotalPv: string;
+    }>;
+    productItems: Array<{
+      orderItemId: string;
+      packageId: string | null;
+      packageCode: string | null;
+      packageName: string | null;
+      productDetailId: string | null;
+      productCode: string | null;
+      productName: string | null;
+      productImageUrl: string | null;
+      quantity: number;
+      unitPriceUsdt: string;
+      unitPv: string;
+      lineTotalUsdt: string;
+      lineTotalPv: string;
+    }>;
   } | null>;
 
   createOrder(input: {
     userId: string;
-    packageId: string;
+    packageId?: string;
+    productDetailId?: string;
     quantity?: string;
-    items?: Array<{ packageId: string; quantity: string }>;
+    items?: Array<{
+      packageId?: string;
+      productDetailId?: string;
+      quantity: string;
+    }>;
     shippingAddressId?: string;
     fulfillmentMethod?: "delivery" | "branch_pickup";
     pickupBranchName?: string;
@@ -245,9 +280,14 @@ export class OrdersService implements OrdersServiceContract {
 
   async createOrder(input: {
     userId: string;
-    packageId: string;
+    packageId?: string;
+    productDetailId?: string;
     quantity?: string;
-    items?: Array<{ packageId: string; quantity: string }>;
+    items?: Array<{
+      packageId?: string;
+      productDetailId?: string;
+      quantity: string;
+    }>;
     shippingAddressId?: string;
     fulfillmentMethod?: "delivery" | "branch_pickup";
     pickupBranchName?: string;

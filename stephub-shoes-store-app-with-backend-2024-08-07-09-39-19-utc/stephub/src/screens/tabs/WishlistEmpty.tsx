@@ -84,14 +84,14 @@ export const WishlistEmpty: FC = () => {
             marginBottom: 30,
           }}
         >
-          บันทึกแพ็กเกจที่สนใจไว้ที่นี่{'\n'}แล้วกลับมาสั่งซื้อภายหลัง
+          บันทึกสินค้าที่สนใจไว้ที่นี่{'\n'}แล้วกลับมาสั่งซื้อภายหลัง
         </p>
         <components.Button
-          title='เลือกแพ็กเกจ'
+          title='เลือกสินค้า'
           onClick={() => {
             dispatch(actions.resetFilters());
             navigate('/Shop', {
-              state: {products: productsData, title: 'แพ็กเกจ'},
+              state: {products: productsData, title: 'สินค้า'},
             });
           }}
           containerStyle={{marginBottom: 10}}

@@ -66,7 +66,7 @@ export const Checkout: React.FC = () => {
               fontSize: 18,
             }}
           >
-            รายการแพ็กเกจ
+            รายการสินค้า
           </h4>
           <h4
             style={{
@@ -116,7 +116,7 @@ export const Checkout: React.FC = () => {
                   }}
                 >
                   {item.name}
-                  {item.packageCode && ` • ${item.packageCode}`}
+                  {item.productCode && ` • ${item.productCode}`}
                   {item.pv ? ` • PV ${item.pv}` : ''}
                 </h6>
                 <span
@@ -328,16 +328,19 @@ export const Checkout: React.FC = () => {
               return;
             }
 
-            const orderItems = cart
-              .filter(item => item.packageId)
+            const productItems = cart
+              .filter(item => item.packageId || item.productDetailId)
               .map(item => ({
-                packageId: String(item.packageId),
+                packageId: item.packageId ? String(item.packageId) : undefined,
+                productDetailId: item.productDetailId
+                  ? String(item.productDetailId)
+                  : undefined,
                 quantity: String(Math.max(1, Number(item.quantity || 1))),
               }));
 
-            if (!orderItems.length) {
+            if (!productItems.length) {
               setErrorMessage(
-                'ไม่พบแพ็กเกจที่พร้อมสร้างคำสั่งซื้อ',
+                'ไม่พบสินค้าที่พร้อมสร้างคำสั่งซื้อ',
               );
               return;
             }
@@ -360,12 +363,14 @@ export const Checkout: React.FC = () => {
             setErrorMessage('');
 
             try {
-              await axios.post(
+              const response = await axios.post(
                 URLS.AUTH_ORDERS,
                 {
-                  packageId: orderItems[0].packageId,
-                  quantity: orderItems[0].quantity,
-                  items: orderItems,
+                  packageId: productItems[0].packageId,
+                  productDetailId: productItems[0].productDetailId,
+                  quantity: productItems[0].quantity,
+                  items: productItems,
+                  productItems,
                   shippingAddressId: isBranchPickup
                     ? undefined
                     : selectedAddress?.shippingAddressId,
@@ -396,7 +401,19 @@ export const Checkout: React.FC = () => {
               );
 
               dispatch(actions.resetCart());
-              navigate('/OrderHistory');
+              navigate('/OrderSuccessful', {
+                state: {
+                  order: response?.data?.data || response?.data || null,
+                  productItems: cart.map(item => ({
+                    id: item.id,
+                    name: item.name,
+                    productCode: item.productCode,
+                    quantity: Math.max(1, Number(item.quantity || 1)),
+                    price: Number(item.price || 0),
+                    image: item.image,
+                  })),
+                },
+              });
             } catch (error: any) {
               setErrorMessage(
                 error?.response?.data?.message ||

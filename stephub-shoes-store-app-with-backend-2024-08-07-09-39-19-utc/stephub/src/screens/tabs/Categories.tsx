@@ -5,7 +5,7 @@ import {custom} from '../../custom';
 import {theme} from '../../constants';
 import {actions} from '../../store/actions';
 import {components} from '../../components';
-import {fetchLiveProducts, getPackageCollections} from '../../utils/liveCatalog';
+import {fetchProductCollections} from '../../utils/liveCatalog';
 
 export const Categories: FC = () => {
   const dispatch = hooks.useAppDispatch();
@@ -17,8 +17,7 @@ export const Categories: FC = () => {
   const getData = async () => {
     setLoading(true);
     try {
-      const products = await fetchLiveProducts();
-      setCategoriesData(getPackageCollections(products));
+      setCategoriesData(await fetchProductCollections());
     } catch (error) {
       console.error(error);
     } finally {
@@ -57,7 +56,7 @@ export const Categories: FC = () => {
               }}
               onClick={() => {
                 if (categoryProducts.length === 0) {
-                  return alert('ยังไม่มีแพ็กเกจในหมวดนี้');
+                  return alert('ยังไม่มีสินค้าในหมวดนี้');
                 }
                 dispatch(actions.resetFilters());
                 navigate('/Shop', {
@@ -124,7 +123,7 @@ export const Categories: FC = () => {
               lineHeight: 1.7,
             }}
           >
-            No package collections are available right now.
+            ยังไม่มีหมวดสินค้าพร้อมใช้งานในขณะนี้
           </div>
         </div>
       );

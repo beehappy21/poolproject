@@ -241,7 +241,7 @@ export const Header: React.FC<Props> = ({
   const renderModal = (): JSX.Element => {
     const quickLinks = [
       {label: 'หน้าแรก', onClick: () => dispatch(actions.setScreen('Home'))},
-      {label: 'แพ็กเกจ', onClick: () => dispatch(actions.setScreen('Search'))},
+      {label: 'สินค้า', onClick: () => dispatch(actions.setScreen('Search'))},
       {label: 'ตะกร้า', onClick: () => dispatch(actions.setScreen('Order'))},
       {label: 'ประวัติคำสั่งซื้อ', onClick: () => navigate('/OrderHistory')},
       {label: 'โปรไฟล์', onClick: () => dispatch(actions.setScreen('Profile'))},
@@ -291,7 +291,7 @@ export const Header: React.FC<Props> = ({
                 link.onClick();
                 if (
                   link.label === 'หน้าแรก' ||
-                  link.label === 'แพ็กเกจ' ||
+                  link.label === 'สินค้า' ||
                   link.label === 'ตะกร้า' ||
                   link.label === 'โปรไฟล์'
                 ) {

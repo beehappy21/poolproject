@@ -16,6 +16,8 @@ export const GET_AUDIENCES = `${MAIN_URL}api/audiences.json`;
 export const GET_PROMOCODES = `${MAIN_URL}api/promocodes.json`;
 export const GET_CATEGORIES = `${BAO_BASE_URL}/api/categories`;
 export const GET_PACKAGES = `${API_BASE_URL}/packages`;
+export const GET_PRODUCT_CATEGORIES = `${API_BASE_URL}/products/categories`;
+export const GET_STOREFRONT_PRODUCTS = `${API_BASE_URL}/products/storefront`;
 export const AUTH_LOGIN = `${API_BASE_URL}/auth/login`;
 export const AUTH_ME = `${API_BASE_URL}/auth/me`;
 export const AUTH_ORDERS = `${API_BASE_URL}/auth/orders`;
@@ -45,6 +47,8 @@ export const URLS = {
   GET_PROMOCODES,
   GET_CATEGORIES,
   GET_PACKAGES,
+  GET_PRODUCT_CATEGORIES,
+  GET_STOREFRONT_PRODUCTS,
   AUTH_LOGIN,
   AUTH_ME,
   AUTH_ORDERS,
