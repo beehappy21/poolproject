@@ -8,6 +8,7 @@ export interface WalletSettings {
   walletTransferFeeRate: string;
   walletTopupEnabled: boolean;
   shoppingWalletSpendEnabled: boolean;
+  discountWalletSpendEnabled: boolean;
   orderCashPaymentMethods: string[];
   walletTopupPaymentMethods: string[];
 }
@@ -21,6 +22,7 @@ const DEFAULT_SETTINGS: WalletSettings = {
   walletTransferFeeRate: "0",
   walletTopupEnabled: true,
   shoppingWalletSpendEnabled: true,
+  discountWalletSpendEnabled: true,
   orderCashPaymentMethods: ["bank_transfer", "promptpay_qr", "cash"],
   walletTopupPaymentMethods: ["manual_bank", "promptpay_qr", "cash"],
 };
@@ -96,6 +98,10 @@ export function normalizeWalletSettings(input: unknown): WalletSettings {
     shoppingWalletSpendEnabled: normalizeBoolean(
       candidate.shoppingWalletSpendEnabled,
       DEFAULT_SETTINGS.shoppingWalletSpendEnabled,
+    ),
+    discountWalletSpendEnabled: normalizeBoolean(
+      candidate.discountWalletSpendEnabled,
+      DEFAULT_SETTINGS.discountWalletSpendEnabled,
     ),
     orderCashPaymentMethods: normalizePaymentMethods(
       candidate.orderCashPaymentMethods,

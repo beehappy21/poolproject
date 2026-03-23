@@ -138,6 +138,7 @@ enum WalletTransactionType {
   POOL_CREDIT
   MATRIX_CREDIT
   CASHBACK_CREDIT
+  DCW_CREDIT
   COMMISSION_CONVERT_OUT
   SHOPPING_WALLET_CONVERT_IN
   CONVERT_FEE_DEBIT
@@ -145,6 +146,7 @@ enum WalletTransactionType {
   WALLET_TRANSFER_IN
   TRANSFER_FEE_DEBIT
   TOPUP_CREDIT
+  DCW_PURCHASE_DEBIT
   ORDER_PURCHASE_DEBIT
   HOLD_RELEASE
   REVERSAL_DEBIT
@@ -165,6 +167,7 @@ enum WalletBalanceBucket {
   HELD
   WITHDRAWABLE
   SHOPPING
+  DISCOUNT
   PAID_OUT
   NEGATIVE_OFFSET
 }
@@ -459,6 +462,11 @@ model ProductDetail {
   poolCapMultiple  Decimal       @default(0) @db.Decimal(10, 8)
   commissionCapScope CommissionCapScope @default(POOL_ONLY)
   commissionCapMultiple Decimal   @default(0) @db.Decimal(10, 8)
+  dcwSpendEnabled   Boolean       @default(false)
+  dcwUsageAmount    Decimal       @default(0) @db.Decimal(18, 8)
+  dcwUsageAmountOverridden Boolean @default(false)
+  dcwCashRewardRate Decimal       @default(0) @db.Decimal(10, 8)
+  dcwShoppingRewardRate Decimal   @default(0) @db.Decimal(10, 8)
   status           CatalogStatus @default(ACTIVE)
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
@@ -483,6 +491,11 @@ model Package {
   poolCapMultiple  Decimal        @default(0) @db.Decimal(10, 8)
   commissionCapScope CommissionCapScope @default(POOL_ONLY)
   commissionCapMultiple Decimal    @default(0) @db.Decimal(10, 8)
+  dcwSpendEnabled   Boolean        @default(false)
+  dcwUsageAmount    Decimal        @default(0) @db.Decimal(18, 8)
+  dcwUsageAmountOverridden Boolean @default(false)
+  dcwCashRewardRate Decimal        @default(0) @db.Decimal(10, 8)
+  dcwShoppingRewardRate Decimal    @default(0) @db.Decimal(10, 8)
   activeDays       Int
   earningCapType   EarningCapType
   earningCapAmount Decimal        @db.Decimal(18, 8)
@@ -555,6 +568,7 @@ model Order {
   subtotalUsdt               Decimal                   @default(0) @db.Decimal(18, 8)
   totalUsdt                  Decimal                   @default(0) @db.Decimal(18, 8)
   totalPv                    Decimal                   @default(0) @db.Decimal(18, 8)
+  dcwAppliedUsdt             Decimal                   @default(0) @db.Decimal(18, 8)
   walletAppliedUsdt          Decimal                   @default(0) @db.Decimal(18, 8)
   cashDueUsdt                Decimal                   @default(0) @db.Decimal(18, 8)
   cashPaymentMethod          String?                   @db.VarChar(100)
@@ -603,6 +617,10 @@ model OrderItem {
   unitPv        Decimal  @default(0) @db.Decimal(18, 8)
   poolRateMode  PoolRateMode @default(DEFAULT_50_PERCENT)
   unitPoolRate  Decimal  @default(0) @db.Decimal(10, 8)
+  dcwSpendEnabled Boolean @default(false)
+  unitDcwUsageAmount Decimal @default(0) @db.Decimal(18, 8)
+  unitDcwCashRewardRate Decimal @default(0) @db.Decimal(10, 8)
+  unitDcwShoppingRewardRate Decimal @default(0) @db.Decimal(10, 8)
   lineTotalUsdt Decimal  @default(0) @db.Decimal(18, 8)
   lineTotalPv   Decimal  @default(0) @db.Decimal(18, 8)
   createdAt     DateTime @default(now())
@@ -746,6 +764,7 @@ model Wallet {
   heldBalance           Decimal          @default(0) @db.Decimal(18, 8)
   withdrawableBalance   Decimal          @default(0) @db.Decimal(18, 8)
   shoppingBalance       Decimal          @default(0) @db.Decimal(18, 8)
+  discountBalance       Decimal          @default(0) @db.Decimal(18, 8)
   paidOutBalance        Decimal          @default(0) @db.Decimal(18, 8)
   negativeOffsetBalance Decimal          @default(0) @db.Decimal(18, 8)
   payoutLockStatus      PayoutLockStatus @default(UNLOCKED)

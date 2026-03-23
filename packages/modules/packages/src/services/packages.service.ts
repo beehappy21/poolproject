@@ -63,6 +63,8 @@ export class PackagesService {
     name: string;
     priceUsdt?: string;
     pv?: string;
+    costPriceUsdt?: string;
+    memberPriceUsdt?: string;
     activeDays: number;
     earningCapAmount: string;
     poolRateMode?: "default_50_percent" | "custom_rate" | "disabled";
@@ -70,6 +72,11 @@ export class PackagesService {
     poolCapMultiple?: string;
     commissionCapScope?: "pool_only" | "all_commissions";
     commissionCapMultiple?: string;
+    dcwSpendEnabled?: boolean;
+    dcwUsageAmount?: string;
+    dcwRewardRate?: string;
+    dcwCashRewardRate?: string;
+    dcwShoppingRewardRate?: string;
     productDetailItems?: Array<{
       productDetailId: string;
       qty: number;

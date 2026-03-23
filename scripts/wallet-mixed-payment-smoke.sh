@@ -77,7 +77,7 @@ curl -s -X PUT "$API_BASE_URL/settings/commissions" \
 WALLET_SETTINGS_JSON="$(curl -s -X PUT "$API_BASE_URL/settings/wallets" \
   -H "$AUTH_HEADER" \
   -H 'content-type: application/json' \
-  -d '{"commissionToShoppingEnabled":true,"commissionToShoppingFeeRate":"0.1","walletTransferEnabled":true,"walletTransferFeeRate":"0.05","walletTopupEnabled":true,"shoppingWalletSpendEnabled":true,"orderCashPaymentMethods":["bank_transfer","promptpay_qr","cash"],"walletTopupPaymentMethods":["manual_bank","promptpay_qr","cash"]}')"
+  -d '{"commissionToShoppingEnabled":true,"commissionToShoppingFeeRate":"0.1","walletTransferEnabled":true,"walletTransferFeeRate":"0.05","walletTopupEnabled":true,"shoppingWalletSpendEnabled":true,"discountWalletSpendEnabled":true,"orderCashPaymentMethods":["bank_transfer","promptpay_qr","cash"],"walletTopupPaymentMethods":["manual_bank","promptpay_qr","cash"]}')"
 
 ALICE_JSON="$(curl -s "$API_BASE_URL/members/by-code/ALICE" -H "$AUTH_HEADER")"
 BOB_JSON="$(curl -s "$API_BASE_URL/members/by-code/BOB" -H "$AUTH_HEADER")"
@@ -183,20 +183,20 @@ const afterConvertWithdrawable = toNumber(convertResult.withdrawableBalance);
 
 if (!processResult.orderId) throw new Error("process-approved failed");
 if (afterCommissionWithdrawable <= initialWithdrawable) {
-  throw new Error(`expected withdrawable balance to increase after commission processing, got ${initialWithdrawable} -> ${afterCommissionWithdrawable}`);
+  throw new Error(`expected CW balance to increase after commission processing, got ${initialWithdrawable} -> ${afterCommissionWithdrawable}`);
 }
 if (convertResult.grossAmount !== "10" || convertResult.feeAmount !== "1" || convertResult.netShoppingAmount !== "9") {
   throw new Error(`unexpected convert result: ${JSON.stringify(convertResult)}`);
 }
-expectAlmostEqual(afterConvertWithdrawable, afterCommissionWithdrawable - 10, "withdrawable after convert");
-expectAlmostEqual(toNumber(convertResult.shoppingBalance), initialShopping + 9, "shopping after convert");
+expectAlmostEqual(afterConvertWithdrawable, afterCommissionWithdrawable - 10, "CW after convert");
+expectAlmostEqual(toNumber(convertResult.shoppingBalance), initialShopping + 9, "SW after convert");
 if (transferResult.grossAmount !== "4" || transferResult.feeAmount !== "0.2" || transferResult.netAmount !== "3.8") {
   throw new Error(`unexpected transfer result: ${JSON.stringify(transferResult)}`);
 }
-expectAlmostEqual(toNumber(transferResult.senderShoppingBalance), initialShopping + 5, "sender shopping after transfer");
-expectAlmostEqual(toNumber(transferResult.recipientShoppingBalance), initialDaveShopping + 3.8, "recipient shopping after transfer");
-expectAlmostEqual(toNumber(topupResult.shoppingBalance), initialShopping + 20, "shopping after top-up");
-expectAlmostEqual(toNumber(daveWallet.shoppingBalance), initialDaveShopping + 3.8, "DAVE shopping wallet after transfer");
+expectAlmostEqual(toNumber(transferResult.senderShoppingBalance), initialShopping + 5, "sender SW after transfer");
+expectAlmostEqual(toNumber(transferResult.recipientShoppingBalance), initialDaveShopping + 3.8, "recipient SW after transfer");
+expectAlmostEqual(toNumber(topupResult.shoppingBalance), initialShopping + 20, "SW after top-up");
+expectAlmostEqual(toNumber(daveWallet.shoppingBalance), initialDaveShopping + 3.8, "DAVE SW after transfer");
 if (buyOrder.walletAppliedUsdt !== "20" || buyOrder.cashDueUsdt !== "100") {
   throw new Error(`unexpected mixed-payment order split: ${JSON.stringify(buyOrder)}`);
 }
@@ -205,7 +205,7 @@ if (buyOrder.cashPaymentMethod !== "promptpay_qr") {
 }
 expectAlmostEqual(toNumber(walletAfterBuy.wallet.shoppingBalance), initialShopping, "ALICE shopping after mixed payment");
 if (daveTopupRequest.status !== "pending" || daveTopupRequest.paymentMethod !== "promptpay_qr") {
-  throw new Error(`unexpected wallet top-up request: ${JSON.stringify(daveTopupRequest)}`);
+  throw new Error(`unexpected SW top-up request: ${JSON.stringify(daveTopupRequest)}`);
 }
 if (!Array.isArray(daveTopupList) || daveTopupList.length === 0) {
   throw new Error("expected DAVE top-up requests to be listable");
@@ -216,7 +216,7 @@ if (approvedTopup.status !== "approved") {
 expectAlmostEqual(
   toNumber(daveWalletAfterTopupRequest.shoppingBalance),
   initialDaveShopping + 10.8,
-  "DAVE shopping wallet after approved top-up request",
+  "DAVE SW after approved top-up request",
 );
 
 const txTypes = new Set((aliceTransactions || []).map((item) => item.txType));

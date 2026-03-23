@@ -211,7 +211,7 @@
             <form id="walletSettingsForm" class="settings-form">
               <div class="settings-grid">
                 <label>
-                  <span>Commission To Shopping Fee %</span>
+                  <span>CW to SW Fee %</span>
                   <input id="walletCommissionFeeRateInput" type="text" value="0" required />
                 </label>
                 <label>
@@ -221,29 +221,36 @@
               </div>
               <div class="settings-grid">
                 <label>
-                  <span>Commission Convert</span>
+                  <span>CW Convert</span>
                   <select id="walletCommissionEnabledSelect">
                     <option value="true">Enabled</option>
                     <option value="false">Disabled</option>
                   </select>
                 </label>
                 <label>
-                  <span>Wallet Transfer</span>
+                  <span>SW Transfer</span>
                   <select id="walletTransferEnabledSelect">
                     <option value="true">Enabled</option>
                     <option value="false">Disabled</option>
                   </select>
                 </label>
                 <label>
-                  <span>Wallet Top-Up</span>
+                  <span>SW Top-Up</span>
                   <select id="walletTopupEnabledSelect">
                     <option value="true">Enabled</option>
                     <option value="false">Disabled</option>
                   </select>
                 </label>
                 <label>
-                  <span>Shopping Wallet Spend</span>
+                  <span>SW Spend</span>
                   <select id="walletSpendEnabledSelect">
+                    <option value="true">Enabled</option>
+                    <option value="false">Disabled</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Discount Wallet Spend</span>
+                  <select id="walletDiscountSpendEnabledSelect">
                     <option value="true">Enabled</option>
                     <option value="false">Disabled</option>
                   </select>
@@ -254,7 +261,7 @@
                 <input id="walletOrderCashMethodsInput" type="text" placeholder="bank_transfer, promptpay_qr, cash" />
               </label>
               <label>
-                <span>Allowed Wallet Top-Up Methods</span>
+                <span>Allowed SW Top-Up Methods</span>
                 <input id="walletTopupMethodsInput" type="text" placeholder="manual_bank, promptpay_qr, cash" />
               </label>
               <div class="table-actions">
@@ -265,7 +272,7 @@
 
           <article class="panel detail-panel">
             <div class="section-head">
-              <h3>Wallet Settings Preview</h3>
+              <h3>CW / SW Settings Preview</h3>
               <span class="muted">Current allowed methods</span>
             </div>
             <pre id="walletSettingsOutput" class="detail-output">Load wallet settings to inspect payment methods and fee rates.</pre>
@@ -482,6 +489,7 @@
                     </label>
                   </div>
                   <p class="form-hint">Enter pool as percent. Example: 10 = 10%</p>
+                  <p class="form-hint">DCW reward is configured on the sale package/offer below.</p>
                   <p class="form-hint">Image URLs: one per line, maximum 10 images.</p>
                   <article class="product-detail-media-preview" id="productDetailMediaPreview">
                     <div class="product-detail-media-preview__head">
@@ -561,6 +569,33 @@
                   <input id="packagePoolRateInput" type="text" placeholder="10" value="10" required />
                 </label>
               </div>
+              <div class="product-form-grid">
+                <label>
+                  <span>DCW Spend</span>
+                  <select id="packageDcwEnabledSelect">
+                    <option value="true">Enabled</option>
+                    <option value="false">Disabled</option>
+                  </select>
+                </label>
+                <label>
+                  <span>DCW Usage Amount</span>
+                  <input id="packageDcwUsageAmountInput" type="text" placeholder="Leave blank for auto" />
+                </label>
+                <label>
+                  <span>DCW Reward %</span>
+                  <input id="packageDcwRewardInput" type="text" placeholder="20" value="0" />
+                </label>
+              </div>
+              <div class="placeholder-list">
+                <div class="placeholder-item">
+                  <strong>DCW Default Formula</strong>
+                  <div class="muted" id="packageDcwDefaultHint">Auto = member price - (cost x 70%), rounded down to a whole number</div>
+                </div>
+                <div class="placeholder-item">
+                  <strong>DCW Warning</strong>
+                  <div class="muted" id="packageDcwWarningLabel">No override warning. DCW always rounds down to a whole number.</div>
+                </div>
+              </div>
               <div class="package-builder">
                 <div class="package-builder-add">
                   <select id="packageDetailSelect">
@@ -603,6 +638,18 @@
                     <strong id="productPreviewPoolRate">10%</strong>
                   </div>
                   <div>
+                    <span>DCW Auto</span>
+                    <strong id="productPreviewDcwDefault">0</strong>
+                  </div>
+                  <div>
+                    <span>DCW Usage</span>
+                    <strong id="productPreviewDcwUsage">Auto</strong>
+                  </div>
+                  <div>
+                    <span>DCW Reward</span>
+                    <strong id="productPreviewDcwReward">Cash 0% / Shop 0%</strong>
+                  </div>
+                  <div>
                     <span>Cycle</span>
                     <strong id="productPreviewDays">30 days</strong>
                   </div>
@@ -616,6 +663,108 @@
                   </div>
                 </div>
               </article>
+            </form>
+
+            <form id="createBuyMorePackageForm" class="panel inner-panel stacked-form product-studio-form">
+              <div class="product-form-head">
+                <div>
+                  <p class="eyebrow">Buy More</p>
+                  <h4>Create Add-On Package</h4>
+                </div>
+                <p class="muted">Create a dedicated "ซื้อเพิ่ม" category, product, detail, and package with the price and quantity you want.</p>
+              </div>
+              <div class="product-form-grid">
+                <label>
+                  <span>Supplier</span>
+                  <select id="buyMoreSupplierSelect">
+                    <option value="">Pick supplier</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Category Code</span>
+                  <input id="buyMoreCategoryCodeInput" type="text" value="BUYMORE" required />
+                </label>
+                <label>
+                  <span>Category Name</span>
+                  <input id="buyMoreCategoryNameInput" type="text" value="ซื้อเพิ่ม" required />
+                </label>
+                <label>
+                  <span>Package Qty</span>
+                  <input id="buyMoreQtyInput" type="number" min="1" value="1" required />
+                </label>
+              </div>
+              <div class="product-form-grid">
+                <label>
+                  <span>Product Code</span>
+                  <input id="buyMoreProductCodeInput" type="text" placeholder="BUYMORE-SERUM" required />
+                </label>
+                <label>
+                  <span>Product Name</span>
+                  <input id="buyMoreProductNameInput" type="text" placeholder="Buy More Serum" required />
+                </label>
+                <label>
+                  <span>Detail Code</span>
+                  <input id="buyMoreDetailCodeInput" type="text" placeholder="BUYMORE-SERUM-1" required />
+                </label>
+                <label>
+                  <span>Detail Name</span>
+                  <input id="buyMoreDetailNameInput" type="text" placeholder="Buy More Serum 1pc" required />
+                </label>
+              </div>
+              <div class="product-form-grid">
+                <label>
+                  <span>Unit Cost</span>
+                  <input id="buyMoreCostInput" type="text" placeholder="40" required />
+                </label>
+                <label>
+                  <span>Unit Member Price</span>
+                  <input id="buyMoreMemberPriceInput" type="text" placeholder="100" required />
+                </label>
+                <label>
+                  <span>Unit Retail Price</span>
+                  <input id="buyMoreRetailPriceInput" type="text" placeholder="120" required />
+                </label>
+                <label>
+                  <span>Unit PV</span>
+                  <input id="buyMorePvInput" type="text" placeholder="100" required />
+                </label>
+              </div>
+              <div class="product-form-grid">
+                <label>
+                  <span>Package Code</span>
+                  <input id="buyMorePackageCodeInput" type="text" placeholder="BUYMOREPACK1" required />
+                </label>
+                <label>
+                  <span>Package Name</span>
+                  <input id="buyMorePackageNameInput" type="text" placeholder="ซื้อเพิ่ม Serum x1" required />
+                </label>
+                <label>
+                  <span>Package Pool %</span>
+                  <input id="buyMorePoolRateInput" type="text" placeholder="0" value="0" required />
+                </label>
+                <label>
+                  <span>Earning Cap</span>
+                  <input id="buyMoreCapInput" type="text" placeholder="100" value="100" required />
+                </label>
+              </div>
+              <div class="product-form-grid">
+                <label>
+                  <span>DCW Spend</span>
+                  <select id="buyMoreDcwEnabledSelect">
+                    <option value="true">Enabled</option>
+                    <option value="false">Disabled</option>
+                  </select>
+                </label>
+                <label>
+                  <span>DCW Usage Amount</span>
+                  <input id="buyMoreDcwUsageAmountInput" type="text" placeholder="Leave blank for auto" />
+                </label>
+                <label>
+                  <span>DCW Reward %</span>
+                  <input id="buyMoreDcwRewardInput" type="text" placeholder="20" value="0" />
+                </label>
+              </div>
+              <button type="submit">Create Buy More Package</button>
             </form>
           </div>
         </section>
@@ -640,6 +789,7 @@
                   <th>Retail</th>
                   <th>PV</th>
                   <th>Pool %</th>
+                  <th>Offer Note</th>
                   <th>Status</th>
                 </tr>
               </thead>
@@ -665,6 +815,8 @@
                   <th>Retail</th>
                   <th>PV</th>
                   <th>Pool %</th>
+                  <th>DCW Usage</th>
+                  <th>DCW Reward</th>
                   <th>Days</th>
                   <th>Cap</th>
                   <th>Items</th>
@@ -1176,8 +1328,8 @@
 
         <section class="panel" data-menu-section="members">
           <div class="section-head">
-            <h3>Wallet Top-Up Review</h3>
-            <span class="muted">Approve or reject member wallet top-up requests</span>
+            <h3>SW Top-Up Review</h3>
+            <span class="muted">Approve or reject member SW top-up requests</span>
           </div>
           <div class="filter-stack">
             <input id="walletTopupRequestUserFilterInput" type="text" placeholder="Filter by user ID" />

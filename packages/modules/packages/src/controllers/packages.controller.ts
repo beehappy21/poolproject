@@ -173,6 +173,8 @@ export class PackagesController {
       name: string;
       priceUsdt?: string;
       pv?: string;
+      costPriceUsdt?: string;
+      memberPriceUsdt?: string;
       activeDays: number;
       earningCapAmount: string;
       poolRateMode?: string;
@@ -180,6 +182,11 @@ export class PackagesController {
       poolCapMultiple?: string;
       commissionCapScope?: string;
       commissionCapMultiple?: string;
+      dcwSpendEnabled?: boolean | string;
+      dcwUsageAmount?: string;
+      dcwRewardRate?: string;
+      dcwCashRewardRate?: string;
+      dcwShoppingRewardRate?: string;
       productDetailItems?: Array<{ productDetailId: string; qty: number }>;
     },
   ) {
@@ -232,6 +239,12 @@ export class PackagesController {
         pv: optionalString(body.pv)
           ? requireDecimalString(body.pv, "pv")
           : undefined,
+        costPriceUsdt: optionalString(body.costPriceUsdt)
+          ? requireDecimalString(body.costPriceUsdt, "costPriceUsdt")
+          : undefined,
+        memberPriceUsdt: optionalString(body.memberPriceUsdt)
+          ? requireDecimalString(body.memberPriceUsdt, "memberPriceUsdt")
+          : undefined,
         activeDays: requirePositiveInteger(body.activeDays, "activeDays"),
         earningCapAmount: requireDecimalString(
           body.earningCapAmount,
@@ -255,6 +268,25 @@ export class PackagesController {
           ? requireDecimalString(
               body.commissionCapMultiple,
               "commissionCapMultiple",
+            )
+          : undefined,
+        dcwSpendEnabled:
+          body.dcwSpendEnabled === true ||
+          body.dcwSpendEnabled === "true" ||
+          body.dcwSpendEnabled === "1",
+        dcwUsageAmount: optionalString(body.dcwUsageAmount)
+          ? requireDecimalString(body.dcwUsageAmount, "dcwUsageAmount")
+          : undefined,
+        dcwRewardRate: optionalString(body.dcwRewardRate)
+          ? requireDecimalRateString(body.dcwRewardRate, "dcwRewardRate")
+          : undefined,
+        dcwCashRewardRate: optionalString(body.dcwCashRewardRate)
+          ? requireDecimalRateString(body.dcwCashRewardRate, "dcwCashRewardRate")
+          : undefined,
+        dcwShoppingRewardRate: optionalString(body.dcwShoppingRewardRate)
+          ? requireDecimalRateString(
+              body.dcwShoppingRewardRate,
+              "dcwShoppingRewardRate",
             )
           : undefined,
         productDetailItems: normalizedItems,

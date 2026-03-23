@@ -205,6 +205,7 @@ export class AuthController {
     @Body()
     body?: {
       packageId?: string;
+      discountWalletAmount?: string;
       shoppingWalletAmount?: string;
       cashPaymentMethod?: string;
     },
@@ -214,6 +215,9 @@ export class AuthController {
     return this.ordersService.createOrder({
       userId: user.userId,
       packageId: requirePositiveIntegerString(body?.packageId, "packageId"),
+      discountWalletAmount: optionalString(body?.discountWalletAmount)
+        ? requireDecimalString(body?.discountWalletAmount, "discountWalletAmount")
+        : undefined,
       shoppingWalletAmount: optionalString(body?.shoppingWalletAmount)
         ? requireDecimalString(body?.shoppingWalletAmount, "shoppingWalletAmount")
         : undefined,

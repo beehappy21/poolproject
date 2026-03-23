@@ -101,3 +101,13 @@ export function maxDecimalString(left: string, right: string): string {
 export function minDecimalString(left: string, right: string): string {
   return compareDecimalStrings(left, right) <= 0 ? left : right;
 }
+
+export function floorDecimalString(value: string): string {
+  const scaled = decimalToScaledInt(value);
+  const whole =
+    scaled >= 0n
+      ? scaled / DECIMAL_FACTOR
+      : -((-scaled + DECIMAL_FACTOR - 1n) / DECIMAL_FACTOR);
+
+  return whole.toString();
+}

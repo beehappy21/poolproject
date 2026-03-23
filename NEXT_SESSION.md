@@ -48,17 +48,17 @@ Updated: 2026-03-23
   - shipped
   - delivered
 - BAO cashback CSV export bug was fixed so `cashback` export mode now returns `CASHBACK` rows instead of falling back to `DIRECT`
-- Shopping-wallet and mixed-payment flow are now merged into `main`, including:
-  - commission-to-shopping conversion with fee
-  - shopping-wallet transfer to downline with fee
-  - admin shopping-wallet top-up
-  - member wallet top-up request plus admin approve/reject flow
+- SW and mixed-payment flow are now merged into `main`, including:
+  - CW-to-SW conversion with fee
+  - SW transfer to downline with fee
+  - admin SW top-up
+  - member SW top-up request plus admin approve/reject flow
   - mixed `wallet + cash` order creation with allowed payment-method checks
 - Local admin UI now includes:
   - wallet payment settings management
   - allowed cash/top-up payment-method configuration
-  - wallet top-up request review actions
-- Wallet top-up admin actions now require a real authenticated admin session and no longer trust `actorUserId` from request body
+  - SW top-up request review actions
+- SW top-up admin actions now require a real authenticated admin session and no longer trust `actorUserId` from request body
 
 ## Review Notes
 
@@ -66,10 +66,10 @@ Updated: 2026-03-23
 - The previously requested browser verification of BAO cashback and Stephub shipment-state flows is now covered by local reusable smoke scripts
 - Wallet smoke now covers:
   - commission credit
-  - convert to shopping wallet
+  - convert CW to SW
   - downline transfer
-  - admin top-up
-  - member top-up request and admin approval
+  - admin SW top-up
+  - member SW top-up request and admin approval
   - mixed `wallet + cash` order split
 - Current matrix docs still describe a separate sandbox-only legacy placement engine and do not change production matrix code
 - If matrix work resumes, treat it as a product decision rather than a merge-readiness issue
@@ -117,14 +117,14 @@ Updated: 2026-03-23
 ## Wallet Status
 
 - Wallet system in `main` now supports:
-  - commission wallet summary and transaction history
-  - shopping-wallet balance bucket
-  - commission-to-shopping conversion with configurable fee
-  - shopping-wallet transfer to downline with configurable fee
-  - admin top-up
-  - member top-up requests with admin approve/reject
+  - CW summary and transaction history
+  - SW balance bucket
+  - CW-to-SW conversion with configurable fee
+  - SW transfer to downline with configurable fee
+  - admin SW top-up
+  - member SW top-up requests with admin approve/reject
   - mixed wallet + cash order payments
-  - configurable allowed payment methods for cash checkout and wallet top-up
+  - configurable allowed payment methods for cash checkout and SW top-up
 - Latest wallet smoke suite after merge: `npm run smoke:wallet:mixed`
 - Current admin tooling is in the local admin app under `/admin`; member-facing wallet UI is still the most obvious next product slice if wallet work continues
 

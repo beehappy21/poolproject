@@ -182,6 +182,16 @@
         font-size: 0.9rem;
     }
 
+    .product-dcw-warning {
+        margin-top: 0.5rem;
+        padding: 0.75rem 0.9rem;
+        border-radius: 10px;
+        background: #fefce8;
+        border: 1px solid #facc15;
+        color: #854d0e;
+        font-size: 0.9rem;
+    }
+
     @media (max-width: 900px) {
         .product-media-shell {
             grid-template-columns: 1fr;
@@ -418,6 +428,47 @@
             <input id="product_pool_rate" name="product[pool_rate]" type="number" step="0.00000001" min="0" value="{{ old('product.pool_rate', $product['pool_rate'] ?? '0') }}">
         </div>
     </div>
+
+    <div class="pool-grid">
+        <div class="pool-field">
+            <label for="product_dcw_spend_enabled">Allow DCW spend</label>
+            <select id="product_dcw_spend_enabled" name="product[dcw_spend_enabled]">
+                <option value="0" @selected((string) ($product['dcw_spend_enabled'] ?? '0') === '0')>No</option>
+                <option value="1" @selected((string) ($product['dcw_spend_enabled'] ?? '0') === '1')>Yes</option>
+            </select>
+            <div class="pool-note">เปิดเพื่อให้สินค้านี้ตั้งค่า Discount Wallet ได้</div>
+        </div>
+
+        <div class="pool-field">
+            <label for="product_dcw_usage_amount">DCW usage amount</label>
+            <input id="product_dcw_usage_amount" name="product[dcw_usage_amount]" type="number" step="1" min="0" value="{{ old('product.dcw_usage_amount', $product['dcw_usage_amount'] ?? '0') }}">
+            <div class="pool-note">
+                ค่าเริ่มต้นคำนวณจากสูตร `ราคาสมาชิก - (ต้นทุน x 70%)`
+                และปัดลงเป็นจำนวนเต็มเสมอ
+                ได้ <strong id="productDcwFormulaValue">{{ $product['dcw_usage_formula'] ?? '0' }}</strong>
+            </div>
+            <input type="hidden" name="product[dcw_usage_manual_override]" value="0">
+            <label style="display:flex;align-items:center;gap:0.5rem;font-weight:500;">
+                <input
+                    id="product_dcw_usage_manual_override"
+                    name="product[dcw_usage_manual_override]"
+                    type="checkbox"
+                    value="1"
+                    @checked((string) ($product['dcw_usage_manual_override'] ?? '0') === '1')
+                >
+                ตั้งค่า DCW เอง
+            </label>
+            <div class="product-dcw-warning" id="productDcwWarning" @if ((string) ($product['dcw_usage_manual_override'] ?? '0') !== '1') style="display:none" @endif>
+                คุณกำลัง override ค่า DCW จากสูตรอัตโนมัติ ระบบจะปัดลงเป็นจำนวนเต็มเสมอ ตรวจสอบให้แน่ใจว่าค่านี้ยังมากกว่าต้นทุนและสอดคล้องกับแผนโปรโมชัน
+            </div>
+        </div>
+
+        <div class="pool-field">
+            <label for="product_dcw_reward_rate">DCW reward rate</label>
+            <input id="product_dcw_reward_rate" name="product[dcw_reward_rate]" type="number" step="0.00000001" min="0" value="{{ old('product.dcw_reward_rate', $product['dcw_reward_rate'] ?? '0') }}">
+            <div class="pool-note">ใช้ค่าเดียวกับยอดรวมของ cash + shopping wallet และรองรับการจ่ายผสม โดยยอด DCW ที่ได้จะปัดลงเป็นจำนวนเต็ม</div>
+        </div>
+    </div>
 </div>
 
 <div class="pool-block">
@@ -510,6 +561,10 @@
         const pvManualOverrideInput = document.getElementById('product_pv_manual_override');
         const pvFormulaValue = document.getElementById('productPvFormulaValue');
         const pvWarning = document.getElementById('productPvWarning');
+        const dcwUsageInput = document.getElementById('product_dcw_usage_amount');
+        const dcwManualOverrideInput = document.getElementById('product_dcw_usage_manual_override');
+        const dcwFormulaValue = document.getElementById('productDcwFormulaValue');
+        const dcwWarning = document.getElementById('productDcwWarning');
         const fallbackImage = imagePreview.getAttribute('src');
         const initialProductOptions = Array.from(productFamilySelect.options)
             .filter(function (option) {
@@ -754,6 +809,28 @@
             }
         }
 
+        function computedDcwUsage() {
+            const cost = Number(costPriceInput.value || 0);
+            const member = Number(memberPriceInput.value || 0);
+            const dcw = Math.floor(Math.max(0, member - (cost * 0.7)));
+
+            return String(dcw);
+        }
+
+        function syncDcwState() {
+            const formula = computedDcwUsage();
+            const manual = dcwManualOverrideInput.checked;
+
+            dcwFormulaValue.textContent = formula;
+            dcwUsageInput.readOnly = !manual;
+            dcwUsageInput.style.background = manual ? '#fff' : '#f8fafc';
+            dcwWarning.style.display = manual ? '' : 'none';
+
+            if (!manual) {
+                dcwUsageInput.value = formula;
+            }
+        }
+
         imageUrlInput.addEventListener('input', function () {
             updateImagePreview(imageUrlInput.value.trim());
         });
@@ -782,7 +859,10 @@
         youtubeInput.addEventListener('input', updateYoutubePreview);
         costPriceInput.addEventListener('input', syncPvState);
         memberPriceInput.addEventListener('input', syncPvState);
+        costPriceInput.addEventListener('input', syncDcwState);
+        memberPriceInput.addEventListener('input', syncDcwState);
         pvManualOverrideInput.addEventListener('change', syncPvState);
+        dcwManualOverrideInput.addEventListener('change', syncDcwState);
 
         fileInput.addEventListener('change', function () {
             applyFile(fileInput.files?.[0]);
@@ -840,5 +920,6 @@
         updateImagePreview(imageUrlInput.value.trim());
         updateGalleryPreview();
         syncPvState();
+        syncDcwState();
     })();
 </script>

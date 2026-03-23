@@ -1,6 +1,12 @@
 import { Injectable } from "@nestjs/common";
 
 import { PrismaService } from "../../../../infrastructure/src/prisma/prisma.service";
+import {
+  floorDecimalString,
+  maxDecimalString,
+  multiplyDecimalStrings,
+  subtractDecimalStrings,
+} from "../../../../shared/utils/src/money.util";
 
 type PackageDetailItemInput = {
   productDetailId: string;
@@ -26,6 +32,29 @@ type ProductDetailRecord = {
   status: { toLowerCase(): string };
 };
 
+function computeDefaultDcwUsageAmount(input: {
+  costPriceUsdt: string;
+  memberPriceUsdt: string;
+}) {
+  return floorDecimalString(
+    maxDecimalString(
+      subtractDecimalStrings(
+        input.memberPriceUsdt,
+        multiplyDecimalStrings(input.costPriceUsdt, "0.7"),
+      ),
+      "0",
+    ),
+  );
+}
+
+function normalizeDcwWholeAmount(value?: string): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  return floorDecimalString(maxDecimalString(value, "0"));
+}
+
 function toPackageSummary(pkg: {
   id: bigint;
   code: string;
@@ -40,6 +69,11 @@ function toPackageSummary(pkg: {
   poolCapMultiple: { toString(): string };
   commissionCapScope: { toString(): string };
   commissionCapMultiple: { toString(): string };
+  dcwSpendEnabled: boolean;
+  dcwUsageAmount: { toString(): string };
+  dcwUsageAmountOverridden: boolean;
+  dcwCashRewardRate: { toString(): string };
+  dcwShoppingRewardRate: { toString(): string };
   activeDays: number;
   earningCapAmount: { toString(): string };
   status: { toLowerCase(): string };
@@ -59,6 +93,22 @@ function toPackageSummary(pkg: {
     poolCapMultiple: pkg.poolCapMultiple.toString(),
     commissionCapScope: pkg.commissionCapScope.toString(),
     commissionCapMultiple: pkg.commissionCapMultiple.toString(),
+    dcwSpendEnabled: pkg.dcwSpendEnabled,
+    dcwUsageAmount: pkg.dcwUsageAmount.toString(),
+    dcwUsageAmountOverridden: pkg.dcwUsageAmountOverridden,
+    dcwDefaultUsageAmount: computeDefaultDcwUsageAmount({
+      costPriceUsdt: pkg.costPriceUsdt.toString(),
+      memberPriceUsdt: pkg.memberPriceUsdt.toString(),
+    }),
+    dcwRewardRate:
+      pkg.dcwCashRewardRate.toString() !== "0"
+        ? pkg.dcwCashRewardRate.toString()
+        : pkg.dcwShoppingRewardRate.toString(),
+    dcwCashRewardRate: pkg.dcwCashRewardRate.toString(),
+    dcwShoppingRewardRate: pkg.dcwShoppingRewardRate.toString(),
+    dcwConfigWarning: pkg.dcwUsageAmountOverridden
+      ? "Custom DCW usage amount overrides the automatic default derived from member price - (cost x 70%)."
+      : null,
     activeDays: pkg.activeDays,
     earningCapAmount: pkg.earningCapAmount.toString(),
     status: pkg.status.toLowerCase(),
@@ -193,6 +243,8 @@ export interface PackagesRepository {
     name: string;
     priceUsdt?: string;
     pv?: string;
+    costPriceUsdt?: string;
+    memberPriceUsdt?: string;
     activeDays: number;
     earningCapAmount: string;
     poolRateMode?: "default_50_percent" | "custom_rate" | "disabled";
@@ -200,6 +252,10 @@ export interface PackagesRepository {
     poolCapMultiple?: string;
     commissionCapScope?: "pool_only" | "all_commissions";
     commissionCapMultiple?: string;
+    dcwSpendEnabled?: boolean;
+    dcwUsageAmount?: string;
+    dcwCashRewardRate?: string;
+    dcwShoppingRewardRate?: string;
     productDetailItems?: PackageDetailItemInput[];
   }): Promise<{
     packageId: string;
@@ -215,6 +271,13 @@ export interface PackagesRepository {
     poolCapMultiple: string;
     commissionCapScope: string;
     commissionCapMultiple: string;
+    dcwSpendEnabled: boolean;
+    dcwUsageAmount: string;
+    dcwUsageAmountOverridden: boolean;
+    dcwDefaultUsageAmount: string;
+    dcwCashRewardRate: string;
+    dcwShoppingRewardRate: string;
+    dcwConfigWarning: string | null;
     activeDays: number;
     earningCapAmount: string;
     status: string;
@@ -236,6 +299,13 @@ export interface PackagesRepository {
       poolCapMultiple: string;
       commissionCapScope: string;
       commissionCapMultiple: string;
+      dcwSpendEnabled: boolean;
+      dcwUsageAmount: string;
+      dcwUsageAmountOverridden: boolean;
+      dcwDefaultUsageAmount: string;
+      dcwCashRewardRate: string;
+      dcwShoppingRewardRate: string;
+      dcwConfigWarning: string | null;
       activeDays: number;
       earningCapAmount: string;
       status: string;
@@ -511,6 +581,8 @@ export class PrismaPackagesRepository implements PackagesRepository {
     name: string;
     priceUsdt?: string;
     pv?: string;
+    costPriceUsdt?: string;
+    memberPriceUsdt?: string;
     activeDays: number;
     earningCapAmount: string;
     poolRateMode?: "default_50_percent" | "custom_rate" | "disabled";
@@ -518,20 +590,37 @@ export class PrismaPackagesRepository implements PackagesRepository {
     poolCapMultiple?: string;
     commissionCapScope?: "pool_only" | "all_commissions";
     commissionCapMultiple?: string;
+    dcwSpendEnabled?: boolean;
+    dcwUsageAmount?: string;
+    dcwRewardRate?: string;
+    dcwCashRewardRate?: string;
+    dcwShoppingRewardRate?: string;
     productDetailItems?: PackageDetailItemInput[];
   }) {
     const productDetailItems = input.productDetailItems ?? [];
+    const unifiedDcwRewardRate =
+      input.dcwRewardRate ??
+      input.dcwCashRewardRate ??
+      input.dcwShoppingRewardRate ??
+      "0";
 
     if (!productDetailItems.length) {
-      const memberPriceUsdt = input.priceUsdt ?? "0";
+      const memberPriceUsdt = input.memberPriceUsdt ?? input.priceUsdt ?? "0";
+      const costPriceUsdt = input.costPriceUsdt ?? "0";
       const pv = input.pv ?? "0";
       const poolRate = input.poolRate ?? "0";
       const poolRateMode = input.poolRateMode ?? "default_50_percent";
+      const defaultDcwUsageAmount = computeDefaultDcwUsageAmount({
+        costPriceUsdt,
+        memberPriceUsdt,
+      });
+      const normalizedDcwUsageAmount =
+        normalizeDcwWholeAmount(input.dcwUsageAmount) ?? defaultDcwUsageAmount;
       const pkg = await this.prisma.package.create({
         data: {
           code: input.code,
           name: input.name,
-          costPriceUsdt: "0",
+          costPriceUsdt,
           memberPriceUsdt,
           retailPriceUsdt: memberPriceUsdt,
           priceUsdt: memberPriceUsdt,
@@ -549,6 +638,11 @@ export class PrismaPackagesRepository implements PackagesRepository {
               ? "ALL_COMMISSIONS"
               : "POOL_ONLY",
           commissionCapMultiple: input.commissionCapMultiple ?? "0",
+          dcwSpendEnabled: input.dcwSpendEnabled === true,
+          dcwUsageAmount: normalizedDcwUsageAmount,
+          dcwUsageAmountOverridden: Boolean(input.dcwUsageAmount),
+          dcwCashRewardRate: unifiedDcwRewardRate,
+          dcwShoppingRewardRate: unifiedDcwRewardRate,
           activeDays: input.activeDays,
           earningCapType: "FIXED_AMOUNT",
           earningCapAmount: input.earningCapAmount,
@@ -620,6 +714,13 @@ export class PrismaPackagesRepository implements PackagesRepository {
       };
     });
 
+    const defaultDcwUsageAmount = computeDefaultDcwUsageAmount({
+      costPriceUsdt: `${costTotal}`,
+      memberPriceUsdt: `${memberTotal}`,
+    });
+    const normalizedDcwUsageAmount =
+      normalizeDcwWholeAmount(input.dcwUsageAmount) ?? defaultDcwUsageAmount;
+
     const pkg = await this.prisma.package.create({
       data: {
         code: input.code,
@@ -642,6 +743,11 @@ export class PrismaPackagesRepository implements PackagesRepository {
             ? "ALL_COMMISSIONS"
             : "POOL_ONLY",
         commissionCapMultiple: input.commissionCapMultiple ?? "0",
+        dcwSpendEnabled: input.dcwSpendEnabled === true,
+        dcwUsageAmount: normalizedDcwUsageAmount,
+        dcwUsageAmountOverridden: Boolean(input.dcwUsageAmount),
+        dcwCashRewardRate: unifiedDcwRewardRate,
+        dcwShoppingRewardRate: unifiedDcwRewardRate,
         activeDays: input.activeDays,
         earningCapType: "FIXED_AMOUNT",
         earningCapAmount: input.earningCapAmount,

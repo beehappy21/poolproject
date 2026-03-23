@@ -438,7 +438,7 @@ function renderDashboard(
   document.getElementById("withdrawableBalance").textContent =
     data.wallet.withdrawableBalance;
   document.getElementById("walletMeta").textContent =
-    `Approved ${data.wallet.approvedBalance} • Held ${data.wallet.heldBalance} • Offset ${data.wallet.negativeOffsetBalance}`;
+    `CW approved ${data.wallet.approvedBalance} • CW held ${data.wallet.heldBalance} • Offset ${data.wallet.negativeOffsetBalance}`;
   document.getElementById("referralCode").textContent = data.referral.referralCode;
   document.getElementById("referralLink").textContent = data.referral.referralLink;
 
