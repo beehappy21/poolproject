@@ -48,7 +48,7 @@ export const OrderFailed: React.FC = () => {
             lineHeight: 1.2,
           }}
         >
-          Sorry, your order could not be completed.
+          ไม่สามารถสร้างคำสั่งซื้อได้
         </h2>
         <p
           style={{
@@ -61,10 +61,10 @@ export const OrderFailed: React.FC = () => {
             marginBottom: 30,
           }}
         >
-          Something went wrong.{'\n'}Please try again to continue your order.
+          เกิดข้อผิดพลาดระหว่างทำรายการ{'\n'}กรุณาลองใหม่อีกครั้ง
         </p>
         <components.Button
-          title='Try Again'
+          title='ลองใหม่อีกครั้ง'
           onClick={() => {
             dispatch(actions.setScreen('Order'));
             navigate('/TabNavigator');
@@ -72,7 +72,7 @@ export const OrderFailed: React.FC = () => {
           containerStyle={{width: '100%', marginBottom: 10}}
         />
         <components.Button
-          title='Go to My Profile'
+          title='กลับไปที่โปรไฟล์'
           onClick={() => {
             dispatch(actions.setScreen('Profile'));
             navigate('/TabNavigator');

@@ -33,7 +33,7 @@ export const OrderHistoryEmpty: React.FC = () => {
   }, []);
 
   const renderHeader = () => {
-    return <components.Header goBack={true} title='Order History' />;
+    return <components.Header goBack={true} title='ประวัติคำสั่งซื้อ' />;
   };
 
   const renderContent = () => {
@@ -64,7 +64,7 @@ export const OrderHistoryEmpty: React.FC = () => {
             whiteSpace: 'pre-line',
           }}
         >
-          Your order history is{'\n'}currently empty!
+          ยังไม่มีประวัติ{'\n'}คำสั่งซื้อ
         </h2>
         <p
           style={{
@@ -75,15 +75,14 @@ export const OrderHistoryEmpty: React.FC = () => {
             marginBottom: 30,
           }}
         >
-          Once you place your first package order, it will appear here with its
-          payment and shipping status.
+          เมื่อสร้างคำสั่งซื้อแรกแล้ว รายการจะมาแสดงที่หน้านี้พร้อมสถานะการชำระเงินและการจัดส่ง
         </p>
         <components.Button
-          title='Browse Packages'
+          title='เลือกแพ็กเกจ'
           onClick={() => {
             dispatch(actions.resetFilters());
             navigate('/Shop', {
-              state: {products: productsData, title: 'Packages'},
+              state: {products: productsData, title: 'แพ็กเกจ'},
             });
           }}
           containerStyle={{marginBottom: 10}}

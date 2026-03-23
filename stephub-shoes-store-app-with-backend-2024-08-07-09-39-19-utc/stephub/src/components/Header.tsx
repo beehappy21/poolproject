@@ -59,7 +59,7 @@ export const Header: React.FC<Props> = ({
       return;
     }
 
-    return alert('Your cart is empty');
+    return alert('ยังไม่มีสินค้าในตะกร้า');
   };
 
   const renderGoBack = (): JSX.Element | null => {
@@ -169,12 +169,12 @@ export const Header: React.FC<Props> = ({
 
   const renderModal = (): JSX.Element => {
     const quickLinks = [
-      {label: 'Home', onClick: () => dispatch(actions.setScreen('Home'))},
-      {label: 'Packages', onClick: () => dispatch(actions.setScreen('Search'))},
-      {label: 'Cart', onClick: () => dispatch(actions.setScreen('Order'))},
-      {label: 'Order history', onClick: () => navigate('/OrderHistory')},
-      {label: 'Profile', onClick: () => dispatch(actions.setScreen('Profile'))},
-      {label: 'Sign out', onClick: () => navigate('/SignOut')},
+      {label: 'หน้าแรก', onClick: () => dispatch(actions.setScreen('Home'))},
+      {label: 'แพ็กเกจ', onClick: () => dispatch(actions.setScreen('Search'))},
+      {label: 'ตะกร้า', onClick: () => dispatch(actions.setScreen('Order'))},
+      {label: 'ประวัติคำสั่งซื้อ', onClick: () => navigate('/OrderHistory')},
+      {label: 'โปรไฟล์', onClick: () => dispatch(actions.setScreen('Profile'))},
+      {label: 'ออกจากระบบ', onClick: () => navigate('/SignOut')},
     ];
 
     return (
@@ -209,7 +209,7 @@ export const Header: React.FC<Props> = ({
             textAlign: 'left',
           }}
         >
-          Menu
+          เมนู
         </h2>
         <div style={{padding: '0 20px', marginBottom: 24}}>
           {quickLinks.map(link => (
@@ -219,10 +219,10 @@ export const Header: React.FC<Props> = ({
                 setModal(false);
                 link.onClick();
                 if (
-                  link.label === 'Home' ||
-                  link.label === 'Packages' ||
-                  link.label === 'Cart' ||
-                  link.label === 'Profile'
+                  link.label === 'หน้าแรก' ||
+                  link.label === 'แพ็กเกจ' ||
+                  link.label === 'ตะกร้า' ||
+                  link.label === 'โปรไฟล์'
                 ) {
                   navigate('/TabNavigator');
                 }
@@ -251,7 +251,7 @@ export const Header: React.FC<Props> = ({
             textAlign: 'left',
           }}
         >
-          Contact us
+          ติดต่อเรา
         </h3>
         <components.BurgerMenuItem
           titleLine1='27 Division St, New York,'

@@ -234,7 +234,7 @@ export const Order: React.FC = () => {
   const renderButton = (): JSX.Element | null => {
     return (
       <components.Button
-        title='Shipping & Payment info'
+        title='กรอกข้อมูลจัดส่ง'
         colorScheme='light'
         onClick={() => {
           navigate('/ShippingAndPaymentInfo');

@@ -80,8 +80,8 @@ export const OrderItem: React.FC<Props> = ({item, isLast}) => {
             }}
           >
             {item.packageCode
-              ? `Package code: ${item.packageCode}`
-              : `Size: ${item.size ? item.size : 'No size'}`}
+              ? `รหัสแพ็กเกจ: ${item.packageCode}`
+              : `ไซซ์: ${item.size ? item.size : 'ไม่ระบุ'}`}
           </span>
           <span
             style={{
@@ -94,7 +94,7 @@ export const OrderItem: React.FC<Props> = ({item, isLast}) => {
           >
             {item.packageCode
               ? `PV: ${item.pv || 0}`
-              : `Color: ${item.color ? item.color : 'No color'}`}
+              : `สี: ${item.color ? item.color : 'ไม่ระบุ'}`}
           </span>
         </div>
         <product.ProductCounter item={item} />

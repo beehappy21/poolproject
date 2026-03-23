@@ -122,10 +122,15 @@ export const Home: FC = () => {
   };
 
   const renderBestSellers = (): JSX.Element => {
+    const popularPackages = productsData.filter(
+      (item: any) => item.isTop || item.isFeatured,
+    );
+    const displayPackages = popularPackages.length ? popularPackages : productsData;
+
     return (
       <div style={{marginBottom: 40, display: 'flex', flexDirection: 'column'}}>
         <components.BlockHeading
-          title='Popular Packages'
+          title='แพ็กเกจแนะนำ'
           containerStyle={{
             padding: '0 20px 0',
             marginBottom: 14,
@@ -133,12 +138,12 @@ export const Home: FC = () => {
           viewAllOnClick={() => {
             dispatch(actions.resetFilters());
             navigate('/Shop', {
-              state: {products: productsData, title: 'Popular Packages'},
+              state: {products: displayPackages, title: 'แพ็กเกจแนะนำ'},
             });
           }}
         />
         <custom.ScrollView style={{paddingLeft: 20, paddingRight: 20}}>
-          {productsData?.map((item: any, index: number, arra: any) => {
+          {displayPackages?.map((item: any, index: number, arra: any) => {
             const isLast = index === arra.length - 1;
             return (
               <items.ProductCard
@@ -165,7 +170,7 @@ export const Home: FC = () => {
           onClick={() => {
             dispatch(actions.resetFilters());
             navigate('/Shop', {
-              state: {products: matches, title: 'Recommended Packages'},
+              state: {products: matches, title: 'แพ็กเกจแนะนำ'},
             });
           }}
         >
@@ -182,10 +187,13 @@ export const Home: FC = () => {
   };
 
   const renderFeatured = (): JSX.Element => {
+    const featuredPackages = productsData.filter((item: any) => item.isFeatured);
+    const displayPackages = featuredPackages.length ? featuredPackages : productsData;
+
     return (
       <div style={{marginBottom: 40, display: 'flex', flexDirection: 'column'}}>
         <components.BlockHeading
-          title='Featured Packages'
+          title='แพ็กเกจเด่น'
           containerStyle={{
             paddingLeft: 20,
             paddingRight: 20,
@@ -194,12 +202,12 @@ export const Home: FC = () => {
           viewAllOnClick={() => {
             dispatch(actions.resetFilters());
             navigate('/Shop', {
-              state: {products: productsData, title: 'Featured Packages'},
+              state: {products: displayPackages, title: 'แพ็กเกจเด่น'},
             });
           }}
         />
         <custom.ScrollView style={{paddingLeft: 20, paddingRight: 20}}>
-          {productsData?.map((item: any, index: number, arra: any) => {
+          {displayPackages?.map((item: any, index: number, arra: any) => {
             const isLast = index === arra.length - 1;
             return (
               <items.ProductCard
@@ -236,7 +244,7 @@ export const Home: FC = () => {
               lineHeight: 1.7,
             }}
           >
-            No packages are available right now. Please check back again soon.
+            ยังไม่มีแพ็กเกจพร้อมขายในขณะนี้ กรุณากลับมาตรวจสอบอีกครั้งภายหลัง
           </div>
         </main>
       );

@@ -9,31 +9,31 @@ const tabs = [
   {
     id: 1,
     name: 'Home',
-    label: 'Home',
+    label: 'หน้าแรก',
     icon: svg.HomeTabSvg,
   },
   {
     id: 2,
     name: 'Search',
-    label: 'Packages',
+    label: 'แพ็กเกจ',
     icon: svg.CategoryTabSvg,
   },
   {
     id: 3,
     name: 'Order',
-    label: 'Cart',
+    label: 'ตะกร้า',
     icon: svg.OrderTabSvg,
   },
   {
     id: 4,
     name: 'Wishlist',
-    label: 'Wishlist',
+    label: 'รายการโปรด',
     icon: svg.WishlistTabSvg,
   },
   {
     id: 5,
     name: 'Profile',
-    label: 'Profile',
+    label: 'โปรไฟล์',
     icon: svg.ProfileTabSvg,
   },
 ];
