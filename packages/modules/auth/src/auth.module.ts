@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Module, forwardRef } from "@nestjs/common";
 
 import { PrismaModule } from "../../../infrastructure";
 import { CommissionsModule } from "../../commissions";
@@ -16,7 +16,7 @@ import { AuthService } from "./services/auth.service";
     PrismaModule,
     MembersModule,
     OrdersModule,
-    WalletsModule,
+    forwardRef(() => WalletsModule),
     CommissionsModule,
     MatrixModule,
     PoolModule,

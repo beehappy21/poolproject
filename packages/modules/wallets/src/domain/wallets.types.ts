@@ -4,6 +4,7 @@ export interface WalletSummary {
   approvedBalance: string;
   heldBalance: string;
   withdrawableBalance: string;
+  shoppingBalance: string;
   negativeOffsetBalance: string;
   payoutLockStatus: "unlocked" | "hold" | "locked";
 }
@@ -75,7 +76,49 @@ export interface WalletTransactionSummary {
   balanceBucket: string;
   refType: string;
   refId: string;
+  counterpartyUserId?: string | null;
+  note?: string | null;
   amount: string;
   status: string;
   createdAt: string;
+}
+
+export interface CommissionToShoppingConversionResult {
+  userId: string;
+  grossAmount: string;
+  feeAmount: string;
+  netShoppingAmount: string;
+  withdrawableBalance: string;
+  shoppingBalance: string;
+}
+
+export interface ShoppingWalletTransferResult {
+  senderUserId: string;
+  recipientUserId: string;
+  grossAmount: string;
+  feeAmount: string;
+  netAmount: string;
+  senderShoppingBalance: string;
+  recipientShoppingBalance: string;
+}
+
+export interface ShoppingWalletTopupResult {
+  userId: string;
+  amount: string;
+  paymentMethod: string;
+  shoppingBalance: string;
+}
+
+export interface WalletTopupRequestSummary {
+  requestId: string;
+  userId: string;
+  amount: string;
+  paymentMethod: string;
+  transferSlipUrl: string | null;
+  note: string | null;
+  status: "pending" | "approved" | "rejected" | "cancelled";
+  requestedAt: string;
+  approvedAt: string | null;
+  approvedByUserId: string | null;
+  rejectionReason: string | null;
 }

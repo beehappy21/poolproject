@@ -1,7 +1,9 @@
 import { Body, Controller, Get, NotFoundException, Param, Post, Query } from "@nestjs/common";
 
 import {
+  optionalString,
   requireNonEmptyString,
+  requireDecimalString,
   optionalPositiveInteger,
   requirePositiveIntegerString,
   rethrowHttpError,
@@ -71,11 +73,23 @@ export class OrdersController {
   }
 
   @Post()
-  async createOrder(@Body() body: { userId: string; packageId: string }) {
+  async createOrder(
+    @Body()
+    body: {
+      userId: string;
+      packageId: string;
+      shoppingWalletAmount?: string;
+      cashPaymentMethod?: string;
+    },
+  ) {
     try {
       return await this.ordersService.createOrder({
         userId: requirePositiveIntegerString(body.userId, "userId"),
         packageId: requirePositiveIntegerString(body.packageId, "packageId"),
+        shoppingWalletAmount: optionalString(body.shoppingWalletAmount)
+          ? requireDecimalString(body.shoppingWalletAmount, "shoppingWalletAmount")
+          : undefined,
+        cashPaymentMethod: optionalString(body.cashPaymentMethod),
       });
     } catch (error) {
       rethrowHttpError(error);

@@ -1,5 +1,6 @@
 const state = {
   token: localStorage.getItem("adminAccessToken") || "",
+  currentUserId: "",
 };
 
 const adminView = document.body.dataset.adminView || "dashboard";
@@ -35,6 +36,7 @@ const cashbackRateSettingsInput = document.getElementById("cashbackRateSettingsI
 const uniLevelsList = document.getElementById("uniLevelsList");
 const addUniLevelButton = document.getElementById("addUniLevelButton");
 const matrixSettingsForm = document.getElementById("matrixSettingsForm");
+const walletSettingsForm = document.getElementById("walletSettingsForm");
 const matrixOrganizationPvRateInput = document.getElementById("matrixOrganizationPvRateInput");
 const matrixLevelRatesList = document.getElementById("matrixLevelRatesList");
 const matrixBoardThresholdsList = document.getElementById("matrixBoardThresholdsList");
@@ -45,6 +47,17 @@ const matrixActiveCycleCount = document.getElementById("matrixActiveCycleCount")
 const matrixPayoutCount = document.getElementById("matrixPayoutCount");
 const matrixPayoutTotal = document.getElementById("matrixPayoutTotal");
 const matrixSummaryList = document.getElementById("matrixSummaryList");
+const walletCommissionFeeRateInput = document.getElementById("walletCommissionFeeRateInput");
+const walletTransferFeeRateInput = document.getElementById("walletTransferFeeRateInput");
+const walletCommissionEnabledSelect = document.getElementById("walletCommissionEnabledSelect");
+const walletTransferEnabledSelect = document.getElementById("walletTransferEnabledSelect");
+const walletTopupEnabledSelect = document.getElementById("walletTopupEnabledSelect");
+const walletSpendEnabledSelect = document.getElementById("walletSpendEnabledSelect");
+const walletOrderCashMethodsInput = document.getElementById("walletOrderCashMethodsInput");
+const walletTopupMethodsInput = document.getElementById("walletTopupMethodsInput");
+const walletSettingsOutput = document.getElementById("walletSettingsOutput");
+const walletTopupRequestUserFilterInput = document.getElementById("walletTopupRequestUserFilterInput");
+const walletTopupRequestStatusFilter = document.getElementById("walletTopupRequestStatusFilter");
 const matrixPayoutBeneficiaryInput = document.getElementById("matrixPayoutBeneficiaryInput");
 const matrixPayoutOrderInput = document.getElementById("matrixPayoutOrderInput");
 const createSupplierForm = document.getElementById("createSupplierForm");
@@ -208,6 +221,19 @@ state.matrixSettings = {
   levelRates: ["0.1", "0.05", "0.03"],
   boardOpenPvThresholds: ["100", "100", "100"],
 };
+state.walletSettings = {
+  commissionToShoppingEnabled: true,
+  commissionToShoppingFeeRate: "0",
+  walletTransferEnabled: true,
+  walletTransferFeeRate: "0",
+  walletTopupEnabled: true,
+  shoppingWalletSpendEnabled: true,
+  orderCashPaymentMethods: ["bank_transfer", "promptpay_qr", "cash"],
+  walletTopupPaymentMethods: ["manual_bank", "promptpay_qr", "cash"],
+};
+state.walletTopupRequests = [];
+state.walletTopupRequestUserId = "";
+state.walletTopupRequestStatus = "";
 state.suppliers = [];
 state.categories = [];
 state.products = [];
@@ -268,6 +294,13 @@ function parseLineSeparatedUrls(value) {
   return value
     .split("\n")
     .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function parseCommaSeparatedValues(value) {
+  return String(value || "")
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
     .filter(Boolean);
 }
 
@@ -986,6 +1019,37 @@ function renderCommissionSettings() {
   );
 }
 
+function renderWalletSettings() {
+  if (!walletCommissionFeeRateInput) {
+    return;
+  }
+
+  walletCommissionFeeRateInput.value = decimalToPercentString(
+    state.walletSettings.commissionToShoppingFeeRate,
+  );
+  walletTransferFeeRateInput.value = decimalToPercentString(
+    state.walletSettings.walletTransferFeeRate,
+  );
+  walletCommissionEnabledSelect.value = String(
+    Boolean(state.walletSettings.commissionToShoppingEnabled),
+  );
+  walletTransferEnabledSelect.value = String(
+    Boolean(state.walletSettings.walletTransferEnabled),
+  );
+  walletTopupEnabledSelect.value = String(
+    Boolean(state.walletSettings.walletTopupEnabled),
+  );
+  walletSpendEnabledSelect.value = String(
+    Boolean(state.walletSettings.shoppingWalletSpendEnabled),
+  );
+  walletOrderCashMethodsInput.value = (state.walletSettings.orderCashPaymentMethods || []).join(", ");
+  walletTopupMethodsInput.value = (state.walletSettings.walletTopupPaymentMethods || []).join(", ");
+
+  if (walletSettingsOutput) {
+    walletSettingsOutput.textContent = JSON.stringify(state.walletSettings, null, 2);
+  }
+}
+
 function collectRateInputs(selector) {
   return Array.from(document.querySelectorAll(selector)).map((input) =>
     input.value.trim(),
@@ -1014,6 +1078,91 @@ async function loadCommissionSettings() {
     cashbackRate: settings.cashbackRate || "0",
   };
   renderCommissionSettings();
+}
+
+async function loadWalletSettings() {
+  const settings = await request("/settings/wallets");
+  state.walletSettings = {
+    commissionToShoppingEnabled: Boolean(settings.commissionToShoppingEnabled),
+    commissionToShoppingFeeRate: settings.commissionToShoppingFeeRate || "0",
+    walletTransferEnabled: Boolean(settings.walletTransferEnabled),
+    walletTransferFeeRate: settings.walletTransferFeeRate || "0",
+    walletTopupEnabled: Boolean(settings.walletTopupEnabled),
+    shoppingWalletSpendEnabled: Boolean(settings.shoppingWalletSpendEnabled),
+    orderCashPaymentMethods: settings.orderCashPaymentMethods || [],
+    walletTopupPaymentMethods: settings.walletTopupPaymentMethods || [],
+  };
+  renderWalletSettings();
+}
+
+async function saveWalletSettings() {
+  const result = await request("/settings/wallets", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      commissionToShoppingEnabled: walletCommissionEnabledSelect.value === "true",
+      commissionToShoppingFeeRate: percentToDecimalString(walletCommissionFeeRateInput.value),
+      walletTransferEnabled: walletTransferEnabledSelect.value === "true",
+      walletTransferFeeRate: percentToDecimalString(walletTransferFeeRateInput.value),
+      walletTopupEnabled: walletTopupEnabledSelect.value === "true",
+      shoppingWalletSpendEnabled: walletSpendEnabledSelect.value === "true",
+      orderCashPaymentMethods: parseCommaSeparatedValues(walletOrderCashMethodsInput.value),
+      walletTopupPaymentMethods: parseCommaSeparatedValues(walletTopupMethodsInput.value),
+    }),
+  });
+
+  state.walletSettings = {
+    commissionToShoppingEnabled: Boolean(result.commissionToShoppingEnabled),
+    commissionToShoppingFeeRate: result.commissionToShoppingFeeRate,
+    walletTransferEnabled: Boolean(result.walletTransferEnabled),
+    walletTransferFeeRate: result.walletTransferFeeRate,
+    walletTopupEnabled: Boolean(result.walletTopupEnabled),
+    shoppingWalletSpendEnabled: Boolean(result.shoppingWalletSpendEnabled),
+    orderCashPaymentMethods: result.orderCashPaymentMethods || [],
+    walletTopupPaymentMethods: result.walletTopupPaymentMethods || [],
+  };
+  renderWalletSettings();
+  setActionOutput("Wallet settings saved", result);
+  pushHistory(
+    "Wallet Settings",
+    `Saved cash methods ${state.walletSettings.orderCashPaymentMethods.join(", ")} and top-up methods ${state.walletSettings.walletTopupPaymentMethods.join(", ")}`,
+  );
+}
+
+async function loadWalletTopupRequests() {
+  const query = new URLSearchParams();
+  if (state.walletTopupRequestUserId) {
+    query.set("userId", state.walletTopupRequestUserId);
+  }
+  if (state.walletTopupRequestStatus) {
+    query.set("status", state.walletTopupRequestStatus);
+  }
+
+  const result = await request(
+    `/wallets/topup-requests${query.toString() ? `?${query.toString()}` : ""}`,
+  );
+  state.walletTopupRequests = Array.isArray(result) ? result : [];
+
+  renderTableRows(
+    "walletTopupRequestsTable",
+    state.walletTopupRequests,
+    (requestItem) => `<tr>
+      <td>${requestItem.requestId}</td>
+      <td>${requestItem.userId}</td>
+      <td>${requestItem.amount}</td>
+      <td>${requestItem.paymentMethod}</td>
+      <td>${requestItem.status}</td>
+      <td>${requestItem.requestedAt}</td>
+      <td>${requestItem.transferSlipUrl ? `<a href="${escapeHtml(requestItem.transferSlipUrl)}" target="_blank" rel="noreferrer">Slip</a>` : "-"}</td>
+      <td>
+        <div class="table-actions">
+          <button type="button" data-action="approve-wallet-topup-request" data-request-id="${requestItem.requestId}" ${requestItem.status !== "pending" ? "disabled" : ""}>Approve</button>
+          <button type="button" class="secondary" data-action="reject-wallet-topup-request" data-request-id="${requestItem.requestId}" ${requestItem.status !== "pending" ? "disabled" : ""}>Reject</button>
+          <button type="button" class="secondary" data-action="wallet-topup-request-detail" data-request-id="${requestItem.requestId}">Detail</button>
+        </div>
+      </td>
+    </tr>`,
+  );
 }
 
 function renderMatrixSettings() {
@@ -1314,7 +1463,8 @@ function renderSession(user) {
   setAuthState(Boolean(user));
   sessionCard.innerHTML = user
     ? `<p class="eyebrow">Signed In</p><strong>${user.name}</strong><p class="muted">${user.memberCode}${user.email ? ` · ${user.email}` : ""}</p>`
-    : `<p class="muted">Not signed in</p>`;
+      : `<p class="muted">Not signed in</p>`;
+  state.currentUserId = user?.userId || "";
 
   if (workspaceAdminName) {
     workspaceAdminName.textContent = user ? user.name : "Not signed in";
@@ -1372,9 +1522,11 @@ async function loadDashboard() {
     request("/notifications"),
     request("/shipping/jobs"),
     loadCommissionSettings(),
+    loadWalletSettings(),
     loadMatrixSettings(),
     loadMatrixSummary(),
     loadMatrixPayouts(),
+    loadWalletTopupRequests(),
   ]);
 
   const commissionQuery = new URLSearchParams();
@@ -2145,6 +2297,68 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  if (button.dataset.action === "wallet-topup-request-detail") {
+    const topupRequest = (state.walletTopupRequests || []).find(
+      (item) => item.requestId === (button.dataset.requestId || ""),
+    );
+    setActionOutput(
+      `Wallet top-up request ${button.dataset.requestId}`,
+      topupRequest || { message: "Top-up request not found in current view." },
+    );
+    return;
+  }
+
+  if (button.dataset.action === "approve-wallet-topup-request") {
+    request(`/wallets/topup-requests/${button.dataset.requestId}/approve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ actorUserId: state.currentUserId }),
+    })
+      .then(async (result) => {
+        setActionOutput(`Top-up request ${button.dataset.requestId} approved`, result);
+        pushHistory(
+          "Wallet Top-Up Approve",
+          `Approved top-up request ${button.dataset.requestId}`,
+        );
+        await loadDashboard();
+      })
+      .catch((error) => {
+        setStatus(error.message);
+        setActionOutput("Top-up approval failed", { message: error.message });
+      });
+    return;
+  }
+
+  if (button.dataset.action === "reject-wallet-topup-request") {
+    const rejectionReason = window.prompt(
+      "Reason for rejecting this top-up request",
+      "Payment evidence invalid",
+    );
+
+    if (!rejectionReason) {
+      return;
+    }
+
+    request(`/wallets/topup-requests/${button.dataset.requestId}/reject`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ actorUserId: state.currentUserId, rejectionReason }),
+    })
+      .then(async (result) => {
+        setActionOutput(`Top-up request ${button.dataset.requestId} rejected`, result);
+        pushHistory(
+          "Wallet Top-Up Reject",
+          `Rejected top-up request ${button.dataset.requestId}`,
+        );
+        await loadDashboard();
+      })
+      .catch((error) => {
+        setStatus(error.message);
+        setActionOutput("Top-up rejection failed", { message: error.message });
+      });
+    return;
+  }
+
   runOrderAction(button.dataset.orderId, button.dataset.action).catch((error) => {
     setStatus(error.message);
     setActionOutput("Action failed", { message: error.message });
@@ -2688,6 +2902,19 @@ if (commissionSettingsForm) {
   });
 }
 
+if (walletSettingsForm) {
+  walletSettingsForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    try {
+      await saveWalletSettings();
+    } catch (error) {
+      setStatus(error.message);
+      setActionOutput("Wallet settings failed", { message: error.message });
+    }
+  });
+}
+
 if (matrixSettingsForm) {
   matrixSettingsForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -2710,6 +2937,26 @@ if (matrixMemberForm) {
         setStatus(error.message);
       },
     );
+  });
+}
+
+if (walletTopupRequestUserFilterInput) {
+  walletTopupRequestUserFilterInput.addEventListener("change", (event) => {
+    state.walletTopupRequestUserId = (event.target.value || "").trim();
+    loadWalletTopupRequests().catch((error) => {
+      setStatus(error.message);
+      setActionOutput("Wallet top-up requests failed", { message: error.message });
+    });
+  });
+}
+
+if (walletTopupRequestStatusFilter) {
+  walletTopupRequestStatusFilter.addEventListener("change", (event) => {
+    state.walletTopupRequestStatus = (event.target.value || "").trim();
+    loadWalletTopupRequests().catch((error) => {
+      setStatus(error.message);
+      setActionOutput("Wallet top-up requests failed", { message: error.message });
+    });
   });
 }
 

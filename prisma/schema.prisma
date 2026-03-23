@@ -138,6 +138,14 @@ enum WalletTransactionType {
   POOL_CREDIT
   MATRIX_CREDIT
   CASHBACK_CREDIT
+  COMMISSION_CONVERT_OUT
+  SHOPPING_WALLET_CONVERT_IN
+  CONVERT_FEE_DEBIT
+  WALLET_TRANSFER_OUT
+  WALLET_TRANSFER_IN
+  TRANSFER_FEE_DEBIT
+  TOPUP_CREDIT
+  ORDER_PURCHASE_DEBIT
   HOLD_RELEASE
   REVERSAL_DEBIT
   NEGATIVE_OFFSET_APPLY
@@ -156,8 +164,16 @@ enum WalletBalanceBucket {
   APPROVED
   HELD
   WITHDRAWABLE
+  SHOPPING
   PAID_OUT
   NEGATIVE_OFFSET
+}
+
+enum WalletTopupRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
 }
 
 enum WalletTransactionStatus {
@@ -313,6 +329,8 @@ model User {
   wallet                         Wallet?
   walletTransactions             WalletTransaction[]            @relation("WalletTransactionUser")
   counterpartyWalletTransactions WalletTransaction[]            @relation("WalletTransactionCounterpartyUser")
+  walletTopupRequests            WalletTopupRequest[]           @relation("WalletTopupRequestUser")
+  approvedWalletTopupRequests    WalletTopupRequest[]           @relation("WalletTopupRequestApprovedByUser")
   payoutBatchApprovals           PayoutBatch[]                  @relation("PayoutBatchApprovedByUser")
   payoutBatchSubmissions         PayoutBatch[]                  @relation("PayoutBatchSubmittedByUser")
   payoutBatchReconciliations     PayoutBatch[]                  @relation("PayoutBatchReconciledByUser")
@@ -537,6 +555,9 @@ model Order {
   subtotalUsdt               Decimal                   @default(0) @db.Decimal(18, 8)
   totalUsdt                  Decimal                   @default(0) @db.Decimal(18, 8)
   totalPv                    Decimal                   @default(0) @db.Decimal(18, 8)
+  walletAppliedUsdt          Decimal                   @default(0) @db.Decimal(18, 8)
+  cashDueUsdt                Decimal                   @default(0) @db.Decimal(18, 8)
+  cashPaymentMethod          String?                   @db.VarChar(100)
   paidAt                     DateTime?
   transferSubmittedAt        DateTime?
   transferSlipUrl            String?                   @db.Text
@@ -724,6 +745,7 @@ model Wallet {
   approvedBalance       Decimal          @default(0) @db.Decimal(18, 8)
   heldBalance           Decimal          @default(0) @db.Decimal(18, 8)
   withdrawableBalance   Decimal          @default(0) @db.Decimal(18, 8)
+  shoppingBalance       Decimal          @default(0) @db.Decimal(18, 8)
   paidOutBalance        Decimal          @default(0) @db.Decimal(18, 8)
   negativeOffsetBalance Decimal          @default(0) @db.Decimal(18, 8)
   payoutLockStatus      PayoutLockStatus @default(UNLOCKED)
@@ -743,6 +765,7 @@ model WalletTransaction {
   refType            String                     @db.VarChar(50)
   refId              BigInt
   counterpartyUserId BigInt?
+  note               String?                    @db.VarChar(255)
   amount             Decimal                    @default(0) @db.Decimal(18, 8)
   status             WalletTransactionStatus    @default(POSTED)
   createdAt          DateTime                   @default(now())
@@ -754,6 +777,29 @@ model WalletTransaction {
   @@index([userId, createdAt])
   @@index([refType, refId])
   @@index([balanceBucket, status])
+}
+
+model WalletTopupRequest {
+  id               BigInt                   @id @default(autoincrement())
+  userId           BigInt
+  amount           Decimal                  @default(0) @db.Decimal(18, 8)
+  paymentMethod    String                   @db.VarChar(100)
+  transferSlipUrl  String?                  @db.Text
+  note             String?                  @db.Text
+  status           WalletTopupRequestStatus @default(PENDING)
+  requestedAt      DateTime                 @default(now())
+  approvedAt       DateTime?
+  approvedByUserId BigInt?
+  rejectionReason  String?                  @db.Text
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+
+  user           User  @relation("WalletTopupRequestUser", fields: [userId], references: [id])
+  approvedByUser User? @relation("WalletTopupRequestApprovedByUser", fields: [approvedByUserId], references: [id])
+
+  @@index([userId, status, requestedAt])
+  @@index([status, requestedAt])
+  @@index([approvedByUserId])
 }
 
 model MatrixCycle {

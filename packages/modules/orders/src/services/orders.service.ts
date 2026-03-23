@@ -23,6 +23,9 @@ export interface OrdersServiceContract {
         approvalStatus: string;
         totalUsdt: string;
         totalPv: string;
+        walletAppliedUsdt: string;
+        cashDueUsdt: string;
+        cashPaymentMethod: string | null;
         transferSubmittedAt: string | null;
         transferSlipUrl: string | null;
         transferSlipNote: string | null;
@@ -43,6 +46,9 @@ export interface OrdersServiceContract {
           approvalStatus: string;
           totalUsdt: string;
           totalPv: string;
+          walletAppliedUsdt: string;
+          cashDueUsdt: string;
+          cashPaymentMethod: string | null;
           transferSubmittedAt: string | null;
           transferSlipUrl: string | null;
           transferSlipNote: string | null;
@@ -68,6 +74,9 @@ export interface OrdersServiceContract {
     approvalStatus: string;
     totalUsdt: string;
     totalPv: string;
+    walletAppliedUsdt: string;
+    cashDueUsdt: string;
+    cashPaymentMethod: string | null;
     transferSubmittedAt: string | null;
     transferSlipUrl: string | null;
     transferSlipNote: string | null;
@@ -83,6 +92,8 @@ export interface OrdersServiceContract {
   createOrder(input: {
     userId: string;
     packageId: string;
+    shoppingWalletAmount?: string;
+    cashPaymentMethod?: string;
   }): Promise<{
     orderId: string;
     orderNo: string;
@@ -90,6 +101,9 @@ export interface OrdersServiceContract {
     approvalStatus: string;
     totalUsdt: string;
     totalPv: string;
+    walletAppliedUsdt: string;
+    cashDueUsdt: string;
+    cashPaymentMethod: string | null;
   }>;
 
   submitTransferSlip(input: {
@@ -206,7 +220,12 @@ export class OrdersService implements OrdersServiceContract {
     private readonly walletsService: WalletsService,
   ) {}
 
-  async createOrder(input: { userId: string; packageId: string }) {
+  async createOrder(input: {
+    userId: string;
+    packageId: string;
+    shoppingWalletAmount?: string;
+    cashPaymentMethod?: string;
+  }) {
     return this.ordersRepository.createOrder(input);
   }
 

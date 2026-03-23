@@ -9,6 +9,11 @@ import {
   toIsoString,
 } from "../../../../infrastructure/src/prisma/prisma.mappers";
 import {
+  compareDecimalStrings,
+  minDecimalString,
+  subtractDecimalStrings,
+} from "../../../../shared/utils/src/money.util";
+import {
   readCommissionSettings,
   serializeCommissionSettingsSnapshot,
 } from "../../../../shared/utils/src/commission-settings.util";
@@ -16,6 +21,7 @@ import {
   readMatrixSettings,
   serializeMatrixSettingsSnapshot,
 } from "../../../../shared/utils/src/matrix-settings.util";
+import { readWalletSettings } from "../../../../shared/utils/src/wallet-settings.util";
 
 export interface OrdersRepository {
   listOrders(filters?: {
@@ -39,6 +45,9 @@ export interface OrdersRepository {
         approvalStatus: string;
         totalUsdt: string;
         totalPv: string;
+        walletAppliedUsdt: string;
+        cashDueUsdt: string;
+        cashPaymentMethod: string | null;
         transferSubmittedAt: string | null;
         transferSlipUrl: string | null;
         transferSlipNote: string | null;
@@ -59,6 +68,9 @@ export interface OrdersRepository {
           approvalStatus: string;
           totalUsdt: string;
           totalPv: string;
+          walletAppliedUsdt: string;
+          cashDueUsdt: string;
+          cashPaymentMethod: string | null;
           transferSubmittedAt: string | null;
           transferSlipUrl: string | null;
           transferSlipNote: string | null;
@@ -84,6 +96,9 @@ export interface OrdersRepository {
     approvalStatus: string;
     totalUsdt: string;
     totalPv: string;
+    walletAppliedUsdt: string;
+    cashDueUsdt: string;
+    cashPaymentMethod: string | null;
     transferSubmittedAt: string | null;
     transferSlipUrl: string | null;
     transferSlipNote: string | null;
@@ -99,6 +114,8 @@ export interface OrdersRepository {
   createOrder(input: {
     userId: string;
     packageId: string;
+    shoppingWalletAmount?: string;
+    cashPaymentMethod?: string;
   }): Promise<{
     orderId: string;
     orderNo: string;
@@ -106,6 +123,9 @@ export interface OrdersRepository {
     approvalStatus: string;
     totalUsdt: string;
     totalPv: string;
+    walletAppliedUsdt: string;
+    cashDueUsdt: string;
+    cashPaymentMethod: string | null;
   }>;
 
   submitTransferSlip(input: {
@@ -267,6 +287,9 @@ export class PrismaOrdersRepository implements OrdersRepository {
         approvalStatus: true,
         totalUsdt: true,
         totalPv: true,
+        walletAppliedUsdt: true,
+        cashDueUsdt: true,
+        cashPaymentMethod: true,
         transferSubmittedAt: true,
         transferSlipUrl: true,
         transferSlipNote: true,
@@ -288,6 +311,9 @@ export class PrismaOrdersRepository implements OrdersRepository {
       approvalStatus: order.approvalStatus.toLowerCase(),
       totalUsdt: order.totalUsdt.toString(),
       totalPv: order.totalPv.toString(),
+      walletAppliedUsdt: order.walletAppliedUsdt.toString(),
+      cashDueUsdt: order.cashDueUsdt.toString(),
+      cashPaymentMethod: order.cashPaymentMethod ?? null,
       transferSubmittedAt: order.transferSubmittedAt?.toISOString() ?? null,
       transferSlipUrl: order.transferSlipUrl ?? null,
       transferSlipNote: order.transferSlipNote ?? null,
@@ -325,6 +351,9 @@ export class PrismaOrdersRepository implements OrdersRepository {
         approvalStatus: true,
         totalUsdt: true,
         totalPv: true,
+        walletAppliedUsdt: true,
+        cashDueUsdt: true,
+        cashPaymentMethod: true,
         transferSubmittedAt: true,
         transferSlipUrl: true,
         transferSlipNote: true,
@@ -347,6 +376,9 @@ export class PrismaOrdersRepository implements OrdersRepository {
           approvalStatus: order.approvalStatus.toLowerCase(),
           totalUsdt: order.totalUsdt.toString(),
           totalPv: order.totalPv.toString(),
+          walletAppliedUsdt: order.walletAppliedUsdt.toString(),
+          cashDueUsdt: order.cashDueUsdt.toString(),
+          cashPaymentMethod: order.cashPaymentMethod ?? null,
           transferSubmittedAt: order.transferSubmittedAt?.toISOString() ?? null,
           transferSlipUrl: order.transferSlipUrl ?? null,
           transferSlipNote: order.transferSlipNote ?? null,
@@ -361,7 +393,12 @@ export class PrismaOrdersRepository implements OrdersRepository {
       : null;
   }
 
-  async createOrder(input: { userId: string; packageId: string }) {
+  async createOrder(input: {
+    userId: string;
+    packageId: string;
+    shoppingWalletAmount?: string;
+    cashPaymentMethod?: string;
+  }) {
     const pkg = await this.prisma.package.findUnique({
       where: { id: BigInt(input.packageId) },
       select: {
@@ -377,6 +414,38 @@ export class PrismaOrdersRepository implements OrdersRepository {
       throw new Error("Package not found.");
     }
 
+    const walletSettings = readWalletSettings();
+    const wallet = await this.prisma.wallet.findUnique({
+      where: { userId: BigInt(input.userId) },
+      select: { shoppingBalance: true },
+    });
+    const requestedShoppingAmount = input.shoppingWalletAmount ?? pkg.priceUsdt.toString();
+    const availableShopping = wallet?.shoppingBalance.toString() ?? "0";
+    const walletAppliedUsdt = walletSettings.shoppingWalletSpendEnabled
+      ? minDecimalString(
+          minDecimalString(requestedShoppingAmount, availableShopping),
+          pkg.priceUsdt.toString(),
+        )
+      : "0";
+    const cashDueUsdt = subtractDecimalStrings(
+      pkg.priceUsdt.toString(),
+      walletAppliedUsdt,
+    );
+    const normalizedCashPaymentMethod = input.cashPaymentMethod?.trim().toLowerCase();
+
+    if (compareDecimalStrings(cashDueUsdt, "0") > 0) {
+      const effectiveCashPaymentMethod =
+        normalizedCashPaymentMethod ??
+        walletSettings.orderCashPaymentMethods[0] ??
+        "bank_transfer";
+
+      if (!walletSettings.orderCashPaymentMethods.includes(effectiveCashPaymentMethod)) {
+        throw new Error("Cash payment method is not allowed.");
+      }
+
+      input.cashPaymentMethod = effectiveCashPaymentMethod;
+    }
+
     const orderItemCreate: Prisma.OrderItemUncheckedCreateWithoutOrderInput = {
       packageId: pkg.id,
       qty: 1,
@@ -388,19 +457,74 @@ export class PrismaOrdersRepository implements OrdersRepository {
       lineTotalPv: pkg.pv,
     };
 
-    const order = await this.prisma.order.create({
-      data: {
-        orderNo: `ORD-${Date.now()}`,
-        userId: BigInt(input.userId),
-        subtotalUsdt: pkg.priceUsdt,
-        totalUsdt: pkg.priceUsdt,
-        totalPv: pkg.pv,
-        approvalStatus: "PENDING",
-        status: "PENDING",
-        orderItems: {
-          create: [orderItemCreate],
+    const order = await this.prisma.$transaction(async (tx) => {
+      const createdOrder = await tx.order.create({
+        data: {
+          orderNo: `ORD-${Date.now()}`,
+          userId: BigInt(input.userId),
+          subtotalUsdt: pkg.priceUsdt,
+          totalUsdt: pkg.priceUsdt,
+          totalPv: pkg.pv,
+          walletAppliedUsdt,
+          cashDueUsdt,
+          cashPaymentMethod:
+            compareDecimalStrings(cashDueUsdt, "0") > 0
+              ? input.cashPaymentMethod ?? walletSettings.orderCashPaymentMethods[0] ?? "bank_transfer"
+              : null,
+          paidAt:
+            compareDecimalStrings(cashDueUsdt, "0") <= 0 ? new Date() : null,
+          approvalStatus: "PENDING",
+          status:
+            compareDecimalStrings(cashDueUsdt, "0") <= 0 ? "PAID" : "PENDING",
+          orderItems: {
+            create: [orderItemCreate],
+          },
         },
-      },
+      });
+
+      if (compareDecimalStrings(walletAppliedUsdt, "0") > 0) {
+        const currentWallet = await tx.wallet.upsert({
+          where: { userId: BigInt(input.userId) },
+          update: {},
+          create: { userId: BigInt(input.userId) },
+          select: { shoppingBalance: true },
+        });
+
+        if (
+          compareDecimalStrings(
+            currentWallet.shoppingBalance.toString(),
+            walletAppliedUsdt,
+          ) < 0
+        ) {
+          throw new Error("Insufficient shopping wallet balance.");
+        }
+
+        await tx.wallet.update({
+          where: { userId: BigInt(input.userId) },
+          data: {
+            shoppingBalance: subtractDecimalStrings(
+              currentWallet.shoppingBalance.toString(),
+              walletAppliedUsdt,
+            ),
+          },
+        });
+
+        await tx.walletTransaction.create({
+          data: {
+            userId: BigInt(input.userId),
+            txType: "ORDER_PURCHASE_DEBIT",
+            direction: "DEBIT",
+            balanceBucket: "SHOPPING",
+            refType: "order",
+            refId: createdOrder.id,
+            amount: walletAppliedUsdt,
+            status: "POSTED",
+            note: "Shopping wallet used for order purchase",
+          },
+        });
+      }
+
+      return createdOrder;
     });
 
     return {
@@ -410,6 +534,9 @@ export class PrismaOrdersRepository implements OrdersRepository {
       approvalStatus: order.approvalStatus.toLowerCase(),
       totalUsdt: order.totalUsdt.toString(),
       totalPv: order.totalPv.toString(),
+      walletAppliedUsdt: order.walletAppliedUsdt.toString(),
+      cashDueUsdt: order.cashDueUsdt.toString(),
+      cashPaymentMethod: order.cashPaymentMethod ?? null,
     };
   }
 

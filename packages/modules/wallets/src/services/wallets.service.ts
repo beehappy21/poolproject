@@ -1,6 +1,9 @@
 import { Injectable } from "@nestjs/common";
 
 import {
+  CommissionToShoppingConversionResult,
+  ShoppingWalletTopupResult,
+  ShoppingWalletTransferResult,
   WalletBalanceReleaseResult,
   WalletBalanceReservationInput,
   WalletBalanceReservationResult,
@@ -11,16 +14,19 @@ import {
   WalletPostingResult,
   WalletReservationReleaseInput,
   WalletSummary,
+  WalletTopupRequestSummary,
   WalletTransactionSummary,
 } from "../domain/wallets.types";
 import {
   compareDecimalStrings,
   maxDecimalString,
   minDecimalString,
+  multiplyDecimalStrings,
   subtractDecimalStrings,
 } from "../../../../shared/utils/src/money.util";
 import { RiskService } from "../../../risk/src/services/risk.service";
 import { PrismaWalletsRepository } from "../repositories/wallets.repository";
+import { readWalletSettings } from "../../../../shared/utils/src/wallet-settings.util";
 
 export interface WalletsServiceContract {
   getWalletSummary(userId: string): Promise<WalletSummary>;
@@ -46,6 +52,49 @@ export interface WalletsServiceContract {
   releaseReservedBalance(
     input: WalletReservationReleaseInput,
   ): Promise<WalletBalanceReleaseResult>;
+
+  convertCommissionToShoppingWallet(
+    input: { userId: string; amount: string },
+  ): Promise<CommissionToShoppingConversionResult>;
+
+  transferShoppingWalletToDownline(input: {
+    senderUserId: string;
+    recipientUserId?: string;
+    recipientMemberCode?: string;
+    amount: string;
+  }): Promise<ShoppingWalletTransferResult>;
+
+  topupShoppingWallet(input: {
+    userId: string;
+    amount: string;
+    paymentMethod: string;
+    note?: string;
+    actorUserId?: string | null;
+  }): Promise<ShoppingWalletTopupResult>;
+
+  requestWalletTopup(input: {
+    userId: string;
+    amount: string;
+    paymentMethod: string;
+    transferSlipUrl?: string;
+    note?: string;
+  }): Promise<WalletTopupRequestSummary>;
+
+  listWalletTopupRequests(filters?: {
+    userId?: string;
+    status?: "pending" | "approved" | "rejected" | "cancelled";
+  }): Promise<WalletTopupRequestSummary[]>;
+
+  approveWalletTopupRequest(input: {
+    requestId: string;
+    actorUserId: string;
+  }): Promise<WalletTopupRequestSummary>;
+
+  rejectWalletTopupRequest(input: {
+    requestId: string;
+    actorUserId: string;
+    rejectionReason: string;
+  }): Promise<WalletTopupRequestSummary>;
 }
 
 @Injectable()
@@ -222,5 +271,172 @@ export class WalletsService implements WalletsServiceContract {
       released: true,
       reasonCode: input.batchId ? "batch_release" : null,
     };
+  }
+
+  async convertCommissionToShoppingWallet(
+    input: { userId: string; amount: string },
+  ): Promise<CommissionToShoppingConversionResult> {
+    const settings = readWalletSettings();
+
+    if (!settings.commissionToShoppingEnabled) {
+      throw new Error("Commission to shopping wallet is disabled.");
+    }
+
+    const feeAmount = multiplyDecimalStrings(
+      input.amount,
+      settings.commissionToShoppingFeeRate,
+    );
+    const netAmount = maxDecimalString(
+      subtractDecimalStrings(input.amount, feeAmount),
+      "0",
+    );
+
+    if (compareDecimalStrings(netAmount, "0") <= 0) {
+      throw new Error("Net shopping wallet amount must be greater than zero.");
+    }
+
+    return this.walletsRepository.convertWithdrawableToShoppingWallet({
+      userId: input.userId,
+      grossAmount: input.amount,
+      feeAmount,
+      netAmount,
+    });
+  }
+
+  async transferShoppingWalletToDownline(input: {
+    senderUserId: string;
+    recipientUserId?: string;
+    recipientMemberCode?: string;
+    amount: string;
+  }): Promise<ShoppingWalletTransferResult> {
+    const settings = readWalletSettings();
+
+    if (!settings.walletTransferEnabled) {
+      throw new Error("Wallet transfer is disabled.");
+    }
+
+    const recipientUserId =
+      input.recipientUserId ??
+      (input.recipientMemberCode
+        ? await this.walletsRepository.findUserIdByMemberCode(
+            input.recipientMemberCode,
+          )
+        : null);
+
+    if (!recipientUserId) {
+      throw new Error("Recipient member not found.");
+    }
+
+    if (recipientUserId === input.senderUserId) {
+      throw new Error("Cannot transfer shopping wallet to self.");
+    }
+
+    const isDownline = await this.walletsRepository.isDownlineOfSponsor(
+      input.senderUserId,
+      recipientUserId,
+    );
+
+    if (!isDownline) {
+      throw new Error("Recipient must be in the sender downline.");
+    }
+
+    const feeAmount = multiplyDecimalStrings(
+      input.amount,
+      settings.walletTransferFeeRate,
+    );
+    const netAmount = maxDecimalString(
+      subtractDecimalStrings(input.amount, feeAmount),
+      "0",
+    );
+
+    if (compareDecimalStrings(netAmount, "0") <= 0) {
+      throw new Error("Net transfer amount must be greater than zero.");
+    }
+
+    return this.walletsRepository.transferShoppingWallet({
+      senderUserId: input.senderUserId,
+      recipientUserId,
+      grossAmount: input.amount,
+      feeAmount,
+      netAmount,
+    });
+  }
+
+  async topupShoppingWallet(input: {
+    userId: string;
+    amount: string;
+    paymentMethod: string;
+    note?: string;
+    actorUserId?: string | null;
+  }): Promise<ShoppingWalletTopupResult> {
+    const settings = readWalletSettings();
+
+    if (!settings.walletTopupEnabled) {
+      throw new Error("Wallet top-up is disabled.");
+    }
+
+    this.assertAllowedPaymentMethod(
+      input.paymentMethod,
+      settings.walletTopupPaymentMethods,
+      "Wallet top-up payment method is not allowed.",
+    );
+
+    return this.walletsRepository.topupShoppingWallet(input);
+  }
+
+  async requestWalletTopup(input: {
+    userId: string;
+    amount: string;
+    paymentMethod: string;
+    transferSlipUrl?: string;
+    note?: string;
+  }): Promise<WalletTopupRequestSummary> {
+    const settings = readWalletSettings();
+
+    if (!settings.walletTopupEnabled) {
+      throw new Error("Wallet top-up is disabled.");
+    }
+
+    this.assertAllowedPaymentMethod(
+      input.paymentMethod,
+      settings.walletTopupPaymentMethods,
+      "Wallet top-up payment method is not allowed.",
+    );
+
+    return this.walletsRepository.createWalletTopupRequest(input);
+  }
+
+  async listWalletTopupRequests(filters?: {
+    userId?: string;
+    status?: "pending" | "approved" | "rejected" | "cancelled";
+  }): Promise<WalletTopupRequestSummary[]> {
+    return this.walletsRepository.listWalletTopupRequests(filters);
+  }
+
+  async approveWalletTopupRequest(input: {
+    requestId: string;
+    actorUserId: string;
+  }): Promise<WalletTopupRequestSummary> {
+    return this.walletsRepository.approveWalletTopupRequest(input);
+  }
+
+  async rejectWalletTopupRequest(input: {
+    requestId: string;
+    actorUserId: string;
+    rejectionReason: string;
+  }): Promise<WalletTopupRequestSummary> {
+    return this.walletsRepository.rejectWalletTopupRequest(input);
+  }
+
+  private assertAllowedPaymentMethod(
+    paymentMethod: string,
+    allowedMethods: string[],
+    errorMessage: string,
+  ) {
+    const normalizedMethod = paymentMethod.trim().toLowerCase();
+
+    if (!allowedMethods.includes(normalizedMethod)) {
+      throw new Error(errorMessage);
+    }
   }
 }
