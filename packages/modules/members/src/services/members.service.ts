@@ -167,6 +167,80 @@ export interface MembersServiceContract {
     sponsorId: string | null;
   }>;
 
+  listShippingAddresses(memberId: string): Promise<
+    Array<{
+      shippingAddressId: string;
+      label: string | null;
+      recipientName: string;
+      phone: string;
+      email: string | null;
+      countryCode: string | null;
+      countryName: string | null;
+      provinceCode: string | null;
+      provinceName: string | null;
+      districtCode: string | null;
+      districtName: string | null;
+      subdistrictCode: string | null;
+      subdistrictName: string | null;
+      postalCode: string | null;
+      addressLine: string;
+      note: string | null;
+      isDefault: boolean;
+      createdAt: string;
+      updatedAt: string;
+    }>
+  >;
+
+  createShippingAddress(
+    memberId: string,
+    input: {
+      label?: string | null;
+      recipientName: string;
+      phone: string;
+      email?: string | null;
+      countryCode?: string | null;
+      countryName?: string | null;
+      provinceCode?: string | null;
+      provinceName?: string | null;
+      districtCode?: string | null;
+      districtName?: string | null;
+      subdistrictCode?: string | null;
+      subdistrictName?: string | null;
+      postalCode?: string | null;
+      addressLine: string;
+      note?: string | null;
+      isDefault?: boolean;
+    },
+  ): Promise<{
+    shippingAddressId: string;
+    label: string | null;
+    recipientName: string;
+    phone: string;
+    email: string | null;
+    countryCode: string | null;
+    countryName: string | null;
+    provinceCode: string | null;
+    provinceName: string | null;
+    districtCode: string | null;
+    districtName: string | null;
+    subdistrictCode: string | null;
+    subdistrictName: string | null;
+    postalCode: string | null;
+    addressLine: string;
+    note: string | null;
+    isDefault: boolean;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+
+  setDefaultShippingAddress(
+    memberId: string,
+    shippingAddressId: string,
+  ): Promise<{
+    shippingAddressId: string;
+    isDefault: true;
+  }>;
+
   activatePackageCycle(input: {
     memberId: string;
     packageId: string;
@@ -279,6 +353,41 @@ export class MembersService implements MembersServiceContract {
     },
   ) {
     return this.membersRepository.updateMemberProfile(memberId, input);
+  }
+
+  async listShippingAddresses(memberId: string) {
+    return this.membersRepository.listShippingAddresses(memberId);
+  }
+
+  async createShippingAddress(
+    memberId: string,
+    input: {
+      label?: string | null;
+      recipientName: string;
+      phone: string;
+      email?: string | null;
+      countryCode?: string | null;
+      countryName?: string | null;
+      provinceCode?: string | null;
+      provinceName?: string | null;
+      districtCode?: string | null;
+      districtName?: string | null;
+      subdistrictCode?: string | null;
+      subdistrictName?: string | null;
+      postalCode?: string | null;
+      addressLine: string;
+      note?: string | null;
+      isDefault?: boolean;
+    },
+  ) {
+    return this.membersRepository.createShippingAddress(memberId, input);
+  }
+
+  async setDefaultShippingAddress(memberId: string, shippingAddressId: string) {
+    return this.membersRepository.setDefaultShippingAddress(
+      memberId,
+      shippingAddressId,
+    );
   }
 
   async activatePackageCycle(input: { memberId: string; packageId: string }) {

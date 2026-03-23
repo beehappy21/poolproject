@@ -1,5 +1,5 @@
 import axios from 'axios';
-import React, {useMemo, useState} from 'react';
+import React, {useState} from 'react';
 
 import {hooks} from '../hooks';
 import {URLS} from '../config';
@@ -20,17 +20,11 @@ export const Checkout: React.FC = () => {
   const discount = hooks.useAppSelector(state => state.cartSlice.discount);
   const delivery = hooks.useAppSelector(state => state.cartSlice.delivery);
   const payment = hooks.useAppSelector(state => state.paymentSlice);
-  const checkoutPackageId = useMemo(() => {
-    const packageIds = Array.from(
-      new Set(cart.map(item => item.packageId).filter(Boolean)),
-    );
-
-    if (packageIds.length !== 1) {
-      return null;
-    }
-
-    return packageIds[0] as string;
-  }, [cart]);
+  const isBranchPickup = payment.fulfillmentMethod === 'branch_pickup';
+  const selectedAddress =
+    payment.addresses.find(
+      address => address.shippingAddressId === payment.selectedAddressId,
+    ) || null;
 
   const textStyle = {
     margin: 0,
@@ -42,7 +36,7 @@ export const Checkout: React.FC = () => {
   };
 
   const renderHeader = (): JSX.Element => {
-    return <components.Header title='Checkout' goBack={true} line={true} />;
+    return <components.Header title='ยืนยันคำสั่งซื้อ' goBack={true} line={true} />;
   };
 
   const renderMyOrder = (): JSX.Element => {
@@ -72,7 +66,7 @@ export const Checkout: React.FC = () => {
               fontSize: 18,
             }}
           >
-            Your package order
+            รายการแพ็กเกจ
           </h4>
           <h4
             style={{
@@ -167,7 +161,7 @@ export const Checkout: React.FC = () => {
                 lineHeight: 1.5,
               }}
             >
-              Delivery
+              จัดส่ง
             </h6>
             <span
               style={{
@@ -203,7 +197,7 @@ export const Checkout: React.FC = () => {
               fontWeight: 600,
             }}
           >
-            Shipping & payment info
+            ข้อมูลจัดส่งและการชำระเงิน
           </h5>
         </div>
         <div
@@ -214,20 +208,92 @@ export const Checkout: React.FC = () => {
             borderBottom: 'solid #EDF1FA 4px',
           }}
         >
-          <h6 style={{...textStyle, marginBottom: 3}}>
-            {payment.name || 'No recipient yet'}
-          </h6>
-          <h6 style={{...textStyle, marginBottom: 3}}>
-            {payment.address || 'No delivery address yet'}
-          </h6>
-          <h6 style={{...textStyle, marginBottom: 3}}>
-            {[payment.phoneNumber, payment.email].filter(Boolean).join(' • ') ||
-              'No contact details yet'}
-          </h6>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 12,
+              marginBottom: 12,
+            }}
+          >
+            <span style={{...textStyle, color: theme.colors.mainColor}}>
+              {isBranchPickup ? 'รับที่สาขา' : 'ที่อยู่จัดส่ง'}
+            </span>
+            <button
+              onClick={() => navigate('/ShippingAndPaymentInfo')}
+              style={{
+                border: 'none',
+                backgroundColor: 'transparent',
+                padding: 0,
+                color: theme.colors.mainColor,
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                ...theme.fonts.Mulish_600SemiBold,
+                fontSize: 14,
+                lineHeight: 1.5,
+              }}
+            >
+              {isBranchPickup ? 'เปลี่ยนวิธีรับสินค้า' : 'เปลี่ยนที่อยู่'}
+            </button>
+          </div>
+          {isBranchPickup ? (
+            <>
+              <h6 style={{...textStyle, marginBottom: 3}}>
+                {payment.pickupBranchName || 'ยังไม่ได้ระบุสาขาที่จะรับสินค้า'}
+              </h6>
+              <h6 style={{...textStyle, marginBottom: 3}}>
+                {(payment.name || user?.name || '').trim() || 'ยังไม่ได้ระบุชื่อผู้รับสินค้า'}
+              </h6>
+              <h6 style={{...textStyle, marginBottom: 3}}>
+                {[
+                  (payment.phoneNumber || user?.phone || '').trim(),
+                  (payment.email || user?.email || '').trim(),
+                ]
+                  .filter(Boolean)
+                  .join(' • ') || 'ยังไม่ได้ระบุข้อมูลติดต่อ'}
+              </h6>
+              {payment.pickupBranchNote ? (
+                <h6 style={{...textStyle, marginBottom: 3}}>
+                  หมายเหตุ: {payment.pickupBranchNote}
+                </h6>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <h6 style={{...textStyle, marginBottom: 3}}>
+                {selectedAddress?.recipientName || 'ยังไม่ได้เลือกชื่อผู้รับ'}
+              </h6>
+              <h6 style={{...textStyle, marginBottom: 3}}>
+                {selectedAddress?.addressLine || 'ยังไม่ได้เลือกที่อยู่จัดส่ง'}
+              </h6>
+              {selectedAddress ? (
+                <h6 style={{...textStyle, marginBottom: 3}}>
+                  {[
+                    selectedAddress.subdistrictName,
+                    selectedAddress.districtName,
+                    selectedAddress.provinceName,
+                    selectedAddress.postalCode,
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                </h6>
+              ) : null}
+              <h6 style={{...textStyle, marginBottom: 3}}>
+                {[selectedAddress?.phone, selectedAddress?.email]
+                  .filter(Boolean)
+                  .join(' • ') ||
+                  'ยังไม่ได้ระบุข้อมูลติดต่อ'}
+              </h6>
+              {selectedAddress?.label ? (
+                <h6 style={{...textStyle, marginBottom: 3}}>
+                  ที่อยู่ที่เลือก: {selectedAddress.label}
+                </h6>
+              ) : null}
+            </>
+          )}
           <span style={{...textStyle}}>
-            {payment.cardNumber
-              ? `**** ${payment.cardNumber.slice(-4)}`
-              : 'Payment method will be confirmed after transfer slip review'}
+            วิธีชำระเงิน: โอนเงินและยืนยันด้วยสลิป
           </span>
         </div>
       </div>
@@ -250,47 +316,43 @@ export const Checkout: React.FC = () => {
           </p>
         ) : null}
         <components.Button
-          title={submitting ? 'Confirming...' : 'Confirm order'}
+          title={submitting ? 'กำลังยืนยัน...' : 'ยืนยันคำสั่งซื้อ'}
           onClick={async () => {
             if (!user?.accessToken) {
-              setErrorMessage('Please sign in again before placing your order.');
+              setErrorMessage('กรุณาเข้าสู่ระบบอีกครั้งก่อนยืนยันคำสั่งซื้อ');
               return;
             }
 
             if (!cart.length) {
-              setErrorMessage('Your cart is empty.');
+              setErrorMessage('ยังไม่มีสินค้าในตะกร้า');
               return;
             }
 
-            if (!checkoutPackageId) {
+            const orderItems = cart
+              .filter(item => item.packageId)
+              .map(item => ({
+                packageId: String(item.packageId),
+                quantity: String(Math.max(1, Number(item.quantity || 1))),
+              }));
+
+            if (!orderItems.length) {
               setErrorMessage(
-                'Checkout currently supports one package per order. Please keep only one package in your cart.',
+                'ไม่พบแพ็กเกจที่พร้อมสร้างคำสั่งซื้อ',
               );
               return;
             }
 
-            if (
-              !payment.name.trim() ||
-              !payment.address.trim() ||
-              !payment.phoneNumber.trim() ||
-              !payment.email.trim()
-            ) {
+            if (!isBranchPickup && !selectedAddress?.shippingAddressId) {
               setErrorMessage(
-                'Please complete your shipping and payment info before confirming the order.',
+                'กรุณาเลือกที่อยู่จัดส่งก่อนยืนยันคำสั่งซื้อ',
               );
               navigate('/ShippingAndPaymentInfo');
               return;
             }
 
-            const totalQuantity = cart.reduce(
-              (sum, item) => sum + Number(item.quantity || 0),
-              0,
-            );
-
-            if (totalQuantity !== 1) {
-              setErrorMessage(
-                'Checkout currently supports one package quantity per order.',
-              );
+            if (isBranchPickup && !payment.pickupBranchName.trim()) {
+              setErrorMessage('กรุณาระบุสาขาที่จะรับสินค้า');
+              navigate('/ShippingAndPaymentInfo');
               return;
             }
 
@@ -298,10 +360,32 @@ export const Checkout: React.FC = () => {
             setErrorMessage('');
 
             try {
-              const response = await axios.post(
+              await axios.post(
                 URLS.AUTH_ORDERS,
                 {
-                  packageId: checkoutPackageId,
+                  packageId: orderItems[0].packageId,
+                  quantity: orderItems[0].quantity,
+                  items: orderItems,
+                  shippingAddressId: isBranchPickup
+                    ? undefined
+                    : selectedAddress?.shippingAddressId,
+                  fulfillmentMethod: payment.fulfillmentMethod,
+                  pickupBranchName: isBranchPickup
+                    ? payment.pickupBranchName.trim()
+                    : undefined,
+                  pickupBranchNote: isBranchPickup
+                    ? payment.pickupBranchNote.trim() || undefined
+                    : undefined,
+                  pickupRecipientName: isBranchPickup
+                    ? (payment.name || user?.name || '').trim() || undefined
+                    : undefined,
+                  pickupPhone: isBranchPickup
+                    ? (payment.phoneNumber || user?.phone || '').trim() || undefined
+                    : undefined,
+                  pickupEmail: isBranchPickup
+                    ? (payment.email || user?.email || '').trim() || undefined
+                    : undefined,
+                  cashPaymentMethod: 'bank_transfer',
                 },
                 {
                   headers: {
@@ -311,12 +395,12 @@ export const Checkout: React.FC = () => {
                 },
               );
 
-              navigate('/OrderSuccessful', {state: {order: response.data}});
               dispatch(actions.resetCart());
+              navigate('/OrderHistory');
             } catch (error: any) {
               setErrorMessage(
                 error?.response?.data?.message ||
-                  'Unable to create your order right now.',
+                  'ไม่สามารถสร้างคำสั่งซื้อได้ในขณะนี้',
               );
               navigate('/OrderFailed');
             } finally {

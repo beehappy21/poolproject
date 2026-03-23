@@ -36,6 +36,9 @@ export interface OrdersServiceContract {
         shipmentTrackingNo: string | null;
         shipmentCarrier: string | null;
         shipmentNote: string | null;
+        fulfillmentMethod: "delivery" | "branch_pickup";
+        pickupBranchName: string | null;
+        pickupBranchNote: string | null;
         createdAt: string;
       }>
     | {
@@ -60,6 +63,9 @@ export interface OrdersServiceContract {
           shipmentTrackingNo: string | null;
           shipmentCarrier: string | null;
           shipmentNote: string | null;
+          fulfillmentMethod: "delivery" | "branch_pickup";
+          pickupBranchName: string | null;
+          pickupBranchNote: string | null;
           createdAt: string;
         }>;
         total: number;
@@ -89,12 +95,24 @@ export interface OrdersServiceContract {
     shipmentTrackingNo: string | null;
     shipmentCarrier: string | null;
     shipmentNote: string | null;
+    fulfillmentMethod: "delivery" | "branch_pickup";
+    pickupBranchName: string | null;
+    pickupBranchNote: string | null;
     createdAt: string;
   } | null>;
 
   createOrder(input: {
     userId: string;
     packageId: string;
+    quantity?: string;
+    items?: Array<{ packageId: string; quantity: string }>;
+    shippingAddressId?: string;
+    fulfillmentMethod?: "delivery" | "branch_pickup";
+    pickupBranchName?: string;
+    pickupBranchNote?: string;
+    pickupRecipientName?: string;
+    pickupPhone?: string;
+    pickupEmail?: string;
     discountWalletAmount?: string;
     shoppingWalletAmount?: string;
     cashPaymentMethod?: string;
@@ -228,6 +246,15 @@ export class OrdersService implements OrdersServiceContract {
   async createOrder(input: {
     userId: string;
     packageId: string;
+    quantity?: string;
+    items?: Array<{ packageId: string; quantity: string }>;
+    shippingAddressId?: string;
+    fulfillmentMethod?: "delivery" | "branch_pickup";
+    pickupBranchName?: string;
+    pickupBranchNote?: string;
+    pickupRecipientName?: string;
+    pickupPhone?: string;
+    pickupEmail?: string;
     discountWalletAmount?: string;
     shoppingWalletAmount?: string;
     cashPaymentMethod?: string;

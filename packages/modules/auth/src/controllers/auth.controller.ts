@@ -215,6 +215,15 @@ export class AuthController {
     @Body()
     body?: {
       packageId?: string;
+      quantity?: string;
+      items?: Array<{ packageId?: string; quantity?: string }>;
+      shippingAddressId?: string;
+      fulfillmentMethod?: string;
+      pickupBranchName?: string;
+      pickupBranchNote?: string;
+      pickupRecipientName?: string;
+      pickupPhone?: string;
+      pickupEmail?: string;
       discountWalletAmount?: string;
       shoppingWalletAmount?: string;
       cashPaymentMethod?: string;
@@ -222,9 +231,36 @@ export class AuthController {
   ) {
     const user = await this.requireSessionUser(authorization, cookieHeader);
 
+    const items = Array.isArray(body?.items)
+      ? body?.items
+          .filter((item) => optionalString(item?.packageId))
+          .map((item) => ({
+            packageId: requirePositiveIntegerString(item?.packageId, "items.packageId"),
+            quantity: optionalString(item?.quantity)
+              ? requirePositiveIntegerString(item?.quantity, "items.quantity")
+              : "1",
+          }))
+      : undefined;
+
     return this.ordersService.createOrder({
       userId: user.userId,
       packageId: requirePositiveIntegerString(body?.packageId, "packageId"),
+      quantity: optionalString(body?.quantity)
+        ? requirePositiveIntegerString(body?.quantity, "quantity")
+        : undefined,
+      items,
+      shippingAddressId: optionalString(body?.shippingAddressId)
+        ? requirePositiveIntegerString(body?.shippingAddressId, "shippingAddressId")
+        : undefined,
+      fulfillmentMethod:
+        optionalString(body?.fulfillmentMethod)?.trim().toLowerCase() === "branch_pickup"
+          ? "branch_pickup"
+          : "delivery",
+      pickupBranchName: optionalString(body?.pickupBranchName),
+      pickupBranchNote: optionalString(body?.pickupBranchNote),
+      pickupRecipientName: optionalString(body?.pickupRecipientName),
+      pickupPhone: optionalString(body?.pickupPhone),
+      pickupEmail: optionalString(body?.pickupEmail),
       discountWalletAmount: optionalString(body?.discountWalletAmount)
         ? requireDecimalString(body?.discountWalletAmount, "discountWalletAmount")
         : undefined,
@@ -233,6 +269,73 @@ export class AuthController {
         : undefined,
       cashPaymentMethod: optionalString(body?.cashPaymentMethod),
     });
+  }
+
+  @Get("shipping-addresses")
+  async listOwnShippingAddresses(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+    return this.membersService.listShippingAddresses(user.userId);
+  }
+
+  @Post("shipping-addresses")
+  async createOwnShippingAddress(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+    @Body()
+    body?: {
+      label?: string;
+      recipientName?: string;
+      phone?: string;
+      email?: string;
+      countryCode?: string;
+      countryName?: string;
+      provinceCode?: string;
+      provinceName?: string;
+      districtCode?: string;
+      districtName?: string;
+      subdistrictCode?: string;
+      subdistrictName?: string;
+      postalCode?: string;
+      addressLine?: string;
+      note?: string;
+      isDefault?: boolean;
+    },
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+    return this.membersService.createShippingAddress(user.userId, {
+      label: optionalString(body?.label),
+      recipientName: requireNonEmptyString(body?.recipientName, "recipientName"),
+      phone: requireNonEmptyString(body?.phone, "phone"),
+      email: optionalString(body?.email),
+      countryCode: optionalString(body?.countryCode),
+      countryName: optionalString(body?.countryName),
+      provinceCode: optionalString(body?.provinceCode),
+      provinceName: optionalString(body?.provinceName),
+      districtCode: optionalString(body?.districtCode),
+      districtName: optionalString(body?.districtName),
+      subdistrictCode: optionalString(body?.subdistrictCode),
+      subdistrictName: optionalString(body?.subdistrictName),
+      postalCode: optionalString(body?.postalCode),
+      addressLine: requireNonEmptyString(body?.addressLine, "addressLine"),
+      note: optionalString(body?.note),
+      isDefault: body?.isDefault === true,
+    });
+  }
+
+  @Post("shipping-addresses/:shippingAddressId/default")
+  async setOwnDefaultShippingAddress(
+    @Param("shippingAddressId") shippingAddressId: string,
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+    return this.membersService.setDefaultShippingAddress(
+      user.userId,
+      requirePositiveIntegerString(shippingAddressId, "shippingAddressId"),
+    );
   }
 
   @Post("wallets/convert")

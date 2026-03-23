@@ -167,6 +167,80 @@ export interface MembersRepository {
     sponsorId: string | null;
   }>;
 
+  listShippingAddresses(memberId: string): Promise<
+    Array<{
+      shippingAddressId: string;
+      label: string | null;
+      recipientName: string;
+      phone: string;
+      email: string | null;
+      countryCode: string | null;
+      countryName: string | null;
+      provinceCode: string | null;
+      provinceName: string | null;
+      districtCode: string | null;
+      districtName: string | null;
+      subdistrictCode: string | null;
+      subdistrictName: string | null;
+      postalCode: string | null;
+      addressLine: string;
+      note: string | null;
+      isDefault: boolean;
+      createdAt: string;
+      updatedAt: string;
+    }>
+  >;
+
+  createShippingAddress(
+    memberId: string,
+    input: {
+      label?: string | null;
+      recipientName: string;
+      phone: string;
+      email?: string | null;
+      countryCode?: string | null;
+      countryName?: string | null;
+      provinceCode?: string | null;
+      provinceName?: string | null;
+      districtCode?: string | null;
+      districtName?: string | null;
+      subdistrictCode?: string | null;
+      subdistrictName?: string | null;
+      postalCode?: string | null;
+      addressLine: string;
+      note?: string | null;
+      isDefault?: boolean;
+    },
+  ): Promise<{
+    shippingAddressId: string;
+    label: string | null;
+    recipientName: string;
+    phone: string;
+    email: string | null;
+    countryCode: string | null;
+    countryName: string | null;
+    provinceCode: string | null;
+    provinceName: string | null;
+    districtCode: string | null;
+    districtName: string | null;
+    subdistrictCode: string | null;
+    subdistrictName: string | null;
+    postalCode: string | null;
+    addressLine: string;
+    note: string | null;
+    isDefault: boolean;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+
+  setDefaultShippingAddress(
+    memberId: string,
+    shippingAddressId: string,
+  ): Promise<{
+    shippingAddressId: string;
+    isDefault: true;
+  }>;
+
   activatePackageCycle(input: {
     memberId: string;
     packageId: string;
@@ -188,6 +262,50 @@ export interface MembersRepository {
 @Injectable()
 export class PrismaMembersRepository implements MembersRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  private toShippingAddressRecord(address: {
+    id: bigint;
+    label: string | null;
+    recipientName: string;
+    phone: string;
+    email: string | null;
+    countryCode: string | null;
+    countryName: string | null;
+    provinceCode: string | null;
+    provinceName: string | null;
+    districtCode: string | null;
+    districtName: string | null;
+    subdistrictCode: string | null;
+    subdistrictName: string | null;
+    postalCode: string | null;
+    addressLine: string;
+    note: string | null;
+    isDefault: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+  }) {
+    return {
+      shippingAddressId: toIdString(address.id),
+      label: address.label,
+      recipientName: address.recipientName,
+      phone: address.phone,
+      email: address.email,
+      countryCode: address.countryCode ?? null,
+      countryName: address.countryName ?? null,
+      provinceCode: address.provinceCode ?? null,
+      provinceName: address.provinceName ?? null,
+      districtCode: address.districtCode ?? null,
+      districtName: address.districtName ?? null,
+      subdistrictCode: address.subdistrictCode ?? null,
+      subdistrictName: address.subdistrictName ?? null,
+      postalCode: address.postalCode ?? null,
+      addressLine: address.addressLine,
+      note: address.note,
+      isDefault: address.isDefault,
+      createdAt: address.createdAt.toISOString(),
+      updatedAt: address.updatedAt.toISOString(),
+    };
+  }
 
   private async toMemberSummary(
     member: {
@@ -911,6 +1029,108 @@ export class PrismaMembersRepository implements MembersRepository {
       email: member.email,
       phone: member.phone,
       sponsorId: member.sponsorId ? toIdString(member.sponsorId) : null,
+    };
+  }
+
+  async listShippingAddresses(memberId: string) {
+    const addresses = await this.prisma.memberShippingAddress.findMany({
+      where: { userId: BigInt(memberId) },
+      orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }, { id: "desc" }],
+    });
+
+    return addresses.map((address) => this.toShippingAddressRecord(address));
+  }
+
+  async createShippingAddress(
+    memberId: string,
+    input: {
+      label?: string | null;
+      recipientName: string;
+      phone: string;
+      email?: string | null;
+      countryCode?: string | null;
+      countryName?: string | null;
+      provinceCode?: string | null;
+      provinceName?: string | null;
+      districtCode?: string | null;
+      districtName?: string | null;
+      subdistrictCode?: string | null;
+      subdistrictName?: string | null;
+      postalCode?: string | null;
+      addressLine: string;
+      note?: string | null;
+      isDefault?: boolean;
+    },
+  ) {
+    const userId = BigInt(memberId);
+    const existingCount = await this.prisma.memberShippingAddress.count({
+      where: { userId },
+    });
+    const shouldBeDefault = input.isDefault === true || existingCount === 0;
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      if (shouldBeDefault) {
+        await tx.memberShippingAddress.updateMany({
+          where: { userId, isDefault: true },
+          data: { isDefault: false },
+        });
+      }
+
+      return tx.memberShippingAddress.create({
+        data: {
+          userId,
+          label: input.label?.trim() || null,
+          recipientName: input.recipientName.trim(),
+          phone: input.phone.trim(),
+          email: input.email?.trim() || null,
+          countryCode: input.countryCode?.trim() || null,
+          countryName: input.countryName?.trim() || null,
+          provinceCode: input.provinceCode?.trim() || null,
+          provinceName: input.provinceName?.trim() || null,
+          districtCode: input.districtCode?.trim() || null,
+          districtName: input.districtName?.trim() || null,
+          subdistrictCode: input.subdistrictCode?.trim() || null,
+          subdistrictName: input.subdistrictName?.trim() || null,
+          postalCode: input.postalCode?.trim() || null,
+          addressLine: input.addressLine.trim(),
+          note: input.note?.trim() || null,
+          isDefault: shouldBeDefault,
+        },
+      });
+    });
+
+    return this.toShippingAddressRecord(created);
+  }
+
+  async setDefaultShippingAddress(memberId: string, shippingAddressId: string) {
+    const userId = BigInt(memberId);
+    const addressId = BigInt(shippingAddressId);
+    const address = await this.prisma.memberShippingAddress.findFirst({
+      where: {
+        id: addressId,
+        userId,
+      },
+      select: { id: true },
+    });
+
+    if (!address) {
+      throw new Error("Shipping address not found.");
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.memberShippingAddress.updateMany({
+        where: { userId, isDefault: true },
+        data: { isDefault: false },
+      }),
+      this.prisma.memberShippingAddress.update({
+        where: { id: addressId },
+        data: { isDefault: true },
+      }),
+    ]);
+
+    return {
+      shippingAddressId,
+      isDefault: true as const,
     };
   }
 
