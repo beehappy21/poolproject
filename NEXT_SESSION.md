@@ -5,8 +5,8 @@ Updated: 2026-03-23
 ## Branch
 
 - Current branch: `main`
-- Latest merged PR: `#17` `https://github.com/beehappy21/poolproject/pull/17`
-- Main is currently at merge commit `ffa680f`
+- Latest merged PR: `#18` `https://github.com/beehappy21/poolproject/pull/18`
+- Main is currently at merge commit `cde35ea`
 
 ## Recently Merged Work
 
@@ -14,18 +14,20 @@ Updated: 2026-03-23
 - PR `#15` is already merged into `main`
 - PR `#16` is already merged into `main`
 - PR `#17` is already merged into `main`
+- PR `#18` is already merged into `main`
 - Recent pool/commission/browser-check commits:
   - `03632e5` Add configurable pool rule coverage and commission summaries
   - `9e652b6` Snapshot pool item rates on orders and fix pool-rate precision
   - `56bb3ed` Merge PR `#15` into `main`
   - `78da058` Merge PR `#16` into `main`
   - `ffa680f` Merge PR `#17` into `main`
+  - `cde35ea` Merge PR `#18` into `main`
 
 ## What To Do Next
 
 1. If deployment work continues, follow `DEPLOY_CHECKLIST.md`
 2. Use `docs/technical-design/commission_plan_summary.md` as the single summary for plan-calculation status
-3. If wallet work continues, the next high-value slice is member-facing wallet UI and/or richer admin review tooling beyond the current local admin panel
+3. If wallet/DCW work continues, the next high-value slice is member-facing CW/SW/DCW UI and/or richer admin review tooling beyond the current local admin panel
 4. Reuse the BAO browser-check scripts before deploys or after commission/order-report changes
 5. Keep `member003` legacy matrix analysis positioned as research/sandbox work unless we explicitly want to productionize it further
 
@@ -59,10 +61,15 @@ Updated: 2026-03-23
   - allowed cash/top-up payment-method configuration
   - SW top-up request review actions
 - SW top-up admin actions now require a real authenticated admin session and no longer trust `actorUserId` from request body
+- DCW controls are now merged into `main`, including:
+  - BAO product create/edit fields for DCW spend, DCW usage amount, and DCW reward rate
+  - single DCW reward-rate rule for mixed `cash + SW` purchases
+  - DCW usage and credited reward amounts rounded down to whole numbers
+  - CW / SW terminology updated across admin/member-facing labels, notes, and smoke/docs
 
 ## Review Notes
 
-- No open merge blocker remains from the configurable pool rules, BAO browser-check, and wallet/payment work that landed in PR `#15`, PR `#16`, and PR `#17`
+- No open merge blocker remains from the configurable pool rules, BAO browser-check, and wallet/payment work that landed in PR `#15`, PR `#16`, `#17`, and `#18`
 - The previously requested browser verification of BAO cashback and Stephub shipment-state flows is now covered by local reusable smoke scripts
 - Wallet smoke now covers:
   - commission credit
@@ -71,6 +78,7 @@ Updated: 2026-03-23
   - admin SW top-up
   - member SW top-up request and admin approval
   - mixed `wallet + cash` order split
+  - DCW reward from mixed `cash + SW` purchases
 - Current matrix docs still describe a separate sandbox-only legacy placement engine and do not change production matrix code
 - If matrix work resumes, treat it as a product decision rather than a merge-readiness issue
 
@@ -94,6 +102,8 @@ Updated: 2026-03-23
   - `npm run smoke:bao:all`
 - Wallet mixed-payment and top-up flow smoke:
   - `npm run smoke:wallet:mixed`
+- DCW product/rule smoke:
+  - `npm run smoke:wallet:dcw`
 - Cleanup cashback smoke artifacts:
   - `npm run cleanup:cashback-smoke -- --apply`
 
@@ -119,13 +129,17 @@ Updated: 2026-03-23
 - Wallet system in `main` now supports:
   - CW summary and transaction history
   - SW balance bucket
+  - DCW package/product controls with whole-number rounding
   - CW-to-SW conversion with configurable fee
   - SW transfer to downline with configurable fee
   - admin SW top-up
   - member SW top-up requests with admin approve/reject
   - mixed wallet + cash order payments
+  - mixed `cash + SW` DCW reward using a single configurable reward rate
   - configurable allowed payment methods for cash checkout and SW top-up
-- Latest wallet smoke suite after merge: `npm run smoke:wallet:mixed`
+- Latest wallet/DCW smoke suites after merge:
+  - `npm run smoke:wallet:mixed`
+  - `npm run smoke:wallet:dcw`
 - Current admin tooling is in the local admin app under `/admin`; member-facing wallet UI is still the most obvious next product slice if wallet work continues
 
 ## Current Local State
