@@ -7,6 +7,7 @@ export interface PoolFundingInput {
   approvedOrderCount: number;
   fundingTotalApprovedPv: string;
   poolRate: string;
+  approvedOrders?: PoolSourceOrder[];
 }
 
 export interface PoolSourceOrder {
@@ -14,6 +15,11 @@ export interface PoolSourceOrder {
   sourceUserId: string;
   approvedAt: string;
   totalPv: string;
+  items?: Array<{
+    lineTotalPv: string;
+    poolRateMode?: "default_50_percent" | "custom_rate" | "disabled";
+    poolRate?: string;
+  }>;
 }
 
 export interface PoolFundingResult {
@@ -42,7 +48,9 @@ export interface PoolEligibilityDecision {
 export interface PoolRecipientDraftResult {
   userId: string;
   eligible: boolean;
+  requestedAmount: string;
   amount: string;
+  fallbackAmount: string;
   candidateCycleIds: string[];
   allocation: {
     assignedCycleId: string | null;

@@ -1,0 +1,22 @@
+CREATE TYPE "PoolRateMode" AS ENUM (
+  'DEFAULT_50_PERCENT',
+  'CUSTOM_RATE',
+  'DISABLED'
+);
+
+CREATE TYPE "CommissionCapScope" AS ENUM (
+  'POOL_ONLY',
+  'ALL_COMMISSIONS'
+);
+
+ALTER TABLE "ProductDetail"
+ADD COLUMN "poolRateMode" "PoolRateMode" NOT NULL DEFAULT 'DEFAULT_50_PERCENT',
+ADD COLUMN "poolCapMultiple" DECIMAL(10, 8) NOT NULL DEFAULT 0,
+ADD COLUMN "commissionCapScope" "CommissionCapScope" NOT NULL DEFAULT 'POOL_ONLY',
+ADD COLUMN "commissionCapMultiple" DECIMAL(10, 8) NOT NULL DEFAULT 0;
+
+ALTER TABLE "Package"
+ADD COLUMN "poolRateMode" "PoolRateMode" NOT NULL DEFAULT 'DEFAULT_50_PERCENT',
+ADD COLUMN "poolCapMultiple" DECIMAL(10, 8) NOT NULL DEFAULT 0,
+ADD COLUMN "commissionCapScope" "CommissionCapScope" NOT NULL DEFAULT 'POOL_ONLY',
+ADD COLUMN "commissionCapMultiple" DECIMAL(10, 8) NOT NULL DEFAULT 0;

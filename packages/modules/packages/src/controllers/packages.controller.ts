@@ -91,10 +91,39 @@ export class PackagesController {
       memberPriceUsdt: string;
       retailPriceUsdt: string;
       pv: string;
-      poolRate: string;
+      poolRateMode?: string;
+      poolRate?: string;
+      poolCapMultiple?: string;
+      commissionCapScope?: string;
+      commissionCapMultiple?: string;
     },
   ) {
     try {
+      const normalizedPoolRateMode = (
+        optionalString(body.poolRateMode) ?? "default_50_percent"
+      ).toLowerCase();
+      if (
+        normalizedPoolRateMode !== "default_50_percent" &&
+        normalizedPoolRateMode !== "custom_rate" &&
+        normalizedPoolRateMode !== "disabled"
+      ) {
+        throw new BadRequestException(
+          "poolRateMode must be default_50_percent, custom_rate, or disabled.",
+        );
+      }
+
+      const normalizedCommissionCapScope = (
+        optionalString(body.commissionCapScope) ?? "pool_only"
+      ).toLowerCase();
+      if (
+        normalizedCommissionCapScope !== "pool_only" &&
+        normalizedCommissionCapScope !== "all_commissions"
+      ) {
+        throw new BadRequestException(
+          "commissionCapScope must be pool_only or all_commissions.",
+        );
+      }
+
       return await this.packagesService.createProductDetail({
         productId: requirePositiveIntegerString(body.productId, "productId"),
         code: requireNonEmptyString(body.code, "code"),
@@ -105,7 +134,26 @@ export class PackagesController {
         memberPriceUsdt: requireDecimalString(body.memberPriceUsdt, "memberPriceUsdt"),
         retailPriceUsdt: requireDecimalString(body.retailPriceUsdt, "retailPriceUsdt"),
         pv: requireDecimalString(body.pv, "pv"),
-        poolRate: requireDecimalRateString(body.poolRate, "poolRate"),
+        poolRateMode: normalizedPoolRateMode as
+          | "default_50_percent"
+          | "custom_rate"
+          | "disabled",
+        poolRate:
+          normalizedPoolRateMode === "custom_rate"
+            ? requireDecimalRateString(body.poolRate, "poolRate")
+            : "0",
+        poolCapMultiple: optionalString(body.poolCapMultiple)
+          ? requireDecimalString(body.poolCapMultiple, "poolCapMultiple")
+          : "0",
+        commissionCapScope: normalizedCommissionCapScope as
+          | "pool_only"
+          | "all_commissions",
+        commissionCapMultiple: optionalString(body.commissionCapMultiple)
+          ? requireDecimalString(
+              body.commissionCapMultiple,
+              "commissionCapMultiple",
+            )
+          : "0",
       });
     } catch (error) {
       rethrowHttpError(error);
@@ -127,11 +175,40 @@ export class PackagesController {
       pv?: string;
       activeDays: number;
       earningCapAmount: string;
+      poolRateMode?: string;
       poolRate?: string;
+      poolCapMultiple?: string;
+      commissionCapScope?: string;
+      commissionCapMultiple?: string;
       productDetailItems?: Array<{ productDetailId: string; qty: number }>;
     },
   ) {
     try {
+      const normalizedPoolRateMode = (
+        optionalString(body.poolRateMode) ?? "default_50_percent"
+      ).toLowerCase();
+      if (
+        normalizedPoolRateMode !== "default_50_percent" &&
+        normalizedPoolRateMode !== "custom_rate" &&
+        normalizedPoolRateMode !== "disabled"
+      ) {
+        throw new BadRequestException(
+          "poolRateMode must be default_50_percent, custom_rate, or disabled.",
+        );
+      }
+
+      const normalizedCommissionCapScope = (
+        optionalString(body.commissionCapScope) ?? "pool_only"
+      ).toLowerCase();
+      if (
+        normalizedCommissionCapScope !== "pool_only" &&
+        normalizedCommissionCapScope !== "all_commissions"
+      ) {
+        throw new BadRequestException(
+          "commissionCapScope must be pool_only or all_commissions.",
+        );
+      }
+
       const normalizedItems = (body.productDetailItems ?? []).map((item, index) => ({
         productDetailId: requirePositiveIntegerString(
           item?.productDetailId,
@@ -160,8 +237,25 @@ export class PackagesController {
           body.earningCapAmount,
           "earningCapAmount",
         ),
-        poolRate: optionalString(body.poolRate)
-          ? requireDecimalRateString(body.poolRate, "poolRate")
+        poolRateMode: normalizedPoolRateMode as
+          | "default_50_percent"
+          | "custom_rate"
+          | "disabled",
+        poolRate:
+          normalizedPoolRateMode === "custom_rate"
+            ? requireDecimalRateString(body.poolRate, "poolRate")
+            : undefined,
+        poolCapMultiple: optionalString(body.poolCapMultiple)
+          ? requireDecimalString(body.poolCapMultiple, "poolCapMultiple")
+          : undefined,
+        commissionCapScope: normalizedCommissionCapScope as
+          | "pool_only"
+          | "all_commissions",
+        commissionCapMultiple: optionalString(body.commissionCapMultiple)
+          ? requireDecimalString(
+              body.commissionCapMultiple,
+              "commissionCapMultiple",
+            )
           : undefined,
         productDetailItems: normalizedItems,
       });

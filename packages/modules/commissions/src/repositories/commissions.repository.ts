@@ -127,6 +127,25 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
         activeUntil: true,
         earningCap: true,
         earnedTotalInCycle: true,
+        package: {
+          select: {
+            priceUsdt: true,
+            memberPriceUsdt: true,
+            poolRateMode: true,
+            poolRate: true,
+            poolCapMultiple: true,
+            commissionCapScope: true,
+            commissionCapMultiple: true,
+          },
+        },
+        dailyPoolPayouts: {
+          where: {
+            status: "APPROVED",
+          },
+          select: {
+            payoutAmount: true,
+          },
+        },
         isReceivable: true,
         earningStatus: true,
       },
@@ -168,28 +187,67 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
     commissionId: string,
     result: CommissionFinalizationResult,
   ): Promise<void> {
-    await this.prisma.commissionLedger.update({
-      where: { id: BigInt(commissionId) },
-      data: {
-        beneficiaryCycleId: result.beneficiaryCycleId
-          ? BigInt(result.beneficiaryCycleId)
-          : null,
-        finalizedAt: new Date(),
-        finalizeCheckedAt: new Date(),
-        status:
-          result.commissionStatus === "approved"
-            ? "APPROVED"
-            : result.commissionStatus === "held"
-              ? "HELD"
-              : result.commissionStatus === "withdrawable"
-                ? "WITHDRAWABLE"
-                : "FALLBACK",
-        fallbackToCompany: result.commissionStatus === "fallback",
-        companyFallbackReason:
-          result.commissionStatus === "fallback" ? result.fallbackReason : null,
-        blockReason:
-          result.commissionStatus === "fallback" ? result.fallbackReason : null,
-      },
+    await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.commissionLedger.findUnique({
+        where: { id: BigInt(commissionId) },
+        select: {
+          status: true,
+          commissionAmount: true,
+          beneficiaryCycleId: true,
+        },
+      });
+
+      const nextStatus =
+        result.commissionStatus === "approved"
+          ? "APPROVED"
+          : result.commissionStatus === "held"
+            ? "HELD"
+            : result.commissionStatus === "withdrawable"
+              ? "WITHDRAWABLE"
+              : "FALLBACK";
+      const nextBeneficiaryCycleId = result.beneficiaryCycleId
+        ? BigInt(result.beneficiaryCycleId)
+        : null;
+
+      await tx.commissionLedger.update({
+        where: { id: BigInt(commissionId) },
+        data: {
+          beneficiaryCycleId: nextBeneficiaryCycleId,
+          finalizedAt: new Date(),
+          finalizeCheckedAt: new Date(),
+          status: nextStatus,
+          fallbackToCompany: result.commissionStatus === "fallback",
+          companyFallbackReason:
+            result.commissionStatus === "fallback" ? result.fallbackReason : null,
+          blockReason:
+            result.commissionStatus === "fallback" ? result.fallbackReason : null,
+        },
+      });
+
+      const shouldApplyToCycle =
+        !!nextBeneficiaryCycleId &&
+        (nextStatus === "APPROVED" ||
+          nextStatus === "HELD" ||
+          nextStatus === "WITHDRAWABLE") &&
+        !(
+          existing &&
+          existing.beneficiaryCycleId &&
+          existing.beneficiaryCycleId.toString() === nextBeneficiaryCycleId.toString() &&
+          (existing.status === "APPROVED" ||
+            existing.status === "HELD" ||
+            existing.status === "WITHDRAWABLE")
+        );
+
+      if (shouldApplyToCycle) {
+        await tx.memberPackageCycle.update({
+          where: { id: nextBeneficiaryCycleId },
+          data: {
+            earnedTotalInCycle: {
+              increment: existing?.commissionAmount ?? 0,
+            },
+          },
+        });
+      }
     });
   }
 

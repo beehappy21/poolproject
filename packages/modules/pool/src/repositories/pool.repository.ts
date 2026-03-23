@@ -247,28 +247,74 @@ export class PrismaPoolRepository implements PoolRepository {
     poolCycleId: string;
     recipientDrafts: PoolRecipientDraftResult[];
   }): Promise<void> {
-    await this.prisma.dailyPoolPayout.deleteMany({
-      where: { cycleId: BigInt(input.poolCycleId) },
-    });
+    await this.prisma.$transaction(async (tx) => {
+      const existingApprovedPayouts = await tx.dailyPoolPayout.findMany({
+        where: {
+          cycleId: BigInt(input.poolCycleId),
+          status: "APPROVED",
+          beneficiaryCycleId: { not: null },
+        },
+        select: {
+          beneficiaryCycleId: true,
+          payoutAmount: true,
+        },
+      });
 
-    if (input.recipientDrafts.length === 0) {
-      return;
-    }
+      for (const payout of existingApprovedPayouts) {
+        if (!payout.beneficiaryCycleId) {
+          continue;
+        }
 
-    await this.prisma.dailyPoolPayout.createMany({
-      data: input.recipientDrafts.map((recipient) => ({
-        cycleId: BigInt(input.poolCycleId),
-        userId: BigInt(recipient.userId),
-        beneficiaryCycleId: recipient.finalization.beneficiaryCycleId
-          ? BigInt(recipient.finalization.beneficiaryCycleId)
-          : null,
-        payoutAmount: recipient.amount,
-        status:
-          recipient.finalization.commissionStatus === "approved"
-            ? "APPROVED"
-            : "FALLBACK",
-        blockReason: recipient.finalization.fallbackReason,
-      })),
+        await tx.memberPackageCycle.update({
+          where: { id: payout.beneficiaryCycleId },
+          data: {
+            earnedTotalInCycle: {
+              decrement: payout.payoutAmount,
+            },
+          },
+        });
+      }
+
+      await tx.dailyPoolPayout.deleteMany({
+        where: { cycleId: BigInt(input.poolCycleId) },
+      });
+
+      if (input.recipientDrafts.length === 0) {
+        return;
+      }
+
+      await tx.dailyPoolPayout.createMany({
+        data: input.recipientDrafts.map((recipient) => ({
+          cycleId: BigInt(input.poolCycleId),
+          userId: BigInt(recipient.userId),
+          beneficiaryCycleId: recipient.finalization.beneficiaryCycleId
+            ? BigInt(recipient.finalization.beneficiaryCycleId)
+            : null,
+          payoutAmount: recipient.amount,
+          status:
+            recipient.finalization.commissionStatus === "approved"
+              ? "APPROVED"
+              : "FALLBACK",
+          blockReason: recipient.finalization.fallbackReason,
+        })),
+      });
+
+      const approvedRecipients = input.recipientDrafts.filter(
+        (recipient) =>
+          recipient.finalization.commissionStatus === "approved" &&
+          !!recipient.finalization.beneficiaryCycleId,
+      );
+
+      for (const recipient of approvedRecipients) {
+        await tx.memberPackageCycle.update({
+          where: { id: BigInt(recipient.finalization.beneficiaryCycleId!) },
+          data: {
+            earnedTotalInCycle: {
+              increment: recipient.amount,
+            },
+          },
+        });
+      }
     });
   }
 

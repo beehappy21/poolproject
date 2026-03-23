@@ -18,15 +18,50 @@ export function toQualificationCycleSnapshot(cycle: {
   activeUntil: Date;
   earningCap: { toString(): string };
   earnedTotalInCycle: { toString(): string };
+  package?: {
+    priceUsdt?: { toString(): string };
+    memberPriceUsdt?: { toString(): string };
+    poolRateMode?: { toString(): string };
+    poolRate?: { toString(): string };
+    poolCapMultiple?: { toString(): string };
+    commissionCapScope?: { toString(): string };
+    commissionCapMultiple?: { toString(): string };
+  } | null;
+  dailyPoolPayouts?: Array<{
+    payoutAmount: { toString(): string };
+  }>;
   isReceivable: boolean;
   earningStatus: "ACTIVE" | "CAPPED";
 }): QualificationCycleSnapshot {
+  const poolEarnedToDate = (cycle.dailyPoolPayouts ?? []).reduce((total, payout) => {
+    const next = Number(total) + Number(toDecimalString(payout.payoutAmount));
+    return String(next);
+  }, "0");
+
   return {
     cycleId: toIdString(cycle.id),
     activatedAt: toIsoString(cycle.activatedAt),
     activeUntil: toIsoString(cycle.activeUntil),
     earningCap: toDecimalString(cycle.earningCap),
     earnedTotalInCycle: toDecimalString(cycle.earnedTotalInCycle),
+    purchaseBase: toDecimalString(
+      cycle.package?.priceUsdt ?? cycle.package?.memberPriceUsdt,
+    ),
+    poolRateMode:
+      cycle.package?.poolRateMode?.toString().toLowerCase() as
+        | "default_50_percent"
+        | "custom_rate"
+        | "disabled"
+        | undefined,
+    poolRate: toDecimalString(cycle.package?.poolRate),
+    poolCapMultiple: toDecimalString(cycle.package?.poolCapMultiple),
+    commissionCapScope:
+      cycle.package?.commissionCapScope?.toString().toLowerCase() as
+        | "pool_only"
+        | "all_commissions"
+        | undefined,
+    commissionCapMultiple: toDecimalString(cycle.package?.commissionCapMultiple),
+    poolEarnedToDate,
     isReceivable: cycle.isReceivable,
     earningStatus: cycle.earningStatus === "ACTIVE" ? "active" : "capped",
   };

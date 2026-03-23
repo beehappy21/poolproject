@@ -6,12 +6,20 @@ export interface BonusToCycleAllocationInput {
   beneficiaryUserId: string;
   evaluationAt: string;
   bonusAmount: string;
+  sourceType?: "direct" | "uni" | "pool" | "cashback";
   candidateCycles: Array<{
     cycleId: string;
     activatedAt: string;
     activeUntil: string;
     earningCap: string;
     earnedTotalInCycle: string;
+    purchaseBase: string;
+    poolRateMode?: "default_50_percent" | "custom_rate" | "disabled";
+    poolRate?: string;
+    poolCapMultiple?: string;
+    commissionCapScope?: "pool_only" | "all_commissions";
+    commissionCapMultiple?: string;
+    poolEarnedToDate?: string;
     isReceivable: boolean;
     earningStatus: "active" | "capped";
   }>;

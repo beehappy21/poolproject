@@ -715,6 +715,25 @@ export class PrismaMembersRepository implements MembersRepository {
         activeUntil: true,
         earningCap: true,
         earnedTotalInCycle: true,
+        package: {
+          select: {
+            priceUsdt: true,
+            memberPriceUsdt: true,
+            poolRateMode: true,
+            poolRate: true,
+            poolCapMultiple: true,
+            commissionCapScope: true,
+            commissionCapMultiple: true,
+          },
+        },
+        dailyPoolPayouts: {
+          where: {
+            status: "APPROVED",
+          },
+          select: {
+            payoutAmount: true,
+          },
+        },
         isReceivable: true,
         earningStatus: true,
       },

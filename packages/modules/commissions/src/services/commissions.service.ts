@@ -286,6 +286,7 @@ export class CommissionsService implements CommissionsServiceContract {
         await this.qualificationService.evaluateCycleCapCheck({
           cycle,
           bonusAmount: input.bonusAmount,
+          sourceType: input.sourceType,
         });
 
       if (capCheck.canAbsorbFullAmount) {
@@ -324,6 +325,7 @@ export class CommissionsService implements CommissionsServiceContract {
       beneficiaryUserId: input.beneficiaryUserId,
       evaluationAt: input.evaluationAt,
       bonusAmount: input.amount,
+      sourceType: input.sourceType,
       candidateCycles,
     });
 
@@ -380,6 +382,7 @@ export class CommissionsService implements CommissionsServiceContract {
       beneficiaryUserId: sourceUserId,
       evaluationAt,
       bonusAmount: amount,
+      sourceType: "cashback",
       candidateCycles: [],
     });
     const finalization = this.buildFinalizationFromAllocation(allocation);

@@ -3,7 +3,9 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../../../../infrastructure/src/prisma/prisma.service";
 import {
   buildUtcDayRange,
-  toApprovedOrderSummary,
+  toDecimalString,
+  toIdString,
+  toIsoString,
 } from "../../../../infrastructure/src/prisma/prisma.mappers";
 import {
   readCommissionSettings,
@@ -169,6 +171,11 @@ export interface OrdersRepository {
       sourceUserId: string;
       approvedAt: string;
       totalPv: string;
+      items: Array<{
+        lineTotalPv: string;
+        poolRateMode?: "default_50_percent" | "custom_rate" | "disabled";
+        poolRate?: string;
+      }>;
     }>
   >;
 }
@@ -591,6 +598,11 @@ export class PrismaOrdersRepository implements OrdersRepository {
       sourceUserId: string;
       approvedAt: string;
       totalPv: string;
+      items: Array<{
+        lineTotalPv: string;
+        poolRateMode?: "default_50_percent" | "custom_rate" | "disabled";
+        poolRate?: string;
+      }>;
     }>
   > {
     const range = buildUtcDayRange(poolDate);
@@ -605,9 +617,34 @@ export class PrismaOrdersRepository implements OrdersRepository {
         userId: true,
         approvedAt: true,
         totalPv: true,
+        orderItems: {
+          select: {
+            lineTotalPv: true,
+            package: {
+              select: {
+                poolRateMode: true,
+                poolRate: true,
+              },
+            },
+          },
+        },
       },
     });
 
-    return orders.map(toApprovedOrderSummary);
+    return orders.map((order) => ({
+      orderId: toIdString(order.id),
+      sourceUserId: toIdString(order.userId),
+      approvedAt: toIsoString(order.approvedAt),
+      totalPv: toDecimalString(order.totalPv),
+      items: order.orderItems.map((item) => ({
+        lineTotalPv: toDecimalString(item.lineTotalPv),
+        poolRateMode: item.package?.poolRateMode?.toString().toLowerCase() as
+          | "default_50_percent"
+          | "custom_rate"
+          | "disabled"
+          | undefined,
+        poolRate: toDecimalString(item.package?.poolRate),
+      })),
+    }));
   }
 }

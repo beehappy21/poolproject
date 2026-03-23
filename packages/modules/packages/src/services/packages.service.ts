@@ -45,7 +45,11 @@ export class PackagesService {
     memberPriceUsdt: string;
     retailPriceUsdt: string;
     pv: string;
+    poolRateMode: "default_50_percent" | "custom_rate" | "disabled";
     poolRate: string;
+    poolCapMultiple: string;
+    commissionCapScope: "pool_only" | "all_commissions";
+    commissionCapMultiple: string;
   }) {
     return this.packagesRepository.createProductDetail(input);
   }
@@ -61,7 +65,11 @@ export class PackagesService {
     pv?: string;
     activeDays: number;
     earningCapAmount: string;
+    poolRateMode?: "default_50_percent" | "custom_rate" | "disabled";
     poolRate?: string;
+    poolCapMultiple?: string;
+    commissionCapScope?: "pool_only" | "all_commissions";
+    commissionCapMultiple?: string;
     productDetailItems?: Array<{
       productDetailId: string;
       qty: number;

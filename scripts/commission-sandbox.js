@@ -44,6 +44,18 @@ function divideDecimal(dividend, divisor) {
   return (a * SCALE + b / 2n) / b;
 }
 
+function addDecimal(left, right) {
+  return parseDecimal(left) + parseDecimal(right);
+}
+
+function subtractDecimal(left, right) {
+  return parseDecimal(left) - parseDecimal(right);
+}
+
+function minDecimal(left, right) {
+  return parseDecimal(left) <= parseDecimal(right) ? parseDecimal(left) : parseDecimal(right);
+}
+
 function assertUniqueIds(items, key, label) {
   const seen = new Set();
 
@@ -90,11 +102,19 @@ function sortByDateThenId(items) {
 }
 
 function buildMemberState(member) {
+  const meta = member.meta ?? {};
   return {
     ...member,
     active: Boolean(member.active),
     earningCap: parseDecimal(member.earningCap ?? "0"),
     earnedToDate: parseDecimal(member.earnedToDate ?? "0"),
+    poolEarnedToDate: parseDecimal(meta.poolEarnedToDate ?? "0"),
+    configurablePool: {
+      purchaseBase: parseDecimal(meta.purchaseBase ?? "0"),
+      poolCapMultiple: parseDecimal(meta.poolCapMultiple ?? "0"),
+      commissionCapScope: String(meta.commissionCapScope ?? "pool_only").toLowerCase(),
+      commissionCapMultiple: parseDecimal(meta.commissionCapMultiple ?? "0"),
+    },
   };
 }
 
@@ -134,6 +154,59 @@ function canReceiveAmount(member, amount) {
   return member.active && member.earnedToDate + amount <= member.earningCap;
 }
 
+function resolvePoolRateForOrder(order, settings) {
+  const meta = order.meta ?? {};
+  const mode = String(meta.poolRateMode ?? "").toLowerCase();
+
+  if (mode === "disabled") {
+    return parseDecimal("0");
+  }
+
+  if (mode === "custom_rate") {
+    return parseDecimal(meta.poolRate ?? "0");
+  }
+
+  if (mode === "default_50_percent") {
+    return parseDecimal("0.5");
+  }
+
+  if (settings.useConfigurablePoolRate) {
+    return parseDecimal("0.5");
+  }
+
+  return parseDecimal(settings.poolRate);
+}
+
+function resolvePoolCapDecision(member, amount) {
+  const config = member.configurablePool ?? {};
+  const purchaseBase = config.purchaseBase ?? 0n;
+
+  if (purchaseBase <= 0n) {
+    return { allowed: true, reasonCode: null };
+  }
+
+  const poolCapMultiple = config.poolCapMultiple ?? 0n;
+  if (poolCapMultiple > 0n) {
+    const poolCapAmount = multiplyDecimal(purchaseBase, poolCapMultiple);
+    if (member.poolEarnedToDate + amount > poolCapAmount) {
+      return { allowed: false, reasonCode: "pool_cap_reached_or_would_exceed_cap" };
+    }
+  }
+
+  const commissionCapMultiple = config.commissionCapMultiple ?? 0n;
+  if (
+    String(config.commissionCapScope ?? "pool_only") === "all_commissions" &&
+    commissionCapMultiple > 0n
+  ) {
+    const commissionCapAmount = multiplyDecimal(purchaseBase, commissionCapMultiple);
+    if (member.earnedToDate + amount > commissionCapAmount) {
+      return { allowed: false, reasonCode: "all_commissions_cap_reached_or_would_exceed_cap" };
+    }
+  }
+
+  return { allowed: true, reasonCode: null };
+}
+
 function pushFallback(report, payload) {
   report.companyFallbacks.push({
     ...payload,
@@ -143,6 +216,11 @@ function pushFallback(report, payload) {
 
 function applyEarning(member, amount) {
   member.earnedToDate += amount;
+}
+
+function applyPoolEarning(member, amount) {
+  member.poolEarnedToDate += amount;
+  applyEarning(member, amount);
 }
 
 function calculateOrderCommissions(order, context) {
@@ -255,7 +333,13 @@ function calculateOrderCommissions(order, context) {
 function calculatePoolForDate(date, orders, context) {
   const { settings, members, memberMap, report } = context;
   const totalPv = orders.reduce((sum, order) => sum + parseDecimal(order.pv), 0n);
-  const poolFund = multiplyDecimal(totalPv, settings.poolRate);
+  const totalPoolContribution = orders.reduce(
+    (sum, order) => sum + multiplyDecimal(order.pv, resolvePoolRateForOrder(order, settings)),
+    0n,
+  );
+  const poolFund = settings.useConfigurablePoolRate
+    ? totalPoolContribution
+    : multiplyDecimal(totalPv, settings.poolRate);
   const eligibleMembers = members.filter((member) => {
     const directActiveCount = calculateDirectActiveCount(member.id, members);
     return directActiveCount >= 2 && isReceivable(member);
@@ -288,6 +372,20 @@ function calculatePoolForDate(date, orders, context) {
   const payouts = [];
 
   for (const member of eligibleMembers) {
+    const capDecision = resolvePoolCapDecision(member, payoutPerMember);
+    if (!capDecision.allowed) {
+      pushFallback(report, {
+        sourceType: "pool",
+        sourceRefId: date,
+        orderId: null,
+        levelNo: null,
+        beneficiaryId: member.id,
+        reasonCode: capDecision.reasonCode,
+        amount: payoutPerMember,
+      });
+      continue;
+    }
+
     if (!canReceiveAmount(member, payoutPerMember)) {
       pushFallback(report, {
         sourceType: "pool",
@@ -301,7 +399,7 @@ function calculatePoolForDate(date, orders, context) {
       continue;
     }
 
-    applyEarning(member, payoutPerMember);
+    applyPoolEarning(member, payoutPerMember);
     payouts.push({
       beneficiaryId: member.id,
       amount: formatDecimal(payoutPerMember),
@@ -327,6 +425,7 @@ function summarizeMembers(members) {
     active: member.active,
     earningCap: formatDecimal(member.earningCap),
     earnedToDate: formatDecimal(member.earnedToDate),
+    poolEarnedToDate: formatDecimal(member.poolEarnedToDate ?? 0n),
     directActiveCount: calculateDirectActiveCount(member.id, members),
   }));
 }
@@ -353,6 +452,7 @@ function buildReport(input) {
       "0.005",
     ],
     poolRate: input.settings?.poolRate ?? "0.5",
+    useConfigurablePoolRate: Boolean(input.settings?.useConfigurablePoolRate),
   };
 
   const members = (input.members ?? []).map(buildMemberState);
