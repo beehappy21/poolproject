@@ -319,6 +319,7 @@ model User {
   sponsor                        User?                          @relation("UserSponsorTree", fields: [sponsorId], references: [id])
   directReferrals                User[]                         @relation("UserSponsorTree")
   memberProfile                  MemberProfile?                 @relation("UserMemberProfile")
+  shippingAddresses              MemberShippingAddress[]
   memberProfileUplineRefs        MemberProfile[]                @relation("MemberProfileUplineUser")
   packageCycles                  MemberPackageCycle[]
   orders                         Order[]
@@ -373,6 +374,35 @@ model MemberProfile {
   @@index([nationalId])
   @@index([placementSide])
   @@index([rankCode])
+}
+
+model MemberShippingAddress {
+  id            BigInt   @id @default(autoincrement())
+  userId        BigInt
+  label         String?  @db.VarChar(100)
+  recipientName String   @db.VarChar(255)
+  phone         String   @db.VarChar(50)
+  email         String?  @db.VarChar(255)
+  countryCode   String?  @db.VarChar(10)
+  countryName   String?  @db.VarChar(100)
+  provinceCode  String?  @db.VarChar(20)
+  provinceName  String?  @db.VarChar(255)
+  districtCode  String?  @db.VarChar(20)
+  districtName  String?  @db.VarChar(255)
+  subdistrictCode String? @db.VarChar(20)
+  subdistrictName String? @db.VarChar(255)
+  postalCode    String?  @db.VarChar(20)
+  addressLine   String   @db.Text
+  note          String?  @db.Text
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user   User    @relation(fields: [userId], references: [id])
+  orders Order[]
+
+  @@index([userId, isDefault])
+  @@index([userId, createdAt])
 }
 
 model Supplier {
@@ -566,6 +596,22 @@ model Order {
   id                         BigInt                    @id @default(autoincrement())
   orderNo                    String                    @unique @db.VarChar(50)
   userId                     BigInt
+  shippingAddressId          BigInt?
+  shippingLabel              String?                   @db.VarChar(100)
+  shippingRecipientName      String?                   @db.VarChar(255)
+  shippingPhone              String?                   @db.VarChar(50)
+  shippingEmail              String?                   @db.VarChar(255)
+  shippingCountryCode        String?                   @db.VarChar(10)
+  shippingCountryName        String?                   @db.VarChar(100)
+  shippingProvinceCode       String?                   @db.VarChar(20)
+  shippingProvinceName       String?                   @db.VarChar(255)
+  shippingDistrictCode       String?                   @db.VarChar(20)
+  shippingDistrictName       String?                   @db.VarChar(255)
+  shippingSubdistrictCode    String?                   @db.VarChar(20)
+  shippingSubdistrictName    String?                   @db.VarChar(255)
+  shippingPostalCode         String?                   @db.VarChar(20)
+  shippingAddressLine        String?                   @db.Text
+  shippingAddressNote        String?                   @db.Text
   subtotalUsdt               Decimal                   @default(0) @db.Decimal(18, 8)
   totalUsdt                  Decimal                   @default(0) @db.Decimal(18, 8)
   totalPv                    Decimal                   @default(0) @db.Decimal(18, 8)
@@ -594,6 +640,7 @@ model Order {
   updatedAt                  DateTime                  @updatedAt
 
   user                     User                      @relation(fields: [userId], references: [id])
+  shippingAddress          MemberShippingAddress?    @relation(fields: [shippingAddressId], references: [id])
   orderItems               OrderItem[]
   commissionLedgers        CommissionLedger[]
   matrixSourcePositions    MatrixPosition[]          @relation("MatrixPositionSourceOrder")
@@ -601,6 +648,7 @@ model Order {
   matrixAccumulationEvents MatrixAccumulationEvent[] @relation("MatrixAccumulationSourceOrder")
 
   @@index([userId, status])
+  @@index([shippingAddressId])
   @@index([approvedAt])
   @@index([approvalStatus])
   @@index([transferSubmittedAt])

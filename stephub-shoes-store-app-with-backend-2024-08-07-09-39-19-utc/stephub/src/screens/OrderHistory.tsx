@@ -27,6 +27,9 @@ type LiveOrder = {
   shipmentTrackingNo: string | null;
   shipmentCarrier: string | null;
   shipmentNote: string | null;
+  fulfillmentMethod: 'delivery' | 'branch_pickup';
+  pickupBranchName: string | null;
+  pickupBranchNote: string | null;
   createdAt: string;
 };
 
@@ -114,14 +117,26 @@ export const OrderHistory: FC = () => {
   );
 
   const getOrderState = (order: LiveOrder): string => {
-    if (order.deliveredAt) return 'Delivered';
-    if (order.shippedAt) return 'Shipped';
-    if (order.approvalStatus === 'approved') return 'Awaiting Shipment';
-    if (order.transferSubmittedAt) return 'Transfer Review';
-    return 'Awaiting Payment';
+    if (order.fulfillmentMethod === 'branch_pickup') {
+      if (order.deliveredAt) return 'รับสินค้าแล้ว';
+      if (order.shippedAt) return 'พร้อมรับที่สาขา';
+      if (order.approvalStatus === 'approved') return 'รอรับที่สาขา';
+    }
+
+    if (order.deliveredAt) return 'ส่งถึงแล้ว';
+    if (order.shippedAt) return 'จัดส่งแล้ว';
+    if (order.approvalStatus === 'approved') return 'รอจัดส่ง';
+    if (order.transferSubmittedAt) return 'รอตรวจสอบการโอน';
+    return 'รอชำระ';
   };
 
   const getOrderStateColor = (order: LiveOrder): string => {
+    if (order.fulfillmentMethod === 'branch_pickup') {
+      if (order.deliveredAt) return '#51BA74';
+      if (order.shippedAt) return '#F5C102';
+      if (order.approvalStatus === 'approved') return theme.colors.mainColor;
+    }
+
     if (order.deliveredAt) return '#51BA74';
     if (order.shippedAt) return '#F5C102';
     if (order.approvalStatus === 'approved') return theme.colors.mainColor;
@@ -140,31 +155,45 @@ export const OrderHistory: FC = () => {
   };
 
   const getTimelineLabel = (order: LiveOrder): string => {
+    if (order.fulfillmentMethod === 'branch_pickup') {
+      if (order.deliveredAt) {
+        return 'สร้างคำสั่งซื้อ -> ส่งสลิป -> อนุมัติ -> พร้อมรับที่สาขา -> รับสินค้าแล้ว';
+      }
+
+      if (order.shippedAt) {
+        return 'สร้างคำสั่งซื้อ -> ส่งสลิป -> อนุมัติ -> พร้อมรับที่สาขา';
+      }
+
+      if (order.approvalStatus === 'approved') {
+        return 'สร้างคำสั่งซื้อ -> ส่งสลิป -> อนุมัติ -> รอรับที่สาขา';
+      }
+    }
+
     if (order.deliveredAt) {
-      return 'Created -> Slip Submitted -> Approved -> Shipped -> Delivered';
+      return 'สร้างคำสั่งซื้อ -> ส่งสลิป -> อนุมัติ -> จัดส่ง -> ส่งถึงแล้ว';
     }
 
     if (order.shippedAt) {
-      return 'Created -> Slip Submitted -> Approved -> Shipped';
+      return 'สร้างคำสั่งซื้อ -> ส่งสลิป -> อนุมัติ -> จัดส่ง';
     }
 
     if (order.approvalStatus === 'approved') {
-      return 'Created -> Slip Submitted -> Approved -> Awaiting Shipment';
+      return 'สร้างคำสั่งซื้อ -> ส่งสลิป -> อนุมัติ -> รอจัดส่ง';
     }
 
     if (order.transferSubmittedAt) {
-      return 'Created -> Slip Submitted -> Transfer Review';
+      return 'สร้างคำสั่งซื้อ -> ส่งสลิป -> รอตรวจสอบการโอน';
     }
 
-    return 'Created -> Awaiting Payment';
+    return 'สร้างคำสั่งซื้อ -> รอชำระ';
   };
 
   const getApprovalStatusLabel = (approvalStatus: string): string => {
     if (approvalStatus === 'approved') {
-      return 'Approved';
+      return 'อนุมัติแล้ว';
     }
 
-    return 'Pending Review';
+    return 'รอตรวจสอบ';
   };
 
   const canSubmitTransferSlip = (order: LiveOrder): boolean => {
@@ -178,7 +207,7 @@ export const OrderHistory: FC = () => {
   const getOrders = useCallback(async (): Promise<void> => {
     if (!user?.accessToken) {
       setOrdersData([]);
-      setPageErrorMessage('Sign in first to view your order history.');
+      setPageErrorMessage('กรุณาเข้าสู่ระบบก่อนดูประวัติคำสั่งซื้อ');
       return;
     }
 
@@ -199,7 +228,7 @@ export const OrderHistory: FC = () => {
     } catch (error) {
       console.error(error);
       setOrdersData([]);
-      setPageErrorMessage('Unable to load your order history right now.');
+      setPageErrorMessage('ไม่สามารถโหลดประวัติคำสั่งซื้อได้ในขณะนี้');
     } finally {
       setLoading(false);
     }
@@ -230,7 +259,7 @@ export const OrderHistory: FC = () => {
 
   const handleTransferSlipSubmit = async (order: LiveOrder): Promise<void> => {
     if (!user?.accessToken) {
-      setSubmitErrorMessage('Sign in first to submit a transfer slip.');
+      setSubmitErrorMessage('กรุณาเข้าสู่ระบบก่อนส่งสลิปโอนเงิน');
       return;
     }
 
@@ -239,7 +268,7 @@ export const OrderHistory: FC = () => {
 
     if (!transferSlipUrl) {
       setSubmitErrorMessage(
-        'Please select your transfer slip image before submitting.',
+        'กรุณาเลือกภาพสลิปโอนเงินก่อนส่ง',
       );
       return;
     }
@@ -269,12 +298,12 @@ export const OrderHistory: FC = () => {
     } catch (error: any) {
       if (error?.response?.status === 413) {
         setSubmitErrorMessage(
-          'Transfer slip image is too large. Please choose a smaller image.',
+          'ภาพสลิปมีขนาดใหญ่เกินไป กรุณาเลือกไฟล์ที่เล็กลง',
         );
       } else {
         setSubmitErrorMessage(
           error?.response?.data?.message ||
-            'Unable to submit your transfer slip right now.',
+            'ไม่สามารถส่งสลิปโอนเงินได้ในขณะนี้',
         );
       }
     } finally {
@@ -288,7 +317,7 @@ export const OrderHistory: FC = () => {
   }, [getOrders, getPaymentInstructions]);
 
   const renderHeader = () => {
-    return <components.Header goBack={true} title='Order History' />;
+    return <components.Header goBack={true} title='ประวัติคำสั่งซื้อ' />;
   };
 
   const renderContent = (): JSX.Element => {
@@ -307,7 +336,7 @@ export const OrderHistory: FC = () => {
             {pageErrorMessage}
           </p>
           <components.Button
-            title={user?.accessToken ? 'Back to Home' : 'Back to Sign In'}
+            title={user?.accessToken ? 'กลับหน้าแรก' : 'กลับไปเข้าสู่ระบบ'}
             onClick={() => navigate(user?.accessToken ? '/TabNavigator' : '/')}
           />
         </div>
@@ -325,10 +354,10 @@ export const OrderHistory: FC = () => {
               marginBottom: 20,
             }}
           >
-            You do not have any orders yet.
+            ยังไม่มีคำสั่งซื้อ
           </p>
           <components.Button
-            title='Browse Packages'
+            title='เลือกแพ็กเกจ'
             onClick={() => navigate('/Shop')}
           />
         </div>
@@ -438,8 +467,47 @@ export const OrderHistory: FC = () => {
                         color: theme.colors.textColor,
                       }}
                     >
-                      Approval: {getApprovalStatusLabel(order.approvalStatus)}
+                      สถานะอนุมัติ: {getApprovalStatusLabel(order.approvalStatus)}
                     </span>
+                    <span
+                      style={{
+                        ...theme.fonts.Mulish_400Regular,
+                        fontSize: 14,
+                        lineHeight: 1.5,
+                        color: theme.colors.textColor,
+                      }}
+                    >
+                      วิธีรับสินค้า:{' '}
+                      {order.fulfillmentMethod === 'branch_pickup'
+                        ? 'รับที่สาขา'
+                        : 'จัดส่งถึงที่'}
+                    </span>
+                    {order.fulfillmentMethod === 'branch_pickup' &&
+                    order.pickupBranchName ? (
+                      <span
+                        style={{
+                          ...theme.fonts.Mulish_400Regular,
+                          fontSize: 14,
+                          lineHeight: 1.5,
+                          color: theme.colors.textColor,
+                        }}
+                      >
+                        สาขารับสินค้า: {order.pickupBranchName}
+                      </span>
+                    ) : null}
+                    {order.fulfillmentMethod === 'branch_pickup' &&
+                    order.pickupBranchNote ? (
+                      <span
+                        style={{
+                          ...theme.fonts.Mulish_400Regular,
+                          fontSize: 14,
+                          lineHeight: 1.5,
+                          color: theme.colors.textColor,
+                        }}
+                      >
+                        หมายเหตุรับสินค้า: {order.pickupBranchNote}
+                      </span>
+                    ) : null}
                     <span
                       style={{
                         ...theme.fonts.Mulish_400Regular,
@@ -459,7 +527,7 @@ export const OrderHistory: FC = () => {
                           color: theme.colors.textColor,
                         }}
                       >
-                        Slip Submitted: {formatOrderDate(order.transferSubmittedAt)}
+                        ส่งสลิปเมื่อ: {formatOrderDate(order.transferSubmittedAt)}
                       </span>
                     ) : null}
                     {order.approvedAt ? (
@@ -471,7 +539,7 @@ export const OrderHistory: FC = () => {
                           color: theme.colors.textColor,
                         }}
                       >
-                        Approved At: {formatOrderDate(order.approvedAt)}
+                        อนุมัติเมื่อ: {formatOrderDate(order.approvedAt)}
                       </span>
                     ) : null}
                     {order.deliveredAt ? (
@@ -483,7 +551,7 @@ export const OrderHistory: FC = () => {
                           color: theme.colors.textColor,
                         }}
                       >
-                        Delivered At: {formatOrderDate(order.deliveredAt)}
+                        ส่งถึงเมื่อ: {formatOrderDate(order.deliveredAt)}
                       </span>
                     ) : null}
                     {order.shipmentTrackingNo ? (
@@ -495,7 +563,7 @@ export const OrderHistory: FC = () => {
                           color: theme.colors.textColor,
                         }}
                       >
-                        Tracking: {order.shipmentTrackingNo}
+                        เลขพัสดุ: {order.shipmentTrackingNo}
                       </span>
                     ) : null}
                     {order.shipmentCarrier ? (
@@ -507,7 +575,7 @@ export const OrderHistory: FC = () => {
                           color: theme.colors.textColor,
                         }}
                       >
-                        Carrier: {order.shipmentCarrier}
+                        ขนส่ง: {order.shipmentCarrier}
                       </span>
                     ) : null}
                     {order.shipmentNote ? (
@@ -519,7 +587,7 @@ export const OrderHistory: FC = () => {
                           color: theme.colors.textColor,
                         }}
                       >
-                        Note: {order.shipmentNote}
+                        หมายเหตุจัดส่ง: {order.shipmentNote}
                       </span>
                     ) : null}
                     <span
@@ -530,7 +598,7 @@ export const OrderHistory: FC = () => {
                         color: theme.colors.textColor,
                       }}
                     >
-                      Timeline: {getTimelineLabel(order)}
+                      ไทม์ไลน์: {getTimelineLabel(order)}
                     </span>
                     {order.transferSlipUrl ? (
                       <a
@@ -545,7 +613,7 @@ export const OrderHistory: FC = () => {
                           textDecoration: 'underline',
                         }}
                       >
-                        Open transfer slip
+                        เปิดสลิปโอนเงิน
                       </a>
                     ) : null}
                   </div>
@@ -569,7 +637,7 @@ export const OrderHistory: FC = () => {
                           color: theme.colors.mainColor,
                         }}
                       >
-                        Payment Instructions
+                        ข้อมูลสำหรับชำระเงิน
                       </span>
                       <span
                         style={{
@@ -579,7 +647,7 @@ export const OrderHistory: FC = () => {
                           color: '#FF4343',
                         }}
                       >
-                        Amount Due: $
+                        ยอดที่ต้องโอน: $
                         {Number(
                           order.cashDueUsdt || order.totalUsdt || 0,
                         ).toFixed(2)}
@@ -592,7 +660,7 @@ export const OrderHistory: FC = () => {
                           color: theme.colors.textColor,
                         }}
                       >
-                        Payment Method: {order.cashPaymentMethod || 'bank_transfer'}
+                        วิธีชำระ: {order.cashPaymentMethod || 'bank_transfer'}
                       </span>
                       <span
                         style={{
@@ -602,7 +670,7 @@ export const OrderHistory: FC = () => {
                           color: theme.colors.textColor,
                         }}
                       >
-                        Bank: {paymentInstructions.bankName}
+                        ธนาคาร: {paymentInstructions.bankName}
                       </span>
                       <span
                         style={{
@@ -612,7 +680,7 @@ export const OrderHistory: FC = () => {
                           color: theme.colors.textColor,
                         }}
                       >
-                        Account Name: {paymentInstructions.accountName}
+                        ชื่อบัญชี: {paymentInstructions.accountName}
                       </span>
                       <span
                         style={{
@@ -622,7 +690,7 @@ export const OrderHistory: FC = () => {
                           color: theme.colors.textColor,
                         }}
                       >
-                        Account Number: {paymentInstructions.accountNumber}
+                        เลขบัญชี: {paymentInstructions.accountNumber}
                       </span>
                       <span
                         style={{
@@ -637,7 +705,7 @@ export const OrderHistory: FC = () => {
                       </span>
                       {paymentInstructions.qrImageUrl ? (
                         <img
-                          alt='Payment QR'
+                          alt='QR รับเงิน'
                           src={paymentInstructions.qrImageUrl}
                           style={{
                             width: '100%',
@@ -708,7 +776,7 @@ export const OrderHistory: FC = () => {
                           }}
                         >
                           {transferSlipFileNames[order.orderId] ||
-                            'Choose transfer slip image'}
+                            'เลือกภาพสลิปโอนเงิน'}
                         </span>
                         <span
                           style={{
@@ -717,7 +785,7 @@ export const OrderHistory: FC = () => {
                             color: theme.colors.mainColor,
                           }}
                         >
-                          Choose Image
+                          เลือกรูป
                         </span>
                         <input
                           accept='image/*'
@@ -743,7 +811,7 @@ export const OrderHistory: FC = () => {
                             } catch (error) {
                               console.error(error);
                               setSubmitErrorMessage(
-                                'Unable to prepare your transfer slip image right now.',
+                                'ไม่สามารถเตรียมภาพสลิปได้ในขณะนี้',
                               );
                             } finally {
                               event.target.value = '';
@@ -775,8 +843,8 @@ export const OrderHistory: FC = () => {
                             [order.orderId]: event.target.value,
                           }))
                         }
-                        placeholder='Optional transfer note'
-                        aria-label='Optional transfer note'
+                        placeholder='หมายเหตุการโอนเงินเพิ่มเติม'
+                        aria-label='หมายเหตุการโอนเงินเพิ่มเติม'
                         style={{
                           width: '100%',
                           height: 44,
@@ -791,8 +859,8 @@ export const OrderHistory: FC = () => {
                       <components.Button
                         title={
                           submittingOrderId === order.orderId
-                            ? 'Submitting...'
-                            : 'Submit Transfer Slip'
+                            ? 'กำลังส่ง...'
+                            : 'ส่งสลิปโอนเงิน'
                         }
                         onClick={() => handleTransferSlipSubmit(order)}
                       />

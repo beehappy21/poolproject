@@ -78,15 +78,51 @@ export class OrdersController {
     body: {
       userId: string;
       packageId: string;
+      quantity?: string;
+      items?: Array<{ packageId?: string; quantity?: string }>;
+      shippingAddressId?: string;
+      fulfillmentMethod?: string;
+      pickupBranchName?: string;
+      pickupBranchNote?: string;
+      pickupRecipientName?: string;
+      pickupPhone?: string;
+      pickupEmail?: string;
       discountWalletAmount?: string;
       shoppingWalletAmount?: string;
       cashPaymentMethod?: string;
     },
   ) {
     try {
+      const items = Array.isArray(body.items)
+        ? body.items
+            .filter((item) => optionalString(item?.packageId))
+            .map((item) => ({
+              packageId: requirePositiveIntegerString(item?.packageId, "items.packageId"),
+              quantity: optionalString(item?.quantity)
+                ? requirePositiveIntegerString(item?.quantity, "items.quantity")
+                : "1",
+            }))
+        : undefined;
+
       return await this.ordersService.createOrder({
         userId: requirePositiveIntegerString(body.userId, "userId"),
         packageId: requirePositiveIntegerString(body.packageId, "packageId"),
+        quantity: optionalString(body.quantity)
+          ? requirePositiveIntegerString(body.quantity, "quantity")
+          : undefined,
+        items,
+        shippingAddressId: optionalString(body.shippingAddressId)
+          ? requirePositiveIntegerString(body.shippingAddressId, "shippingAddressId")
+          : undefined,
+        fulfillmentMethod:
+          optionalString(body.fulfillmentMethod)?.trim().toLowerCase() === "branch_pickup"
+            ? "branch_pickup"
+            : "delivery",
+        pickupBranchName: optionalString(body.pickupBranchName),
+        pickupBranchNote: optionalString(body.pickupBranchNote),
+        pickupRecipientName: optionalString(body.pickupRecipientName),
+        pickupPhone: optionalString(body.pickupPhone),
+        pickupEmail: optionalString(body.pickupEmail),
         discountWalletAmount: optionalString(body.discountWalletAmount)
           ? requireDecimalString(body.discountWalletAmount, "discountWalletAmount")
           : undefined,

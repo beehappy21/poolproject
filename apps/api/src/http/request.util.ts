@@ -185,7 +185,8 @@ export function rethrowHttpError(error: unknown): never {
       error.message === "Order not found." ||
       error.message === "Approved order not found." ||
       error.message === "Package not found." ||
-      error.message === "Product detail not found."
+      error.message === "Product detail not found." ||
+      error.message === "Shipping address not found."
     ) {
       throw new NotFoundException(error.message);
     }

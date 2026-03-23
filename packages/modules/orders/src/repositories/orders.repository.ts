@@ -26,6 +26,25 @@ import {
 } from "../../../../shared/utils/src/matrix-settings.util";
 import { readWalletSettings } from "../../../../shared/utils/src/wallet-settings.util";
 
+const BRANCH_PICKUP_LABEL = "branch_pickup";
+
+function mapFulfillment(order: {
+  shippingLabel?: string | null;
+  shippingAddressLine?: string | null;
+  shippingAddressNote?: string | null;
+}) {
+  const fulfillmentMethod =
+    order.shippingLabel === BRANCH_PICKUP_LABEL ? "branch_pickup" : "delivery";
+
+  return {
+    fulfillmentMethod,
+    pickupBranchName:
+      fulfillmentMethod === "branch_pickup" ? order.shippingAddressLine ?? null : null,
+    pickupBranchNote:
+      fulfillmentMethod === "branch_pickup" ? order.shippingAddressNote ?? null : null,
+  } as const;
+}
+
 export interface OrdersRepository {
   listOrders(filters?: {
     userId?: string;
@@ -61,6 +80,9 @@ export interface OrdersRepository {
         shipmentTrackingNo: string | null;
         shipmentCarrier: string | null;
         shipmentNote: string | null;
+        fulfillmentMethod: "delivery" | "branch_pickup";
+        pickupBranchName: string | null;
+        pickupBranchNote: string | null;
         createdAt: string;
       }>
     | {
@@ -85,6 +107,9 @@ export interface OrdersRepository {
           shipmentTrackingNo: string | null;
           shipmentCarrier: string | null;
           shipmentNote: string | null;
+          fulfillmentMethod: "delivery" | "branch_pickup";
+          pickupBranchName: string | null;
+          pickupBranchNote: string | null;
           createdAt: string;
         }>;
         total: number;
@@ -114,12 +139,24 @@ export interface OrdersRepository {
     shipmentTrackingNo: string | null;
     shipmentCarrier: string | null;
     shipmentNote: string | null;
+    fulfillmentMethod: "delivery" | "branch_pickup";
+    pickupBranchName: string | null;
+    pickupBranchNote: string | null;
     createdAt: string;
   } | null>;
 
   createOrder(input: {
     userId: string;
     packageId: string;
+    quantity?: string;
+    items?: Array<{ packageId: string; quantity: string }>;
+    shippingAddressId?: string;
+    fulfillmentMethod?: "delivery" | "branch_pickup";
+    pickupBranchName?: string;
+    pickupBranchNote?: string;
+    pickupRecipientName?: string;
+    pickupPhone?: string;
+    pickupEmail?: string;
     discountWalletAmount?: string;
     shoppingWalletAmount?: string;
     cashPaymentMethod?: string;
@@ -279,9 +316,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
               ? [{ shippedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }]
               : filters?.bucket === "delivered"
                 ? [{ deliveredAt: "desc" }, { shippedAt: "desc" }, { id: "desc" }]
-          : filters?.bucket === "awaiting-payment"
-            ? [{ createdAt: "desc" }, { id: "desc" }]
-            : [{ paidAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+          : [{ createdAt: "desc" }, { id: "desc" }],
       skip:
         filters?.page && filters?.pageSize
           ? (filters.page - 1) * filters.pageSize
@@ -308,11 +343,15 @@ export class PrismaOrdersRepository implements OrdersRepository {
         shipmentTrackingNo: true,
         shipmentCarrier: true,
         shipmentNote: true,
+        shippingLabel: true,
+        shippingAddressLine: true,
+        shippingAddressNote: true,
         createdAt: true,
       },
     });
 
     const items = orders.map((order) => ({
+      ...mapFulfillment(order),
       orderId: order.id.toString(),
       orderNo: order.orderNo,
       sourceUserId: order.userId.toString(),
@@ -374,12 +413,16 @@ export class PrismaOrdersRepository implements OrdersRepository {
         shipmentTrackingNo: true,
         shipmentCarrier: true,
         shipmentNote: true,
+        shippingLabel: true,
+        shippingAddressLine: true,
+        shippingAddressNote: true,
         createdAt: true,
       },
     });
 
     return order
       ? {
+          ...mapFulfillment(order),
           orderId: order.id.toString(),
           orderNo: order.orderNo,
           sourceUserId: order.userId.toString(),
@@ -408,12 +451,31 @@ export class PrismaOrdersRepository implements OrdersRepository {
   async createOrder(input: {
     userId: string;
     packageId: string;
+    quantity?: string;
+    items?: Array<{ packageId: string; quantity: string }>;
+    shippingAddressId?: string;
+    fulfillmentMethod?: "delivery" | "branch_pickup";
+    pickupBranchName?: string;
+    pickupBranchNote?: string;
+    pickupRecipientName?: string;
+    pickupPhone?: string;
+    pickupEmail?: string;
     discountWalletAmount?: string;
     shoppingWalletAmount?: string;
     cashPaymentMethod?: string;
   }) {
-    const pkg = await this.prisma.package.findUnique({
-      where: { id: BigInt(input.packageId) },
+    const userId = BigInt(input.userId);
+    const requestedItems =
+      input.items && input.items.length > 0
+        ? input.items
+        : [{ packageId: input.packageId, quantity: input.quantity ?? "1" }];
+    const normalizedItems = requestedItems.map((item) => ({
+      packageId: item.packageId,
+      quantity: Math.max(1, Number.parseInt(item.quantity ?? "1", 10) || 1),
+    }));
+    const packageIds = normalizedItems.map((item) => BigInt(item.packageId));
+    const packages = await this.prisma.package.findMany({
+      where: { id: { in: packageIds } },
       select: {
         id: true,
         priceUsdt: true,
@@ -426,25 +488,124 @@ export class PrismaOrdersRepository implements OrdersRepository {
         dcwShoppingRewardRate: true,
       },
     });
+    const packageMap = new Map(packages.map((pkg) => [pkg.id.toString(), pkg]));
 
-    if (!pkg) {
+    if (packages.length !== normalizedItems.length) {
       throw new Error("Package not found.");
     }
 
     const walletSettings = readWalletSettings();
     const wallet = await this.prisma.wallet.findUnique({
-      where: { userId: BigInt(input.userId) },
+      where: { userId },
       select: { shoppingBalance: true, discountBalance: true },
     });
-    const packagePriceUsdt = pkg.priceUsdt.toString();
-    const packageDcwLimit = minDecimalString(
-      pkg.dcwUsageAmount.toString(),
-      packagePriceUsdt,
+    const isBranchPickup = input.fulfillmentMethod === "branch_pickup";
+    const shippingAddress = isBranchPickup
+      ? null
+      : input.shippingAddressId
+      ? await this.prisma.memberShippingAddress.findFirst({
+          where: {
+            id: BigInt(input.shippingAddressId),
+            userId,
+          },
+          select: {
+            id: true,
+            label: true,
+            recipientName: true,
+            phone: true,
+            email: true,
+            countryCode: true,
+            countryName: true,
+            provinceCode: true,
+            provinceName: true,
+            districtCode: true,
+            districtName: true,
+            subdistrictCode: true,
+            subdistrictName: true,
+            postalCode: true,
+            addressLine: true,
+            note: true,
+          },
+        })
+      : await this.prisma.memberShippingAddress.findFirst({
+          where: {
+            userId,
+            isDefault: true,
+          },
+          select: {
+            id: true,
+            label: true,
+            recipientName: true,
+            phone: true,
+            email: true,
+            countryCode: true,
+            countryName: true,
+            provinceCode: true,
+            provinceName: true,
+            districtCode: true,
+            districtName: true,
+            subdistrictCode: true,
+            subdistrictName: true,
+            postalCode: true,
+            addressLine: true,
+            note: true,
+          },
+        });
+
+    if (isBranchPickup && !input.pickupBranchName?.trim()) {
+      throw new Error("Pickup branch name is required.");
+    }
+
+    if (!isBranchPickup && input.shippingAddressId && !shippingAddress) {
+      throw new Error("Shipping address not found.");
+    }
+    const orderItemCreates = normalizedItems.map((item) => {
+      const pkg = packageMap.get(item.packageId)!;
+      const lineTotalUsdt = multiplyDecimalStrings(
+        pkg.priceUsdt.toString(),
+        item.quantity.toString(),
+      );
+      const lineTotalPv = multiplyDecimalStrings(
+        pkg.pv.toString(),
+        item.quantity.toString(),
+      );
+
+      return {
+        packageId: pkg.id,
+        qty: item.quantity,
+        unitPriceUsdt: pkg.priceUsdt,
+        unitPv: pkg.pv,
+        poolRateMode: pkg.poolRateMode,
+        unitPoolRate: pkg.poolRate,
+        dcwSpendEnabled: pkg.dcwSpendEnabled,
+        unitDcwUsageAmount: pkg.dcwUsageAmount,
+        unitDcwCashRewardRate: pkg.dcwCashRewardRate,
+        unitDcwShoppingRewardRate: pkg.dcwShoppingRewardRate,
+        lineTotalUsdt,
+        lineTotalPv,
+      } satisfies Prisma.OrderItemUncheckedCreateWithoutOrderInput;
+    });
+
+    const packagePriceUsdt = orderItemCreates.reduce(
+      (sum, item) => addDecimalStrings(sum, item.lineTotalUsdt.toString()),
+      "0",
     );
+    const packagePv = orderItemCreates.reduce(
+      (sum, item) => addDecimalStrings(sum, item.lineTotalPv.toString()),
+      "0",
+    );
+    const packageDcwLimit = orderItemCreates.reduce((sum, item) => {
+      const limit = multiplyDecimalStrings(
+        item.unitDcwUsageAmount.toString(),
+        item.qty.toString(),
+      );
+      return addDecimalStrings(sum, limit);
+    }, "0");
     const requestedDiscountAmount = input.discountWalletAmount ?? "0";
     const availableDiscount = wallet?.discountBalance.toString() ?? "0";
     const dcwAllowedForPackage =
-      walletSettings.discountWalletSpendEnabled && pkg.dcwSpendEnabled;
+      walletSettings.discountWalletSpendEnabled &&
+      orderItemCreates.every((item) => item.dcwSpendEnabled);
 
     if (
       compareDecimalStrings(requestedDiscountAmount, "0") > 0 &&
@@ -491,29 +652,42 @@ export class PrismaOrdersRepository implements OrdersRepository {
       input.cashPaymentMethod = effectiveCashPaymentMethod;
     }
 
-    const orderItemCreate: Prisma.OrderItemUncheckedCreateWithoutOrderInput = {
-      packageId: pkg.id,
-      qty: 1,
-      unitPriceUsdt: pkg.priceUsdt,
-      unitPv: pkg.pv,
-      poolRateMode: pkg.poolRateMode,
-      unitPoolRate: pkg.poolRate,
-      dcwSpendEnabled: pkg.dcwSpendEnabled,
-      unitDcwUsageAmount: pkg.dcwUsageAmount,
-      unitDcwCashRewardRate: pkg.dcwCashRewardRate,
-      unitDcwShoppingRewardRate: pkg.dcwShoppingRewardRate,
-      lineTotalUsdt: pkg.priceUsdt,
-      lineTotalPv: pkg.pv,
-    };
-
     const order = await this.prisma.$transaction(async (tx) => {
       const createdOrder = await tx.order.create({
         data: {
           orderNo: `ORD-${Date.now()}`,
-          userId: BigInt(input.userId),
-          subtotalUsdt: pkg.priceUsdt,
-          totalUsdt: pkg.priceUsdt,
-          totalPv: pkg.pv,
+          userId,
+          shippingAddressId: isBranchPickup ? null : shippingAddress?.id ?? null,
+          shippingLabel: isBranchPickup
+            ? BRANCH_PICKUP_LABEL
+            : shippingAddress?.label ?? null,
+          shippingRecipientName: isBranchPickup
+            ? input.pickupRecipientName?.trim() || null
+            : shippingAddress?.recipientName ?? null,
+          shippingPhone: isBranchPickup
+            ? input.pickupPhone?.trim() || null
+            : shippingAddress?.phone ?? null,
+          shippingEmail: isBranchPickup
+            ? input.pickupEmail?.trim() || null
+            : shippingAddress?.email ?? null,
+          shippingCountryCode: isBranchPickup ? null : shippingAddress?.countryCode ?? null,
+          shippingCountryName: isBranchPickup ? null : shippingAddress?.countryName ?? null,
+          shippingProvinceCode: isBranchPickup ? null : shippingAddress?.provinceCode ?? null,
+          shippingProvinceName: isBranchPickup ? null : shippingAddress?.provinceName ?? null,
+          shippingDistrictCode: isBranchPickup ? null : shippingAddress?.districtCode ?? null,
+          shippingDistrictName: isBranchPickup ? null : shippingAddress?.districtName ?? null,
+          shippingSubdistrictCode: isBranchPickup ? null : shippingAddress?.subdistrictCode ?? null,
+          shippingSubdistrictName: isBranchPickup ? null : shippingAddress?.subdistrictName ?? null,
+          shippingPostalCode: isBranchPickup ? null : shippingAddress?.postalCode ?? null,
+          shippingAddressLine: isBranchPickup
+            ? input.pickupBranchName?.trim() || null
+            : shippingAddress?.addressLine ?? null,
+          shippingAddressNote: isBranchPickup
+            ? input.pickupBranchNote?.trim() || null
+            : shippingAddress?.note ?? null,
+          subtotalUsdt: packagePriceUsdt,
+          totalUsdt: packagePriceUsdt,
+          totalPv: packagePv,
           dcwAppliedUsdt,
           walletAppliedUsdt,
           cashDueUsdt,
@@ -527,16 +701,16 @@ export class PrismaOrdersRepository implements OrdersRepository {
           status:
             compareDecimalStrings(cashDueUsdt, "0") <= 0 ? "PAID" : "PENDING",
           orderItems: {
-            create: [orderItemCreate],
+            create: orderItemCreates,
           },
         },
       });
 
       if (compareDecimalStrings(dcwAppliedUsdt, "0") > 0) {
         const currentWallet = await tx.wallet.upsert({
-          where: { userId: BigInt(input.userId) },
+          where: { userId },
           update: {},
-          create: { userId: BigInt(input.userId) },
+          create: { userId },
           select: { discountBalance: true },
         });
 
@@ -550,7 +724,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
         }
 
         await tx.wallet.update({
-          where: { userId: BigInt(input.userId) },
+          where: { userId },
           data: {
             discountBalance: subtractDecimalStrings(
               currentWallet.discountBalance.toString(),
@@ -561,7 +735,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
 
         await tx.walletTransaction.create({
           data: {
-            userId: BigInt(input.userId),
+            userId,
             txType: "DCW_PURCHASE_DEBIT",
             direction: "DEBIT",
             balanceBucket: "DISCOUNT",
@@ -576,9 +750,9 @@ export class PrismaOrdersRepository implements OrdersRepository {
 
       if (compareDecimalStrings(walletAppliedUsdt, "0") > 0) {
         const currentWallet = await tx.wallet.upsert({
-          where: { userId: BigInt(input.userId) },
+          where: { userId },
           update: {},
-          create: { userId: BigInt(input.userId) },
+          create: { userId },
           select: { shoppingBalance: true, discountBalance: true },
         });
 
@@ -592,7 +766,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
         }
 
         await tx.wallet.update({
-          where: { userId: BigInt(input.userId) },
+          where: { userId },
           data: {
             shoppingBalance: subtractDecimalStrings(
               currentWallet.shoppingBalance.toString(),
@@ -604,7 +778,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
 
         await tx.walletTransaction.create({
           data: {
-            userId: BigInt(input.userId),
+            userId,
             txType: "ORDER_PURCHASE_DEBIT",
             direction: "DEBIT",
             balanceBucket: "SHOPPING",

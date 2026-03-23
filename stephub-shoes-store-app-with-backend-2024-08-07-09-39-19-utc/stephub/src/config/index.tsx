@@ -16,6 +16,7 @@ export const GET_PACKAGES = `${API_BASE_URL}/packages`;
 export const AUTH_LOGIN = `${API_BASE_URL}/auth/login`;
 export const AUTH_ME = `${API_BASE_URL}/auth/me`;
 export const AUTH_ORDERS = `${API_BASE_URL}/auth/orders`;
+export const AUTH_SHIPPING_ADDRESSES = `${API_BASE_URL}/auth/shipping-addresses`;
 export const AUTH_PAYMENT_INSTRUCTIONS = `${API_BASE_URL}/auth/payment-instructions`;
 
 export const buildAuthOrderDetailUrl = (orderId: string | number) =>
@@ -23,6 +24,10 @@ export const buildAuthOrderDetailUrl = (orderId: string | number) =>
 
 export const buildSubmitTransferSlipUrl = (orderId: string | number) =>
   `${AUTH_ORDERS}/${orderId}/submit-transfer-slip`;
+
+export const buildSetDefaultShippingAddressUrl = (
+  shippingAddressId: string | number,
+) => `${AUTH_SHIPPING_ADDRESSES}/${shippingAddressId}/default`;
 
 export const URLS = {
   API_BASE_URL,
@@ -39,7 +44,9 @@ export const URLS = {
   AUTH_LOGIN,
   AUTH_ME,
   AUTH_ORDERS,
+  AUTH_SHIPPING_ADDRESSES,
   AUTH_PAYMENT_INSTRUCTIONS,
   buildAuthOrderDetailUrl,
   buildSubmitTransferSlipUrl,
+  buildSetDefaultShippingAddressUrl,
 };
