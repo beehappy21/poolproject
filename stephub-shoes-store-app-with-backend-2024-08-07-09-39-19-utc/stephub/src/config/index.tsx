@@ -16,6 +16,7 @@ export const GET_PACKAGES = `${API_BASE_URL}/packages`;
 export const AUTH_LOGIN = `${API_BASE_URL}/auth/login`;
 export const AUTH_ME = `${API_BASE_URL}/auth/me`;
 export const AUTH_ORDERS = `${API_BASE_URL}/auth/orders`;
+export const AUTH_PAYMENT_INSTRUCTIONS = `${API_BASE_URL}/auth/payment-instructions`;
 
 export const buildAuthOrderDetailUrl = (orderId: string | number) =>
   `${AUTH_ORDERS}/${orderId}`;
@@ -38,6 +39,7 @@ export const URLS = {
   AUTH_LOGIN,
   AUTH_ME,
   AUTH_ORDERS,
+  AUTH_PAYMENT_INSTRUCTIONS,
   buildAuthOrderDetailUrl,
   buildSubmitTransferSlipUrl,
 };

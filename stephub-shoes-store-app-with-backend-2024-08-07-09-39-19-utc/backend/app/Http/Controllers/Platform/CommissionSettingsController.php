@@ -6,6 +6,7 @@ use App\Support\PoolprojectSettingsStore;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Str;
 
 class CommissionSettingsController extends Controller
 {
@@ -96,6 +97,53 @@ class CommissionSettingsController extends Controller
             ->with('status', 'Matrix settings updated.');
     }
 
+    public function saveManualPayment(Request $request): RedirectResponse
+    {
+        $payload = $request->validate([
+            'accountName' => ['nullable', 'string'],
+            'bankName' => ['nullable', 'string'],
+            'accountNumber' => ['nullable', 'string'],
+            'promptPayName' => ['nullable', 'string'],
+            'promptPayNumber' => ['nullable', 'string'],
+            'note' => ['nullable', 'string'],
+            'qrImageFile' => ['nullable', 'image', 'max:4096'],
+        ]);
+
+        $current = PoolprojectSettingsStore::readManualPaymentSettings();
+        $qrImageUrl = trim((string) ($current['qrImageUrl'] ?? ''));
+
+        if ($request->hasFile('qrImageFile')) {
+            $file = $request->file('qrImageFile');
+            $extension = strtolower((string) $file->getClientOriginalExtension());
+            if ($extension === '') {
+                $extension = 'png';
+            }
+
+            $directory = public_path('manual-payments');
+            if (!is_dir($directory)) {
+                mkdir($directory, 0777, true);
+            }
+
+            $fileName = 'qr-' . Str::uuid()->toString() . '.' . $extension;
+            $file->move($directory, $fileName);
+            $qrImageUrl = rtrim((string) config('app.url'), '/') . '/manual-payments/' . $fileName;
+        }
+
+        PoolprojectSettingsStore::writeManualPaymentSettings([
+            'accountName' => trim((string) ($payload['accountName'] ?? $current['accountName'])),
+            'bankName' => trim((string) ($payload['bankName'] ?? $current['bankName'])),
+            'accountNumber' => trim((string) ($payload['accountNumber'] ?? $current['accountNumber'])),
+            'promptPayName' => trim((string) ($payload['promptPayName'] ?? $current['promptPayName'])),
+            'promptPayNumber' => trim((string) ($payload['promptPayNumber'] ?? $current['promptPayNumber'])),
+            'qrImageUrl' => $qrImageUrl,
+            'note' => trim((string) ($payload['note'] ?? $current['note'])),
+        ]);
+
+        return redirect()
+            ->route('platform.commission.manualPayment')
+            ->with('status', 'Manual payment settings updated.');
+    }
+
     private function cleanRates(array $values): array
     {
         $normalized = array_values(array_filter(array_map(
@@ -143,6 +191,7 @@ class CommissionSettingsController extends Controller
         return match ($section) {
             'direct' => 'platform.commission.direct',
             'unilevel' => 'platform.commission.unilevel',
+            'manual-payment' => 'platform.commission.manualPayment',
             'pool' => 'platform.commission.pool',
             'cashback' => 'platform.commission.cashback',
             default => 'platform.commission.settings',

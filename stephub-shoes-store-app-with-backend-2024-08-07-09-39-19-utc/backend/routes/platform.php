@@ -98,6 +98,10 @@ Route::screen('commission/cashback', CommissionSettingsScreen::class)
   ->defaults('section', 'cashback')
   ->name('platform.commission.cashback');
 
+Route::screen('commission/manual-payment', CommissionSettingsScreen::class)
+  ->defaults('section', 'manual-payment')
+  ->name('platform.commission.manualPayment');
+
 Route::screen('commission/report', CommissionReportScreen::class)
   ->defaults('reportMode', 'overview')
   ->name('platform.commission.report');
@@ -130,6 +134,9 @@ Route::post('commission/save', [CommissionSettingsController::class, 'saveCommis
 
 Route::post('commission/save-matrix', [CommissionSettingsController::class, 'saveMatrix'])
   ->name('platform.commission.saveMatrix');
+
+Route::post('commission/save-manual-payment', [CommissionSettingsController::class, 'saveManualPayment'])
+  ->name('platform.commission.saveManualPayment');
 
 // Platform > Suppliers
 Route::screen('supplier/list', SupplierListScreen::class)

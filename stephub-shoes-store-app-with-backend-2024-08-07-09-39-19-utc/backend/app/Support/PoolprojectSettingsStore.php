@@ -25,6 +25,16 @@ class PoolprojectSettingsStore
         'boardOpenPvThresholds' => ['100', '100', '100'],
     ];
 
+    private const DEFAULT_MANUAL_PAYMENT_SETTINGS = [
+        'accountName' => 'Stephub Co., Ltd.',
+        'bankName' => 'Kasikornbank',
+        'accountNumber' => '123-4-56789-0',
+        'promptPayName' => 'Stephub Co., Ltd.',
+        'promptPayNumber' => '0812345678',
+        'qrImageUrl' => '',
+        'note' => 'กรุณาโอนตามยอดที่แสดงในคำสั่งซื้อ และอัปโหลดสลิปเพื่อรอตรวจสอบ',
+    ];
+
     public static function readCommissionSettings(): array
     {
         return self::normalizeCommissionSettings(self::readJsonFile(self::commissionSettingsPath()));
@@ -51,6 +61,19 @@ class PoolprojectSettingsStore
         return $normalized;
     }
 
+    public static function readManualPaymentSettings(): array
+    {
+        return self::normalizeManualPaymentSettings(self::readJsonFile(self::manualPaymentSettingsPath()));
+    }
+
+    public static function writeManualPaymentSettings(array $input): array
+    {
+        $normalized = self::normalizeManualPaymentSettings($input);
+        self::writeJsonFile(self::manualPaymentSettingsPath(), $normalized);
+
+        return $normalized;
+    }
+
     private static function commissionSettingsPath(): string
     {
         return self::runtimeRoot() . DIRECTORY_SEPARATOR . 'commission-settings.json';
@@ -59,6 +82,11 @@ class PoolprojectSettingsStore
     private static function matrixSettingsPath(): string
     {
         return self::runtimeRoot() . DIRECTORY_SEPARATOR . 'matrix-settings.json';
+    }
+
+    private static function manualPaymentSettingsPath(): string
+    {
+        return self::runtimeRoot() . DIRECTORY_SEPARATOR . 'manual-payment-settings.json';
     }
 
     private static function runtimeRoot(): string
@@ -141,6 +169,19 @@ class PoolprojectSettingsStore
         ];
     }
 
+    private static function normalizeManualPaymentSettings(array $input): array
+    {
+        return [
+            'accountName' => self::normalizeText($input['accountName'] ?? null, self::DEFAULT_MANUAL_PAYMENT_SETTINGS['accountName']),
+            'bankName' => self::normalizeText($input['bankName'] ?? null, self::DEFAULT_MANUAL_PAYMENT_SETTINGS['bankName']),
+            'accountNumber' => self::normalizeText($input['accountNumber'] ?? null, self::DEFAULT_MANUAL_PAYMENT_SETTINGS['accountNumber']),
+            'promptPayName' => self::normalizeText($input['promptPayName'] ?? null, self::DEFAULT_MANUAL_PAYMENT_SETTINGS['promptPayName']),
+            'promptPayNumber' => self::normalizeText($input['promptPayNumber'] ?? null, self::DEFAULT_MANUAL_PAYMENT_SETTINGS['promptPayNumber']),
+            'qrImageUrl' => self::normalizeNullableText($input['qrImageUrl'] ?? null),
+            'note' => self::normalizeText($input['note'] ?? null, self::DEFAULT_MANUAL_PAYMENT_SETTINGS['note']),
+        ];
+    }
+
     private static function normalizeBoardLevelRates(mixed $value, int $boardCount, array $fallbackRates): array
     {
         if (!is_array($value)) {
@@ -198,5 +239,15 @@ class PoolprojectSettingsStore
     private static function normalizePositiveInt(mixed $value, int $fallback): int
     {
         return is_numeric($value) && (int) $value > 0 ? (int) $value : $fallback;
+    }
+
+    private static function normalizeText(mixed $value, string $fallback): string
+    {
+        return is_string($value) && trim($value) !== '' ? trim($value) : $fallback;
+    }
+
+    private static function normalizeNullableText(mixed $value): string
+    {
+        return is_string($value) ? trim($value) : '';
     }
 }
