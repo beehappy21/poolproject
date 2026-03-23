@@ -5,8 +5,8 @@ Updated: 2026-03-23
 ## Branch
 
 - Current branch: `main`
-- Latest merged PR: `#18` `https://github.com/beehappy21/poolproject/pull/18`
-- Main is currently at merge commit `cde35ea`
+- Latest merged PR: `#19` `https://github.com/beehappy21/poolproject/pull/19`
+- Main is currently at merge commit `05b20f0`
 
 ## Recently Merged Work
 
@@ -15,6 +15,7 @@ Updated: 2026-03-23
 - PR `#16` is already merged into `main`
 - PR `#17` is already merged into `main`
 - PR `#18` is already merged into `main`
+- PR `#19` is already merged into `main`
 - Recent pool/commission/browser-check commits:
   - `03632e5` Add configurable pool rule coverage and commission summaries
   - `9e652b6` Snapshot pool item rates on orders and fix pool-rate precision
@@ -22,14 +23,16 @@ Updated: 2026-03-23
   - `78da058` Merge PR `#16` into `main`
   - `ffa680f` Merge PR `#17` into `main`
   - `cde35ea` Merge PR `#18` into `main`
+  - `05b20f0` Merge PR `#19` into `main`
 
 ## What To Do Next
 
 1. If deployment work continues, follow `DEPLOY_CHECKLIST.md`
 2. Use `docs/technical-design/commission_plan_summary.md` as the single summary for plan-calculation status
 3. If wallet/DCW work continues, the next high-value slice is member-facing CW/SW/DCW UI and/or richer admin review tooling beyond the current local admin panel
-4. Reuse the BAO browser-check scripts before deploys or after commission/order-report changes
-5. Keep `member003` legacy matrix analysis positioned as research/sandbox work unless we explicitly want to productionize it further
+4. If member work continues, the next obvious slice is a reusable member import/reset helper plus explicit login/reset guidance in admin beyond the current list-page note
+5. Reuse the BAO browser-check scripts before deploys or after commission/order-report changes
+6. Keep `member003` legacy matrix analysis positioned as research/sandbox work unless we explicitly want to productionize it further
 
 ## Latest Verified Status
 
@@ -66,10 +69,15 @@ Updated: 2026-03-23
   - single DCW reward-rate rule for mixed `cash + SW` purchases
   - DCW usage and credited reward amounts rounded down to whole numbers
   - CW / SW terminology updated across admin/member-facing labels, notes, and smoke/docs
+- Member import/login updates are now merged into `main`, including:
+  - `member003.xlsx` remains the default member-import source
+  - member spreadsheet imports now allow duplicate `phone` and `nationalId` values
+  - imported member passwords now derive from the last 6 digits of national ID, with fallback to `123456`
+  - BAO member list now has a top search bar plus an inline login hint for imported members
 
 ## Review Notes
 
-- No open merge blocker remains from the configurable pool rules, BAO browser-check, and wallet/payment work that landed in PR `#15`, PR `#16`, `#17`, and `#18`
+- No open merge blocker remains from the configurable pool rules, BAO browser-check, wallet/payment work, and member import/login updates that landed in PR `#15`, PR `#16`, `#17`, `#18`, and `#19`
 - The previously requested browser verification of BAO cashback and Stephub shipment-state flows is now covered by local reusable smoke scripts
 - Wallet smoke now covers:
   - commission credit
@@ -81,6 +89,10 @@ Updated: 2026-03-23
   - DCW reward from mixed `cash + SW` purchases
 - Current matrix docs still describe a separate sandbox-only legacy placement engine and do not change production matrix code
 - If matrix work resumes, treat it as a product decision rather than a merge-readiness issue
+- Member import now uses a more spreadsheet-friendly assumption set than the original core-user model:
+  - duplicate `phone` values are allowed
+  - duplicate `nationalId` values are allowed
+  - `email` is still unique, so duplicate/conflicting emails are skipped during seed
 
 ## Useful Commands
 
@@ -141,6 +153,23 @@ Updated: 2026-03-23
   - `npm run smoke:wallet:mixed`
   - `npm run smoke:wallet:dcw`
 - Current admin tooling is in the local admin app under `/admin`; member-facing wallet UI is still the most obvious next product slice if wallet work continues
+
+## Member Status
+
+- Member system currently uses `member003.xlsx` as the main import source for local spreadsheet-style member data
+- Local member import flow now consists of:
+  - `node scripts/seed_members_from_xlsx.mjs member003.xlsx 123456 --apply`
+  - `python3 scripts/import_member_profiles_from_xlsx.py member003.xlsx --apply`
+- Imported members now log in with:
+  - username = `memberCode`
+  - password = last 6 digits of `nationalId`
+  - fallback password = `123456` if national ID is missing or shorter than 6 digits
+- Latest local import/apply result:
+  - `210` `TH...` members in `User`
+  - `210` `TH...` members in `stephub_members_v1`
+- BAO member tooling now includes:
+  - a top search bar on `/admin/member/list`
+  - an inline note explaining imported-member login credentials
 
 ## Current Local State
 
