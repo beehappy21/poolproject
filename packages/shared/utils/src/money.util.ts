@@ -73,6 +73,16 @@ export function divideDecimalStringByInt(
   return scaledIntToDecimal(decimalToScaledInt(value) / BigInt(divisor));
 }
 
+export function divideDecimalStrings(left: string, right: string): string {
+  if (compareDecimalStrings(right, "0") <= 0) {
+    return "0";
+  }
+
+  return scaledIntToDecimal(
+    (decimalToScaledInt(left) * DECIMAL_FACTOR) / decimalToScaledInt(right),
+  );
+}
+
 export function compareDecimalStrings(left: string, right: string): number {
   const leftValue = decimalToScaledInt(left);
   const rightValue = decimalToScaledInt(right);

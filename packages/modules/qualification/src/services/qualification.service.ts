@@ -13,6 +13,8 @@ import {
 import {
   addDecimalStrings,
   compareDecimalStrings,
+  minDecimalString,
+  multiplyDecimalStrings,
 } from "../../../../shared/utils/src/money.util";
 import { PrismaQualificationRepository } from "../repositories/qualification.repository";
 
@@ -107,12 +109,51 @@ export class QualificationService implements QualificationServiceContract {
   async evaluateCycleCapCheck(
     input: CycleCapCheckInput,
   ): Promise<CycleCapCheckResult> {
+    const sourceType = input.sourceType ?? "direct";
+    const cycle = input.cycle;
+    let effectiveCap = cycle.earningCap;
+
+    if (
+      cycle.commissionCapScope === "all_commissions" &&
+      compareDecimalStrings(cycle.commissionCapMultiple ?? "0", "0") > 0 &&
+      compareDecimalStrings(cycle.purchaseBase ?? "0", "0") > 0
+    ) {
+      const configuredCommissionCap = multiplyDecimalStrings(
+        cycle.purchaseBase,
+        cycle.commissionCapMultiple ?? "0",
+      );
+      effectiveCap = minDecimalString(effectiveCap, configuredCommissionCap);
+    }
+
+    if (
+      sourceType === "pool" &&
+      compareDecimalStrings(cycle.poolCapMultiple ?? "0", "0") > 0 &&
+      compareDecimalStrings(cycle.purchaseBase ?? "0", "0") > 0
+    ) {
+      const poolCap = multiplyDecimalStrings(
+        cycle.purchaseBase,
+        cycle.poolCapMultiple ?? "0",
+      );
+      const poolEarnedAfterBonus = addDecimalStrings(
+        cycle.poolEarnedToDate ?? "0",
+        input.bonusAmount,
+      );
+
+      if (compareDecimalStrings(poolEarnedAfterBonus, poolCap) > 0) {
+        return {
+          cycleId: input.cycle.cycleId,
+          canAbsorbFullAmount: false,
+          fallbackReason: "cap_blocked_full_item",
+        };
+      }
+    }
+
     const earnedAfterBonus = addDecimalStrings(
-      input.cycle.earnedTotalInCycle,
+      cycle.earnedTotalInCycle,
       input.bonusAmount,
     );
     const canAbsorbFullAmount =
-      compareDecimalStrings(earnedAfterBonus, input.cycle.earningCap) <= 0;
+      compareDecimalStrings(earnedAfterBonus, effectiveCap) <= 0;
 
     return {
       cycleId: input.cycle.cycleId,

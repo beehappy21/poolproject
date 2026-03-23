@@ -156,6 +156,11 @@ export interface OrdersServiceContract {
       sourceUserId: string;
       approvedAt: string;
       totalPv: string;
+      items: Array<{
+        lineTotalPv: string;
+        poolRateMode?: "default_50_percent" | "custom_rate" | "disabled";
+        poolRate?: string;
+      }>;
     }>
   >;
 
@@ -270,6 +275,11 @@ export class OrdersService implements OrdersServiceContract {
       sourceUserId: string;
       approvedAt: string;
       totalPv: string;
+      items: Array<{
+        lineTotalPv: string;
+        poolRateMode?: "default_50_percent" | "custom_rate" | "disabled";
+        poolRate?: string;
+      }>;
     }>
   > {
     return this.ordersRepository.findApprovedOrdersForPoolDate(poolDate);

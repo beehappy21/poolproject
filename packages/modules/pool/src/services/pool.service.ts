@@ -14,9 +14,11 @@ import {
   addDecimalStrings,
   compareDecimalStrings,
   divideDecimalStringByInt,
+  divideDecimalStrings,
+  minDecimalString,
   multiplyDecimalStrings,
+  subtractDecimalStrings,
 } from "../../../../shared/utils/src/money.util";
-import { readCommissionSettings } from "../../../../shared/utils/src/commission-settings.util";
 import { CommissionsService } from "../../../commissions/src/services/commissions.service";
 import { CommissionsServiceContract } from "../../../commissions/src/services/commissions.service";
 import { MembersService } from "../../../members/src/services/members.service";
@@ -127,10 +129,14 @@ export class PoolService implements PoolServiceContract {
   ) {}
 
   async computePoolFunding(input: PoolFundingInput): Promise<PoolFundingResult> {
-    const poolFund = multiplyDecimalStrings(
-      input.fundingTotalApprovedPv,
-      input.poolRate,
-    );
+    const poolFund =
+      input.approvedOrders && input.approvedOrders.length > 0
+        ? input.approvedOrders.reduce(
+            (total, order) =>
+              addDecimalStrings(total, this.calculatePoolContributionForOrder(order)),
+            "0",
+          )
+        : multiplyDecimalStrings(input.fundingTotalApprovedPv, input.poolRate);
 
     return {
       poolDate: input.poolDate,
@@ -184,13 +190,13 @@ export class PoolService implements PoolServiceContract {
 
     const approvedOrders =
       await this.ordersService.listApprovedOrdersForPoolDate(poolDate);
-    const { poolRate } = readCommissionSettings();
     const evaluationAt = this.resolvePoolEvaluationAt(poolDate);
     const funding = await this.computePoolFunding({
       poolDate,
       approvedOrderCount: approvedOrders.length,
       fundingTotalApprovedPv: this.sumApprovedOrderPv(approvedOrders),
-      poolRate,
+      poolRate: this.resolveEffectivePoolRate(approvedOrders),
+      approvedOrders,
     });
     const uniqueUserIds = await this.membersService.getMemberIdsWithActiveCycles(
       evaluationAt,
@@ -208,7 +214,10 @@ export class PoolService implements PoolServiceContract {
     const { poolCycleId } = await this.poolRepository.createOrUpdatePoolCycle({
       ...funding,
       evaluationAt,
-      settingsSnapshot: JSON.stringify({ poolRate }),
+      settingsSnapshot: JSON.stringify({
+        poolRateMode: "configurable_per_item",
+        defaultPoolRate: "0.5",
+      }),
       eligibleMemberCount: flow.eligibleRecipientCount,
       payoutPerMember: flow.payoutPerMember,
       companyFallbackAmount: flow.companyFallback.amount,
@@ -236,13 +245,13 @@ export class PoolService implements PoolServiceContract {
   async loadApprovedOrderFunding(poolDate: string): Promise<PoolFundingInput> {
     const approvedOrders =
       await this.ordersService.listApprovedOrdersForPoolDate(poolDate);
-    const { poolRate } = readCommissionSettings();
 
     return {
       poolDate,
       approvedOrderCount: approvedOrders.length,
       fundingTotalApprovedPv: this.sumApprovedOrderPv(approvedOrders),
-      poolRate,
+      poolRate: this.resolveEffectivePoolRate(approvedOrders),
+      approvedOrders,
     };
   }
 
@@ -265,12 +274,12 @@ export class PoolService implements PoolServiceContract {
   ): Promise<DailyPoolFlowResult> {
     const approvedOrders =
       await this.ordersService.listApprovedOrdersForPoolDate(poolDate);
-    const { poolRate } = readCommissionSettings();
     const funding = await this.computePoolFunding({
       poolDate,
       approvedOrderCount: approvedOrders.length,
       fundingTotalApprovedPv: this.sumApprovedOrderPv(approvedOrders),
-      poolRate,
+      poolRate: this.resolveEffectivePoolRate(approvedOrders),
+      approvedOrders,
     });
     const eligibilityDecisions = await this.evaluatePoolEligibility(snapshots);
     const eligibleUserIds = eligibilityDecisions
@@ -303,6 +312,29 @@ export class PoolService implements PoolServiceContract {
       funding.poolFund,
       eligibleUserIds.length,
     );
+
+    if (compareDecimalStrings(payoutPerMember, "0") <= 0) {
+      return {
+        poolDate,
+        evaluationAt,
+        fundingSource: "approved_orders_only",
+        approvedOrderIds: approvedOrders.map((order) => order.orderId),
+        sameDayContributionRequired: false,
+        hasRollup: false,
+        fundingTotalApprovedPv: funding.fundingTotalApprovedPv,
+        poolFund: funding.poolFund,
+        payoutPerMember: "0",
+        eligibleRecipientCount: eligibleUserIds.length,
+        eligibilityDecisions,
+        recipientDrafts: [],
+        companyFallback: {
+          fallbackToCompany: false,
+          reasonCode: null,
+          amount: "0",
+        },
+      };
+    }
+
     const recipientDrafts = await Promise.all(
       eligibleUserIds.map((userId) =>
         this.buildRecipientDraft(evaluationAt, userId, payoutPerMember),
@@ -310,9 +342,7 @@ export class PoolService implements PoolServiceContract {
     );
     const recipientLevelFallbackAmount = recipientDrafts.reduce(
       (total, recipient) =>
-        recipient.finalization.commissionStatus === "fallback"
-          ? addDecimalStrings(total, recipient.amount)
-          : total,
+        addDecimalStrings(total, recipient.fallbackAmount),
       "0",
     );
 
@@ -344,23 +374,60 @@ export class PoolService implements PoolServiceContract {
   private async buildRecipientDraft(
     evaluationAt: string,
     userId: string,
-    amount: string,
+    requestedAmount: string,
   ): Promise<PoolRecipientDraftResult> {
     const candidateCycles = await this.membersService.getMemberCycles(
       userId,
       evaluationAt,
     );
-    const allocation = await this.commissionsService.allocateBonusToCycle({
-      beneficiaryUserId: userId,
-      evaluationAt,
-      bonusAmount: amount,
-      candidateCycles,
-    });
+    const orderedCycles = [...candidateCycles]
+      .filter((cycle) => cycle.isReceivable && cycle.earningStatus === "active")
+      .sort((left, right) => {
+        if (left.activatedAt === right.activatedAt) {
+          return left.cycleId.localeCompare(right.cycleId);
+        }
+
+        return left.activatedAt.localeCompare(right.activatedAt);
+      });
+    const partialCycle = orderedCycles.find(
+      (cycle) =>
+        compareDecimalStrings(
+          this.resolveMaxPoolPayoutForCycle(cycle, requestedAmount),
+          "0",
+        ) > 0,
+    );
+    const approvedAmount = partialCycle
+      ? this.resolveMaxPoolPayoutForCycle(partialCycle, requestedAmount)
+      : "0";
+    const fallbackAmount =
+      compareDecimalStrings(requestedAmount, approvedAmount) > 0
+        ? subtractDecimalStrings(requestedAmount, approvedAmount)
+        : "0";
+    const allocation =
+      compareDecimalStrings(approvedAmount, "0") > 0
+        ? await this.commissionsService.allocateBonusToCycle({
+            beneficiaryUserId: userId,
+            evaluationAt,
+            bonusAmount: approvedAmount,
+            sourceType: "pool",
+            candidateCycles,
+          })
+        : {
+            beneficiaryUserId: userId,
+            assignedCycleId: null,
+            fallbackToCompany: true,
+            fallbackReason:
+              orderedCycles.length > 0
+                ? ("cap_blocked_all_receivable_cycles" as const)
+                : ("no_receivable_cycle" as const),
+          };
 
     return {
       userId,
       eligible: true,
-      amount,
+      requestedAmount,
+      amount: approvedAmount,
+      fallbackAmount,
       candidateCycleIds: candidateCycles.map((cycle) => cycle.cycleId),
       allocation,
       finalization: allocation.fallbackToCompany
@@ -375,6 +442,59 @@ export class PoolService implements PoolServiceContract {
             fallbackReason: null,
           },
     };
+  }
+
+  private resolveMaxPoolPayoutForCycle(
+    cycle: {
+      earningCap: string;
+      earnedTotalInCycle: string;
+      purchaseBase: string;
+      poolCapMultiple?: string;
+      commissionCapScope?: "pool_only" | "all_commissions";
+      commissionCapMultiple?: string;
+      poolEarnedToDate?: string;
+    },
+    requestedAmount: string,
+  ): string {
+    let remaining = subtractDecimalStrings(
+      cycle.earningCap,
+      cycle.earnedTotalInCycle,
+    );
+
+    if (
+      cycle.commissionCapScope === "all_commissions" &&
+      compareDecimalStrings(cycle.commissionCapMultiple ?? "0", "0") > 0 &&
+      compareDecimalStrings(cycle.purchaseBase ?? "0", "0") > 0
+    ) {
+      const commissionCap = multiplyDecimalStrings(
+        cycle.purchaseBase,
+        cycle.commissionCapMultiple ?? "0",
+      );
+      remaining = minDecimalString(
+        remaining,
+        subtractDecimalStrings(commissionCap, cycle.earnedTotalInCycle),
+      );
+    }
+
+    if (
+      compareDecimalStrings(cycle.poolCapMultiple ?? "0", "0") > 0 &&
+      compareDecimalStrings(cycle.purchaseBase ?? "0", "0") > 0
+    ) {
+      const poolCap = multiplyDecimalStrings(
+        cycle.purchaseBase,
+        cycle.poolCapMultiple ?? "0",
+      );
+      remaining = minDecimalString(
+        remaining,
+        subtractDecimalStrings(poolCap, cycle.poolEarnedToDate ?? "0"),
+      );
+    }
+
+    if (compareDecimalStrings(remaining, "0") <= 0) {
+      return "0";
+    }
+
+    return minDecimalString(remaining, requestedAmount);
   }
 
   private sumApprovedOrderPv(approvedOrders: PoolSourceOrder[]): string {
@@ -405,5 +525,50 @@ export class PoolService implements PoolServiceContract {
 
   private resolvePoolEvaluationAt(poolDate: string): string {
     return new Date(`${poolDate}T23:59:59.999Z`).toISOString();
+  }
+
+  private calculatePoolContributionForOrder(order: PoolSourceOrder): string {
+    if (!order.items || order.items.length === 0) {
+      return multiplyDecimalStrings(order.totalPv, "0.5");
+    }
+
+    return order.items.reduce((total, item) => {
+      const rate = this.resolvePoolRateForItem(item.poolRateMode, item.poolRate);
+      return addDecimalStrings(
+        total,
+        multiplyDecimalStrings(item.lineTotalPv, rate),
+      );
+    }, "0");
+  }
+
+  private resolvePoolRateForItem(
+    poolRateMode?: "default_50_percent" | "custom_rate" | "disabled",
+    poolRate?: string,
+  ): string {
+    if (poolRateMode === "disabled") {
+      return "0";
+    }
+
+    if (poolRateMode === "custom_rate") {
+      return poolRate && compareDecimalStrings(poolRate, "0") > 0 ? poolRate : "0";
+    }
+
+    return "0.5";
+  }
+
+  private resolveEffectivePoolRate(approvedOrders: PoolSourceOrder[]): string {
+    const totalPv = this.sumApprovedOrderPv(approvedOrders);
+
+    if (compareDecimalStrings(totalPv, "0") <= 0) {
+      return "0";
+    }
+
+    const totalContribution = approvedOrders.reduce(
+      (total, order) =>
+        addDecimalStrings(total, this.calculatePoolContributionForOrder(order)),
+      "0",
+    );
+
+    return divideDecimalStrings(totalContribution, totalPv);
   }
 }

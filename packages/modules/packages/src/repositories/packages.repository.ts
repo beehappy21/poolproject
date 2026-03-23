@@ -18,7 +18,11 @@ type ProductDetailRecord = {
   memberPriceUsdt: { toString(): string };
   retailPriceUsdt: { toString(): string };
   pv: { toString(): string };
+  poolRateMode: { toString(): string };
   poolRate: { toString(): string };
+  poolCapMultiple: { toString(): string };
+  commissionCapScope: { toString(): string };
+  commissionCapMultiple: { toString(): string };
   status: { toLowerCase(): string };
 };
 
@@ -31,7 +35,11 @@ function toPackageSummary(pkg: {
   retailPriceUsdt: { toString(): string };
   priceUsdt: { toString(): string };
   pv: { toString(): string };
+  poolRateMode: { toString(): string };
   poolRate: { toString(): string };
+  poolCapMultiple: { toString(): string };
+  commissionCapScope: { toString(): string };
+  commissionCapMultiple: { toString(): string };
   activeDays: number;
   earningCapAmount: { toString(): string };
   status: { toLowerCase(): string };
@@ -46,7 +54,11 @@ function toPackageSummary(pkg: {
     retailPriceUsdt: pkg.retailPriceUsdt.toString(),
     priceUsdt: pkg.priceUsdt.toString(),
     pv: pkg.pv.toString(),
+    poolRateMode: pkg.poolRateMode.toString(),
     poolRate: pkg.poolRate.toString(),
+    poolCapMultiple: pkg.poolCapMultiple.toString(),
+    commissionCapScope: pkg.commissionCapScope.toString(),
+    commissionCapMultiple: pkg.commissionCapMultiple.toString(),
     activeDays: pkg.activeDays,
     earningCapAmount: pkg.earningCapAmount.toString(),
     status: pkg.status.toLowerCase(),
@@ -143,7 +155,11 @@ export interface PackagesRepository {
     memberPriceUsdt: string;
     retailPriceUsdt: string;
     pv: string;
+    poolRateMode: string;
     poolRate: string;
+    poolCapMultiple: string;
+    commissionCapScope: string;
+    commissionCapMultiple: string;
     status: string;
   }>;
 
@@ -163,7 +179,11 @@ export interface PackagesRepository {
       memberPriceUsdt: string;
       retailPriceUsdt: string;
       pv: string;
+      poolRateMode: string;
       poolRate: string;
+      poolCapMultiple: string;
+      commissionCapScope: string;
+      commissionCapMultiple: string;
       status: string;
     }>
   >;
@@ -175,7 +195,11 @@ export interface PackagesRepository {
     pv?: string;
     activeDays: number;
     earningCapAmount: string;
+    poolRateMode?: "default_50_percent" | "custom_rate" | "disabled";
     poolRate?: string;
+    poolCapMultiple?: string;
+    commissionCapScope?: "pool_only" | "all_commissions";
+    commissionCapMultiple?: string;
     productDetailItems?: PackageDetailItemInput[];
   }): Promise<{
     packageId: string;
@@ -186,7 +210,11 @@ export interface PackagesRepository {
     retailPriceUsdt: string;
     priceUsdt: string;
     pv: string;
+    poolRateMode: string;
     poolRate: string;
+    poolCapMultiple: string;
+    commissionCapScope: string;
+    commissionCapMultiple: string;
     activeDays: number;
     earningCapAmount: string;
     status: string;
@@ -203,7 +231,11 @@ export interface PackagesRepository {
       retailPriceUsdt: string;
       priceUsdt: string;
       pv: string;
+      poolRateMode: string;
       poolRate: string;
+      poolCapMultiple: string;
+      commissionCapScope: string;
+      commissionCapMultiple: string;
       activeDays: number;
       earningCapAmount: string;
       status: string;
@@ -360,7 +392,11 @@ export class PrismaPackagesRepository implements PackagesRepository {
     memberPriceUsdt: string;
     retailPriceUsdt: string;
     pv: string;
+    poolRateMode: "default_50_percent" | "custom_rate" | "disabled";
     poolRate: string;
+    poolCapMultiple: string;
+    commissionCapScope: "pool_only" | "all_commissions";
+    commissionCapMultiple: string;
   }) {
     const detail = (await this.prisma.productDetail.create({
       data: {
@@ -373,7 +409,19 @@ export class PrismaPackagesRepository implements PackagesRepository {
         memberPriceUsdt: input.memberPriceUsdt,
         retailPriceUsdt: input.retailPriceUsdt,
         pv: input.pv,
+        poolRateMode:
+          input.poolRateMode === "custom_rate"
+            ? "CUSTOM_RATE"
+            : input.poolRateMode === "disabled"
+              ? "DISABLED"
+              : "DEFAULT_50_PERCENT",
         poolRate: input.poolRate,
+        poolCapMultiple: input.poolCapMultiple,
+        commissionCapScope:
+          input.commissionCapScope === "all_commissions"
+            ? "ALL_COMMISSIONS"
+            : "POOL_ONLY",
+        commissionCapMultiple: input.commissionCapMultiple,
         status: "ACTIVE",
       },
     })) as ProductDetailRecord;
@@ -389,7 +437,11 @@ export class PrismaPackagesRepository implements PackagesRepository {
       memberPriceUsdt: detail.memberPriceUsdt.toString(),
       retailPriceUsdt: detail.retailPriceUsdt.toString(),
       pv: detail.pv.toString(),
+      poolRateMode: detail.poolRateMode.toString().toLowerCase(),
       poolRate: detail.poolRate.toString(),
+      poolCapMultiple: detail.poolCapMultiple.toString(),
+      commissionCapScope: detail.commissionCapScope.toString().toLowerCase(),
+      commissionCapMultiple: detail.commissionCapMultiple.toString(),
       status: detail.status.toLowerCase(),
     };
   }
@@ -445,7 +497,11 @@ export class PrismaPackagesRepository implements PackagesRepository {
       memberPriceUsdt: detail.memberPriceUsdt.toString(),
       retailPriceUsdt: detail.retailPriceUsdt.toString(),
       pv: detail.pv.toString(),
+      poolRateMode: detail.poolRateMode.toString().toLowerCase(),
       poolRate: detail.poolRate.toString(),
+      poolCapMultiple: detail.poolCapMultiple.toString(),
+      commissionCapScope: detail.commissionCapScope.toString().toLowerCase(),
+      commissionCapMultiple: detail.commissionCapMultiple.toString(),
       status: detail.status.toLowerCase(),
     }));
   }
@@ -457,7 +513,11 @@ export class PrismaPackagesRepository implements PackagesRepository {
     pv?: string;
     activeDays: number;
     earningCapAmount: string;
+    poolRateMode?: "default_50_percent" | "custom_rate" | "disabled";
     poolRate?: string;
+    poolCapMultiple?: string;
+    commissionCapScope?: "pool_only" | "all_commissions";
+    commissionCapMultiple?: string;
     productDetailItems?: PackageDetailItemInput[];
   }) {
     const productDetailItems = input.productDetailItems ?? [];
@@ -466,6 +526,7 @@ export class PrismaPackagesRepository implements PackagesRepository {
       const memberPriceUsdt = input.priceUsdt ?? "0";
       const pv = input.pv ?? "0";
       const poolRate = input.poolRate ?? "0";
+      const poolRateMode = input.poolRateMode ?? "default_50_percent";
       const pkg = await this.prisma.package.create({
         data: {
           code: input.code,
@@ -475,7 +536,19 @@ export class PrismaPackagesRepository implements PackagesRepository {
           retailPriceUsdt: memberPriceUsdt,
           priceUsdt: memberPriceUsdt,
           pv,
+          poolRateMode:
+            poolRateMode === "custom_rate"
+              ? "CUSTOM_RATE"
+              : poolRateMode === "disabled"
+                ? "DISABLED"
+                : "DEFAULT_50_PERCENT",
           poolRate,
+          poolCapMultiple: input.poolCapMultiple ?? "0",
+          commissionCapScope:
+            input.commissionCapScope === "all_commissions"
+              ? "ALL_COMMISSIONS"
+              : "POOL_ONLY",
+          commissionCapMultiple: input.commissionCapMultiple ?? "0",
           activeDays: input.activeDays,
           earningCapType: "FIXED_AMOUNT",
           earningCapAmount: input.earningCapAmount,
@@ -556,7 +629,19 @@ export class PrismaPackagesRepository implements PackagesRepository {
         retailPriceUsdt: `${retailTotal}`,
         priceUsdt: `${memberTotal}`,
         pv: `${pvTotal}`,
+        poolRateMode:
+          (input.poolRateMode ?? "default_50_percent") === "custom_rate"
+            ? "CUSTOM_RATE"
+            : (input.poolRateMode ?? "default_50_percent") === "disabled"
+              ? "DISABLED"
+              : "DEFAULT_50_PERCENT",
         poolRate: input.poolRate ?? "0",
+        poolCapMultiple: input.poolCapMultiple ?? "0",
+        commissionCapScope:
+          input.commissionCapScope === "all_commissions"
+            ? "ALL_COMMISSIONS"
+            : "POOL_ONLY",
+        commissionCapMultiple: input.commissionCapMultiple ?? "0",
         activeDays: input.activeDays,
         earningCapType: "FIXED_AMOUNT",
         earningCapAmount: input.earningCapAmount,

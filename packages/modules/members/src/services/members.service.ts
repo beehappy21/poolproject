@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 
 import { PrismaMembersRepository } from "../repositories/members.repository";
+import { QualificationCycleSnapshot } from "../../../qualification/src/domain/qualification.types";
 
 export interface MembersServiceContract {
   listMembers(filters?: {
@@ -81,17 +82,7 @@ export interface MembersServiceContract {
   getMemberCycles(
     memberId: string,
     evaluationAt: string,
-  ): Promise<
-    Array<{
-      cycleId: string;
-      activatedAt: string;
-      activeUntil: string;
-      earningCap: string;
-      earnedTotalInCycle: string;
-      isReceivable: boolean;
-      earningStatus: "active" | "capped";
-    }>
-  >;
+  ): Promise<QualificationCycleSnapshot[]>;
 
   getActiveDirectReferralCount(
     memberId: string,
@@ -217,17 +208,7 @@ export class MembersService implements MembersServiceContract {
   async getMemberCycles(
     memberId: string,
     evaluationAt: string,
-  ): Promise<
-    Array<{
-      cycleId: string;
-      activatedAt: string;
-      activeUntil: string;
-      earningCap: string;
-      earnedTotalInCycle: string;
-      isReceivable: boolean;
-      earningStatus: "active" | "capped";
-    }>
-  > {
+  ): Promise<QualificationCycleSnapshot[]> {
     return this.membersRepository.findCyclesForMember(memberId, evaluationAt);
   }
 

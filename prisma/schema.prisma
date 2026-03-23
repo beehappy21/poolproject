@@ -51,6 +51,17 @@ enum EarningCapType {
   PRICE_MULTIPLE
 }
 
+enum PoolRateMode {
+  DEFAULT_50_PERCENT
+  CUSTOM_RATE
+  DISABLED
+}
+
+enum CommissionCapScope {
+  POOL_ONLY
+  ALL_COMMISSIONS
+}
+
 enum CycleStatus {
   ACTIVE
   EXPIRED
@@ -425,7 +436,11 @@ model ProductDetail {
   isTop            Boolean       @default(false)
   isFeatured       Boolean       @default(false)
   isBestSeller     Boolean       @default(false)
+  poolRateMode     PoolRateMode   @default(DEFAULT_50_PERCENT)
   poolRate         Decimal       @default(0) @db.Decimal(10, 8)
+  poolCapMultiple  Decimal       @default(0) @db.Decimal(10, 8)
+  commissionCapScope CommissionCapScope @default(POOL_ONLY)
+  commissionCapMultiple Decimal   @default(0) @db.Decimal(10, 8)
   status           CatalogStatus @default(ACTIVE)
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
@@ -445,7 +460,11 @@ model Package {
   retailPriceUsdt  Decimal        @default(0) @db.Decimal(18, 8)
   priceUsdt        Decimal        @db.Decimal(18, 8)
   pv               Decimal        @db.Decimal(18, 8)
+  poolRateMode     PoolRateMode   @default(DEFAULT_50_PERCENT)
   poolRate         Decimal        @default(0) @db.Decimal(10, 8)
+  poolCapMultiple  Decimal        @default(0) @db.Decimal(10, 8)
+  commissionCapScope CommissionCapScope @default(POOL_ONLY)
+  commissionCapMultiple Decimal    @default(0) @db.Decimal(10, 8)
   activeDays       Int
   earningCapType   EarningCapType
   earningCapAmount Decimal        @db.Decimal(18, 8)
@@ -561,6 +580,8 @@ model OrderItem {
   qty           Int      @default(1)
   unitPriceUsdt Decimal  @default(0) @db.Decimal(18, 8)
   unitPv        Decimal  @default(0) @db.Decimal(18, 8)
+  poolRateMode  PoolRateMode @default(DEFAULT_50_PERCENT)
+  unitPoolRate  Decimal  @default(0) @db.Decimal(10, 8)
   lineTotalUsdt Decimal  @default(0) @db.Decimal(18, 8)
   lineTotalPv   Decimal  @default(0) @db.Decimal(18, 8)
   createdAt     DateTime @default(now())

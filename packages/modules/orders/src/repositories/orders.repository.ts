@@ -1,9 +1,12 @@
 import { Injectable } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 
 import { PrismaService } from "../../../../infrastructure/src/prisma/prisma.service";
 import {
   buildUtcDayRange,
-  toApprovedOrderSummary,
+  toDecimalString,
+  toIdString,
+  toIsoString,
 } from "../../../../infrastructure/src/prisma/prisma.mappers";
 import {
   readCommissionSettings,
@@ -169,6 +172,11 @@ export interface OrdersRepository {
       sourceUserId: string;
       approvedAt: string;
       totalPv: string;
+      items: Array<{
+        lineTotalPv: string;
+        poolRateMode?: "default_50_percent" | "custom_rate" | "disabled";
+        poolRate?: string;
+      }>;
     }>
   >;
 }
@@ -360,12 +368,25 @@ export class PrismaOrdersRepository implements OrdersRepository {
         id: true,
         priceUsdt: true,
         pv: true,
+        poolRateMode: true,
+        poolRate: true,
       },
     });
 
     if (!pkg) {
       throw new Error("Package not found.");
     }
+
+    const orderItemCreate: Prisma.OrderItemUncheckedCreateWithoutOrderInput = {
+      packageId: pkg.id,
+      qty: 1,
+      unitPriceUsdt: pkg.priceUsdt,
+      unitPv: pkg.pv,
+      poolRateMode: pkg.poolRateMode,
+      unitPoolRate: pkg.poolRate,
+      lineTotalUsdt: pkg.priceUsdt,
+      lineTotalPv: pkg.pv,
+    };
 
     const order = await this.prisma.order.create({
       data: {
@@ -377,16 +398,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
         approvalStatus: "PENDING",
         status: "PENDING",
         orderItems: {
-          create: [
-            {
-              packageId: pkg.id,
-              qty: 1,
-              unitPriceUsdt: pkg.priceUsdt,
-              unitPv: pkg.pv,
-              lineTotalUsdt: pkg.priceUsdt,
-              lineTotalPv: pkg.pv,
-            },
-          ],
+          create: [orderItemCreate],
         },
       },
     });
@@ -591,9 +603,19 @@ export class PrismaOrdersRepository implements OrdersRepository {
       sourceUserId: string;
       approvedAt: string;
       totalPv: string;
+      items: Array<{
+        lineTotalPv: string;
+        poolRateMode?: "default_50_percent" | "custom_rate" | "disabled";
+        poolRate?: string;
+      }>;
     }>
   > {
     const range = buildUtcDayRange(poolDate);
+    const orderItemSelect = {
+      lineTotalPv: true,
+      poolRateMode: true,
+      unitPoolRate: true,
+    } satisfies Prisma.OrderItemSelect;
     const orders = await this.prisma.order.findMany({
       where: {
         approvalStatus: "APPROVED",
@@ -605,9 +627,26 @@ export class PrismaOrdersRepository implements OrdersRepository {
         userId: true,
         approvedAt: true,
         totalPv: true,
+        orderItems: {
+          select: orderItemSelect,
+        },
       },
     });
 
-    return orders.map(toApprovedOrderSummary);
+    return orders.map((order) => ({
+      orderId: toIdString(order.id),
+      sourceUserId: toIdString(order.userId),
+      approvedAt: toIsoString(order.approvedAt),
+      totalPv: toDecimalString(order.totalPv),
+      items: order.orderItems.map((item) => ({
+        lineTotalPv: toDecimalString(item.lineTotalPv),
+        poolRateMode: item.poolRateMode?.toString().toLowerCase() as
+          | "default_50_percent"
+          | "custom_rate"
+          | "disabled"
+          | undefined,
+        poolRate: toDecimalString(item.unitPoolRate),
+      })),
+    }));
   }
 }

@@ -4,6 +4,13 @@ export interface QualificationCycleSnapshot {
   activeUntil: string;
   earningCap: string;
   earnedTotalInCycle: string;
+  purchaseBase: string;
+  poolRateMode?: "default_50_percent" | "custom_rate" | "disabled";
+  poolRate?: string;
+  poolCapMultiple?: string;
+  commissionCapScope?: "pool_only" | "all_commissions";
+  commissionCapMultiple?: string;
+  poolEarnedToDate?: string;
   isReceivable: boolean;
   earningStatus: "active" | "capped";
 }
@@ -39,6 +46,7 @@ export interface CycleSelectionResult {
 export interface CycleCapCheckInput {
   cycle: QualificationCycleSnapshot;
   bonusAmount: string;
+  sourceType?: "direct" | "uni" | "pool" | "cashback";
 }
 
 export interface CycleCapCheckResult {
