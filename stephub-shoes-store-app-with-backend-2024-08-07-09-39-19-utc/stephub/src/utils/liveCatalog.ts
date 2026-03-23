@@ -12,6 +12,31 @@ type PackageSummary = {
   status: string;
   activeDays: number | string;
   itemCount: number | string;
+  supplierCode?: string | null;
+  supplierName?: string | null;
+  categoryCode?: string | null;
+  categoryName?: string | null;
+  primaryImageUrl?: string | null;
+  imageUrls?: string[];
+  shortDescription?: string | null;
+  description?: string | null;
+  audienceTags?: string[];
+  ratingAvg?: string;
+  ratingCount?: number | string;
+  isFeatured?: boolean;
+  isNew?: boolean;
+  isTop?: boolean;
+  packageItems?: Array<{
+    packageItemId: string;
+    qty: number;
+    productDetailId: string;
+    productDetailCode: string;
+    productDetailName: string;
+    shortDescription?: string | null;
+    description?: string | null;
+    lineMemberPriceUsdt?: string;
+    linePv?: string;
+  }>;
 };
 
 const PACKAGE_PLACEHOLDER_IMAGES = [
@@ -24,41 +49,62 @@ export const mapPackageToProduct = (
   item: PackageSummary,
   index: number,
 ): ProductType => {
+  const uniqueImages = [item.primaryImageUrl, ...(item.imageUrls || [])].filter(
+    (value, imageIndex, array): value is string =>
+      Boolean(value) && array.indexOf(value) === imageIndex,
+  );
   const image =
+    uniqueImages[0] ||
     PACKAGE_PLACEHOLDER_IMAGES[index % PACKAGE_PLACEHOLDER_IMAGES.length];
   const price = Number(item.priceUsdt || 0);
+  const packageItems = item.packageItems || [];
+  const packageItemSummary = packageItems
+    .map(
+      packageItem =>
+        `${packageItem.productDetailName}${packageItem.qty > 1 ? ` x${packageItem.qty}` : ''}`,
+    )
+    .join(', ');
 
   return {
     id: Number(item.packageId),
     packageId: item.packageId,
     packageCode: item.code,
+    categoryCode: item.categoryCode || undefined,
+    categoryName: item.categoryName || undefined,
+    supplierCode: item.supplierCode || undefined,
+    supplierName: item.supplierName || undefined,
     name: item.name,
     price,
-    rating: 5,
-    ratingCount: 0,
+    rating: Number(item.ratingAvg || 0),
+    ratingCount: Number(item.ratingCount || 0),
     activeDays: Number(item.activeDays || 0),
     status: item.status,
     itemCount: Number(item.itemCount || 0),
+    shortDescription: item.shortDescription || undefined,
+    packageItems,
     image,
-    images: [image],
+    images: uniqueImages.length ? uniqueImages : [image],
     sizes: ['standard'],
     size: 'standard',
     colors: [{name: 'default', code: '#1F2937'}],
     color: 'default',
-    description: `${item.name} package (${item.code}) with ${item.pv} PV and ${item.priceUsdt} USDT price.`,
-    categories: 'Packages',
-    is_bestseller: index < 6,
-    is_featured: index < 6,
+    description:
+      item.description ||
+      item.shortDescription ||
+      `${item.name} package (${item.code}) with ${item.pv} PV and ${item.priceUsdt} USDT price.${packageItemSummary ? ` Includes ${packageItemSummary}.` : ''}`,
+    categories: item.categoryName || item.supplierName || 'แพ็กเกจ',
+    is_bestseller: Boolean(item.isTop),
+    is_featured: Boolean(item.isFeatured),
     is_out_of_stock: item.status !== 'active',
     quantity: 0,
     reviews: [],
     types: ['package'],
-    isNew: index < 3,
-    isTop: index < 6,
-    isFeatured: index < 6,
-    audience: ['all'],
+    isNew: Boolean(item.isNew),
+    isTop: Boolean(item.isTop),
+    isFeatured: Boolean(item.isFeatured),
+    audience: item.audienceTags?.length ? item.audienceTags : ['all'],
     promotion: item.code,
-    tags: ['package'],
+    tags: ['package', (item.categoryCode || '').toLowerCase()].filter(Boolean),
     pv: Number(item.pv || 0),
   };
 };
@@ -73,38 +119,39 @@ export const fetchLiveProducts = async (): Promise<ProductType[]> => {
 };
 
 export const getPackageCollections = (products: ProductType[]) => {
-  const starter = products.filter(product =>
-    (product.packageCode || '').toUpperCase().includes('STARTER'),
-  );
-  const basic = products.filter(product =>
-    (product.packageCode || '').toUpperCase().includes('BASIC'),
-  );
-  const smoke = products.filter(product =>
-    (product.packageCode || '').toUpperCase().includes('SMOKE'),
-  );
+  const grouped = new Map<
+    string,
+    {id: string; name: string; image: string; products: ProductType[]}
+  >();
+
+  products.forEach(product => {
+    const rawKey =
+      product.categoryCode || product.supplierCode || product.packageCode || 'all';
+    const key = rawKey.toLowerCase();
+    const name =
+      product.categoryName || product.supplierName || 'แพ็กเกจทั้งหมด';
+
+    if (!grouped.has(key)) {
+      grouped.set(key, {
+        id: key,
+        name,
+        image: product.image,
+        products: [],
+      });
+    }
+
+    grouped.get(key)?.products.push(product);
+  });
+
+  const collections = Array.from(grouped.values()).sort((left, right) => {
+    return right.products.length - left.products.length;
+  });
 
   return [
-    {
-      id: 'starter',
-      name: 'Starter packages',
-      image: starter[0]?.image || products[0]?.image || '',
-      products: starter,
-    },
-    {
-      id: 'basic',
-      name: 'Basic packages',
-      image: basic[0]?.image || products[1]?.image || products[0]?.image || '',
-      products: basic,
-    },
-    {
-      id: 'smoke',
-      name: 'New packages',
-      image: smoke[0]?.image || products[2]?.image || products[0]?.image || '',
-      products: smoke,
-    },
+    ...collections,
     {
       id: 'all',
-      name: 'All packages',
+      name: 'แพ็กเกจทั้งหมด',
       image: products[0]?.image || '',
       products,
     },
