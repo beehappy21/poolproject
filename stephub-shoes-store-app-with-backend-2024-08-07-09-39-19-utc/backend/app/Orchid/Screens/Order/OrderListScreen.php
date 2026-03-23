@@ -126,8 +126,9 @@ class OrderListScreen extends Screen {
           ->cantHide()
           ->render(function (Order $order) {
             $tracking = $order->shipment_tracking_no ? '<br><small>' . e($order->shipment_tracking_no) . '</small>' : '';
+            $method = '<br><small>' . e($order->fulfillment_label) . '</small>';
 
-            return e($order->shipment_status) . $tracking;
+            return e($order->shipment_status) . $tracking . $method;
           }),
 
         TD::make('created_at', 'Created')

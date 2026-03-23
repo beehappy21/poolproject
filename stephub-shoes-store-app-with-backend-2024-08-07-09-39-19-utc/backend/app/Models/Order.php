@@ -134,6 +134,20 @@ class Order extends Model
 
     public function getShipmentStatusAttribute(): string
     {
+        if ($this->fulfillment_method === 'branch_pickup') {
+            if (!empty($this->delivered_at)) {
+                return 'picked-up';
+            }
+
+            if (!empty($this->shipped_at)) {
+                return 'ready-for-pickup';
+            }
+
+            if (strtolower((string) $this->approval_status) === 'approved') {
+                return 'awaiting-pickup';
+            }
+        }
+
         if (!empty($this->delivered_at)) {
             return 'delivered';
         }
@@ -147,6 +161,20 @@ class Order extends Model
         }
 
         return 'not-ready';
+    }
+
+    public function getFulfillmentMethodAttribute(): string
+    {
+        return strtolower((string) $this->shipping_label) === 'branch_pickup'
+            ? 'branch_pickup'
+            : 'delivery';
+    }
+
+    public function getFulfillmentLabelAttribute(): string
+    {
+        return $this->fulfillment_method === 'branch_pickup'
+            ? 'รับที่สาขา'
+            : 'จัดส่งถึงที่';
     }
 
     public function getStatusBadgeHtmlAttribute(): string
