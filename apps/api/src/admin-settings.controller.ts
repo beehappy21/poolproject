@@ -104,6 +104,10 @@ export class AdminSettingsController {
         payload.shoppingWalletSpendEnabled === true ||
         payload.shoppingWalletSpendEnabled === "true" ||
         payload.shoppingWalletSpendEnabled === "1",
+      discountWalletSpendEnabled:
+        payload.discountWalletSpendEnabled === true ||
+        payload.discountWalletSpendEnabled === "true" ||
+        payload.discountWalletSpendEnabled === "1",
       orderCashPaymentMethods: Array.isArray(payload.orderCashPaymentMethods)
         ? payload.orderCashPaymentMethods
             .map((value) => optionalString(value))

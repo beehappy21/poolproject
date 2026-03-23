@@ -44,6 +44,11 @@ class ProductDetailRecord extends Model
         'isFeatured',
         'isBestSeller',
         'poolRate',
+        'dcwSpendEnabled',
+        'dcwUsageAmount',
+        'dcwUsageAmountOverridden',
+        'dcwCashRewardRate',
+        'dcwShoppingRewardRate',
         'status',
     ];
 
@@ -54,6 +59,11 @@ class ProductDetailRecord extends Model
         'pv' => 'decimal:8',
         'ratingAvg' => 'decimal:2',
         'poolRate' => 'decimal:8',
+        'dcwSpendEnabled' => 'boolean',
+        'dcwUsageAmount' => 'decimal:8',
+        'dcwUsageAmountOverridden' => 'boolean',
+        'dcwCashRewardRate' => 'decimal:8',
+        'dcwShoppingRewardRate' => 'decimal:8',
         'isNew' => 'boolean',
         'isTop' => 'boolean',
         'isFeatured' => 'boolean',

@@ -78,6 +78,7 @@ export class OrdersController {
     body: {
       userId: string;
       packageId: string;
+      discountWalletAmount?: string;
       shoppingWalletAmount?: string;
       cashPaymentMethod?: string;
     },
@@ -86,6 +87,9 @@ export class OrdersController {
       return await this.ordersService.createOrder({
         userId: requirePositiveIntegerString(body.userId, "userId"),
         packageId: requirePositiveIntegerString(body.packageId, "packageId"),
+        discountWalletAmount: optionalString(body.discountWalletAmount)
+          ? requireDecimalString(body.discountWalletAmount, "discountWalletAmount")
+          : undefined,
         shoppingWalletAmount: optionalString(body.shoppingWalletAmount)
           ? requireDecimalString(body.shoppingWalletAmount, "shoppingWalletAmount")
           : undefined,

@@ -163,6 +163,11 @@ class ProductEditScreen extends Screen
             'rating_count' => old('product.rating_count', (string) ($this->productDetailRecord->ratingCount ?? '0')),
             'sort_order' => old('product.sort_order', (string) ($this->productDetailRecord->sortOrder ?? '0')),
             'pool_rate' => old('product.pool_rate', (string) ($this->productDetailRecord->poolRate ?? '0')),
+            'dcw_spend_enabled' => old('product.dcw_spend_enabled', $this->boolAsFormValue($this->productDetailRecord->dcwSpendEnabled ?? false)),
+            'dcw_reward_rate' => old(
+                'product.dcw_reward_rate',
+                (string) ($this->productDetailRecord->dcwCashRewardRate ?? $this->productDetailRecord->dcwShoppingRewardRate ?? '0')
+            ),
             'is_new' => old('product.is_new', $this->boolAsFormValue($this->productDetailRecord->isNew ?? ($this->product->is_new ?? false))),
             'is_top' => old('product.is_top', $this->boolAsFormValue($this->productDetailRecord->isTop ?? ($this->product->is_top ?? false))),
             'is_featured' => old('product.is_featured', $this->boolAsFormValue($this->productDetailRecord->isFeatured ?? ($this->product->is_featured ?? false))),
@@ -189,6 +194,19 @@ class ProductEditScreen extends Screen
         $formProduct['pv_formula'] = $defaultPv;
         $formProduct['pv'] = (string) $pvValue;
         $formProduct['pv_manual_override'] = (string) $manualOverride;
+        $defaultDcwUsage = $this->defaultDcwUsageValue($formProduct['member_price'], $formProduct['cost_price']);
+        $storedDcwUsage = $this->productDetailRecord->exists
+            ? (string) $this->productDetailRecord->dcwUsageAmount
+            : null;
+        $dcwUsageValue = old('product.dcw_usage_amount', $storedDcwUsage ?? $defaultDcwUsage);
+        $dcwManualOverride = old(
+            'product.dcw_usage_manual_override',
+            $this->productDetailRecord->exists && ($this->productDetailRecord->dcwUsageAmountOverridden ?? false) ? '1' : '0'
+        );
+
+        $formProduct['dcw_usage_formula'] = $defaultDcwUsage;
+        $formProduct['dcw_usage_amount'] = (string) $dcwUsageValue;
+        $formProduct['dcw_usage_manual_override'] = (string) $dcwManualOverride;
 
         return [
             'product' => $formProduct,
@@ -302,6 +320,10 @@ class ProductEditScreen extends Screen
             'product.rating_count' => ['nullable', 'integer', 'min:0'],
             'product.sort_order' => ['nullable', 'integer'],
             'product.pool_rate' => ['nullable', 'numeric', 'min:0'],
+            'product.dcw_spend_enabled' => ['nullable'],
+            'product.dcw_usage_amount' => ['nullable', 'numeric', 'min:0'],
+            'product.dcw_usage_manual_override' => ['nullable'],
+            'product.dcw_reward_rate' => ['nullable', 'numeric', 'min:0'],
             'product.is_new' => ['nullable'],
             'product.is_top' => ['nullable'],
             'product.is_featured' => ['nullable'],
@@ -338,6 +360,15 @@ class ProductEditScreen extends Screen
             'ratingCount' => (int) ($product['rating_count'] ?? 0),
             'sortOrder' => (int) ($product['sort_order'] ?? 0),
             'poolRate' => $this->decimalString($product['pool_rate'] ?? 0),
+            'dcwSpendEnabled' => $this->truthy($product['dcw_spend_enabled'] ?? false),
+            'dcwUsageAmount' => $this->wholeNumberString(
+                $this->truthy($product['dcw_usage_manual_override'] ?? false)
+                    ? ($product['dcw_usage_amount'] ?? 0)
+                    : $this->defaultDcwUsageValue($product['member_price'] ?? 0, $product['cost_price'] ?? 0)
+            ),
+            'dcwUsageAmountOverridden' => $this->truthy($product['dcw_usage_manual_override'] ?? false),
+            'dcwCashRewardRate' => $this->decimalString($product['dcw_reward_rate'] ?? 0),
+            'dcwShoppingRewardRate' => $this->decimalString($product['dcw_reward_rate'] ?? 0),
             'isNew' => $this->truthy($product['is_new'] ?? false),
             'isTop' => $this->truthy($product['is_top'] ?? false),
             'isFeatured' => $this->truthy($product['is_featured'] ?? false),
@@ -663,6 +694,20 @@ class ProductEditScreen extends Screen
         }
 
         return abs(((float) $pv) - ((float) $formula)) < 0.00000001;
+    }
+
+    private function defaultDcwUsageValue(mixed $memberPrice, mixed $costPrice): string
+    {
+        $member = (float) $memberPrice;
+        $cost = (float) $costPrice;
+        $dcw = floor(max(0, $member - ($cost * 0.7)));
+
+        return $this->wholeNumberString($dcw);
+    }
+
+    private function wholeNumberString(mixed $value): string
+    {
+        return (string) max(0, (int) floor((float) $value));
     }
 
     private function boolAsFormValue(bool $value): string

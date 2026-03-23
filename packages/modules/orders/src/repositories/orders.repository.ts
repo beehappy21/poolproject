@@ -9,9 +9,12 @@ import {
   toIsoString,
 } from "../../../../infrastructure/src/prisma/prisma.mappers";
 import {
+  addDecimalStrings,
   compareDecimalStrings,
   minDecimalString,
   subtractDecimalStrings,
+  multiplyDecimalStrings,
+  maxDecimalString,
 } from "../../../../shared/utils/src/money.util";
 import {
   readCommissionSettings,
@@ -45,6 +48,7 @@ export interface OrdersRepository {
         approvalStatus: string;
         totalUsdt: string;
         totalPv: string;
+        dcwAppliedUsdt: string;
         walletAppliedUsdt: string;
         cashDueUsdt: string;
         cashPaymentMethod: string | null;
@@ -68,6 +72,7 @@ export interface OrdersRepository {
           approvalStatus: string;
           totalUsdt: string;
           totalPv: string;
+          dcwAppliedUsdt: string;
           walletAppliedUsdt: string;
           cashDueUsdt: string;
           cashPaymentMethod: string | null;
@@ -96,6 +101,7 @@ export interface OrdersRepository {
     approvalStatus: string;
     totalUsdt: string;
     totalPv: string;
+    dcwAppliedUsdt: string;
     walletAppliedUsdt: string;
     cashDueUsdt: string;
     cashPaymentMethod: string | null;
@@ -114,6 +120,7 @@ export interface OrdersRepository {
   createOrder(input: {
     userId: string;
     packageId: string;
+    discountWalletAmount?: string;
     shoppingWalletAmount?: string;
     cashPaymentMethod?: string;
   }): Promise<{
@@ -123,6 +130,7 @@ export interface OrdersRepository {
     approvalStatus: string;
     totalUsdt: string;
     totalPv: string;
+    dcwAppliedUsdt: string;
     walletAppliedUsdt: string;
     cashDueUsdt: string;
     cashPaymentMethod: string | null;
@@ -287,6 +295,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
         approvalStatus: true,
         totalUsdt: true,
         totalPv: true,
+        dcwAppliedUsdt: true,
         walletAppliedUsdt: true,
         cashDueUsdt: true,
         cashPaymentMethod: true,
@@ -311,6 +320,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
       approvalStatus: order.approvalStatus.toLowerCase(),
       totalUsdt: order.totalUsdt.toString(),
       totalPv: order.totalPv.toString(),
+      dcwAppliedUsdt: order.dcwAppliedUsdt.toString(),
       walletAppliedUsdt: order.walletAppliedUsdt.toString(),
       cashDueUsdt: order.cashDueUsdt.toString(),
       cashPaymentMethod: order.cashPaymentMethod ?? null,
@@ -351,6 +361,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
         approvalStatus: true,
         totalUsdt: true,
         totalPv: true,
+        dcwAppliedUsdt: true,
         walletAppliedUsdt: true,
         cashDueUsdt: true,
         cashPaymentMethod: true,
@@ -376,6 +387,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
           approvalStatus: order.approvalStatus.toLowerCase(),
           totalUsdt: order.totalUsdt.toString(),
           totalPv: order.totalPv.toString(),
+          dcwAppliedUsdt: order.dcwAppliedUsdt.toString(),
           walletAppliedUsdt: order.walletAppliedUsdt.toString(),
           cashDueUsdt: order.cashDueUsdt.toString(),
           cashPaymentMethod: order.cashPaymentMethod ?? null,
@@ -396,6 +408,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
   async createOrder(input: {
     userId: string;
     packageId: string;
+    discountWalletAmount?: string;
     shoppingWalletAmount?: string;
     cashPaymentMethod?: string;
   }) {
@@ -407,6 +420,10 @@ export class PrismaOrdersRepository implements OrdersRepository {
         pv: true,
         poolRateMode: true,
         poolRate: true,
+        dcwSpendEnabled: true,
+        dcwUsageAmount: true,
+        dcwCashRewardRate: true,
+        dcwShoppingRewardRate: true,
       },
     });
 
@@ -417,18 +434,46 @@ export class PrismaOrdersRepository implements OrdersRepository {
     const walletSettings = readWalletSettings();
     const wallet = await this.prisma.wallet.findUnique({
       where: { userId: BigInt(input.userId) },
-      select: { shoppingBalance: true },
+      select: { shoppingBalance: true, discountBalance: true },
     });
-    const requestedShoppingAmount = input.shoppingWalletAmount ?? pkg.priceUsdt.toString();
+    const packagePriceUsdt = pkg.priceUsdt.toString();
+    const packageDcwLimit = minDecimalString(
+      pkg.dcwUsageAmount.toString(),
+      packagePriceUsdt,
+    );
+    const requestedDiscountAmount = input.discountWalletAmount ?? "0";
+    const availableDiscount = wallet?.discountBalance.toString() ?? "0";
+    const dcwAllowedForPackage =
+      walletSettings.discountWalletSpendEnabled && pkg.dcwSpendEnabled;
+
+    if (
+      compareDecimalStrings(requestedDiscountAmount, "0") > 0 &&
+      !dcwAllowedForPackage
+    ) {
+      throw new Error("Discount wallet is not allowed for this package.");
+    }
+
+    const dcwAppliedUsdt = dcwAllowedForPackage
+      ? minDecimalString(
+          minDecimalString(requestedDiscountAmount, availableDiscount),
+          packageDcwLimit,
+        )
+      : "0";
+    const remainingAfterDiscount = subtractDecimalStrings(
+      packagePriceUsdt,
+      dcwAppliedUsdt,
+    );
+    const requestedShoppingAmount =
+      input.shoppingWalletAmount ?? remainingAfterDiscount;
     const availableShopping = wallet?.shoppingBalance.toString() ?? "0";
     const walletAppliedUsdt = walletSettings.shoppingWalletSpendEnabled
       ? minDecimalString(
           minDecimalString(requestedShoppingAmount, availableShopping),
-          pkg.priceUsdt.toString(),
+          remainingAfterDiscount,
         )
       : "0";
     const cashDueUsdt = subtractDecimalStrings(
-      pkg.priceUsdt.toString(),
+      remainingAfterDiscount,
       walletAppliedUsdt,
     );
     const normalizedCashPaymentMethod = input.cashPaymentMethod?.trim().toLowerCase();
@@ -453,6 +498,10 @@ export class PrismaOrdersRepository implements OrdersRepository {
       unitPv: pkg.pv,
       poolRateMode: pkg.poolRateMode,
       unitPoolRate: pkg.poolRate,
+      dcwSpendEnabled: pkg.dcwSpendEnabled,
+      unitDcwUsageAmount: pkg.dcwUsageAmount,
+      unitDcwCashRewardRate: pkg.dcwCashRewardRate,
+      unitDcwShoppingRewardRate: pkg.dcwShoppingRewardRate,
       lineTotalUsdt: pkg.priceUsdt,
       lineTotalPv: pkg.pv,
     };
@@ -465,6 +514,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
           subtotalUsdt: pkg.priceUsdt,
           totalUsdt: pkg.priceUsdt,
           totalPv: pkg.pv,
+          dcwAppliedUsdt,
           walletAppliedUsdt,
           cashDueUsdt,
           cashPaymentMethod:
@@ -482,12 +532,54 @@ export class PrismaOrdersRepository implements OrdersRepository {
         },
       });
 
+      if (compareDecimalStrings(dcwAppliedUsdt, "0") > 0) {
+        const currentWallet = await tx.wallet.upsert({
+          where: { userId: BigInt(input.userId) },
+          update: {},
+          create: { userId: BigInt(input.userId) },
+          select: { discountBalance: true },
+        });
+
+        if (
+          compareDecimalStrings(
+            currentWallet.discountBalance.toString(),
+            dcwAppliedUsdt,
+          ) < 0
+        ) {
+          throw new Error("Insufficient discount wallet balance.");
+        }
+
+        await tx.wallet.update({
+          where: { userId: BigInt(input.userId) },
+          data: {
+            discountBalance: subtractDecimalStrings(
+              currentWallet.discountBalance.toString(),
+              dcwAppliedUsdt,
+            ),
+          },
+        });
+
+        await tx.walletTransaction.create({
+          data: {
+            userId: BigInt(input.userId),
+            txType: "DCW_PURCHASE_DEBIT",
+            direction: "DEBIT",
+            balanceBucket: "DISCOUNT",
+            refType: "order",
+            refId: createdOrder.id,
+            amount: dcwAppliedUsdt,
+            status: "POSTED",
+            note: "Discount wallet used for order purchase",
+          },
+        });
+      }
+
       if (compareDecimalStrings(walletAppliedUsdt, "0") > 0) {
         const currentWallet = await tx.wallet.upsert({
           where: { userId: BigInt(input.userId) },
           update: {},
           create: { userId: BigInt(input.userId) },
-          select: { shoppingBalance: true },
+          select: { shoppingBalance: true, discountBalance: true },
         });
 
         if (
@@ -496,7 +588,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
             walletAppliedUsdt,
           ) < 0
         ) {
-          throw new Error("Insufficient shopping wallet balance.");
+          throw new Error("Insufficient SW balance.");
         }
 
         await tx.wallet.update({
@@ -506,6 +598,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
               currentWallet.shoppingBalance.toString(),
               walletAppliedUsdt,
             ),
+            discountBalance: currentWallet.discountBalance.toString(),
           },
         });
 
@@ -534,6 +627,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
       approvalStatus: order.approvalStatus.toLowerCase(),
       totalUsdt: order.totalUsdt.toString(),
       totalPv: order.totalPv.toString(),
+      dcwAppliedUsdt: order.dcwAppliedUsdt.toString(),
       walletAppliedUsdt: order.walletAppliedUsdt.toString(),
       cashDueUsdt: order.cashDueUsdt.toString(),
       cashPaymentMethod: order.cashPaymentMethod ?? null,

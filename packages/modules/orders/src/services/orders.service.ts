@@ -23,6 +23,7 @@ export interface OrdersServiceContract {
         approvalStatus: string;
         totalUsdt: string;
         totalPv: string;
+        dcwAppliedUsdt: string;
         walletAppliedUsdt: string;
         cashDueUsdt: string;
         cashPaymentMethod: string | null;
@@ -46,6 +47,7 @@ export interface OrdersServiceContract {
           approvalStatus: string;
           totalUsdt: string;
           totalPv: string;
+          dcwAppliedUsdt: string;
           walletAppliedUsdt: string;
           cashDueUsdt: string;
           cashPaymentMethod: string | null;
@@ -74,6 +76,7 @@ export interface OrdersServiceContract {
     approvalStatus: string;
     totalUsdt: string;
     totalPv: string;
+    dcwAppliedUsdt: string;
     walletAppliedUsdt: string;
     cashDueUsdt: string;
     cashPaymentMethod: string | null;
@@ -92,6 +95,7 @@ export interface OrdersServiceContract {
   createOrder(input: {
     userId: string;
     packageId: string;
+    discountWalletAmount?: string;
     shoppingWalletAmount?: string;
     cashPaymentMethod?: string;
   }): Promise<{
@@ -101,6 +105,7 @@ export interface OrdersServiceContract {
     approvalStatus: string;
     totalUsdt: string;
     totalPv: string;
+    dcwAppliedUsdt: string;
     walletAppliedUsdt: string;
     cashDueUsdt: string;
     cashPaymentMethod: string | null;
@@ -223,6 +228,7 @@ export class OrdersService implements OrdersServiceContract {
   async createOrder(input: {
     userId: string;
     packageId: string;
+    discountWalletAmount?: string;
     shoppingWalletAmount?: string;
     cashPaymentMethod?: string;
   }) {
@@ -346,6 +352,7 @@ export class OrdersService implements OrdersServiceContract {
         matrixSettingsSnapshot: approvedOrder.matrixSettingsSnapshot,
       });
       const walletPostingInputs = await this.postCommissionWalletEntries(orderId);
+      await this.walletsService.creditDiscountWalletFromApprovedOrder({ orderId });
 
       return this.buildApprovedOrderResultFromEntries(
         approvedOrder,
@@ -376,6 +383,7 @@ export class OrdersService implements OrdersServiceContract {
     );
 
     const walletPostingInputs = await this.postCommissionWalletEntries(orderId);
+    await this.walletsService.creditDiscountWalletFromApprovedOrder({ orderId });
 
     return this.buildApprovedOrderResultFromEntries(
       approvedOrder,

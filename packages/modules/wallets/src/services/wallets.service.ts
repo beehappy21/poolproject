@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 
 import {
   CommissionToShoppingConversionResult,
+  DiscountWalletCreditResult,
   ShoppingWalletTopupResult,
   ShoppingWalletTransferResult,
   WalletBalanceReleaseResult,
@@ -71,6 +72,10 @@ export interface WalletsServiceContract {
     note?: string;
     actorUserId?: string | null;
   }): Promise<ShoppingWalletTopupResult>;
+
+  creditDiscountWalletFromApprovedOrder(input: {
+    orderId: string;
+  }): Promise<DiscountWalletCreditResult | null>;
 
   requestWalletTopup(input: {
     userId: string;
@@ -279,7 +284,7 @@ export class WalletsService implements WalletsServiceContract {
     const settings = readWalletSettings();
 
     if (!settings.commissionToShoppingEnabled) {
-      throw new Error("Commission to shopping wallet is disabled.");
+      throw new Error("CW to SW conversion is disabled.");
     }
 
     const feeAmount = multiplyDecimalStrings(
@@ -292,7 +297,7 @@ export class WalletsService implements WalletsServiceContract {
     );
 
     if (compareDecimalStrings(netAmount, "0") <= 0) {
-      throw new Error("Net shopping wallet amount must be greater than zero.");
+      throw new Error("Net SW amount must be greater than zero.");
     }
 
     return this.walletsRepository.convertWithdrawableToShoppingWallet({
@@ -328,7 +333,7 @@ export class WalletsService implements WalletsServiceContract {
     }
 
     if (recipientUserId === input.senderUserId) {
-      throw new Error("Cannot transfer shopping wallet to self.");
+      throw new Error("Cannot transfer SW to self.");
     }
 
     const isDownline = await this.walletsRepository.isDownlineOfSponsor(
@@ -382,6 +387,12 @@ export class WalletsService implements WalletsServiceContract {
     );
 
     return this.walletsRepository.topupShoppingWallet(input);
+  }
+
+  async creditDiscountWalletFromApprovedOrder(input: {
+    orderId: string;
+  }): Promise<DiscountWalletCreditResult | null> {
+    return this.walletsRepository.creditDiscountWalletFromApprovedOrder(input);
   }
 
   async requestWalletTopup(input: {

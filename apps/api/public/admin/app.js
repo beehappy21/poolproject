@@ -53,6 +53,7 @@ const walletCommissionEnabledSelect = document.getElementById("walletCommissionE
 const walletTransferEnabledSelect = document.getElementById("walletTransferEnabledSelect");
 const walletTopupEnabledSelect = document.getElementById("walletTopupEnabledSelect");
 const walletSpendEnabledSelect = document.getElementById("walletSpendEnabledSelect");
+const walletDiscountSpendEnabledSelect = document.getElementById("walletDiscountSpendEnabledSelect");
 const walletOrderCashMethodsInput = document.getElementById("walletOrderCashMethodsInput");
 const walletTopupMethodsInput = document.getElementById("walletTopupMethodsInput");
 const walletSettingsOutput = document.getElementById("walletSettingsOutput");
@@ -77,6 +78,11 @@ const packageNameInput = document.getElementById("packageNameInput");
 const packageDaysInput = document.getElementById("packageDaysInput");
 const packageCapInput = document.getElementById("packageCapInput");
 const packagePoolRateInput = document.getElementById("packagePoolRateInput");
+const packageDcwEnabledSelect = document.getElementById("packageDcwEnabledSelect");
+const packageDcwUsageAmountInput = document.getElementById("packageDcwUsageAmountInput");
+const packageDcwRewardInput = document.getElementById("packageDcwRewardInput");
+const packageDcwDefaultHint = document.getElementById("packageDcwDefaultHint");
+const packageDcwWarningLabel = document.getElementById("packageDcwWarningLabel");
 const packageDetailSelect = document.getElementById("packageDetailSelect");
 const packageDetailQtyInput = document.getElementById("packageDetailQtyInput");
 const addPackageDetailButton = document.getElementById("addPackageDetailButton");
@@ -106,6 +112,26 @@ const supplierCountMetric = document.getElementById("supplierCountMetric");
 const categoryCountMetric = document.getElementById("categoryCountMetric");
 const catalogProductCountMetric = document.getElementById("catalogProductCountMetric");
 const productDetailCountMetric = document.getElementById("productDetailCountMetric");
+const createBuyMorePackageForm = document.getElementById("createBuyMorePackageForm");
+const buyMoreSupplierSelect = document.getElementById("buyMoreSupplierSelect");
+const buyMoreCategoryCodeInput = document.getElementById("buyMoreCategoryCodeInput");
+const buyMoreCategoryNameInput = document.getElementById("buyMoreCategoryNameInput");
+const buyMoreQtyInput = document.getElementById("buyMoreQtyInput");
+const buyMoreProductCodeInput = document.getElementById("buyMoreProductCodeInput");
+const buyMoreProductNameInput = document.getElementById("buyMoreProductNameInput");
+const buyMoreDetailCodeInput = document.getElementById("buyMoreDetailCodeInput");
+const buyMoreDetailNameInput = document.getElementById("buyMoreDetailNameInput");
+const buyMoreCostInput = document.getElementById("buyMoreCostInput");
+const buyMoreMemberPriceInput = document.getElementById("buyMoreMemberPriceInput");
+const buyMoreRetailPriceInput = document.getElementById("buyMoreRetailPriceInput");
+const buyMorePvInput = document.getElementById("buyMorePvInput");
+const buyMorePackageCodeInput = document.getElementById("buyMorePackageCodeInput");
+const buyMorePackageNameInput = document.getElementById("buyMorePackageNameInput");
+const buyMorePoolRateInput = document.getElementById("buyMorePoolRateInput");
+const buyMoreCapInput = document.getElementById("buyMoreCapInput");
+const buyMoreDcwEnabledSelect = document.getElementById("buyMoreDcwEnabledSelect");
+const buyMoreDcwUsageAmountInput = document.getElementById("buyMoreDcwUsageAmountInput");
+const buyMoreDcwRewardInput = document.getElementById("buyMoreDcwRewardInput");
 const workspaceTitle = document.getElementById("workspaceTitle");
 const workspaceDescription = document.getElementById("workspaceDescription");
 const workspaceAdminName = document.getElementById("workspaceAdminName");
@@ -228,6 +254,7 @@ state.walletSettings = {
   walletTransferFeeRate: "0",
   walletTopupEnabled: true,
   shoppingWalletSpendEnabled: true,
+  discountWalletSpendEnabled: true,
   orderCashPaymentMethods: ["bank_transfer", "promptpay_qr", "cash"],
   walletTopupPaymentMethods: ["manual_bank", "promptpay_qr", "cash"],
 };
@@ -749,6 +776,9 @@ function renderProductPreview() {
   const previewRetailPrice = document.getElementById("productPreviewRetailPrice");
   const previewPv = document.getElementById("productPreviewPv");
   const previewPoolRate = document.getElementById("productPreviewPoolRate");
+  const previewDcwDefault = document.getElementById("productPreviewDcwDefault");
+  const previewDcwUsage = document.getElementById("productPreviewDcwUsage");
+  const previewDcwReward = document.getElementById("productPreviewDcwReward");
   const previewDays = document.getElementById("productPreviewDays");
   const previewCap = document.getElementById("productPreviewCap");
   const previewItemCount = document.getElementById("productPreviewItemCount");
@@ -785,9 +815,37 @@ function renderProductPreview() {
   previewRetailPrice.textContent = `${totals.retail} USDT`;
   previewPv.textContent = `${totals.pv} PV`;
   previewPoolRate.textContent = `${packagePoolRateInput?.value.trim() || "0"}%`;
+  const defaultDcwUsage = computeDcwDefaultUsage(totals.cost, totals.member);
+  const overrideDcwUsage = packageDcwUsageAmountInput?.value.trim() || "";
+  if (previewDcwDefault) {
+    previewDcwDefault.textContent = `${defaultDcwUsage} USDT`;
+  }
+  if (previewDcwUsage) {
+    previewDcwUsage.textContent = overrideDcwUsage
+      ? `${overrideDcwUsage} USDT`
+      : `Auto ${defaultDcwUsage} USDT`;
+  }
+  if (previewDcwReward) {
+    previewDcwReward.textContent = `${packageDcwRewardInput?.value.trim() || "0"}% on cash + SW`;
+  }
+  if (packageDcwDefaultHint) {
+    packageDcwDefaultHint.textContent = `Auto = ${totals.member} - (${totals.cost} x 70%) = ${defaultDcwUsage} USDT, rounded down to whole number`;
+  }
+  if (packageDcwWarningLabel) {
+    packageDcwWarningLabel.textContent = overrideDcwUsage
+      ? "Custom DCW usage overrides the automatic default derived from member price - (cost x 70%). DCW always rounds down to a whole number."
+      : "No override warning. DCW always rounds down to a whole number.";
+  }
   previewDays.textContent = `${packageDaysInput?.value.trim() || "0"} days`;
   previewCap.textContent = packageCapInput?.value.trim() || "0";
   previewItemCount.textContent = `${totals.items} items`;
+}
+
+function computeDcwDefaultUsage(costValue, memberValue) {
+  const cost = Number(costValue) || 0;
+  const member = Number(memberValue) || 0;
+  const computed = Math.floor(Math.max(member - (cost * 0.7), 0));
+  return Number.isFinite(computed) ? String(computed) : "0";
 }
 
 function resetProductForm() {
@@ -795,6 +853,9 @@ function resetProductForm() {
   packageDaysInput.value = "30";
   packageCapInput.value = "360";
   packagePoolRateInput.value = "10";
+  packageDcwEnabledSelect.value = "true";
+  packageDcwUsageAmountInput.value = "";
+  packageDcwRewardInput.value = "0";
   packageDetailQtyInput.value = "1";
   state.packageBuilderItems = [];
   renderPackageItemRows();
@@ -811,6 +872,12 @@ function populateProductForm(pkg) {
   packageDaysInput.value = `${pkg.activeDays || ""}`;
   packageCapInput.value = pkg.earningCapAmount || "";
   packagePoolRateInput.value = pkg.poolRate ? `${Number(pkg.poolRate) * 100}` : "0";
+  packageDcwEnabledSelect.value = String(pkg.dcwSpendEnabled !== false);
+  packageDcwUsageAmountInput.value =
+    pkg.dcwUsageAmountOverridden && pkg.dcwUsageAmount ? pkg.dcwUsageAmount : "";
+  packageDcwRewardInput.value = decimalToPercentString(
+    pkg.dcwRewardRate || pkg.dcwCashRewardRate || pkg.dcwShoppingRewardRate || "0",
+  );
   state.packageBuilderItems = [];
   renderPackageItemRows();
   renderProductPreview();
@@ -862,6 +929,9 @@ function renderCatalogSelectors() {
 
   categorySupplierSelect.innerHTML = supplierOptions;
   productSupplierSelect.innerHTML = supplierOptions;
+  if (buyMoreSupplierSelect) {
+    buyMoreSupplierSelect.innerHTML = supplierOptions;
+  }
   productCategorySelect.innerHTML = categoryOptions;
   productDetailProductSelect.innerHTML = productOptions;
   packageDetailSelect.innerHTML = detailOptions;
@@ -1042,6 +1112,11 @@ function renderWalletSettings() {
   walletSpendEnabledSelect.value = String(
     Boolean(state.walletSettings.shoppingWalletSpendEnabled),
   );
+  if (walletDiscountSpendEnabledSelect) {
+    walletDiscountSpendEnabledSelect.value = String(
+      Boolean(state.walletSettings.discountWalletSpendEnabled),
+    );
+  }
   walletOrderCashMethodsInput.value = (state.walletSettings.orderCashPaymentMethods || []).join(", ");
   walletTopupMethodsInput.value = (state.walletSettings.walletTopupPaymentMethods || []).join(", ");
 
@@ -1089,6 +1164,7 @@ async function loadWalletSettings() {
     walletTransferFeeRate: settings.walletTransferFeeRate || "0",
     walletTopupEnabled: Boolean(settings.walletTopupEnabled),
     shoppingWalletSpendEnabled: Boolean(settings.shoppingWalletSpendEnabled),
+    discountWalletSpendEnabled: Boolean(settings.discountWalletSpendEnabled),
     orderCashPaymentMethods: settings.orderCashPaymentMethods || [],
     walletTopupPaymentMethods: settings.walletTopupPaymentMethods || [],
   };
@@ -1106,6 +1182,8 @@ async function saveWalletSettings() {
       walletTransferFeeRate: percentToDecimalString(walletTransferFeeRateInput.value),
       walletTopupEnabled: walletTopupEnabledSelect.value === "true",
       shoppingWalletSpendEnabled: walletSpendEnabledSelect.value === "true",
+      discountWalletSpendEnabled:
+        walletDiscountSpendEnabledSelect?.value === "true",
       orderCashPaymentMethods: parseCommaSeparatedValues(walletOrderCashMethodsInput.value),
       walletTopupPaymentMethods: parseCommaSeparatedValues(walletTopupMethodsInput.value),
     }),
@@ -1118,6 +1196,7 @@ async function saveWalletSettings() {
     walletTransferFeeRate: result.walletTransferFeeRate,
     walletTopupEnabled: Boolean(result.walletTopupEnabled),
     shoppingWalletSpendEnabled: Boolean(result.shoppingWalletSpendEnabled),
+    discountWalletSpendEnabled: Boolean(result.discountWalletSpendEnabled),
     orderCashPaymentMethods: result.orderCashPaymentMethods || [],
     walletTopupPaymentMethods: result.walletTopupPaymentMethods || [],
   };
@@ -1672,6 +1751,7 @@ async function loadDashboard() {
         <td>${detail.retailPriceUsdt}</td>
         <td>${detail.pv}</td>
         <td>${decimalToPercentString(detail.poolRate)}</td>
+        <td><span class="muted">DCW on package offer</span></td>
         <td>${detail.status}</td>
       </tr>`;
     },
@@ -1680,7 +1760,7 @@ async function loadDashboard() {
   renderTableRows(
     "packagesTable",
     packageItems,
-    (pkg) => `<tr><td>${pkg.packageId}</td><td>${pkg.code}</td><td>${pkg.name}</td><td>${pkg.costPriceUsdt}</td><td>${pkg.memberPriceUsdt}</td><td>${pkg.retailPriceUsdt}</td><td>${pkg.pv}</td><td>${decimalToPercentString(pkg.poolRate)}</td><td>${pkg.activeDays}</td><td>${pkg.earningCapAmount}</td><td>${pkg.itemCount ?? 0}</td><td>${pkg.status}</td><td><div class="table-actions"><button type="button" class="secondary" data-action="clone-package-to-studio" data-package-id="${pkg.packageId}">Clone to Studio</button><button type="button" class="secondary" data-action="prefill-order-package" data-package-id="${pkg.packageId}">Use In Order</button><button type="button" class="secondary" data-action="toggle-package-status" data-package-id="${pkg.packageId}" data-package-status="${pkg.status}">${pkg.status === "active" ? "Deactivate" : "Activate"}</button></div></td></tr>`,
+    (pkg) => `<tr><td>${pkg.packageId}</td><td>${pkg.code}</td><td>${pkg.name}</td><td>${pkg.costPriceUsdt}</td><td>${pkg.memberPriceUsdt}</td><td>${pkg.retailPriceUsdt}</td><td>${pkg.pv}</td><td>${decimalToPercentString(pkg.poolRate)}</td><td>${pkg.dcwSpendEnabled ? `${pkg.dcwUsageAmount}${pkg.dcwUsageAmountOverridden ? " (custom)" : " (auto)"}` : "disabled"}</td><td>${decimalToPercentString(pkg.dcwRewardRate || pkg.dcwCashRewardRate || pkg.dcwShoppingRewardRate || "0")}</td><td>${pkg.activeDays}</td><td>${pkg.earningCapAmount}</td><td>${pkg.itemCount ?? 0}</td><td>${pkg.status}</td><td><div class="table-actions"><button type="button" class="secondary" data-action="clone-package-to-studio" data-package-id="${pkg.packageId}">Clone to Studio</button><button type="button" class="secondary" data-action="prefill-order-package" data-package-id="${pkg.packageId}">Use In Order</button><button type="button" class="secondary" data-action="toggle-package-status" data-package-id="${pkg.packageId}" data-package-status="${pkg.status}">${pkg.status === "active" ? "Deactivate" : "Activate"}</button></div></td></tr>`,
   );
   renderCatalogEntityMetrics();
   renderCatalogSelectors();
@@ -2317,8 +2397,8 @@ document.addEventListener("click", (event) => {
       .then(async (result) => {
         setActionOutput(`Top-up request ${button.dataset.requestId} approved`, result);
         pushHistory(
-          "Wallet Top-Up Approve",
-          `Approved top-up request ${button.dataset.requestId}`,
+          "SW Top-Up Approve",
+          `Approved SW top-up request ${button.dataset.requestId}`,
         );
         await loadDashboard();
       })
@@ -2347,8 +2427,8 @@ document.addEventListener("click", (event) => {
       .then(async (result) => {
         setActionOutput(`Top-up request ${button.dataset.requestId} rejected`, result);
         pushHistory(
-          "Wallet Top-Up Reject",
-          `Rejected top-up request ${button.dataset.requestId}`,
+          "SW Top-Up Reject",
+          `Rejected SW top-up request ${button.dataset.requestId}`,
         );
         await loadDashboard();
       })
@@ -2364,6 +2444,7 @@ document.addEventListener("click", (event) => {
     setActionOutput("Action failed", { message: error.message });
   });
 });
+}
 
 createSupplierForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -2485,6 +2566,9 @@ createPackageForm.addEventListener("submit", async (event) => {
         activeDays: Number(packageDaysInput.value),
         earningCapAmount: packageCapInput.value.trim(),
         poolRate: percentToDecimalString(packagePoolRateInput.value),
+        dcwSpendEnabled: packageDcwEnabledSelect.value === "true",
+        dcwUsageAmount: packageDcwUsageAmountInput.value.trim() || undefined,
+        dcwRewardRate: percentToDecimalString(packageDcwRewardInput.value),
         productDetailItems: state.packageBuilderItems.map((item) => ({
           productDetailId: item.productDetailId,
           qty: Number(item.qty),
@@ -2501,10 +2585,116 @@ createPackageForm.addEventListener("submit", async (event) => {
   }
 });
 
-[packageCodeInput, packageNameInput, packageDaysInput, packageCapInput, packagePoolRateInput]
+async function ensureCategoryForSupplier({ supplierId, code, name }) {
+  const normalizedCode = code.trim().toUpperCase();
+  const existing = state.categories.find(
+    (item) => item.supplierId === supplierId && String(item.code || "").toUpperCase() === normalizedCode,
+  );
+
+  if (existing) {
+    return existing;
+  }
+
+  return request("/packages/categories", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      supplierId,
+      code: normalizedCode,
+      name: name.trim(),
+    }),
+  });
+}
+
+createBuyMorePackageForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  try {
+    const supplierId = buyMoreSupplierSelect.value;
+    if (!supplierId) {
+      throw new Error("Pick supplier before creating a buy more package.");
+    }
+
+    const category = await ensureCategoryForSupplier({
+      supplierId,
+      code: buyMoreCategoryCodeInput.value,
+      name: buyMoreCategoryNameInput.value,
+    });
+
+    const product = await request("/packages/products", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        supplierId,
+        categoryId: category.categoryId,
+        code: buyMoreProductCodeInput.value.trim(),
+        name: buyMoreProductNameInput.value.trim(),
+      }),
+    });
+
+    const detail = await request("/packages/product-details", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        productId: product.productId,
+        code: buyMoreDetailCodeInput.value.trim(),
+        name: buyMoreDetailNameInput.value.trim(),
+        costPriceUsdt: buyMoreCostInput.value.trim(),
+        memberPriceUsdt: buyMoreMemberPriceInput.value.trim(),
+        retailPriceUsdt: buyMoreRetailPriceInput.value.trim(),
+        pv: buyMorePvInput.value.trim(),
+        poolRate: percentToDecimalString(buyMorePoolRateInput.value),
+        imageUrls: [],
+      }),
+    });
+
+    const pkg = await request("/packages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: buyMorePackageCodeInput.value.trim(),
+        name: buyMorePackageNameInput.value.trim(),
+        activeDays: 30,
+        earningCapAmount: buyMoreCapInput.value.trim(),
+        poolRate: percentToDecimalString(buyMorePoolRateInput.value),
+        dcwSpendEnabled: buyMoreDcwEnabledSelect.value === "true",
+        dcwUsageAmount: buyMoreDcwUsageAmountInput.value.trim() || undefined,
+        dcwRewardRate: percentToDecimalString(buyMoreDcwRewardInput.value),
+        productDetailItems: [
+          {
+            productDetailId: detail.productDetailId,
+            qty: Number(buyMoreQtyInput.value),
+          },
+        ],
+      }),
+    });
+
+    setActionOutput("Buy more package created", {
+      category,
+      product,
+      detail,
+      package: pkg,
+    });
+    createBuyMorePackageForm.reset();
+    buyMoreCategoryCodeInput.value = "BUYMORE";
+    buyMoreCategoryNameInput.value = "ซื้อเพิ่ม";
+    buyMoreQtyInput.value = "1";
+    buyMorePoolRateInput.value = "0";
+    buyMoreCapInput.value = "100";
+    buyMoreDcwEnabledSelect.value = "true";
+    buyMoreDcwRewardInput.value = "0";
+    await loadDashboard();
+  } catch (error) {
+    setStatus(error.message);
+    setActionOutput("Buy more package create failed", { message: error.message });
+  }
+});
+
+[packageCodeInput, packageNameInput, packageDaysInput, packageCapInput, packagePoolRateInput, packageDcwUsageAmountInput, packageDcwRewardInput, packageDcwEnabledSelect]
   .filter(Boolean)
   .forEach((input) => {
     input.addEventListener("input", renderProductPreview);
+    input.addEventListener("change", renderProductPreview);
   });
 
 addPackageDetailButton?.addEventListener("click", () => {
