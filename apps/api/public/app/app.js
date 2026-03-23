@@ -112,9 +112,9 @@ function renderOrders(orderResult) {
           .map(
             (order) => `<tr>
               <td>${order.orderNo}</td>
-              <td>${order.status}</td>
+              <td><span class="status-chip ${getOrderStateClassName(order)}">${getOrderStateLabel(order)}</span></td>
               <td><span class="status-chip ${getApprovalClassName(order.approvalStatus)}">${order.approvalStatus}</span></td>
-              <td>${formatShipmentStatus(order)}</td>
+              <td><span class="status-chip ${getShipmentClassName(order)}">${formatShipmentStatus(order)}</span></td>
               <td>${order.totalPv}</td>
               <td>${order.createdAt}</td>
               <td><button type="button" class="ghost inspect-order-button" data-order-id="${order.orderId}">Detail</button></td>
@@ -256,6 +256,40 @@ function getApprovalClassName(approvalStatus) {
   return approvalStatus === "approved" ? "status-ok" : "status-waiting";
 }
 
+function getOrderStateLabel(order) {
+  if (order.deliveredAt) {
+    return "delivered";
+  }
+
+  if (order.shippedAt) {
+    return "shipped";
+  }
+
+  if (order.approvalStatus === "approved") {
+    return "approved";
+  }
+
+  if (order.transferSubmittedAt) {
+    return "transfer-review";
+  }
+
+  return "awaiting-payment";
+}
+
+function getOrderStateClassName(order) {
+  const label = getOrderStateLabel(order);
+
+  if (label === "delivered") {
+    return "status-info";
+  }
+
+  if (label === "shipped") {
+    return "status-progress";
+  }
+
+  return label === "approved" ? "status-ok" : "status-waiting";
+}
+
 function getTransactionTypeClassName(txType) {
   return txType === "MATRIX_CREDIT" ? "type-matrix" : "type-default";
 }
@@ -290,27 +324,39 @@ function renderOrderGuide(orders) {
     return;
   }
 
-  const pendingCount = orders.filter((order) => order.approvalStatus !== "approved").length;
-  const approvedCount = orders.length - pendingCount;
+  const awaitingPaymentCount = orders.filter(
+    (order) => !order.transferSubmittedAt && order.approvalStatus !== "approved",
+  ).length;
+  const transferReviewCount = orders.filter(
+    (order) => !!order.transferSubmittedAt && order.approvalStatus !== "approved",
+  ).length;
+  const pendingCount = awaitingPaymentCount + transferReviewCount;
+  const approvedCount = orders.filter((order) => order.approvalStatus === "approved").length;
   const awaitingShipmentCount = orders.filter(
     (order) => order.approvalStatus === "approved" && !order.shippedAt,
   ).length;
-  const shippedCount = orders.filter((order) => !!order.shippedAt).length;
+  const shippedCount = orders.filter((order) => !!order.shippedAt && !order.deliveredAt).length;
+  const deliveredCount = orders.filter((order) => !!order.deliveredAt).length;
 
   orderGuide.innerHTML = [
     `<div class="stack-item">
       <strong>${approvedCount} approved / ${pendingCount} pending</strong>
+      <p class="muted">BAO buckets: ${awaitingPaymentCount} awaiting payment • ${transferReviewCount} transfer review • ${awaitingShipmentCount} awaiting shipment • ${shippedCount} shipped • ${deliveredCount} delivered</p>
       <p class="muted">Pending orders still need admin approval. Approved orders are ready for downstream processing and earnings allocation.</p>
-      <p class="muted">Shipment: ${awaitingShipmentCount} awaiting shipment • ${shippedCount} shipped</p>
     </div>`,
-    pendingCount > 0
+    transferReviewCount > 0
       ? `<div class="stack-item">
           <strong>Next step</strong>
-          <p class="muted">Wait for admin to approve and process your pending order(s). Use the Detail button to inspect each order snapshot.</p>
+          <p class="muted">Some orders already have a submitted slip and are waiting in BAO transfer review. Use Detail to confirm the slip and current progress.</p>
         </div>`
-      : `<div class="stack-item">
+      : awaitingPaymentCount > 0
+        ? `<div class="stack-item">
+          <strong>Next step</strong>
+          <p class="muted">Submit a transfer slip for unpaid orders so BAO can review and approve them.</p>
+        </div>`
+        : `<div class="stack-item">
           <strong>All clear</strong>
-          <p class="muted">Your visible orders are approved. Check commissions and wallet activity below for resulting earnings.</p>
+          <p class="muted">Your visible orders are already in approved, shipped, or delivered stages. Check detail rows below for tracking and delivery progress.</p>
         </div>`,
   ].join("");
 }
@@ -331,6 +377,18 @@ function formatShipmentStatus(order) {
   }
 
   return "not-ready";
+}
+
+function getShipmentClassName(order) {
+  if (order.deliveredAt) {
+    return "status-info";
+  }
+
+  if (order.shippedAt) {
+    return "status-progress";
+  }
+
+  return order.approvalStatus === "approved" ? "status-ok" : "status-waiting";
 }
 
 function renderNetwork(network) {
@@ -449,18 +507,19 @@ async function loadOrderDetail(orderId) {
   orderTimeline.innerHTML = [
     `<div class="stack-item">
       <strong>${snapshot.order.orderNo}</strong>
-      <p class="muted">Status ${snapshot.order.status} • Approval ${snapshot.order.approvalStatus}</p>
+      <p class="muted">State ${getOrderStateLabel(snapshot.order)} • Approval ${snapshot.order.approvalStatus}</p>
       <p class="muted">PV ${snapshot.order.totalPv} • Created ${snapshot.order.createdAt}</p>
       <p class="muted">${snapshot.order.transferSubmittedAt ? `Slip submitted ${snapshot.order.transferSubmittedAt}` : "No transfer slip submitted yet"}</p>
       <p class="muted">Shipment ${formatShipmentStatus(snapshot.order)}</p>
     </div>`,
     `<div class="stack-item">
       <strong>Timeline</strong>
-      <p class="muted">${snapshot.order.shippedAt ? "1. Created  2. Slip submitted  3. Approved  4. Shipped" : snapshot.order.approvalStatus === "approved" ? "1. Created  2. Slip submitted  3. Approved  4. Awaiting shipment" : "1. Created  2. Waiting for admin approval  3. Processing will happen after approval"}</p>
+      <p class="muted">${snapshot.order.deliveredAt ? "1. Created  2. Slip submitted  3. Approved  4. Shipped  5. Delivered" : snapshot.order.shippedAt ? "1. Created  2. Slip submitted  3. Approved  4. Shipped" : snapshot.order.approvalStatus === "approved" ? "1. Created  2. Slip submitted  3. Approved  4. Awaiting shipment" : snapshot.order.transferSubmittedAt ? "1. Created  2. Slip submitted  3. Waiting for BAO transfer review" : "1. Created  2. Awaiting payment  3. Submit transfer slip"}</p>
     </div>`,
     `<div class="stack-item">
       <strong>Shipment</strong>
       <p class="muted">${snapshot.order.shippedAt ? `Shipped at ${snapshot.order.shippedAt}` : "Not shipped yet"}</p>
+      <p class="muted">${snapshot.order.deliveredAt ? `Delivered at ${snapshot.order.deliveredAt}` : "Not marked as delivered yet"}</p>
       <p class="muted">${snapshot.order.shipmentCarrier ? `Carrier ${snapshot.order.shipmentCarrier}` : "Carrier not set"}</p>
       <p class="muted">${snapshot.order.shipmentTrackingNo ? `Tracking ${snapshot.order.shipmentTrackingNo}` : "Tracking number not set"}</p>
       <p class="muted">${snapshot.order.shipmentNote || "No shipment note"}</p>

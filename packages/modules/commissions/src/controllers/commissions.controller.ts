@@ -24,9 +24,12 @@ export class CommissionsController {
       normalizedCommissionType &&
       normalizedCommissionType !== "direct" &&
       normalizedCommissionType !== "uni" &&
-      normalizedCommissionType !== "pool"
+      normalizedCommissionType !== "pool" &&
+      normalizedCommissionType !== "cashback"
     ) {
-      throw new BadRequestException("commissionType must be direct, uni, or pool.");
+      throw new BadRequestException(
+        "commissionType must be direct, uni, pool, or cashback.",
+      );
     }
 
     return this.commissionsService.listCommissions({
@@ -53,9 +56,12 @@ export class CommissionsController {
       normalizedSourceType &&
       normalizedSourceType !== "direct" &&
       normalizedSourceType !== "uni" &&
-      normalizedSourceType !== "pool"
+      normalizedSourceType !== "pool" &&
+      normalizedSourceType !== "cashback"
     ) {
-      throw new BadRequestException("sourceType must be direct, uni, or pool.");
+      throw new BadRequestException(
+        "sourceType must be direct, uni, pool, or cashback.",
+      );
     }
 
     return this.commissionsService.listCompanyFallbacks({

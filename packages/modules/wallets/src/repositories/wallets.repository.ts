@@ -314,6 +314,10 @@ export class PrismaWalletsRepository implements WalletsRepository {
       return "UNI_CREDIT" as const;
     }
 
+    if (input.earningType === "cashback") {
+      return "CASHBACK_CREDIT" as const;
+    }
+
     return "DIRECT_CREDIT" as const;
   }
 }

@@ -6,6 +6,7 @@
         'directLevelRates' => ['0.2'],
         'uniLevelRates' => ['0.05', '0.05', '0.05', '0.05', '0.05'],
         'poolRate' => '0.5',
+        'cashbackRate' => '0',
     ];
     $matrixSettings = $matrixSettings ?? [
         'boardWidth' => 2,
@@ -69,6 +70,7 @@
     $directRates = old('directLevelRates', $commissionSettings['directLevelRates'] ?? ['0.2']);
     $uniRates = old('uniLevelRates', $commissionSettings['uniLevelRates'] ?? ['0.05']);
     $poolRate = old('poolRate', $commissionSettings['poolRate'] ?? '0.5');
+    $cashbackRate = old('cashbackRate', $commissionSettings['cashbackRate'] ?? '0');
     $matrixOrgRate = old('organizationPvRate', $matrixSettings['organizationPvRate'] ?? '0.1');
     $matrixBoardWidth = old('boardWidth', $matrixSettings['boardWidth'] ?? 2);
     $matrixThresholds = old('boardOpenPvThresholds', $matrixSettings['boardOpenPvThresholds'] ?? ['100', '100', '100']);
@@ -94,6 +96,11 @@
             'label' => 'Pool rate',
             'value' => $commissionSettings['poolRate'] ?? '0',
             'note' => 'Latest pool contribution rate',
+        ],
+        [
+            'label' => 'Cash back rate',
+            'value' => $commissionSettings['cashbackRate'] ?? '0',
+            'note' => 'Personal PV cashback rate on approved orders',
         ],
         [
             'label' => 'Matrix board shape',
@@ -147,7 +154,7 @@
                 <div class="commission-panel">
                     <div class="commission-eyebrow">Commission Menu</div>
                     <div class="commission-settings-nav">
-                        @foreach (collect($nav)->whereIn('key', ['settings', 'direct', 'unilevel', 'matrix', 'pool']) as $item)
+                        @foreach (collect($nav)->whereIn('key', ['settings', 'direct', 'unilevel', 'matrix', 'pool', 'cashback']) as $item)
                             <a href="{{ $item['route'] }}" @class(['is-active' => !empty($item['isActive'])])>
                                 <span>{{ $item['title'] }}</span>
                                 <span>&rsaquo;</span>
@@ -176,7 +183,7 @@
             </div>
         @endif
 
-        @if ($activeKey === 'direct' || $activeKey === 'unilevel' || $activeKey === 'pool')
+        @if ($activeKey === 'direct' || $activeKey === 'unilevel' || $activeKey === 'pool' || $activeKey === 'cashback')
             <div class="commission-panel">
                 <div class="commission-eyebrow">Live Commission Settings</div>
                 <input type="hidden" name="redirectSection" value="{{ $activeKey }}">
@@ -228,6 +235,20 @@
                     </div>
                 @else
                     <input type="hidden" name="poolRate" value="{{ $poolRate }}">
+                @endif
+
+                @if ($activeKey === 'cashback')
+                    <div class="commission-form-grid">
+                        <div class="commission-field">
+                            <label>Cash back rate</label>
+                            <input name="cashbackRate" value="{{ $cashbackRate }}" required>
+                            <div class="commission-helper">
+                                คิดจาก PV ซื้อส่วนตัวของสมาชิก และจ่ายทันทีเมื่อออเดอร์ได้รับการอนุมัติ
+                            </div>
+                        </div>
+                    </div>
+                @else
+                    <input type="hidden" name="cashbackRate" value="{{ $cashbackRate }}">
                 @endif
 
                 <button

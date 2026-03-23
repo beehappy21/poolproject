@@ -87,6 +87,7 @@ enum CommissionType {
   DIRECT
   UNI
   POOL
+  CASHBACK
 }
 
 enum CommissionStatus {
@@ -110,6 +111,7 @@ enum CompanyBonusSourceType {
   DIRECT
   UNI
   POOL
+  CASHBACK
   REVERSAL
 }
 
@@ -124,6 +126,7 @@ enum WalletTransactionType {
   UNI_CREDIT
   POOL_CREDIT
   MATRIX_CREDIT
+  CASHBACK_CREDIT
   HOLD_RELEASE
   REVERSAL_DEBIT
   NEGATIVE_OFFSET_APPLY

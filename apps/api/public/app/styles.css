@@ -164,6 +164,16 @@ p {
   color: #355d27;
 }
 
+.status-progress {
+  background: rgba(40, 94, 147, 0.14);
+  color: #1e4d79;
+}
+
+.status-info {
+  background: rgba(55, 110, 84, 0.14);
+  color: #1f5b46;
+}
+
 .status-waiting {
   background: rgba(148, 98, 22, 0.12);
   color: #8a5b13;

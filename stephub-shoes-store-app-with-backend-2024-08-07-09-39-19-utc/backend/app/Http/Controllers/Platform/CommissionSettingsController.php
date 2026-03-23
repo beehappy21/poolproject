@@ -15,6 +15,7 @@ class CommissionSettingsController extends Controller
             'directLevelRates' => $request->input('directLevelRates', $request->input('direct_level_rates')),
             'uniLevelRates' => $request->input('uniLevelRates', $request->input('uni_level_rates')),
             'poolRate' => $request->input('poolRate', $request->input('pool_rate')),
+            'cashbackRate' => $request->input('cashbackRate', $request->input('cashback_rate')),
             'redirectSection' => $request->input('redirectSection', $request->input('redirect_section')),
         ]);
 
@@ -24,6 +25,7 @@ class CommissionSettingsController extends Controller
             'uniLevelRates' => ['nullable', 'array'],
             'uniLevelRates.*' => ['nullable', 'string'],
             'poolRate' => ['nullable', 'string'],
+            'cashbackRate' => ['nullable', 'string'],
             'redirectSection' => ['nullable', 'string'],
         ]);
 
@@ -33,6 +35,7 @@ class CommissionSettingsController extends Controller
             'directLevelRates' => $this->cleanRates($payload['directLevelRates'] ?? $current['directLevelRates']),
             'uniLevelRates' => $this->cleanRates($payload['uniLevelRates'] ?? $current['uniLevelRates']),
             'poolRate' => $this->cleanSingleRate($payload['poolRate'] ?? $current['poolRate']),
+            'cashbackRate' => $this->cleanSingleRate($payload['cashbackRate'] ?? $current['cashbackRate'] ?? '0'),
         ];
 
         PoolprojectSettingsStore::writeCommissionSettings($next);
@@ -141,6 +144,7 @@ class CommissionSettingsController extends Controller
             'direct' => 'platform.commission.direct',
             'unilevel' => 'platform.commission.unilevel',
             'pool' => 'platform.commission.pool',
+            'cashback' => 'platform.commission.cashback',
             default => 'platform.commission.settings',
         };
     }

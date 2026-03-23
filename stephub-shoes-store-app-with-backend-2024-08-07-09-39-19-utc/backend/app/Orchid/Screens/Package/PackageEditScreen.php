@@ -27,6 +27,7 @@ class PackageEditScreen extends Screen
     {
         $this->package = $package;
         $this->productOptions = Product::query()
+            ->whereNotNull('source_product_detail_id')
             ->orderBy('supplier_name')
             ->orderBy('category_name')
             ->orderBy('name')
@@ -40,7 +41,7 @@ class PackageEditScreen extends Screen
                     $product->category_name
                 );
 
-                return [$product->id => $label];
+                return [(int) $product->source_product_detail_id => $label];
             })
             ->all();
 

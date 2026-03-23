@@ -1,4 +1,5 @@
 import { Inject, Injectable, forwardRef } from "@nestjs/common";
+import { compareDecimalStrings } from "../../../../shared/utils/src/money.util";
 
 export interface OrdersServiceContract {
   listOrders(filters?: {
@@ -386,6 +387,9 @@ export class OrdersService implements OrdersServiceContract {
     const directEntries = commissionEntries.filter(
       (entry) => entry.commissionType === "direct",
     );
+    const cashbackEntries = commissionEntries.filter(
+      (entry) => entry.commissionType === "cashback",
+    );
     const uniEntries = commissionEntries.filter(
       (entry) => entry.commissionType === "uni",
     );
@@ -411,6 +415,7 @@ export class OrdersService implements OrdersServiceContract {
             | "held"
             | "fallback"
             | "withdrawable") ?? "fallback",
+        cashbackCount: cashbackEntries.length,
         directCount: directEntries.length,
         uniCount: uniEntries.length,
         hasFallback: commissionEntries.some((entry) => entry.status === "fallback"),
@@ -434,7 +439,10 @@ export class OrdersService implements OrdersServiceContract {
       }),
     );
     const approvedEntries = commissionEntries.filter(
-      (entry) => entry.status === "approved" && entry.beneficiaryUserId,
+      (entry) =>
+        entry.status === "approved" &&
+        entry.beneficiaryUserId &&
+        compareDecimalStrings(entry.amount, "0") > 0,
     );
     const postings: ApprovedOrderOrchestrationResult["walletPostingInputs"] = [];
 
@@ -445,7 +453,12 @@ export class OrdersService implements OrdersServiceContract {
         refId: entry.commissionId,
         amount: entry.amount,
         holdRequired: entry.status === "held",
-        earningType: entry.commissionType === "uni" ? "uni" : "direct",
+        earningType:
+          entry.commissionType === "uni"
+            ? "uni"
+            : entry.commissionType === "cashback"
+              ? "cashback"
+              : "direct",
       });
 
       postings.push({

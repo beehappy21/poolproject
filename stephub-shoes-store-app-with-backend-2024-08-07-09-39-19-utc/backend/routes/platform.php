@@ -94,6 +94,10 @@ Route::screen('commission/pool', CommissionSettingsScreen::class)
   ->defaults('section', 'pool')
   ->name('platform.commission.pool');
 
+Route::screen('commission/cashback', CommissionSettingsScreen::class)
+  ->defaults('section', 'cashback')
+  ->name('platform.commission.cashback');
+
 Route::screen('commission/report', CommissionReportScreen::class)
   ->defaults('reportMode', 'overview')
   ->name('platform.commission.report');
@@ -113,6 +117,10 @@ Route::screen('commission/report/matrix', CommissionReportScreen::class)
 Route::screen('commission/report/pool', CommissionReportScreen::class)
   ->defaults('reportMode', 'pool')
   ->name('platform.commission.report.pool');
+
+Route::screen('commission/report/cashback', CommissionReportScreen::class)
+  ->defaults('reportMode', 'cashback')
+  ->name('platform.commission.report.cashback');
 
 Route::get('commission/report/export/{reportMode?}', [CommissionReportController::class, 'export'])
   ->name('platform.commission.report.export');
