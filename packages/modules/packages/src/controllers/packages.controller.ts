@@ -78,6 +78,11 @@ export class PackagesController {
     return this.packagesService.listProductDetails();
   }
 
+  @Get("storefront-products")
+  async listStorefrontProducts() {
+    return this.packagesService.listStorefrontProducts();
+  }
+
   @Post("product-details")
   async createProductDetail(
     @Body()

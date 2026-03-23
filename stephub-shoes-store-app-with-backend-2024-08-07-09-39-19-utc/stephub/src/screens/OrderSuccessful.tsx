@@ -11,6 +11,9 @@ export const OrderSuccessful: React.FC = () => {
   const navigate = hooks.useAppNavigate();
   const location = useLocation();
   const order = location.state?.order;
+  const productItems = Array.isArray(location.state?.productItems)
+    ? location.state.productItems
+    : [];
 
   useEffect(() => {
     dispatch(actions.resetCart());
@@ -49,7 +52,7 @@ export const OrderSuccessful: React.FC = () => {
             ...theme.fonts.Mulish_700Bold,
           }}
         >
-          สร้างคำสั่งซื้อเรียบร้อย
+          ยืนยันคำสั่งซื้อสินค้าเรียบร้อย
         </h2>
         <p
           style={{
@@ -64,8 +67,99 @@ export const OrderSuccessful: React.FC = () => {
         >
           {order?.orderNo
             ? `เลขที่คำสั่งซื้อ ${order.orderNo}${'\n'}กรุณาอัปโหลดสลิปโอนเงินจากหน้าประวัติคำสั่งซื้อเพื่อดำเนินการต่อ`
-            : `สร้างคำสั่งซื้อสำเร็จแล้ว${'\n'}กรุณาไปที่หน้าประวัติคำสั่งซื้อเพื่ออัปโหลดสลิปโอนเงิน`}
+            : `ยืนยันรายการสินค้าสำเร็จแล้ว${'\n'}กรุณาไปที่หน้าประวัติคำสั่งซื้อเพื่ออัปโหลดสลิปโอนเงิน`}
         </p>
+        {productItems.length ? (
+          <div
+            style={{
+              width: '100%',
+              padding: 16,
+              borderRadius: 12,
+              backgroundColor: '#F7F8FC',
+              marginBottom: 20,
+            }}
+          >
+            <h3
+              style={{
+                margin: '0 0 10px 0',
+                fontSize: 16,
+                color: theme.colors.mainColor,
+                ...theme.fonts.Mulish_700Bold,
+              }}
+            >
+              รายการสินค้าที่สั่งซื้อ
+            </h3>
+            <div style={{display: 'flex', flexDirection: 'column', gap: 10}}>
+              {productItems.slice(0, 3).map(
+                (item: {
+                  id?: string | number;
+                  name?: string;
+                  productCode?: string;
+                  quantity?: number;
+                  price?: number;
+                }) => (
+                  <div
+                    key={item.id || `${item.name}-${item.productCode}`}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                    }}
+                  >
+                    <div style={{flex: 1, minWidth: 0}}>
+                      <p
+                        style={{
+                          margin: 0,
+                          color: theme.colors.mainColor,
+                          ...theme.fonts.Mulish_600SemiBold,
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        {item.name || 'สินค้า'}
+                      </p>
+                      {item.productCode ? (
+                        <p
+                          style={{
+                            margin: '2px 0 0 0',
+                            color: theme.colors.textColor,
+                            fontSize: 12,
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          รหัสสินค้า: {item.productCode}
+                        </p>
+                      ) : null}
+                    </div>
+                    <p
+                      style={{
+                        margin: 0,
+                        color: theme.colors.textColor,
+                        fontSize: 14,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      x{item.quantity || 1}
+                      {item.price ? ` · $${item.price}` : ''}
+                    </p>
+                  </div>
+                ),
+              )}
+              {productItems.length > 3 ? (
+                <p
+                  style={{
+                    margin: 0,
+                    color: theme.colors.textColor,
+                    fontSize: 13,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  และอีก {productItems.length - 3} รายการ
+                </p>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
         <components.Button
           title='ดูประวัติคำสั่งซื้อ'
           onClick={() => {

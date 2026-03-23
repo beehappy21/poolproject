@@ -22,7 +22,7 @@ export const Order: React.FC = () => {
   const renderHeader = (): JSX.Element | null => {
     return (
       <components.Header
-        title='Order'
+        title='ตะกร้าสินค้า'
         burger={true}
         basket={true}
         line={true}
@@ -76,12 +76,12 @@ export const Order: React.FC = () => {
         }}
       >
         <custom.InputField
-          label='promocode'
+          label='โค้ดส่วนลด'
           containerStyle={{width: 'calc(70% - 5px)'}}
-          placeholder={'Enter the promocode'}
+          placeholder={'กรอกโค้ดส่วนลด'}
         />
         <components.Button
-          title='Apply'
+          title='ใช้งาน'
           containerStyle={{padding: 0, width: 'calc(30% - 5px)'}}
           onClick={() => {
             dispatch(actions.setDiscount(20));
@@ -117,7 +117,7 @@ export const Order: React.FC = () => {
                 lineHeight: 1.5,
               }}
             >
-              Subtotal
+              มูลค่าสินค้า
             </h5>
             <span
               style={{
@@ -148,9 +148,9 @@ export const Order: React.FC = () => {
                   color: theme.colors.textColor,
                   lineHeight: 1.5,
                 }}
-              >
-                Discount
-              </h5>
+                >
+                  ส่วนลด
+                </h5>
               <span
                 style={{
                   margin: 0,
@@ -182,8 +182,8 @@ export const Order: React.FC = () => {
                 color: theme.colors.textColor,
                 lineHeight: 1.5,
               }}
-            >
-              Delivery
+                >
+              ค่าจัดส่ง
             </h5>
             <span
               style={{
@@ -191,7 +191,7 @@ export const Order: React.FC = () => {
                 lineHeight: 1.5,
               }}
             >
-              {`${delivery === 0 ? 'Free' : `$${delivery.toFixed(2)}`}`}
+              {`${delivery === 0 ? 'ฟรี' : `$${delivery.toFixed(2)}`}`}
             </span>
           </div>
           <div
@@ -210,7 +210,7 @@ export const Order: React.FC = () => {
                 lineHeight: 1.5,
               }}
             >
-              Total
+              ยอดรวมทั้งหมด
             </h4>
             <span
               style={{

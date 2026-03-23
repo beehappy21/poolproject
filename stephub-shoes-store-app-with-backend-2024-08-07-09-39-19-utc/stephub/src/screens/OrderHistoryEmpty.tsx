@@ -75,14 +75,14 @@ export const OrderHistoryEmpty: React.FC = () => {
             marginBottom: 30,
           }}
         >
-          เมื่อสร้างคำสั่งซื้อแรกแล้ว รายการจะมาแสดงที่หน้านี้พร้อมสถานะการชำระเงินและการจัดส่ง
+          เมื่อสั่งซื้อสินค้าแล้ว รายการจะมาแสดงที่หน้านี้พร้อมสถานะการชำระเงินและการจัดส่ง
         </p>
         <components.Button
-          title='เลือกแพ็กเกจ'
+          title='เลือกสินค้า'
           onClick={() => {
             dispatch(actions.resetFilters());
             navigate('/Shop', {
-              state: {products: productsData, title: 'แพ็กเกจ'},
+              state: {products: productsData, title: 'สินค้า'},
             });
           }}
           containerStyle={{marginBottom: 10}}

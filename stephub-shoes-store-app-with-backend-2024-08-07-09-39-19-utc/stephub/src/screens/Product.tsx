@@ -13,32 +13,6 @@ import {product} from '../product';
 import {actions} from '../store/actions';
 import {components} from '../components';
 
-const getYoutubeVideoId = (url?: string): string | null => {
-  if (!url) return null;
-
-  try {
-    const parsed = new URL(url);
-    const host = parsed.hostname.replace(/^www\./, '');
-
-    if (host === 'youtu.be') {
-      const videoId = parsed.pathname.replace(/\//g, '');
-      return videoId || null;
-    }
-
-    if (host.includes('youtube.com')) {
-      const videoId =
-        parsed.searchParams.get('v') ||
-        parsed.pathname.split('/').filter(Boolean).pop();
-
-      return videoId || null;
-    }
-  } catch (error) {
-    return null;
-  }
-
-  return null;
-};
-
 export const Product: React.FC = () => {
   const location = useLocation();
   const item = location.state.item;
@@ -49,7 +23,6 @@ export const Product: React.FC = () => {
 
   const [reviewsData, setReviewsData] = useState<any>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [isVideoOpen, setIsVideoOpen] = useState(false);
 
   const [selectedSize, setSelectedSize] = useState<string>(
     item.sizes?.[0] || 'standard',
@@ -64,31 +37,10 @@ export const Product: React.FC = () => {
     size: selectedSize,
   };
 
-  const galleryImages = Array.isArray(item.images)
-    ? item.images.filter(
-        (value: unknown, imageIndex: number, array: unknown[]) =>
-          typeof value === 'string' &&
-          value.trim() !== '' &&
-          array.indexOf(value) === imageIndex,
-      )
-    : [];
-  const productImages = galleryImages.slice(0, 10);
-  const youtubeVideoId = getYoutubeVideoId(item.youtubeUrl);
-  const youtubeThumbnailUrl = youtubeVideoId
-    ? `https://img.youtube.com/vi/${youtubeVideoId}/hqdefault.jpg`
-    : null;
-  const embedVideoUrl = youtubeVideoId
-    ? `https://www.youtube.com/embed/${youtubeVideoId}?autoplay=1&rel=0&playsinline=1`
-    : null;
-  const mediaItems = [
-    ...(youtubeThumbnailUrl
-      ? [{type: 'video' as const, value: youtubeThumbnailUrl}]
-      : []),
-    ...productImages.map((image: string) => ({type: 'image' as const, value: image})),
-  ];
+  const [activeIndex, setActiveIndex] = useState(0);
 
-  const usesPackageCatalog = Boolean(item.packageId);
-  const hidePackagePresentation = true;
+  const hasPackageBridge = Boolean(item.packageId);
+  const showProductOnlyPresentation = true;
   const hasRealSizes =
     Array.isArray(item.sizes) &&
     item.sizes.length > 0 &&
@@ -97,6 +49,10 @@ export const Product: React.FC = () => {
     Array.isArray(item.colors) &&
     item.colors.length > 0 &&
     !(item.colors.length === 1 && item.colors[0]?.name === 'default');
+
+  const handleSlideChange = (index: number) => {
+    setActiveIndex(index);
+  };
 
   const getReviews = async () => {
     setIsLoading(true);
@@ -132,103 +88,53 @@ export const Product: React.FC = () => {
           thumbWidth={22}
           showIndicators={false}
           showArrows={false}
+          onChange={handleSlideChange}
           swipeable={true}
           emulateTouch={true}
         >
-          {mediaItems.map((mediaItem: any, index: number) => {
-            if (mediaItem.type === 'video') {
-              return (
-                <button
-                  key={`video-${index}`}
-                  onClick={() => {
-                    if (embedVideoUrl) {
-                      setIsVideoOpen(true);
-                    }
-                  }}
-                  style={{
-                    width: '100%',
-                    aspectRatio: '16 / 9',
-                    backgroundColor: theme.colors.imageBackground,
-                    border: 'none',
-                    padding: 0,
-                    position: 'relative',
-                    overflow: 'hidden',
-                  }}
-                >
-                  <img
-                    src={mediaItem.value}
-                    alt='Product video thumbnail'
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      display: 'block',
-                      objectFit: 'cover',
-                    }}
-                  />
-                  <div
-                    style={{
-                      position: 'absolute',
-                      inset: 0,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: 'linear-gradient(180deg, rgba(15,23,42,0.08) 0%, rgba(15,23,42,0.22) 100%)',
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 86,
-                        height: 60,
-                        borderRadius: 18,
-                        backgroundColor: '#FF0000',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        boxShadow: '0 12px 24px rgba(0, 0, 0, 0.18)',
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: 0,
-                          height: 0,
-                          borderTop: '12px solid transparent',
-                          borderBottom: '12px solid transparent',
-                          borderLeft: '18px solid #FFFFFF',
-                          marginLeft: 4,
-                        }}
-                      />
-                    </div>
-                  </div>
-                </button>
-              );
-            }
-
+          {item.images?.map((item: any, index: any) => {
             return (
-              <div
-                key={`image-${index}`}
+              <img
+                key={index}
+                src={item}
+                alt='Carousel'
                 style={{
                   width: '100%',
-                  aspectRatio: '16 / 9',
+                  height: 350,
+                  objectFit: 'contain',
                   backgroundColor: theme.colors.imageBackground,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
                 }}
-              >
-                <img
-                  src={mediaItem.value}
-                  alt='Carousel'
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'contain',
-                    display: 'block',
-                  }}
-                />
-              </div>
+              />
             );
           })}
         </Carousel>
+      </div>
+    );
+  };
+
+  const renderIndicator = (): JSX.Element => {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          paddingBottom: 20,
+          borderBottom: `1px solid ${theme.colors.aliceBlue2}`,
+          marginBottom: 20,
+        }}
+      >
+        {item.images?.map((item: any, index: number) => {
+          const isSelected = index === activeIndex;
+          const indicatorStyle = {
+            background: isSelected ? theme.colors.mainColor : '#E8EFF4',
+            display: 'inline-block',
+            width: 22,
+            height: 6,
+            margin: '0 5px',
+            borderRadius: 6,
+          };
+          return <div style={indicatorStyle} key={index} />;
+        })}
       </div>
     );
   };
@@ -259,7 +165,11 @@ export const Product: React.FC = () => {
   };
 
   const renderRating = (): JSX.Element => {
-    if (!hidePackagePresentation && usesPackageCatalog && (!item.ratingCount || Number(item.ratingCount) === 0)) {
+    if (
+      !showProductOnlyPresentation &&
+      hasPackageBridge &&
+      (!item.ratingCount || Number(item.ratingCount) === 0)
+    ) {
       return (
         <div style={{padding: '0 20px 0 20px', marginBottom: 12}}>
           <span
@@ -270,7 +180,7 @@ export const Product: React.FC = () => {
               color: theme.colors.textColor,
             }}
           >
-            Package ready to order
+            สินค้าพร้อมสั่งซื้อ
           </span>
         </div>
       );
@@ -311,8 +221,8 @@ export const Product: React.FC = () => {
     );
   };
 
-  const renderPackageMeta = (): JSX.Element | null => {
-    if (!usesPackageCatalog || hidePackagePresentation) {
+  const renderProductMeta = (): JSX.Element | null => {
+    if (!hasPackageBridge || showProductOnlyPresentation) {
       return null;
     }
 
@@ -335,7 +245,7 @@ export const Product: React.FC = () => {
               lineHeight: 1.5,
             }}
           >
-            รหัสแพ็กเกจ: {item.packageCode || '-'}
+            รหัสสินค้า: {item.productCode || '-'}
           </span>
           <span
             style={{
@@ -365,7 +275,7 @@ export const Product: React.FC = () => {
               lineHeight: 1.5,
             }}
           >
-            จำนวนรายการในแพ็กเกจ: {item.itemCount || 0}
+            จำนวนรายการสินค้า: {item.itemCount || 0}
           </span>
           <span
             style={{
@@ -406,10 +316,10 @@ export const Product: React.FC = () => {
     );
   };
 
-  const renderIncludedItems = (): JSX.Element | null => {
+  const renderProductItems = (): JSX.Element | null => {
     if (
-      !usesPackageCatalog ||
-      hidePackagePresentation ||
+      !hasPackageBridge ||
+      showProductOnlyPresentation ||
       !Array.isArray(item.packageItems) ||
       !item.packageItems.length
     ) {
@@ -428,7 +338,7 @@ export const Product: React.FC = () => {
             color: theme.colors.mainColor,
           }}
         >
-          รายการในแพ็กเกจ
+          รายการสินค้า
         </h5>
         <div
           style={{
@@ -440,9 +350,9 @@ export const Product: React.FC = () => {
             border: `1px solid ${theme.colors.aliceBlue2}`,
           }}
         >
-          {item.packageItems.map((packageItem: any) => (
+          {item.packageItems.map((productBridgeItem: any) => (
             <div
-              key={packageItem.packageItemId}
+              key={productBridgeItem.packageItemId}
               style={{
                 display: 'flex',
                 justifyContent: 'space-between',
@@ -459,9 +369,9 @@ export const Product: React.FC = () => {
                     color: theme.colors.mainColor,
                   }}
                 >
-                  {packageItem.productDetailName}
+                  {productBridgeItem.productDetailName}
                 </div>
-                {packageItem.shortDescription ? (
+                {productBridgeItem.shortDescription ? (
                   <div
                     style={{
                       ...theme.fonts.Mulish_400Regular,
@@ -470,7 +380,7 @@ export const Product: React.FC = () => {
                       color: theme.colors.textColor,
                     }}
                   >
-                    {packageItem.shortDescription}
+                    {productBridgeItem.shortDescription}
                   </div>
                 ) : null}
               </div>
@@ -483,7 +393,7 @@ export const Product: React.FC = () => {
                   whiteSpace: 'nowrap',
                 }}
               >
-                x{packageItem.qty}
+                x{productBridgeItem.qty}
               </div>
             </div>
           ))}
@@ -640,7 +550,7 @@ export const Product: React.FC = () => {
         >
           {item.description}
         </p>
-        {!usesPackageCatalog ? (
+        {!hasPackageBridge || showProductOnlyPresentation ? (
           <button
             onClick={() => {
               navigate('/description', {state: {item}});
@@ -663,7 +573,7 @@ export const Product: React.FC = () => {
           }}
           containerStyle={{marginBottom: 10, padding: '0 20px 0 20px'}}
         />
-        {!usesPackageCatalog ? (
+        {!hasPackageBridge || showProductOnlyPresentation ? (
           <components.Button
             title='Leave a review'
             colorScheme='light'
@@ -680,7 +590,7 @@ export const Product: React.FC = () => {
   };
 
   const renderReviews = (): JSX.Element => {
-    if (usesPackageCatalog) {
+    if (hasPackageBridge && !showProductOnlyPresentation) {
       return <></>;
     }
 
@@ -719,11 +629,12 @@ export const Product: React.FC = () => {
     return (
       <div style={{padding: '0 0 20px 0'}}>
         {renderCarousel()}
+        {renderIndicator()}
         {renderNameWithButton()}
         {renderRating()}
         {renderPriceWithQuantity()}
-        {renderPackageMeta()}
-        {renderIncludedItems()}
+        {renderProductMeta()}
+        {renderProductItems()}
         {renderSizes()}
         {renderColors()}
         {renderDescription()}
@@ -737,70 +648,6 @@ export const Product: React.FC = () => {
     <>
       {renderHeader()}
       {renderContent()}
-      {isVideoOpen && embedVideoUrl ? (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.82)',
-            zIndex: 999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 20,
-          }}
-        >
-          <div
-            style={{
-              width: '100%',
-              maxWidth: 960,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 12,
-            }}
-          >
-            <div style={{display: 'flex', justifyContent: 'flex-end'}}>
-              <button
-                onClick={() => setIsVideoOpen(false)}
-                style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 21,
-                  backgroundColor: '#FFFFFF',
-                  color: theme.colors.mainColor,
-                  ...theme.fonts.Mulish_700Bold,
-                  fontSize: 20,
-                  lineHeight: 1,
-                }}
-              >
-                x
-              </button>
-            </div>
-            <div
-              style={{
-                width: '100%',
-                aspectRatio: '16 / 9',
-                backgroundColor: '#000000',
-                overflow: 'hidden',
-              }}
-            >
-              <iframe
-                src={embedVideoUrl}
-                title='Product video modal'
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  border: 0,
-                  display: 'block',
-                }}
-                allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share'
-                referrerPolicy='strict-origin-when-cross-origin'
-                allowFullScreen
-              />
-            </div>
-          </div>
-        </div>
-      ) : null}
     </>
   );
 };

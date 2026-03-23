@@ -83,6 +83,9 @@ export interface OrdersRepository {
         fulfillmentMethod: "delivery" | "branch_pickup";
         pickupBranchName: string | null;
         pickupBranchNote: string | null;
+        firstProductName: string | null;
+        firstProductImageUrl: string | null;
+        productItemCount: number;
         createdAt: string;
       }>
     | {
@@ -110,6 +113,9 @@ export interface OrdersRepository {
           fulfillmentMethod: "delivery" | "branch_pickup";
           pickupBranchName: string | null;
           pickupBranchNote: string | null;
+          firstProductName: string | null;
+          firstProductImageUrl: string | null;
+          productItemCount: number;
           createdAt: string;
         }>;
         total: number;
@@ -143,13 +149,48 @@ export interface OrdersRepository {
     pickupBranchName: string | null;
     pickupBranchNote: string | null;
     createdAt: string;
+    items: Array<{
+      orderItemId: string;
+      packageId: string | null;
+      packageCode: string | null;
+      packageName: string | null;
+      productDetailId: string | null;
+      productCode: string | null;
+      productName: string | null;
+      productImageUrl: string | null;
+      quantity: number;
+      unitPriceUsdt: string;
+      unitPv: string;
+      lineTotalUsdt: string;
+      lineTotalPv: string;
+    }>;
+    productItems: Array<{
+      orderItemId: string;
+      packageId: string | null;
+      packageCode: string | null;
+      packageName: string | null;
+      productDetailId: string | null;
+      productCode: string | null;
+      productName: string | null;
+      productImageUrl: string | null;
+      quantity: number;
+      unitPriceUsdt: string;
+      unitPv: string;
+      lineTotalUsdt: string;
+      lineTotalPv: string;
+    }>;
   } | null>;
 
   createOrder(input: {
     userId: string;
-    packageId: string;
+    packageId?: string;
+    productDetailId?: string;
     quantity?: string;
-    items?: Array<{ packageId: string; quantity: string }>;
+    items?: Array<{
+      packageId?: string;
+      productDetailId?: string;
+      quantity: string;
+    }>;
     shippingAddressId?: string;
     fulfillmentMethod?: "delivery" | "branch_pickup";
     pickupBranchName?: string;
@@ -347,33 +388,88 @@ export class PrismaOrdersRepository implements OrdersRepository {
         shippingAddressLine: true,
         shippingAddressNote: true,
         createdAt: true,
+        orderItems: {
+          select: {
+            id: true,
+            productId: true,
+            package: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
       },
     });
 
-    const items = orders.map((order) => ({
-      ...mapFulfillment(order),
-      orderId: order.id.toString(),
-      orderNo: order.orderNo,
-      sourceUserId: order.userId.toString(),
-      status: order.status.toLowerCase(),
-      approvalStatus: order.approvalStatus.toLowerCase(),
-      totalUsdt: order.totalUsdt.toString(),
-      totalPv: order.totalPv.toString(),
-      dcwAppliedUsdt: order.dcwAppliedUsdt.toString(),
-      walletAppliedUsdt: order.walletAppliedUsdt.toString(),
-      cashDueUsdt: order.cashDueUsdt.toString(),
-      cashPaymentMethod: order.cashPaymentMethod ?? null,
-      transferSubmittedAt: order.transferSubmittedAt?.toISOString() ?? null,
-      transferSlipUrl: order.transferSlipUrl ?? null,
-      transferSlipNote: order.transferSlipNote ?? null,
-      approvedAt: order.approvedAt?.toISOString() ?? null,
-      shippedAt: order.shippedAt?.toISOString() ?? null,
-      deliveredAt: order.deliveredAt?.toISOString() ?? null,
-      shipmentTrackingNo: order.shipmentTrackingNo ?? null,
-      shipmentCarrier: order.shipmentCarrier ?? null,
-      shipmentNote: order.shipmentNote ?? null,
-      createdAt: order.createdAt.toISOString(),
-    }));
+    const productDetailIds = Array.from(
+      new Set(
+        orders
+          .flatMap((order) => order.orderItems.map((item) => item.productId))
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
+
+    const productDetails = productDetailIds.length
+      ? await this.prisma.productDetail.findMany({
+          where: {
+            id: {
+              in: productDetailIds.map((value) => BigInt(value)),
+            },
+          },
+          select: {
+            id: true,
+            name: true,
+            primaryImageUrl: true,
+          },
+        })
+      : [];
+
+    const productDetailMap = new Map(
+      productDetails.map((detail) => [
+        detail.id.toString(),
+        {
+          name: detail.name,
+          imageUrl: detail.primaryImageUrl ?? null,
+        },
+      ]),
+    );
+
+    const items = orders.map((order) => {
+      const firstOrderItem = order.orderItems[0];
+      const firstProductDetail = firstOrderItem?.productId
+        ? productDetailMap.get(firstOrderItem.productId)
+        : null;
+
+      return {
+        ...mapFulfillment(order),
+        orderId: order.id.toString(),
+        orderNo: order.orderNo,
+        sourceUserId: order.userId.toString(),
+        status: order.status.toLowerCase(),
+        approvalStatus: order.approvalStatus.toLowerCase(),
+        totalUsdt: order.totalUsdt.toString(),
+        totalPv: order.totalPv.toString(),
+        dcwAppliedUsdt: order.dcwAppliedUsdt.toString(),
+        walletAppliedUsdt: order.walletAppliedUsdt.toString(),
+        cashDueUsdt: order.cashDueUsdt.toString(),
+        cashPaymentMethod: order.cashPaymentMethod ?? null,
+        transferSubmittedAt: order.transferSubmittedAt?.toISOString() ?? null,
+        transferSlipUrl: order.transferSlipUrl ?? null,
+        transferSlipNote: order.transferSlipNote ?? null,
+        approvedAt: order.approvedAt?.toISOString() ?? null,
+        shippedAt: order.shippedAt?.toISOString() ?? null,
+        deliveredAt: order.deliveredAt?.toISOString() ?? null,
+        shipmentTrackingNo: order.shipmentTrackingNo ?? null,
+        shipmentCarrier: order.shipmentCarrier ?? null,
+        shipmentNote: order.shipmentNote ?? null,
+        firstProductName:
+          firstProductDetail?.name ?? firstOrderItem?.package?.name ?? null,
+        firstProductImageUrl: firstProductDetail?.imageUrl ?? null,
+        productItemCount: order.orderItems.length,
+        createdAt: order.createdAt.toISOString(),
+      };
+    });
 
     if (!filters?.page || !filters?.pageSize) {
       return items;
@@ -417,11 +513,89 @@ export class PrismaOrdersRepository implements OrdersRepository {
         shippingAddressLine: true,
         shippingAddressNote: true,
         createdAt: true,
+        orderItems: {
+          select: {
+            id: true,
+            packageId: true,
+            productId: true,
+            qty: true,
+            unitPriceUsdt: true,
+            unitPv: true,
+            lineTotalUsdt: true,
+            lineTotalPv: true,
+            package: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+              },
+            },
+          },
+        },
       },
     });
 
-    return order
-      ? {
+    if (!order) {
+      return null;
+    }
+
+    const productDetailIds = Array.from(
+      new Set(
+        order.orderItems
+          .map((item) => item.productId)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
+
+    const productDetails = productDetailIds.length
+      ? await this.prisma.productDetail.findMany({
+          where: {
+            id: {
+              in: productDetailIds.map((value) => BigInt(value)),
+            },
+          },
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            primaryImageUrl: true,
+          },
+        })
+      : [];
+
+    const productDetailMap = new Map(
+      productDetails.map((detail) => [
+        detail.id.toString(),
+        {
+          productDetailId: detail.id.toString(),
+          productCode: detail.code,
+          productName: detail.name,
+          productImageUrl: detail.primaryImageUrl ?? null,
+        },
+      ]),
+    );
+
+    const productItems = order.orderItems.map((item) => {
+      const detail = item.productId ? productDetailMap.get(item.productId) : null;
+
+      return {
+        orderItemId: item.id.toString(),
+        packageId: item.packageId?.toString() ?? null,
+        packageCode: item.package?.code ?? null,
+        packageName: item.package?.name ?? null,
+        productDetailId: detail?.productDetailId ?? item.productId ?? null,
+        productCode: detail?.productCode ?? null,
+        productName: detail?.productName ?? item.package?.name ?? null,
+        productImageUrl: detail?.productImageUrl ?? null,
+        quantity: item.qty,
+        unitPriceUsdt: item.unitPriceUsdt.toString(),
+        unitPv: item.unitPv.toString(),
+        lineTotalUsdt: item.lineTotalUsdt.toString(),
+        lineTotalPv: item.lineTotalPv.toString(),
+      };
+    });
+
+    return {
           ...mapFulfillment(order),
           orderId: order.id.toString(),
           orderNo: order.orderNo,
@@ -444,15 +618,22 @@ export class PrismaOrdersRepository implements OrdersRepository {
           shipmentCarrier: order.shipmentCarrier ?? null,
           shipmentNote: order.shipmentNote ?? null,
           createdAt: order.createdAt.toISOString(),
+          items: productItems,
+          productItems,
         }
-      : null;
+      ;
   }
 
   async createOrder(input: {
     userId: string;
-    packageId: string;
+    packageId?: string;
+    productDetailId?: string;
     quantity?: string;
-    items?: Array<{ packageId: string; quantity: string }>;
+    items?: Array<{
+      packageId?: string;
+      productDetailId?: string;
+      quantity: string;
+    }>;
     shippingAddressId?: string;
     fulfillmentMethod?: "delivery" | "branch_pickup";
     pickupBranchName?: string;
@@ -468,12 +649,70 @@ export class PrismaOrdersRepository implements OrdersRepository {
     const requestedItems =
       input.items && input.items.length > 0
         ? input.items
-        : [{ packageId: input.packageId, quantity: input.quantity ?? "1" }];
-    const normalizedItems = requestedItems.map((item) => ({
+        : [
+            {
+              packageId: input.packageId,
+              productDetailId: input.productDetailId,
+              quantity: input.quantity ?? "1",
+            },
+          ];
+    const unresolvedItems = requestedItems.map((item) => ({
       packageId: item.packageId,
+      productDetailId: item.productDetailId,
       quantity: Math.max(1, Number.parseInt(item.quantity ?? "1", 10) || 1),
     }));
-    const packageIds = normalizedItems.map((item) => BigInt(item.packageId));
+
+    const missingPackageProductDetailIds = Array.from(
+      new Set(
+        unresolvedItems
+          .filter((item) => !item.packageId && item.productDetailId)
+          .map((item) => item.productDetailId as string),
+      ),
+    );
+
+    const packageFallbacks = missingPackageProductDetailIds.length
+      ? await this.prisma.packageItem.findMany({
+          where: {
+            productDetailId: {
+              in: missingPackageProductDetailIds.map((value) => BigInt(value)),
+            },
+            package: {
+              status: "ACTIVE",
+            },
+          },
+          orderBy: [
+            { package: { createdAt: "asc" } },
+            { package: { id: "asc" } },
+          ],
+          select: {
+            productDetailId: true,
+            packageId: true,
+          },
+        })
+      : [];
+    const packageFallbackMap = new Map<string, string>();
+
+    packageFallbacks.forEach((item) => {
+      const productDetailId = item.productDetailId.toString();
+      if (!packageFallbackMap.has(productDetailId)) {
+        packageFallbackMap.set(productDetailId, item.packageId.toString());
+      }
+    });
+
+    const normalizedItems = unresolvedItems.map((item) => ({
+      packageId:
+        item.packageId ||
+        (item.productDetailId
+          ? packageFallbackMap.get(item.productDetailId)
+          : undefined),
+      productDetailId: item.productDetailId,
+      quantity: item.quantity,
+    }));
+
+    if (normalizedItems.some((item) => !item.packageId)) {
+      throw new Error("Product is not yet connected to an active package.");
+    }
+    const packageIds = normalizedItems.map((item) => BigInt(item.packageId as string));
     const packages = await this.prisma.package.findMany({
       where: { id: { in: packageIds } },
       select: {
@@ -560,6 +799,10 @@ export class PrismaOrdersRepository implements OrdersRepository {
       throw new Error("Shipping address not found.");
     }
     const orderItemCreates = normalizedItems.map((item) => {
+      if (!item.packageId) {
+        throw new Error("Order item is missing a package bridge.");
+      }
+
       const pkg = packageMap.get(item.packageId)!;
       const lineTotalUsdt = multiplyDecimalStrings(
         pkg.priceUsdt.toString(),
@@ -572,6 +815,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
 
       return {
         packageId: pkg.id,
+        productId: item.productDetailId ?? null,
         qty: item.quantity,
         unitPriceUsdt: pkg.priceUsdt,
         unitPv: pkg.pv,

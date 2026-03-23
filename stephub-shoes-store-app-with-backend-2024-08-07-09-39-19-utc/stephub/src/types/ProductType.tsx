@@ -2,6 +2,8 @@ import {ReviewType} from './ReviewType';
 
 export type ProductType = {
   id: number;
+  productDetailId?: string;
+  productCode?: string;
   packageId?: string;
   packageCode?: string;
   categoryCode?: string;

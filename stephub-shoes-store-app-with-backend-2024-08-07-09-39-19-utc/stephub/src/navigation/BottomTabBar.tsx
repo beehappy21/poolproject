@@ -15,7 +15,7 @@ const tabs = [
   {
     id: 2,
     name: 'Search',
-    label: 'แพ็กเกจ',
+    label: 'สินค้า',
     icon: svg.CategoryTabSvg,
   },
   {

@@ -30,7 +30,31 @@ type LiveOrder = {
   fulfillmentMethod: 'delivery' | 'branch_pickup';
   pickupBranchName: string | null;
   pickupBranchNote: string | null;
+  firstProductName: string | null;
+  firstProductImageUrl: string | null;
+  productItemCount: number;
   createdAt: string;
+};
+
+type OrderProductItem = {
+  orderItemId: string;
+  packageId: string | null;
+  packageCode: string | null;
+  packageName: string | null;
+  productDetailId: string | null;
+  productCode: string | null;
+  productName: string | null;
+  productImageUrl: string | null;
+  quantity: number;
+  unitPriceUsdt: string;
+  unitPv: string;
+  lineTotalUsdt: string;
+  lineTotalPv: string;
+};
+
+type LiveOrderDetail = LiveOrder & {
+  items?: OrderProductItem[];
+  productItems?: OrderProductItem[];
 };
 
 type PaymentInstructions = {
@@ -106,6 +130,11 @@ export const OrderHistory: FC = () => {
   const [pageErrorMessage, setPageErrorMessage] = useState('');
   const [submitErrorMessage, setSubmitErrorMessage] = useState('');
   const [submittingOrderId, setSubmittingOrderId] = useState<string | null>(null);
+  const [expandedOrderId, setExpandedOrderId] = useState<string>('');
+  const [orderDetails, setOrderDetails] = useState<Record<string, LiveOrderDetail>>(
+    {},
+  );
+  const [loadingOrderId, setLoadingOrderId] = useState<string | null>(null);
   const [transferSlipUrls, setTransferSlipUrls] = useState<Record<string, string>>(
     {},
   );
@@ -257,6 +286,42 @@ export const OrderHistory: FC = () => {
     }
   }, [user?.accessToken]);
 
+  const getOrderDetail = useCallback(
+    async (orderId: string): Promise<void> => {
+      if (!user?.accessToken || orderDetails[orderId]) {
+        return;
+      }
+
+      setLoadingOrderId(orderId);
+
+      try {
+        const response = await axios.get<{order: LiveOrderDetail}>(
+          URLS.buildAuthOrderDetailUrl(orderId),
+          {
+            headers: {
+              Authorization: `Bearer ${user.accessToken}`,
+            },
+            withCredentials: true,
+          },
+        );
+
+        if (response.data?.order) {
+          setOrderDetails(current => ({
+            ...current,
+            [orderId]: response.data.order,
+          }));
+        }
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setLoadingOrderId(current =>
+          current === orderId ? null : current,
+        );
+      }
+    },
+    [orderDetails, user?.accessToken],
+  );
+
   const handleTransferSlipSubmit = async (order: LiveOrder): Promise<void> => {
     if (!user?.accessToken) {
       setSubmitErrorMessage('กรุณาเข้าสู่ระบบก่อนส่งสลิปโอนเงิน');
@@ -357,7 +422,7 @@ export const OrderHistory: FC = () => {
             ยังไม่มีคำสั่งซื้อ
           </p>
           <components.Button
-            title='เลือกแพ็กเกจ'
+            title='เลือกสินค้า'
             onClick={() => navigate('/Shop')}
           />
         </div>
@@ -370,8 +435,22 @@ export const OrderHistory: FC = () => {
           padding: '10px 0 20px 0',
         }}
       >
-        <Accordion.Root type='single' collapsible={true}>
+        <Accordion.Root
+          type='single'
+          collapsible={true}
+          value={expandedOrderId}
+          onValueChange={value => {
+            setExpandedOrderId(value);
+            if (value) {
+              void getOrderDetail(value);
+            }
+          }}
+        >
           {ordersData.map((order, index) => {
+            const orderDetail = orderDetails[order.orderId];
+            const productItems =
+              orderDetail?.productItems || orderDetail?.items || [];
+
             return (
               <Accordion.Item key={index} value={order.orderId}>
                 <Accordion.Trigger
@@ -415,6 +494,71 @@ export const OrderHistory: FC = () => {
                       {getOrderState(order)}
                     </span>
                   </div>
+                  {(order.firstProductName || order.productItemCount > 0) && (
+                    <div
+                      style={{
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        marginBottom: 10,
+                      }}
+                    >
+                      {order.firstProductImageUrl ? (
+                        <img
+                          src={order.firstProductImageUrl}
+                          alt={order.firstProductName || 'สินค้า'}
+                          style={{
+                            width: 44,
+                            height: 44,
+                            objectFit: 'cover',
+                            flexShrink: 0,
+                            borderRadius: 8,
+                            backgroundColor: '#F3F6FB',
+                          }}
+                        />
+                      ) : null}
+                      <div
+                        style={{
+                          display: 'grid',
+                          gap: 2,
+                          minWidth: 0,
+                          flex: 1,
+                          textAlign: 'left',
+                        }}
+                      >
+                        {order.firstProductName ? (
+                          <span
+                            style={{
+                              ...theme.fonts.Mulish_600SemiBold,
+                              fontSize: 13,
+                              color: theme.colors.mainColor,
+                              lineHeight: 1.5,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {order.firstProductName}
+                          </span>
+                        ) : null}
+                        {order.productItemCount > 0 ? (
+                          <span
+                            style={{
+                              ...theme.fonts.Mulish_400Regular,
+                              fontSize: 12,
+                              color: theme.colors.textColor,
+                              lineHeight: 1.5,
+                            }}
+                          >
+                            {order.productItemCount === 1
+                              ? '1 รายการสินค้า'
+                              : `${order.productItemCount} รายการสินค้า`}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  )}
                   <div
                     style={{
                       display: 'flex',
@@ -616,6 +760,107 @@ export const OrderHistory: FC = () => {
                         เปิดสลิปโอนเงิน
                       </a>
                     ) : null}
+                  </div>
+                  <div
+                    style={{
+                      marginBottom: 22,
+                      display: 'grid',
+                      gap: 10,
+                    }}
+                  >
+                    <span
+                      style={{
+                        ...theme.fonts.Mulish_700Bold,
+                        fontSize: 15,
+                        lineHeight: 1.5,
+                        color: theme.colors.mainColor,
+                      }}
+                    >
+                      รายการสินค้า
+                    </span>
+                    {loadingOrderId === order.orderId && !productItems.length ? (
+                      <span
+                        style={{
+                          ...theme.fonts.Mulish_400Regular,
+                          fontSize: 14,
+                          lineHeight: 1.6,
+                          color: theme.colors.textColor,
+                        }}
+                      >
+                        กำลังโหลดรายการสินค้า...
+                      </span>
+                    ) : null}
+                    {!loadingOrderId && !productItems.length ? (
+                      <span
+                        style={{
+                          ...theme.fonts.Mulish_400Regular,
+                          fontSize: 14,
+                          lineHeight: 1.6,
+                          color: theme.colors.textColor,
+                        }}
+                      >
+                        ยังไม่มีรายละเอียดสินค้าในคำสั่งซื้อนี้
+                      </span>
+                    ) : null}
+                    {productItems.map(productItem => (
+                      <div
+                        key={productItem.orderItemId}
+                        style={{
+                          display: 'grid',
+                          gap: 6,
+                          padding: 14,
+                          borderRadius: 12,
+                          backgroundColor: theme.colors.white,
+                          border: '1px solid #E8EFF4',
+                        }}
+                      >
+                        <span
+                          style={{
+                            ...theme.fonts.Mulish_700Bold,
+                            fontSize: 14,
+                            lineHeight: 1.5,
+                            color: theme.colors.mainColor,
+                          }}
+                        >
+                          {productItem.productName || 'สินค้า'}
+                        </span>
+                        {productItem.productCode ? (
+                          <span
+                            style={{
+                              ...theme.fonts.Mulish_400Regular,
+                              fontSize: 13,
+                              lineHeight: 1.5,
+                              color: theme.colors.textColor,
+                            }}
+                          >
+                            รหัสสินค้า: {productItem.productCode}
+                          </span>
+                        ) : null}
+                        <span
+                          style={{
+                            ...theme.fonts.Mulish_400Regular,
+                            fontSize: 13,
+                            lineHeight: 1.5,
+                            color: theme.colors.textColor,
+                          }}
+                        >
+                          จำนวน: {productItem.quantity} • ราคา: $
+                          {Number(productItem.unitPriceUsdt || 0).toFixed(2)} • PV:{' '}
+                          {productItem.unitPv}
+                        </span>
+                        <span
+                          style={{
+                            ...theme.fonts.Mulish_400Regular,
+                            fontSize: 13,
+                            lineHeight: 1.5,
+                            color: theme.colors.textColor,
+                          }}
+                        >
+                          รวมรายการ: $
+                          {Number(productItem.lineTotalUsdt || 0).toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                   {shouldShowPaymentInstructions(order) && paymentInstructions ? (
                     <div

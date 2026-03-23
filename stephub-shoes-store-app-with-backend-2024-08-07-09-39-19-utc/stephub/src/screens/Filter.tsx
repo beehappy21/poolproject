@@ -8,7 +8,7 @@ import {actions} from '../store/actions';
 import {components} from '../components';
 import {fetchLiveProducts} from '../utils/liveCatalog';
 
-const labels = ['sale', 'new', 'top'];
+const productLabels = ['sale', 'new', 'top'];
 
 export const Filter: React.FC = () => {
   const navigate = hooks.useAppNavigate();
@@ -22,10 +22,6 @@ export const Filter: React.FC = () => {
 
   const {selectedSizes, selectedColors, selectedTags, selectedCategories} =
     hooks.useAppSelector((state: RootState) => state.filterSlice);
-
-  console.log('selectedColors --->', JSON.stringify(selectedColors, null, 2));
-
-  console.log(selectedSizes);
 
   const getData = async () => {
     setIsLoading(true);
@@ -86,7 +82,7 @@ export const Filter: React.FC = () => {
   }, []);
 
   const renderHeader = (): JSX.Element => {
-    return <components.Header goBack={true} title='Filter' />;
+    return <components.Header goBack={true} title='ตัวกรองสินค้า' />;
   };
 
   const renderLabels = (): JSX.Element => {
@@ -99,7 +95,7 @@ export const Filter: React.FC = () => {
           marginBottom: 30,
         }}
       >
-        {labels.map((item, index) => {
+        {productLabels.map((item, index) => {
           return (
             <span
               key={index}
@@ -194,7 +190,7 @@ export const Filter: React.FC = () => {
             color: theme.colors.mainColor,
           }}
         >
-          Size
+          ขนาด
         </h5>
         <div
           style={{
@@ -275,7 +271,7 @@ export const Filter: React.FC = () => {
             color: theme.colors.mainColor,
           }}
         >
-          Color
+          สี
         </h5>
         <div
           style={{
@@ -343,7 +339,7 @@ export const Filter: React.FC = () => {
             ...theme.fonts.Mulish_600SemiBold,
           }}
         >
-          Tags
+          แท็กสินค้า
         </h5>
         <div style={{display: 'flex', gap: 10, flexWrap: 'wrap'}}>
           {tags.map((item, index) => {
@@ -395,7 +391,7 @@ export const Filter: React.FC = () => {
   const renderButton = (): JSX.Element => {
     return (
       <components.Button
-        title='apply filters'
+        title='ใช้ตัวกรอง'
         onClick={() => {
           navigate(-1);
         }}

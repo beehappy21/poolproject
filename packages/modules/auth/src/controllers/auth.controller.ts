@@ -215,8 +215,18 @@ export class AuthController {
     @Body()
     body?: {
       packageId?: string;
+      productDetailId?: string;
       quantity?: string;
-      items?: Array<{ packageId?: string; quantity?: string }>;
+      items?: Array<{
+        packageId?: string;
+        productDetailId?: string;
+        quantity?: string;
+      }>;
+      productItems?: Array<{
+        packageId?: string;
+        productDetailId?: string;
+        quantity?: string;
+      }>;
       shippingAddressId?: string;
       fulfillmentMethod?: string;
       pickupBranchName?: string;
@@ -231,11 +241,23 @@ export class AuthController {
   ) {
     const user = await this.requireSessionUser(authorization, cookieHeader);
 
-    const items = Array.isArray(body?.items)
-      ? body?.items
-          .filter((item) => optionalString(item?.packageId))
+    const rawItems = Array.isArray(body?.productItems)
+      ? body?.productItems
+      : body?.items;
+
+    const items = Array.isArray(rawItems)
+      ? rawItems
+          .filter((item) => optionalString(item?.packageId) || optionalString(item?.productDetailId))
           .map((item) => ({
-            packageId: requirePositiveIntegerString(item?.packageId, "items.packageId"),
+            packageId: optionalString(item?.packageId)
+              ? requirePositiveIntegerString(item?.packageId, "items.packageId")
+              : undefined,
+            productDetailId: optionalString(item?.productDetailId)
+              ? requirePositiveIntegerString(
+                  item?.productDetailId,
+                  "items.productDetailId",
+                )
+              : undefined,
             quantity: optionalString(item?.quantity)
               ? requirePositiveIntegerString(item?.quantity, "items.quantity")
               : "1",
@@ -244,7 +266,12 @@ export class AuthController {
 
     return this.ordersService.createOrder({
       userId: user.userId,
-      packageId: requirePositiveIntegerString(body?.packageId, "packageId"),
+      packageId: optionalString(body?.packageId)
+        ? requirePositiveIntegerString(body?.packageId, "packageId")
+        : undefined,
+      productDetailId: optionalString(body?.productDetailId)
+        ? requirePositiveIntegerString(body?.productDetailId, "productDetailId")
+        : undefined,
       quantity: optionalString(body?.quantity)
         ? requirePositiveIntegerString(body?.quantity, "quantity")
         : undefined,

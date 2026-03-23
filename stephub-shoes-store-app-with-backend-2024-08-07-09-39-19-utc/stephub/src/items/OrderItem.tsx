@@ -79,8 +79,8 @@ export const OrderItem: React.FC<Props> = ({item, isLast}) => {
               lineHeight: 1.5,
             }}
           >
-            {item.packageCode
-              ? `รหัสแพ็กเกจ: ${item.packageCode}`
+            {item.productCode
+              ? `รหัสสินค้า: ${item.productCode}`
               : `ไซซ์: ${item.size ? item.size : 'ไม่ระบุ'}`}
           </span>
           <span
@@ -92,7 +92,7 @@ export const OrderItem: React.FC<Props> = ({item, isLast}) => {
               ...theme.fonts.Mulish_400Regular,
             }}
           >
-            {item.packageCode
+            {item.pv !== undefined
               ? `PV: ${item.pv || 0}`
               : `สี: ${item.color ? item.color : 'ไม่ระบุ'}`}
           </span>
