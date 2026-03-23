@@ -5,25 +5,25 @@ Updated: 2026-03-23
 ## Branch
 
 - Current branch: `main`
-- Latest merged PR: `#15` `https://github.com/beehappy21/poolproject/pull/15`
-- Main is currently at merge commit `56bb3ed`
+- Latest merged PR: `#16` `https://github.com/beehappy21/poolproject/pull/16`
+- Main is currently at merge commit `78da058`
 
 ## Recently Merged Work
 
 - PR `#14` is already merged into `main`
 - PR `#15` is already merged into `main`
-- Recent pool/commission summary commits:
+- PR `#16` is already merged into `main`
+- Recent pool/commission/browser-check commits:
   - `03632e5` Add configurable pool rule coverage and commission summaries
   - `9e652b6` Snapshot pool item rates on orders and fix pool-rate precision
   - `56bb3ed` Merge PR `#15` into `main`
+  - `78da058` Merge PR `#16` into `main`
 
 ## What To Do Next
 
-1. Browser-check the real UI flows that now matter most after the merges:
-   - BAO cashback settings/report/export
-   - Stephub order list/detail shipment state flow
-2. If deployment work continues, follow `DEPLOY_CHECKLIST.md`
-3. Use `docs/technical-design/commission_plan_summary.md` as the single summary for plan-calculation status
+1. If deployment work continues, follow `DEPLOY_CHECKLIST.md`
+2. Use `docs/technical-design/commission_plan_summary.md` as the single summary for plan-calculation status
+3. Reuse the BAO browser-check scripts before deploys or after commission/order-report changes
 4. Keep `member003` legacy matrix analysis positioned as research/sandbox work unless we explicitly want to productionize it further
 
 ## Latest Verified Status
@@ -38,11 +38,18 @@ Updated: 2026-03-23
 - Pool funding now snapshots rate config on `OrderItem`, so later package edits do not retroactively change historical pool funding
 - Effective pool-rate snapshots were updated to use decimal-safe math instead of JS `Number`
 - Commission plan summary doc is up to date and can be used as the current handoff source for direct / unilevel / pool / matrix / cashback status
+- BAO cashback settings/report/export now have a reusable local browser-check smoke
+- Stephub order shipment-state flow now has a reusable local browser-check smoke covering:
+  - transfer review
+  - awaiting shipment
+  - shipped
+  - delivered
+- BAO cashback CSV export bug was fixed so `cashback` export mode now returns `CASHBACK` rows instead of falling back to `DIRECT`
 
 ## Review Notes
 
-- No open merge blocker remains from the configurable pool rules work that landed in PR `#15`
-- The remaining highest-value follow-up is browser verification of BAO cashback and Stephub shipment-state flows
+- No open merge blocker remains from the configurable pool rules and BAO browser-check work that landed in PR `#15` and PR `#16`
+- The previously requested browser verification of BAO cashback and Stephub shipment-state flows is now covered by local reusable smoke scripts
 - Current matrix docs still describe a separate sandbox-only legacy placement engine and do not change production matrix code
 - If matrix work resumes, treat it as a product decision rather than a merge-readiness issue
 
@@ -60,6 +67,10 @@ Updated: 2026-03-23
   - `npm run smoke:pool:all`
 - BAO cashback smoke:
   - `npm run smoke:bao:cashback`
+- BAO shipment browser-check smoke:
+  - `npm run smoke:bao:shipment`
+- Run all BAO browser-checks:
+  - `npm run smoke:bao:all`
 - Cleanup cashback smoke artifacts:
   - `npm run cleanup:cashback-smoke -- --apply`
 
