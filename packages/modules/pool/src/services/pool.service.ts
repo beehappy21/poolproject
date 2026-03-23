@@ -14,6 +14,7 @@ import {
   addDecimalStrings,
   compareDecimalStrings,
   divideDecimalStringByInt,
+  divideDecimalStrings,
   minDecimalString,
   multiplyDecimalStrings,
   subtractDecimalStrings,
@@ -568,6 +569,6 @@ export class PoolService implements PoolServiceContract {
       "0",
     );
 
-    return String(Number(totalContribution) / Number(totalPv));
+    return divideDecimalStrings(totalContribution, totalPv);
   }
 }

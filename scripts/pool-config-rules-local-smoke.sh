@@ -156,7 +156,7 @@ async function main() {
       approvedAt: new Date(`${process.env.DATE}T08:30:00.000Z`),
       approvalStatus: "APPROVED",
       status: "APPROVED",
-      orderItems: { create: [{ packageId: starter.id, qty: 1, unitPriceUsdt: "400", unitPv: "400", lineTotalUsdt: "400", lineTotalPv: "400" }] },
+      orderItems: { create: [{ packageId: starter.id, qty: 1, unitPriceUsdt: "400", unitPv: "400", poolRateMode: "CUSTOM_RATE", unitPoolRate: "0.25", lineTotalUsdt: "400", lineTotalPv: "400" }] },
     },
   });
 }
@@ -191,7 +191,7 @@ async function main() {
       approvedAt: new Date(`${process.env.DATE}T08:30:00.000Z`),
       approvalStatus: "APPROVED",
       status: "APPROVED",
-      orderItems: { create: [{ packageId: starter.id, qty: 1, unitPriceUsdt: "400", unitPv: "400", lineTotalUsdt: "400", lineTotalPv: "400" }] },
+      orderItems: { create: [{ packageId: starter.id, qty: 1, unitPriceUsdt: "400", unitPv: "400", poolRateMode: "DISABLED", unitPoolRate: "0", lineTotalUsdt: "400", lineTotalPv: "400" }] },
     },
   });
 }
@@ -232,7 +232,7 @@ async function main() {
       approvedAt: new Date(`${process.env.DATE}T08:30:00.000Z`),
       approvalStatus: "APPROVED",
       status: "APPROVED",
-      orderItems: { create: [{ packageId: starter.id, qty: 1, unitPriceUsdt: "400", unitPv: "400", lineTotalUsdt: "400", lineTotalPv: "400" }] },
+      orderItems: { create: [{ packageId: starter.id, qty: 1, unitPriceUsdt: "400", unitPv: "400", poolRateMode: "DEFAULT_50_PERCENT", unitPoolRate: "0", lineTotalUsdt: "400", lineTotalPv: "400" }] },
     },
   });
 }
