@@ -13,6 +13,32 @@ import {product} from '../product';
 import {actions} from '../store/actions';
 import {components} from '../components';
 
+const getYoutubeVideoId = (url?: string): string | null => {
+  if (!url) return null;
+
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.replace(/^www\./, '');
+
+    if (host === 'youtu.be') {
+      const videoId = parsed.pathname.replace(/\//g, '');
+      return videoId || null;
+    }
+
+    if (host.includes('youtube.com')) {
+      const videoId =
+        parsed.searchParams.get('v') ||
+        parsed.pathname.split('/').filter(Boolean).pop();
+
+      return videoId || null;
+    }
+  } catch (error) {
+    return null;
+  }
+
+  return null;
+};
+
 export const Product: React.FC = () => {
   const location = useLocation();
   const item = location.state.item;
@@ -23,6 +49,7 @@ export const Product: React.FC = () => {
 
   const [reviewsData, setReviewsData] = useState<any>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isVideoOpen, setIsVideoOpen] = useState(false);
 
   const [selectedSize, setSelectedSize] = useState<string>(
     item.sizes?.[0] || 'standard',
@@ -37,9 +64,31 @@ export const Product: React.FC = () => {
     size: selectedSize,
   };
 
-  const [activeIndex, setActiveIndex] = useState(0);
+  const galleryImages = Array.isArray(item.images)
+    ? item.images.filter(
+        (value: unknown, imageIndex: number, array: unknown[]) =>
+          typeof value === 'string' &&
+          value.trim() !== '' &&
+          array.indexOf(value) === imageIndex,
+      )
+    : [];
+  const productImages = galleryImages.slice(0, 10);
+  const youtubeVideoId = getYoutubeVideoId(item.youtubeUrl);
+  const youtubeThumbnailUrl = youtubeVideoId
+    ? `https://img.youtube.com/vi/${youtubeVideoId}/hqdefault.jpg`
+    : null;
+  const embedVideoUrl = youtubeVideoId
+    ? `https://www.youtube.com/embed/${youtubeVideoId}?autoplay=1&rel=0&playsinline=1`
+    : null;
+  const mediaItems = [
+    ...(youtubeThumbnailUrl
+      ? [{type: 'video' as const, value: youtubeThumbnailUrl}]
+      : []),
+    ...productImages.map((image: string) => ({type: 'image' as const, value: image})),
+  ];
 
   const usesPackageCatalog = Boolean(item.packageId);
+  const hidePackagePresentation = true;
   const hasRealSizes =
     Array.isArray(item.sizes) &&
     item.sizes.length > 0 &&
@@ -48,10 +97,6 @@ export const Product: React.FC = () => {
     Array.isArray(item.colors) &&
     item.colors.length > 0 &&
     !(item.colors.length === 1 && item.colors[0]?.name === 'default');
-
-  const handleSlideChange = (index: number) => {
-    setActiveIndex(index);
-  };
 
   const getReviews = async () => {
     setIsLoading(true);
@@ -87,53 +132,103 @@ export const Product: React.FC = () => {
           thumbWidth={22}
           showIndicators={false}
           showArrows={false}
-          onChange={handleSlideChange}
           swipeable={true}
           emulateTouch={true}
         >
-          {item.images?.map((item: any, index: any) => {
+          {mediaItems.map((mediaItem: any, index: number) => {
+            if (mediaItem.type === 'video') {
+              return (
+                <button
+                  key={`video-${index}`}
+                  onClick={() => {
+                    if (embedVideoUrl) {
+                      setIsVideoOpen(true);
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    aspectRatio: '16 / 9',
+                    backgroundColor: theme.colors.imageBackground,
+                    border: 'none',
+                    padding: 0,
+                    position: 'relative',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <img
+                    src={mediaItem.value}
+                    alt='Product video thumbnail'
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      display: 'block',
+                      objectFit: 'cover',
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: 'linear-gradient(180deg, rgba(15,23,42,0.08) 0%, rgba(15,23,42,0.22) 100%)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 86,
+                        height: 60,
+                        borderRadius: 18,
+                        backgroundColor: '#FF0000',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 12px 24px rgba(0, 0, 0, 0.18)',
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 0,
+                          height: 0,
+                          borderTop: '12px solid transparent',
+                          borderBottom: '12px solid transparent',
+                          borderLeft: '18px solid #FFFFFF',
+                          marginLeft: 4,
+                        }}
+                      />
+                    </div>
+                  </div>
+                </button>
+              );
+            }
+
             return (
-              <img
-                key={index}
-                src={item}
-                alt='Carousel'
+              <div
+                key={`image-${index}`}
                 style={{
                   width: '100%',
-                  height: 350,
-                  objectFit: 'contain',
+                  aspectRatio: '16 / 9',
                   backgroundColor: theme.colors.imageBackground,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}
-              />
+              >
+                <img
+                  src={mediaItem.value}
+                  alt='Carousel'
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain',
+                    display: 'block',
+                  }}
+                />
+              </div>
             );
           })}
         </Carousel>
-      </div>
-    );
-  };
-
-  const renderIndicator = (): JSX.Element => {
-    return (
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          paddingBottom: 20,
-          borderBottom: `1px solid ${theme.colors.aliceBlue2}`,
-          marginBottom: 20,
-        }}
-      >
-        {item.images?.map((item: any, index: number) => {
-          const isSelected = index === activeIndex;
-          const indicatorStyle = {
-            background: isSelected ? theme.colors.mainColor : '#E8EFF4',
-            display: 'inline-block',
-            width: 22,
-            height: 6,
-            margin: '0 5px',
-            borderRadius: 6,
-          };
-          return <div style={indicatorStyle} key={index} />;
-        })}
       </div>
     );
   };
@@ -164,7 +259,7 @@ export const Product: React.FC = () => {
   };
 
   const renderRating = (): JSX.Element => {
-    if (usesPackageCatalog && (!item.ratingCount || Number(item.ratingCount) === 0)) {
+    if (!hidePackagePresentation && usesPackageCatalog && (!item.ratingCount || Number(item.ratingCount) === 0)) {
       return (
         <div style={{padding: '0 20px 0 20px', marginBottom: 12}}>
           <span
@@ -217,7 +312,7 @@ export const Product: React.FC = () => {
   };
 
   const renderPackageMeta = (): JSX.Element | null => {
-    if (!usesPackageCatalog) {
+    if (!usesPackageCatalog || hidePackagePresentation) {
       return null;
     }
 
@@ -312,7 +407,12 @@ export const Product: React.FC = () => {
   };
 
   const renderIncludedItems = (): JSX.Element | null => {
-    if (!usesPackageCatalog || !Array.isArray(item.packageItems) || !item.packageItems.length) {
+    if (
+      !usesPackageCatalog ||
+      hidePackagePresentation ||
+      !Array.isArray(item.packageItems) ||
+      !item.packageItems.length
+    ) {
       return null;
     }
 
@@ -528,7 +628,7 @@ export const Product: React.FC = () => {
             color: theme.colors.mainColor,
           }}
         >
-          {usesPackageCatalog ? 'รายละเอียดแพ็กเกจ' : 'รายละเอียด'}
+          {'รายละเอียด'}
         </h5>
         <p
           style={{
@@ -557,7 +657,7 @@ export const Product: React.FC = () => {
     return (
       <>
         <components.Button
-          title={usesPackageCatalog ? 'เพิ่มแพ็กเกจ' : 'เพิ่มลงตะกร้า'}
+          title='เพิ่มลงตะกร้า'
           onClick={() => {
             dispatch(actions.addToCart(modifiedItem));
           }}
@@ -619,7 +719,6 @@ export const Product: React.FC = () => {
     return (
       <div style={{padding: '0 0 20px 0'}}>
         {renderCarousel()}
-        {renderIndicator()}
         {renderNameWithButton()}
         {renderRating()}
         {renderPriceWithQuantity()}
@@ -638,6 +737,70 @@ export const Product: React.FC = () => {
     <>
       {renderHeader()}
       {renderContent()}
+      {isVideoOpen && embedVideoUrl ? (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.82)',
+            zIndex: 999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: 960,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+            }}
+          >
+            <div style={{display: 'flex', justifyContent: 'flex-end'}}>
+              <button
+                onClick={() => setIsVideoOpen(false)}
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 21,
+                  backgroundColor: '#FFFFFF',
+                  color: theme.colors.mainColor,
+                  ...theme.fonts.Mulish_700Bold,
+                  fontSize: 20,
+                  lineHeight: 1,
+                }}
+              >
+                x
+              </button>
+            </div>
+            <div
+              style={{
+                width: '100%',
+                aspectRatio: '16 / 9',
+                backgroundColor: '#000000',
+                overflow: 'hidden',
+              }}
+            >
+              <iframe
+                src={embedVideoUrl}
+                title='Product video modal'
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  border: 0,
+                  display: 'block',
+                }}
+                allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share'
+                referrerPolicy='strict-origin-when-cross-origin'
+                allowFullScreen
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 };

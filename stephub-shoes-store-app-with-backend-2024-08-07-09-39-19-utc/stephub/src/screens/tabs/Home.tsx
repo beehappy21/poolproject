@@ -6,42 +6,82 @@ import 'react-responsive-carousel/lib/styles/carousel.min.css';
 
 import {URLS} from '../../config';
 import {hooks} from '../../hooks';
-import {items} from '../../items';
+import {product} from '../../product';
 import {custom} from '../../custom';
 import {theme} from '../../constants';
 import {actions} from '../../store/actions';
 import {components} from '../../components';
 import {fetchLiveProducts} from '../../utils/liveCatalog';
 
+const INITIAL_RECOMMENDED_LIMIT = 20;
+const BANNER_INSERT_INTERVAL = 8;
+
+const shuffleArray = <T,>(items: T[]): T[] => {
+  const cloned = [...items];
+
+  for (let index = cloned.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [cloned[index], cloned[randomIndex]] = [cloned[randomIndex], cloned[index]];
+  }
+
+  return cloned;
+};
+
 export const Home: FC = () => {
   const dispatch = hooks.useAppDispatch();
   const navigate = hooks.useAppNavigate();
+  const {width} = hooks.useWindowSize();
 
   const [loading, setLoading] = useState<boolean>(true);
-
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [searchValue, setSearchValue] = useState('');
 
   const [productsData, setProductsData] = useState<any>([]);
+  const [categoriesData, setCategoriesData] = useState<any>([]);
   const [bannersData, setBannersData] = useState<any>([]);
   const [carouselData, setCarouselData] = useState<any>([]);
+  const [recommendedVisibleCount, setRecommendedVisibleCount] = useState<number>(
+    INITIAL_RECOMMENDED_LIMIT,
+  );
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollBottom = window.innerHeight + window.scrollY;
+      const threshold = document.documentElement.scrollHeight - 240;
+
+      if (scrollBottom < threshold) return;
+
+      setRecommendedVisibleCount(current => {
+        if (current >= productsData.length) return current;
+        return Math.min(current + INITIAL_RECOMMENDED_LIMIT, productsData.length);
+      });
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [productsData.length]);
 
   const getData = async () => {
     setLoading(true);
 
     try {
       const products = await fetchLiveProducts();
+      const categories = await axios
+        .get(URLS.GET_CATEGORIES)
+        .then(res => (Array.isArray(res.data) ? res.data : []));
 
       const banners = await axios
         .get(URLS.GET_BANNERS)
-        .then(res => res.data.banners);
+        .then(res => (Array.isArray(res.data) ? res.data : res.data.banners || []));
 
       const carousel = await axios
         .get(URLS.GET_CAROUSEL)
-        .then(res => res.data.carousel);
+        .then(res => (Array.isArray(res.data) ? res.data : res.data.carousel || []));
 
       setProductsData(products);
-      setBannersData(banners);
+      setCategoriesData(categories);
+      setBannersData(shuffleArray(banners));
       setCarouselData(carousel);
+      setRecommendedVisibleCount(INITIAL_RECOMMENDED_LIMIT);
     } catch (error) {
       console.error(error);
     } finally {
@@ -54,29 +94,45 @@ export const Home: FC = () => {
     window.scrollTo(0, 0);
   }, []);
 
-  const handleSlideChange = (index: number) => {
-    setActiveIndex(index);
+  const renderHeader = (): JSX.Element => {
+    return (
+      <components.Header
+        burger={true}
+        basket={true}
+        line={true}
+        fixed={true}
+        searchValue={searchValue}
+        searchPlaceholder='ค้นหาแพ็กเกจ'
+        onSearchChange={(event) => setSearchValue(event.target.value)}
+      />
+    );
   };
 
-  const renderHeader = (): JSX.Element => {
-    return <components.Header burger={true} basket={true} line={true} />;
+  const getBannerForSlot = (slotIndex: number) => {
+    if (!Array.isArray(bannersData) || bannersData.length === 0) {
+      return null;
+    }
+
+    return bannersData[slotIndex % bannersData.length] || null;
   };
 
   const renderCarousel = (): JSX.Element => {
     return (
       <div style={{marginBottom: 22}}>
         <Carousel
-          infiniteLoop={false}
+          autoPlay={true}
+          interval={3000}
+          infiniteLoop={true}
           showStatus={false}
           showThumbs={false}
           thumbWidth={22}
           showIndicators={false}
           showArrows={false}
-          onChange={handleSlideChange}
+          stopOnHover={false}
           swipeable={true}
           emulateTouch={true}
         >
-          {carouselData?.map((item: any, index: any) => {
+          {carouselData?.slice(0, 10).map((item: any, index: any) => {
             return (
               <img
                 key={index}
@@ -84,8 +140,8 @@ export const Home: FC = () => {
                 alt='Carousel'
                 style={{
                   width: '100%',
-                  height: 300,
-                  objectFit: 'contain',
+                  height: 'auto',
+                  display: 'block',
                   backgroundColor: theme.colors.imageBackground,
                 }}
               />
@@ -96,74 +152,250 @@ export const Home: FC = () => {
     );
   };
 
-  const renderIndicator = (): JSX.Element => {
+  const renderBestSellers = (): JSX.Element => {
+    const normalizedSearch = searchValue.trim().toLowerCase();
+    const searchableProducts = normalizedSearch
+      ? productsData.filter((item: any) => {
+          const candidate = [
+            item.name,
+            item.packageCode,
+            item.categoryName,
+            item.supplierName,
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+
+          return candidate.includes(normalizedSearch);
+        })
+      : productsData;
+    const popularPackages = searchableProducts.filter(
+      (item: any) => item.isTop || item.isFeatured,
+    );
+    const displayPackages = popularPackages.length
+      ? popularPackages
+      : searchableProducts;
+    const columns = width >= 1024 ? 4 : 2;
+    const visiblePackages = displayPackages.slice(0, recommendedVisibleCount);
+    const packageGroups = [];
+
+    for (let index = 0; index < visiblePackages.length; index += BANNER_INSERT_INTERVAL) {
+      packageGroups.push(
+        visiblePackages.slice(index, index + BANNER_INSERT_INTERVAL),
+      );
+    }
+
     return (
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          marginBottom: 40,
-        }}
-      >
-        {carouselData?.map((item: any, index: number) => {
-          const isSelected = index === activeIndex;
-          const indicatorStyle = {
-            background: isSelected ? theme.colors.mainColor : '#E8EFF4',
-            display: 'inline-block',
-            width: 22,
-            height: 6,
-            margin: '0 6px',
-            borderRadius: 6,
-          };
-          return <div style={indicatorStyle} key={index} />;
+      <div style={{marginBottom: 40, display: 'flex', flexDirection: 'column'}}>
+        {packageGroups.map((group: any[], groupIndex: number) => {
+          return (
+            <div key={`group-${groupIndex}`} style={{display: 'flex', flexDirection: 'column'}}>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+                  gap: 16,
+                  padding: '0 20px',
+                }}
+              >
+                {group.map((item: any) => {
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => navigate('/product', {state: {item}})}
+                      style={{
+                        textAlign: 'left',
+                        backgroundColor: 'transparent',
+                      }}
+                    >
+                      <custom.ImageBackground
+                        imageUrl={item.image}
+                        style={{
+                          width: '100%',
+                          aspectRatio: '4 / 5',
+                          borderRadius: 0,
+                          marginBottom: 8,
+                          position: 'relative',
+                          backgroundSize: 'contain',
+                          backgroundColor: theme.colors.imageBackground,
+                        }}
+                      >
+                        <product.ProductInWishlist
+                          item={item}
+                          style={{
+                            position: 'absolute',
+                            padding: 10,
+                            right: 0,
+                          }}
+                        />
+                        <product.ProductInCart
+                          item={item}
+                          style={{
+                            position: 'absolute',
+                            right: 0,
+                            top: 40,
+                            padding: 10,
+                          }}
+                        />
+                      </custom.ImageBackground>
+                      <div style={{display: 'flex', flexDirection: 'column', minWidth: 0}}>
+                        <div style={{marginBottom: 4}}>
+                          <product.ProductRating
+                            rating={item.rating}
+                            ratingCount={item.ratingCount}
+                          />
+                        </div>
+                        <h6
+                          style={{
+                            marginTop: 0,
+                            marginBottom: 6,
+                            color: theme.colors.textColor,
+                            ...theme.fonts.Mulish_400Regular,
+                            fontSize: 14,
+                            lineHeight: 1.45,
+                            fontWeight: 400,
+                            overflow: 'hidden',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                          }}
+                        >
+                          {item.name}
+                        </h6>
+                        <product.ProductPrice item={item} />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              {group.length === BANNER_INSERT_INTERVAL &&
+                groupIndex < packageGroups.length - 1 &&
+                getBannerForSlot(groupIndex + 1)?.image && (
+                  <div style={{padding: '20px 20px 0'}}>
+                    <button
+                      onClick={() => {
+                        dispatch(actions.resetFilters());
+                        navigate('/Shop', {
+                          state: {products: displayPackages, title: 'สินค้าแนะนำ'},
+                        });
+                      }}
+                    >
+                      <img
+                        src={getBannerForSlot(groupIndex + 1)?.image}
+                        alt='Recommended banner'
+                        style={{
+                          width: '100%',
+                          display: 'block',
+                        }}
+                      />
+                    </button>
+                  </div>
+                )}
+            </div>
+          );
         })}
       </div>
     );
   };
 
-  const renderBestSellers = (): JSX.Element => {
-    const popularPackages = productsData.filter(
-      (item: any) => item.isTop || item.isFeatured,
-    );
-    const displayPackages = popularPackages.length ? popularPackages : productsData;
+  const renderCategories = (): JSX.Element | null => {
+    if (!categoriesData.length) return null;
 
     return (
-      <div style={{marginBottom: 40, display: 'flex', flexDirection: 'column'}}>
-        <components.BlockHeading
-          title='แพ็กเกจแนะนำ'
-          containerStyle={{
-            padding: '0 20px 0',
-            marginBottom: 14,
+      <div style={{marginBottom: 34, display: 'flex', flexDirection: 'column'}}>
+        <div
+          style={{
+            display: 'flex',
+            gap: 10,
+            overflowX: 'auto',
+            padding: '0 20px 4px',
+            scrollSnapType: categoriesData.length > 5 ? 'x proximity' : undefined,
           }}
-          viewAllOnClick={() => {
-            dispatch(actions.resetFilters());
-            navigate('/Shop', {
-              state: {products: displayPackages, title: 'แพ็กเกจแนะนำ'},
+        >
+          {categoriesData.map((item: any) => {
+            const categoryProducts = productsData.filter((product: any) => {
+              const categoryCode = (product.categoryCode || '').toLowerCase();
+              const categoryName = (product.categoryName || '').toLowerCase();
+              return (
+                categoryCode === String(item.code || '').toLowerCase() ||
+                categoryName === String(item.name || '').toLowerCase()
+              );
             });
-          }}
-        />
-        <custom.ScrollView style={{paddingLeft: 20, paddingRight: 20}}>
-          {displayPackages?.map((item: any, index: number, arra: any) => {
-            const isLast = index === arra.length - 1;
             return (
-              <items.ProductCard
+              <button
                 key={item.id}
-                isLast={isLast}
-                item={item}
-                version={1}
-              />
+                onClick={() => {
+                  if (!categoryProducts.length) {
+                    return navigate('/Categories');
+                  }
+                  dispatch(actions.resetFilters());
+                  navigate('/Shop', {
+                    state: {title: item.name, products: categoryProducts},
+                  });
+                }}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  flex: '0 0 calc((100% - 40px) / 5)',
+                  minWidth: 'calc((100% - 40px) / 5)',
+                  scrollSnapAlign: 'start',
+                  backgroundColor: 'transparent',
+                }}
+              >
+                <div
+                  style={{
+                    width: '100%',
+                    aspectRatio: '1 / 1',
+                    borderRadius: '50%',
+                    overflow: 'hidden',
+                    backgroundColor: theme.colors.ghostWhite,
+                    border: '1px solid #E8EFF4',
+                    marginBottom: 10,
+                  }}
+                >
+                  <img
+                    src={item.image || item.imageUrl}
+                    alt={item.name}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      display: 'block',
+                    }}
+                  />
+                </div>
+                <span
+                  style={{
+                    width: '100%',
+                    minHeight: 34,
+                    color: theme.colors.textColor,
+                    textAlign: 'center',
+                    ...theme.fonts.Mulish_600SemiBold,
+                    fontSize: 12,
+                    lineHeight: 1.35,
+                    overflow: 'hidden',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                  }}
+                >
+                  {item.name}
+                </span>
+              </button>
             );
           })}
-        </custom.ScrollView>
+        </div>
       </div>
     );
   };
 
   const renderBanner = (): JSX.Element => {
-    const banner =
-      bannersData && bannersData?.length > 0 ? bannersData[0]?.image : '';
+    const banner = getBannerForSlot(0);
 
     const matches = Array.isArray(productsData) ? productsData.slice(0, 8) : [];
+    if (!banner?.image) return <></>;
+
     return (
       <div style={{marginBottom: 40, display: 'flex'}}>
         <button
@@ -175,10 +407,11 @@ export const Home: FC = () => {
           }}
         >
           <img
-            src={banner}
+            src={banner.image}
             alt='Banner'
             style={{
               width: '100%',
+              display: 'block',
             }}
           />
         </button>
@@ -186,39 +419,30 @@ export const Home: FC = () => {
     );
   };
 
-  const renderFeatured = (): JSX.Element => {
-    const featuredPackages = productsData.filter((item: any) => item.isFeatured);
-    const displayPackages = featuredPackages.length ? featuredPackages : productsData;
+  const renderCategoryBanner = (): JSX.Element => {
+    const banner = getBannerForSlot(1);
+
+    if (!banner?.image) return <></>;
 
     return (
-      <div style={{marginBottom: 40, display: 'flex', flexDirection: 'column'}}>
-        <components.BlockHeading
-          title='แพ็กเกจเด่น'
-          containerStyle={{
-            paddingLeft: 20,
-            paddingRight: 20,
-            marginBottom: 14,
-          }}
-          viewAllOnClick={() => {
+      <div style={{padding: '0 20px', marginBottom: 28, display: 'flex'}}>
+        <button
+          onClick={() => {
             dispatch(actions.resetFilters());
             navigate('/Shop', {
-              state: {products: displayPackages, title: 'แพ็กเกจเด่น'},
+              state: {products: productsData, title: 'แพ็กเกจทั้งหมด'},
             });
           }}
-        />
-        <custom.ScrollView style={{paddingLeft: 20, paddingRight: 20}}>
-          {displayPackages?.map((item: any, index: number, arra: any) => {
-            const isLast = index === arra.length - 1;
-            return (
-              <items.ProductCard
-                key={item.id}
-                isLast={isLast}
-                item={item}
-                version={3}
-              />
-            );
-          })}
-        </custom.ScrollView>
+        >
+          <img
+            src={banner.image}
+            alt='Category banner'
+            style={{
+              width: '100%',
+              display: 'block',
+            }}
+          />
+        </button>
       </div>
     );
   };
@@ -251,18 +475,19 @@ export const Home: FC = () => {
     }
 
     return (
-      <main
-        style={{
-          paddingBottom: 64,
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
+        <main
+          style={{
+            paddingTop: 64,
+            paddingBottom: 64,
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
         {renderCarousel()}
-        {renderIndicator()}
+        {renderCategories()}
+        {renderCategoryBanner()}
         {renderBestSellers()}
         {renderBanner()}
-        {renderFeatured()}
       </main>
     );
   };
