@@ -79,7 +79,7 @@ export const CartEmpty: React.FC = () => {
             textTransform: 'capitalize',
           }}
         >
-          Your cart is empty!
+          ยังไม่มีสินค้าในตะกร้า
         </h2>
         <p
           style={{
@@ -91,14 +91,14 @@ export const CartEmpty: React.FC = () => {
             lineHeight: 1.7,
           }}
         >
-          Add a package to your cart to start{'\n'}your next order.
+          เลือกแพ็กเกจที่ต้องการก่อน{'\n'}แล้วค่อยสร้างคำสั่งซื้อ
         </p>
         <components.Button
-          title='Browse Packages'
+          title='เลือกแพ็กเกจ'
           onClick={() => {
             dispatch(actions.resetFilters());
             navigate('/Shop', {
-              state: {products: productsData, title: 'Packages'},
+              state: {products: productsData, title: 'แพ็กเกจ'},
             });
           }}
           containerStyle={{marginBottom: 0, width: '100%'}}

@@ -57,7 +57,7 @@ export const Categories: FC = () => {
               }}
               onClick={() => {
                 if (categoryProducts.length === 0) {
-                  return alert('No packages in this category yet.');
+                  return alert('ยังไม่มีแพ็กเกจในหมวดนี้');
                 }
                 dispatch(actions.resetFilters());
                 navigate('/Shop', {
@@ -100,19 +100,6 @@ export const Categories: FC = () => {
                   >
                     {item.name}
                   </h4>
-                  <span
-                    style={{
-                      color: theme.colors.white,
-                      ...theme.fonts.Mulish_400Regular,
-                      fontSize: 12,
-                      lineHeight: 1.5,
-                      opacity: 0.95,
-                      marginTop: 4,
-                    }}
-                  >
-                    {categoryProducts.length} package
-                    {categoryProducts.length === 1 ? '' : 's'}
-                  </span>
                 </div>
               </custom.ImageBackground>
             </button>

@@ -22,7 +22,7 @@ export const Shop: React.FC = () => {
   const navigate = hooks.useAppNavigate();
 
   const location = useLocation();
-  const title = location.state?.title || 'Packages';
+  const title = location.state?.title || 'แพ็กเกจ';
   const products = location.state?.products || [];
 
   const [sort, setSort] = useState(sortingBy[0]);
@@ -111,7 +111,7 @@ export const Shop: React.FC = () => {
       return;
     }
 
-    return alert('Your cart is empty.');
+    return alert('ยังไม่มีสินค้าในตะกร้า');
   };
 
   const renderHeader = () => {
@@ -246,7 +246,7 @@ export const Shop: React.FC = () => {
                   lineHeight: 1.7,
                 }}
               >
-                No packages match your current filters.
+                ไม่พบแพ็กเกจที่ตรงกับตัวกรองที่เลือก
               </div>
             </div>
           ) : null}

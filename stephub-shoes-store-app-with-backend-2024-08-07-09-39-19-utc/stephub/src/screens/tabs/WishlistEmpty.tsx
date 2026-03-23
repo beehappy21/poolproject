@@ -71,7 +71,7 @@ export const WishlistEmpty: FC = () => {
             color: theme.colors.mainColor,
           }}
         >
-          Your wishlist is empty!
+          ยังไม่มีรายการโปรด
         </h2>
         <p
           style={{
@@ -84,14 +84,14 @@ export const WishlistEmpty: FC = () => {
             marginBottom: 30,
           }}
         >
-          Save packages here to come back{'\n'}when you are ready to order.
+          บันทึกแพ็กเกจที่สนใจไว้ที่นี่{'\n'}แล้วกลับมาสั่งซื้อภายหลัง
         </p>
         <components.Button
-          title='Browse Packages'
+          title='เลือกแพ็กเกจ'
           onClick={() => {
             dispatch(actions.resetFilters());
             navigate('/Shop', {
-              state: {products: productsData, title: 'Packages'},
+              state: {products: productsData, title: 'แพ็กเกจ'},
             });
           }}
           containerStyle={{marginBottom: 10}}

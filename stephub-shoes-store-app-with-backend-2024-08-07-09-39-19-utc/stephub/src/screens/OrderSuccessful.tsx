@@ -49,7 +49,7 @@ export const OrderSuccessful: React.FC = () => {
             ...theme.fonts.Mulish_700Bold,
           }}
         >
-          Thank you for your order!
+          สร้างคำสั่งซื้อเรียบร้อย
         </h2>
         <p
           style={{
@@ -63,11 +63,11 @@ export const OrderSuccessful: React.FC = () => {
           }}
         >
           {order?.orderNo
-            ? `Order ${order.orderNo} has been created successfully.${'\n'}Please upload your transfer slip from Order History to continue.`
-            : `Your order has been created successfully.${'\n'}Thank you for shopping with us.`}
+            ? `เลขที่คำสั่งซื้อ ${order.orderNo}${'\n'}กรุณาอัปโหลดสลิปโอนเงินจากหน้าประวัติคำสั่งซื้อเพื่อดำเนินการต่อ`
+            : `สร้างคำสั่งซื้อสำเร็จแล้ว${'\n'}กรุณาไปที่หน้าประวัติคำสั่งซื้อเพื่ออัปโหลดสลิปโอนเงิน`}
         </p>
         <components.Button
-          title='View Order History'
+          title='ดูประวัติคำสั่งซื้อ'
           onClick={() => {
             dispatch(actions.setScreen('Home'));
             navigate('/OrderHistory');
@@ -75,7 +75,7 @@ export const OrderSuccessful: React.FC = () => {
           containerStyle={{marginBottom: 10, width: '100%'}}
         />
         <components.Button
-          title='Back to Home'
+          title='กลับหน้าแรก'
           onClick={() => {
             navigate('/TabNavigator');
           }}
