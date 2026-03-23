@@ -2,6 +2,11 @@
 
 set -euo pipefail
 
+# By default this helper bootstraps a fresh local verification stack:
+# it can stop listeners on :3000 and :8001, reset the local Postgres schema,
+# reseed dev data, apply Stephub compat views, and rewrite the local BAO
+# sqlite admin password to a known value before asserting shipment flow.
+
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BACKEND_DIR="$ROOT_DIR/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend"
 API_BASE_URL="${API_BASE_URL:-http://127.0.0.1:3000}"

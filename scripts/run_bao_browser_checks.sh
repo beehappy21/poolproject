@@ -2,6 +2,11 @@
 
 set -euo pipefail
 
+# This smoke is meant for disposable local environments.
+# It resets the local Postgres schema, reseeds dev data, rewrites the
+# local BAO sqlite admin password to a known value, and restarts listeners
+# on :3000 and :8001 before running the BAO cashback + shipment checks.
+
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BACKEND_DIR="$ROOT_DIR/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend"
 DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/poolproject?schema=public}"
