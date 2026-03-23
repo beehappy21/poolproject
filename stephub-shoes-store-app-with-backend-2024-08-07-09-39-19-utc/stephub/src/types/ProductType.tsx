@@ -15,6 +15,7 @@ export type ProductType = {
   status?: string;
   itemCount?: number;
   shortDescription?: string;
+  youtubeUrl?: string;
   packageItems?: Array<{
     packageItemId: string;
     qty: number;

@@ -22,7 +22,7 @@ export const ProductCard: React.FC<Props> = ({isLast, item, version = 1}) => {
           width: 200,
           cursor: 'pointer',
           marginRight: isLast ? 20 : 14,
-          borderRadius: 12,
+          borderRadius: 0,
         }}
         onClick={() => {
           navigate('/product', {state: {item}});
@@ -33,7 +33,7 @@ export const ProductCard: React.FC<Props> = ({isLast, item, version = 1}) => {
           style={{
             width: 200,
             height: 250,
-            borderRadius: 12,
+            borderRadius: 0,
             marginBottom: 6,
             position: 'relative',
           }}
@@ -174,7 +174,7 @@ export const ProductCard: React.FC<Props> = ({isLast, item, version = 1}) => {
           width: blockWidth,
           cursor: 'pointer',
           marginRight: isLast ? 20 : 14,
-          borderRadius: 12,
+          borderRadius: 0,
         }}
         onClick={() => {
           navigate('/product', {state: {item}});
@@ -185,7 +185,7 @@ export const ProductCard: React.FC<Props> = ({isLast, item, version = 1}) => {
           style={{
             width: blockWidth,
             height: 170,
-            borderRadius: 12,
+            borderRadius: 0,
             marginBottom: 6,
             position: 'relative',
             backgroundSize: 'contain',

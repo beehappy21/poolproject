@@ -17,6 +17,7 @@ type PackageSummary = {
   categoryCode?: string | null;
   categoryName?: string | null;
   primaryImageUrl?: string | null;
+  youtubeUrl?: string | null;
   imageUrls?: string[];
   shortDescription?: string | null;
   description?: string | null;
@@ -32,6 +33,9 @@ type PackageSummary = {
     productDetailId: string;
     productDetailCode: string;
     productDetailName: string;
+    primaryImageUrl?: string | null;
+    youtubeUrl?: string | null;
+    imageUrls?: string[];
     shortDescription?: string | null;
     description?: string | null;
     lineMemberPriceUsdt?: string;
@@ -49,7 +53,22 @@ export const mapPackageToProduct = (
   item: PackageSummary,
   index: number,
 ): ProductType => {
-  const uniqueImages = [item.primaryImageUrl, ...(item.imageUrls || [])].filter(
+  const packageItems = item.packageItems || [];
+  const leadItem = packageItems[0];
+  const displayName = leadItem?.productDetailName || item.name;
+  const displayCode = leadItem?.productDetailCode || item.code;
+  const displayShortDescription = leadItem?.shortDescription || item.shortDescription;
+  const displayDescription =
+    leadItem?.description ||
+    item.description ||
+    item.shortDescription ||
+    `${displayName} (${displayCode})`;
+  const uniqueImages = [
+    leadItem?.primaryImageUrl,
+    ...(leadItem?.imageUrls || []),
+    item.primaryImageUrl,
+    ...(item.imageUrls || []),
+  ].filter(
     (value, imageIndex, array): value is string =>
       Boolean(value) && array.indexOf(value) === imageIndex,
   );
@@ -57,7 +76,6 @@ export const mapPackageToProduct = (
     uniqueImages[0] ||
     PACKAGE_PLACEHOLDER_IMAGES[index % PACKAGE_PLACEHOLDER_IMAGES.length];
   const price = Number(item.priceUsdt || 0);
-  const packageItems = item.packageItems || [];
   const packageItemSummary = packageItems
     .map(
       packageItem =>
@@ -73,14 +91,15 @@ export const mapPackageToProduct = (
     categoryName: item.categoryName || undefined,
     supplierCode: item.supplierCode || undefined,
     supplierName: item.supplierName || undefined,
-    name: item.name,
+    name: displayName,
     price,
     rating: Number(item.ratingAvg || 0),
     ratingCount: Number(item.ratingCount || 0),
     activeDays: Number(item.activeDays || 0),
     status: item.status,
     itemCount: Number(item.itemCount || 0),
-    shortDescription: item.shortDescription || undefined,
+    shortDescription: displayShortDescription || undefined,
+    youtubeUrl: leadItem?.youtubeUrl || item.youtubeUrl || undefined,
     packageItems,
     image,
     images: uniqueImages.length ? uniqueImages : [image],
@@ -89,10 +108,9 @@ export const mapPackageToProduct = (
     colors: [{name: 'default', code: '#1F2937'}],
     color: 'default',
     description:
-      item.description ||
-      item.shortDescription ||
-      `${item.name} package (${item.code}) with ${item.pv} PV and ${item.priceUsdt} USDT price.${packageItemSummary ? ` Includes ${packageItemSummary}.` : ''}`,
-    categories: item.categoryName || item.supplierName || 'แพ็กเกจ',
+      displayDescription ||
+      `${displayName}${packageItemSummary ? `, ${packageItemSummary}` : ''}`,
+    categories: item.categoryName || item.supplierName || 'สินค้า',
     is_bestseller: Boolean(item.isTop),
     is_featured: Boolean(item.isFeatured),
     is_out_of_stock: item.status !== 'active',
@@ -103,8 +121,8 @@ export const mapPackageToProduct = (
     isTop: Boolean(item.isTop),
     isFeatured: Boolean(item.isFeatured),
     audience: item.audienceTags?.length ? item.audienceTags : ['all'],
-    promotion: item.code,
-    tags: ['package', (item.categoryCode || '').toLowerCase()].filter(Boolean),
+    promotion: displayCode,
+    tags: ['product', (item.categoryCode || '').toLowerCase()].filter(Boolean),
     pv: Number(item.pv || 0),
   };
 };

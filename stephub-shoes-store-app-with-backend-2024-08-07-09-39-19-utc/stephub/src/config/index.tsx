@@ -2,16 +2,19 @@ const MAIN_URL = 'https://george-fx.github.io/stephub/';
 const API_BASE_URL =
   process.env.REACT_APP_API_BASE_URL?.replace(/\/+$/, '') ||
   'http://127.0.0.1:3000';
+const BAO_BASE_URL =
+  process.env.REACT_APP_BAO_BASE_URL?.replace(/\/+$/, '') ||
+  'http://127.0.0.1:8001';
 
 export const GET_TAGS = `${MAIN_URL}api/tags.json`;
 export const GET_ORDERS = `${MAIN_URL}api/orders.json`;
 export const GET_REVIEWS = `${MAIN_URL}api/reviews.json`;
-export const GET_BANNERS = `${MAIN_URL}api/banners.json`;
-export const GET_CAROUSEL = `${MAIN_URL}api/carousel.json`;
+export const GET_BANNERS = `${BAO_BASE_URL}/api/banners`;
+export const GET_CAROUSEL = `${BAO_BASE_URL}/api/slides`;
 export const GET_PRODUCTS = `${MAIN_URL}api/products.json`;
 export const GET_AUDIENCES = `${MAIN_URL}api/audiences.json`;
 export const GET_PROMOCODES = `${MAIN_URL}api/promocodes.json`;
-export const GET_CATEGORIES = `${MAIN_URL}api/categories.json`;
+export const GET_CATEGORIES = `${BAO_BASE_URL}/api/categories`;
 export const GET_PACKAGES = `${API_BASE_URL}/packages`;
 export const AUTH_LOGIN = `${API_BASE_URL}/auth/login`;
 export const AUTH_ME = `${API_BASE_URL}/auth/me`;
@@ -31,6 +34,7 @@ export const buildSetDefaultShippingAddressUrl = (
 
 export const URLS = {
   API_BASE_URL,
+  BAO_BASE_URL,
   GET_TAGS,
   GET_ORDERS,
   GET_BANNERS,

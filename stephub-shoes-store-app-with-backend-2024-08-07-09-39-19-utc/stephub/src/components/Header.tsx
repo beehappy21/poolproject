@@ -15,6 +15,10 @@ type Props = {
   burger?: boolean;
   goBack?: boolean;
   basket?: boolean;
+  fixed?: boolean;
+  searchValue?: string;
+  searchPlaceholder?: string;
+  onSearchChange?: (event: React.ChangeEvent<HTMLInputElement>) => void;
 };
 
 export const Header: React.FC<Props> = ({
@@ -23,6 +27,10 @@ export const Header: React.FC<Props> = ({
   burger,
   goBack,
   basket,
+  fixed,
+  searchValue,
+  searchPlaceholder,
+  onSearchChange,
 }) => {
   const navigate = useNavigate();
   const [modal, setModal] = useState(false);
@@ -122,6 +130,69 @@ export const Header: React.FC<Props> = ({
       >
         {title}
       </h4>
+    );
+  };
+
+  const renderSearch = (): JSX.Element | null => {
+    if (!onSearchChange) {
+      return null;
+    }
+
+    return (
+      <div
+        style={{
+          flex: 1,
+          marginLeft: burger || goBack ? 56 : 16,
+          marginRight: basket ? 72 : 16,
+          height: 40,
+          borderRadius: 999,
+          border: `1px solid ${theme.colors.aliceBlue2}`,
+          backgroundColor: '#F7FAFC',
+          display: 'flex',
+          alignItems: 'center',
+          paddingLeft: 14,
+          paddingRight: 14,
+          gap: 10,
+        }}
+      >
+        <div
+          style={{
+            width: 16,
+            height: 16,
+            border: '2px solid #60708E',
+            borderRadius: '50%',
+            position: 'relative',
+            flexShrink: 0,
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              width: 8,
+              height: 2,
+              backgroundColor: '#60708E',
+              right: -5,
+              bottom: -2,
+              transform: 'rotate(45deg)',
+              borderRadius: 2,
+            }}
+          />
+        </div>
+        <input
+          value={searchValue || ''}
+          onChange={onSearchChange}
+          placeholder={searchPlaceholder || 'ค้นหา'}
+          style={{
+            width: '100%',
+            border: 'none',
+            outline: 'none',
+            backgroundColor: 'transparent',
+            color: theme.colors.mainColor,
+            fontSize: 14,
+            ...theme.fonts.Mulish_400Regular,
+          }}
+        />
+      </div>
     );
   };
 
@@ -298,20 +369,24 @@ export const Header: React.FC<Props> = ({
       <header
         style={{
           top: 0,
-          height: 52,
-          position: 'sticky',
+          left: 0,
+          right: 0,
+          height: 64,
+          position: fixed ? 'fixed' : 'sticky',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           flexDirection: 'row',
           backgroundColor: theme.colors.white,
-          zIndex: 4,
+          zIndex: 40,
           borderBottom: line ? `1px solid ${theme.colors.aliceBlue2}` : 'none',
+          paddingLeft: 4,
+          paddingRight: 4,
         }}
       >
         {renderGoBack()}
         {renderBurger()}
-        {renderTitle()}
+        {onSearchChange ? renderSearch() : renderTitle()}
         {renderBasket()}
       </header>
     </>

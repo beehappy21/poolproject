@@ -801,6 +801,7 @@ export class PrismaPackagesRepository implements PackagesRepository {
                 shortDescription: true,
                 description: true,
                 primaryImageUrl: true,
+                youtubeUrl: true,
                 imageUrls: true,
                 ratingAvg: true,
                 ratingCount: true,
@@ -843,8 +844,6 @@ export class PrismaPackagesRepository implements PackagesRepository {
         const images = [
           detail.primaryImageUrl,
           ...detail.imageUrls,
-          detail.product.category.imageUrl,
-          detail.product.supplier.imageUrl,
         ].filter((value, index, array): value is string => {
           return Boolean(value) && array.indexOf(value) === index;
         });
@@ -864,6 +863,7 @@ export class PrismaPackagesRepository implements PackagesRepository {
           shortDescription: detail.shortDescription,
           description: detail.description,
           primaryImageUrl: detail.primaryImageUrl,
+          youtubeUrl: detail.youtubeUrl,
           imageUrls: images,
           ratingAvg: detail.ratingAvg.toString(),
           ratingCount: detail.ratingCount,
@@ -909,6 +909,7 @@ export class PrismaPackagesRepository implements PackagesRepository {
         categoryCode: leadItem?.categoryCode ?? null,
         categoryName: leadItem?.categoryName ?? null,
         primaryImageUrl: leadItem?.primaryImageUrl ?? imageUrls[0] ?? null,
+        youtubeUrl: leadItem?.youtubeUrl ?? null,
         imageUrls,
         shortDescription: leadItem?.shortDescription ?? null,
         description:
