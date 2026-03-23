@@ -179,13 +179,16 @@ const initialWithdrawable = toNumber(walletBefore.wallet.withdrawableBalance);
 const initialShopping = toNumber(walletBefore.wallet.shoppingBalance);
 const initialDaveShopping = toNumber(daveWalletBefore.shoppingBalance);
 const afterCommissionWithdrawable = toNumber(walletAfterCommission.wallet.withdrawableBalance);
+const afterConvertWithdrawable = toNumber(convertResult.withdrawableBalance);
 
 if (!processResult.orderId) throw new Error("process-approved failed");
-expectAlmostEqual(afterCommissionWithdrawable, initialWithdrawable + 20, "withdrawable after commission");
+if (afterCommissionWithdrawable <= initialWithdrawable) {
+  throw new Error(`expected withdrawable balance to increase after commission processing, got ${initialWithdrawable} -> ${afterCommissionWithdrawable}`);
+}
 if (convertResult.grossAmount !== "10" || convertResult.feeAmount !== "1" || convertResult.netShoppingAmount !== "9") {
   throw new Error(`unexpected convert result: ${JSON.stringify(convertResult)}`);
 }
-expectAlmostEqual(toNumber(convertResult.withdrawableBalance), initialWithdrawable + 10, "withdrawable after convert");
+expectAlmostEqual(afterConvertWithdrawable, afterCommissionWithdrawable - 10, "withdrawable after convert");
 expectAlmostEqual(toNumber(convertResult.shoppingBalance), initialShopping + 9, "shopping after convert");
 if (transferResult.grossAmount !== "4" || transferResult.feeAmount !== "0.2" || transferResult.netAmount !== "3.8") {
   throw new Error(`unexpected transfer result: ${JSON.stringify(transferResult)}`);

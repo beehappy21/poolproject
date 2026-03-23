@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Param, Post, Query } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  Inject,
+  Param,
+  Post,
+  Query,
+  UnauthorizedException,
+  forwardRef,
+} from "@nestjs/common";
 
 import {
   optionalString,
@@ -7,11 +18,16 @@ import {
   requireNonEmptyString,
   requirePositiveIntegerString,
 } from "../../../../../apps/api/src/http/request.util";
+import { AuthService } from "../../../auth";
 import { WalletsService } from "../services/wallets.service";
 
 @Controller("wallets")
 export class WalletsController {
-  constructor(private readonly walletsService: WalletsService) {}
+  constructor(
+    private readonly walletsService: WalletsService,
+    @Inject(forwardRef(() => AuthService))
+    private readonly authService: AuthService,
+  ) {}
 
   @Get(":userId")
   async getWalletSummary(@Param("userId") userId: string) {
@@ -31,7 +47,11 @@ export class WalletsController {
   async listWalletTopupRequests(
     @Query("userId") userId?: string,
     @Query("status") status?: string,
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
   ) {
+    await this.requireAdminSessionUser(authorization, cookieHeader);
+
     return this.walletsService.listWalletTopupRequests({
       userId: optionalString(userId)
         ? requirePositiveIntegerString(userId, "userId")
@@ -47,7 +67,13 @@ export class WalletsController {
   }
 
   @Get(":userId/topup-requests")
-  async listWalletTopupRequestsForUser(@Param("userId") userId: string) {
+  async listWalletTopupRequestsForUser(
+    @Param("userId") userId: string,
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    await this.requireAdminSessionUser(authorization, cookieHeader);
+
     return this.walletsService.listWalletTopupRequests({
       userId: requirePositiveIntegerString(userId, "userId"),
     });
@@ -61,40 +87,48 @@ export class WalletsController {
       amount: string;
       paymentMethod: string;
       note?: string;
-      actorUserId?: string;
     },
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
   ) {
+    const adminUser = await this.requireAdminSessionUser(authorization, cookieHeader);
+
     return this.walletsService.topupShoppingWallet({
       userId: requirePositiveIntegerString(userId, "userId"),
       amount: requireDecimalString(body.amount, "amount"),
       paymentMethod: requireNonEmptyString(body.paymentMethod, "paymentMethod")
         .toLowerCase(),
       note: optionalString(body.note),
-      actorUserId: optionalString(body.actorUserId)
-        ? requirePositiveIntegerString(body.actorUserId, "actorUserId")
-        : null,
+      actorUserId: adminUser.userId,
     });
   }
 
   @Post("topup-requests/:requestId/approve")
   async approveWalletTopupRequest(
     @Param("requestId") requestId: string,
-    @Body() body: { actorUserId: string },
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
   ) {
+    const adminUser = await this.requireAdminSessionUser(authorization, cookieHeader);
+
     return this.walletsService.approveWalletTopupRequest({
       requestId: requirePositiveIntegerString(requestId, "requestId"),
-      actorUserId: requirePositiveIntegerString(body.actorUserId, "actorUserId"),
+      actorUserId: adminUser.userId,
     });
   }
 
   @Post("topup-requests/:requestId/reject")
   async rejectWalletTopupRequest(
     @Param("requestId") requestId: string,
-    @Body() body: { actorUserId: string; rejectionReason: string },
+    @Body() body: { rejectionReason: string },
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
   ) {
+    const adminUser = await this.requireAdminSessionUser(authorization, cookieHeader);
+
     return this.walletsService.rejectWalletTopupRequest({
       requestId: requirePositiveIntegerString(requestId, "requestId"),
-      actorUserId: requirePositiveIntegerString(body.actorUserId, "actorUserId"),
+      actorUserId: adminUser.userId,
       rejectionReason: requireNonEmptyString(body.rejectionReason, "rejectionReason"),
     });
   }
@@ -118,5 +152,59 @@ export class WalletsController {
       transferSlipUrl: optionalUrlString(body.transferSlipUrl, "transferSlipUrl"),
       note: optionalString(body.note),
     });
+  }
+
+  private extractToken(authorization?: string, cookieHeader?: string): string {
+    const normalized = (authorization || "").trim();
+
+    if (normalized.toLowerCase().startsWith("bearer ")) {
+      const token = normalized.slice(7).trim();
+
+      if (!token) {
+        throw new UnauthorizedException("Missing bearer token.");
+      }
+
+      return token;
+    }
+
+    const cookieToken = this.readCookie(cookieHeader, "adminAccessToken");
+
+    if (!cookieToken) {
+      throw new UnauthorizedException("Missing bearer token.");
+    }
+
+    return cookieToken;
+  }
+
+  private async requireAdminSessionUser(
+    authorization?: string,
+    cookieHeader?: string,
+  ) {
+    const token = this.extractToken(authorization, cookieHeader);
+    const user = await this.authService.getSessionUser(token);
+
+    if (!user) {
+      throw new UnauthorizedException("Invalid session.");
+    }
+
+    if (!this.authService.isAdminUser(user)) {
+      throw new UnauthorizedException("Admin access required.");
+    }
+
+    return user;
+  }
+
+  private readCookie(cookieHeader: string | undefined, name: string): string | null {
+    const source = cookieHeader || "";
+    const prefix = `${name}=`;
+
+    for (const part of source.split(";")) {
+      const value = part.trim();
+      if (value.startsWith(prefix)) {
+        return decodeURIComponent(value.slice(prefix.length));
+      }
+    }
+
+    return null;
   }
 }
