@@ -205,6 +205,76 @@
         <section class="grid two-up" data-menu-section="marketing">
           <article class="panel">
             <div class="section-head">
+              <h3>Wallet Payment Settings</h3>
+              <span class="muted">Allowed methods and wallet fees</span>
+            </div>
+            <form id="walletSettingsForm" class="settings-form">
+              <div class="settings-grid">
+                <label>
+                  <span>Commission To Shopping Fee %</span>
+                  <input id="walletCommissionFeeRateInput" type="text" value="0" required />
+                </label>
+                <label>
+                  <span>Transfer Fee %</span>
+                  <input id="walletTransferFeeRateInput" type="text" value="0" required />
+                </label>
+              </div>
+              <div class="settings-grid">
+                <label>
+                  <span>Commission Convert</span>
+                  <select id="walletCommissionEnabledSelect">
+                    <option value="true">Enabled</option>
+                    <option value="false">Disabled</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Wallet Transfer</span>
+                  <select id="walletTransferEnabledSelect">
+                    <option value="true">Enabled</option>
+                    <option value="false">Disabled</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Wallet Top-Up</span>
+                  <select id="walletTopupEnabledSelect">
+                    <option value="true">Enabled</option>
+                    <option value="false">Disabled</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Shopping Wallet Spend</span>
+                  <select id="walletSpendEnabledSelect">
+                    <option value="true">Enabled</option>
+                    <option value="false">Disabled</option>
+                  </select>
+                </label>
+              </div>
+              <label>
+                <span>Allowed Cash Payment Methods</span>
+                <input id="walletOrderCashMethodsInput" type="text" placeholder="bank_transfer, promptpay_qr, cash" />
+              </label>
+              <label>
+                <span>Allowed Wallet Top-Up Methods</span>
+                <input id="walletTopupMethodsInput" type="text" placeholder="manual_bank, promptpay_qr, cash" />
+              </label>
+              <div class="table-actions">
+                <button type="submit">Save Wallet Settings</button>
+              </div>
+            </form>
+          </article>
+
+          <article class="panel detail-panel">
+            <div class="section-head">
+              <h3>Wallet Settings Preview</h3>
+              <span class="muted">Current allowed methods</span>
+            </div>
+            <pre id="walletSettingsOutput" class="detail-output">Load wallet settings to inspect payment methods and fee rates.</pre>
+          </article>
+        </section>
+
+        <section class="grid two-up" data-menu-section="marketing">
+          <article class="panel">
+            <div class="section-head">
               <h3>Matrix Settings</h3>
               <span class="muted">2x3, 3 boards, percent inputs</span>
             </div>
@@ -1102,6 +1172,40 @@
             </form>
           </div>
           <pre id="memberDetailOutput" class="detail-output">Load a member detail to inspect wallet summary and active cycles.</pre>
+        </section>
+
+        <section class="panel" data-menu-section="members">
+          <div class="section-head">
+            <h3>Wallet Top-Up Review</h3>
+            <span class="muted">Approve or reject member wallet top-up requests</span>
+          </div>
+          <div class="filter-stack">
+            <input id="walletTopupRequestUserFilterInput" type="text" placeholder="Filter by user ID" />
+            <select id="walletTopupRequestStatusFilter">
+              <option value="">All statuses</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>User</th>
+                  <th>Amount</th>
+                  <th>Method</th>
+                  <th>Status</th>
+                  <th>Requested At</th>
+                  <th>Slip</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="walletTopupRequestsTable"></tbody>
+            </table>
+          </div>
         </section>
 
         <section class="grid two-up" data-menu-section="content">

@@ -2,12 +2,17 @@ import { Body, Controller, Get, Put } from "@nestjs/common";
 import { BadRequestException } from "@nestjs/common";
 
 import {
+  optionalString,
   requireDecimalRateString,
 } from "./http/request.util";
 import {
   readCommissionSettings,
   writeCommissionSettings,
 } from "../../../packages/shared/utils/src/commission-settings.util";
+import {
+  readWalletSettings,
+  writeWalletSettings,
+} from "../../../packages/shared/utils/src/wallet-settings.util";
 
 const MAX_DIRECT_LEVELS = 10;
 const MAX_UNI_LEVELS = 20;
@@ -63,5 +68,52 @@ export class AdminSettingsController {
       directLevels: settings.directLevelRates.length,
       uniLevels: settings.uniLevelRates.length,
     };
+  }
+
+  @Get("wallets")
+  getWalletSettings() {
+    return readWalletSettings();
+  }
+
+  @Put("wallets")
+  updateWalletSettings(@Body() body: Record<string, unknown>) {
+    const payload = body ?? {};
+
+    return writeWalletSettings({
+      commissionToShoppingEnabled:
+        payload.commissionToShoppingEnabled === true ||
+        payload.commissionToShoppingEnabled === "true" ||
+        payload.commissionToShoppingEnabled === "1",
+      commissionToShoppingFeeRate: requireDecimalRateString(
+        payload.commissionToShoppingFeeRate ?? "0",
+        "commissionToShoppingFeeRate",
+      ),
+      walletTransferEnabled:
+        payload.walletTransferEnabled === true ||
+        payload.walletTransferEnabled === "true" ||
+        payload.walletTransferEnabled === "1",
+      walletTransferFeeRate: requireDecimalRateString(
+        payload.walletTransferFeeRate ?? "0",
+        "walletTransferFeeRate",
+      ),
+      walletTopupEnabled:
+        payload.walletTopupEnabled === true ||
+        payload.walletTopupEnabled === "true" ||
+        payload.walletTopupEnabled === "1",
+      shoppingWalletSpendEnabled:
+        payload.shoppingWalletSpendEnabled === true ||
+        payload.shoppingWalletSpendEnabled === "true" ||
+        payload.shoppingWalletSpendEnabled === "1",
+      orderCashPaymentMethods: Array.isArray(payload.orderCashPaymentMethods)
+        ? payload.orderCashPaymentMethods
+            .map((value) => optionalString(value))
+            .filter((value): value is string => Boolean(value))
+        : undefined,
+      walletTopupPaymentMethods: Array.isArray(payload.walletTopupPaymentMethods)
+        ? payload.walletTopupPaymentMethods
+            .map((value) => optionalString(value))
+            .filter((value): value is string => Boolean(value))
+        : undefined,
+    });
   }
 }

@@ -12,7 +12,10 @@ import {
 
 import {
   requireNonEmptyString,
+  requireDecimalString,
   requirePositiveIntegerString,
+  optionalString,
+  optionalUrlString,
 } from "../../../../../apps/api/src/http/request.util";
 import { CommissionsService } from "../../../commissions";
 import { MatrixService } from "../../../matrix/src";
@@ -199,13 +202,95 @@ export class AuthController {
   async createOwnOrder(
     @Headers("authorization") authorization?: string,
     @Headers("cookie") cookieHeader?: string,
-    @Body() body?: { packageId?: string },
+    @Body()
+    body?: {
+      packageId?: string;
+      shoppingWalletAmount?: string;
+      cashPaymentMethod?: string;
+    },
   ) {
     const user = await this.requireSessionUser(authorization, cookieHeader);
 
     return this.ordersService.createOrder({
       userId: user.userId,
       packageId: requirePositiveIntegerString(body?.packageId, "packageId"),
+      shoppingWalletAmount: optionalString(body?.shoppingWalletAmount)
+        ? requireDecimalString(body?.shoppingWalletAmount, "shoppingWalletAmount")
+        : undefined,
+      cashPaymentMethod: optionalString(body?.cashPaymentMethod),
+    });
+  }
+
+  @Post("wallets/convert")
+  async convertCommissionToShoppingWallet(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+    @Body() body?: { amount?: string },
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+
+    return this.walletsService.convertCommissionToShoppingWallet({
+      userId: user.userId,
+      amount: requireDecimalString(body?.amount, "amount"),
+    });
+  }
+
+  @Post("wallets/transfer")
+  async transferShoppingWalletToDownline(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+    @Body()
+    body?: {
+      amount?: string;
+      recipientUserId?: string;
+      recipientMemberCode?: string;
+    },
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+
+    return this.walletsService.transferShoppingWalletToDownline({
+      senderUserId: user.userId,
+      recipientUserId: optionalString(body?.recipientUserId)
+        ? requirePositiveIntegerString(body?.recipientUserId, "recipientUserId")
+        : undefined,
+      recipientMemberCode: optionalString(body?.recipientMemberCode),
+      amount: requireDecimalString(body?.amount, "amount"),
+    });
+  }
+
+  @Get("wallets/topup-requests")
+  async listOwnWalletTopupRequests(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+
+    return this.walletsService.listWalletTopupRequests({
+      userId: user.userId,
+    });
+  }
+
+  @Post("wallets/topup-requests")
+  async createOwnWalletTopupRequest(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+    @Body()
+    body?: {
+      amount?: string;
+      paymentMethod?: string;
+      transferSlipUrl?: string;
+      note?: string;
+    },
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+
+    return this.walletsService.requestWalletTopup({
+      userId: user.userId,
+      amount: requireDecimalString(body?.amount, "amount"),
+      paymentMethod: requireNonEmptyString(body?.paymentMethod, "paymentMethod")
+        .toLowerCase(),
+      transferSlipUrl: optionalUrlString(body?.transferSlipUrl, "transferSlipUrl"),
+      note: optionalString(body?.note),
     });
   }
 

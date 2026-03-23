@@ -22,6 +22,7 @@
     "smoke:pool:rules": "bash scripts/pool-config-rules-local-smoke.sh",
     "smoke:pool:all-comm-e2e": "bash scripts/pool-all-commissions-e2e-smoke.sh",
     "smoke:pool:all": "bash scripts/pool-all-smoke.sh",
+    "smoke:wallet:mixed": "bash scripts/wallet-mixed-payment-smoke.sh",
     "smoke:bao:cashback": "bash scripts/check_stephub_admin_cashback_report.sh",
     "smoke:bao:shipment": "bash scripts/check_stephub_order_shipment_flow.sh",
     "smoke:bao:all": "bash scripts/run_bao_browser_checks.sh",
