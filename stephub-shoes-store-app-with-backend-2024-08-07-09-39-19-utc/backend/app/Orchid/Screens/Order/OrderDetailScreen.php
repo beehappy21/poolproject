@@ -52,14 +52,14 @@ class OrderDetailScreen extends Screen {
         ->confirm('ยืนยันการอนุมัติคำสั่งซื้อนี้?')
         ->method('approveOrder')
         ->canSee($this->canApproveOrder()),
-      Button::make('บันทึกว่าจัดส่งแล้ว')
+      Button::make($this->isBranchPickup() ? 'บันทึกว่าพร้อมรับที่สาขา' : 'บันทึกว่าจัดส่งแล้ว')
         ->icon('bs.truck')
-        ->confirm('ยืนยันว่าคำสั่งซื้อนี้ถูกจัดส่งแล้ว?')
+        ->confirm($this->isBranchPickup() ? 'ยืนยันว่าคำสั่งซื้อนี้พร้อมให้ลูกค้ามารับที่สาขาแล้ว?' : 'ยืนยันว่าคำสั่งซื้อนี้ถูกจัดส่งแล้ว?')
         ->method('markShipped')
         ->canSee($this->canMarkShipped()),
-      Button::make('บันทึกว่าส่งถึงแล้ว')
+      Button::make($this->isBranchPickup() ? 'บันทึกว่ารับสินค้าแล้ว' : 'บันทึกว่าส่งถึงแล้ว')
         ->icon('bs.check2-circle')
-        ->confirm('ยืนยันว่าคำสั่งซื้อนี้ส่งถึงลูกค้าแล้ว?')
+        ->confirm($this->isBranchPickup() ? 'ยืนยันว่าลูกค้ามารับสินค้าที่สาขาเรียบร้อยแล้ว?' : 'ยืนยันว่าคำสั่งซื้อนี้ส่งถึงลูกค้าแล้ว?')
         ->method('markDelivered')
         ->canSee($this->canMarkDelivered()),
     ];
@@ -123,9 +123,7 @@ class OrderDetailScreen extends Screen {
   }
 
   public function layout(): iterable {
-
-    return [
-      Layout::legend('order', [
+    $orderSummaryLayout = Layout::legend('order', [
         Sight::make('id', 'Order ID:')->render(function (Order $order) {
           return '#' . $order->id;
         }),
@@ -147,9 +145,12 @@ class OrderDetailScreen extends Screen {
         Sight::make('order_status', 'Status:')->render(function (Order $order) {
           return $order->status_badge_html;
         }),
-      ]),
+        Sight::make('fulfillment_label', 'Fulfillment:')->render(function (Order $order) {
+          return e($order->fulfillment_label);
+        }),
+      ]);
 
-      Layout::table('products', [
+    $productsLayout = Layout::table('products', [
 
         TD::make('name', 'Name')
           ->cantHide()
@@ -187,9 +188,9 @@ class OrderDetailScreen extends Screen {
           ->render(function (OrderLine $product) {
             return $product->quantity;
           }),
-      ])->title('Products in order'),
+      ])->title('Products in order');
 
-      Layout::legend('order', [
+    $totalsLayout = Layout::legend('order', [
         Sight::make('subtotal', 'Subtotal:')->render(function () {
           return '$' . $this->order->subtotal;
         }),
@@ -202,9 +203,9 @@ class OrderDetailScreen extends Screen {
         Sight::make('item_count', 'Item count:')->render(function () {
           return (string) $this->order->item_count;
         }),
-      ])->title('Order Summary'),
+      ])->title('Order Summary');
 
-      Layout::legend('order', [
+    $datesLayout = Layout::legend('order', [
         Sight::make('created_at', 'Created:')->render(function (Order $order) {
           return optional($order->created_at)->format('d M, Y H:i');
         }),
@@ -214,9 +215,20 @@ class OrderDetailScreen extends Screen {
         Sight::make('approved_at', 'Approved:')->render(function (Order $order) {
           return $order->approved_at ? optional($order->approved_at)->format('d M, Y H:i') : '-';
         }),
-      ])->title('Date'),
+      ])->title('Date');
 
-      Layout::legend('sourceOrder', [
+    $transferReviewLayout = Layout::legend('sourceOrder', [
+        Sight::make('shippingLabel', 'Method:')->render(function ($sourceOrder) {
+          return strtolower((string) ($sourceOrder?->shippingLabel ?? '')) === 'branch_pickup'
+            ? 'รับที่สาขา'
+            : 'จัดส่งถึงที่';
+        }),
+        Sight::make('shippingAddressLine', 'Pickup Branch / Address:')->render(function ($sourceOrder) {
+          return $sourceOrder?->shippingAddressLine ?: '-';
+        }),
+        Sight::make('shippingAddressNote', 'Pickup / Shipping Note:')->render(function ($sourceOrder) {
+          return $sourceOrder?->shippingAddressNote ?: '-';
+        }),
         Sight::make('transferSlipUrl', 'Transfer Slip:')->render(function ($sourceOrder) {
           if (!$sourceOrder || empty($sourceOrder->transferSlipUrl)) {
             return 'ยังไม่มีสลิปที่แนบเข้ามา';
@@ -234,25 +246,25 @@ class OrderDetailScreen extends Screen {
         Sight::make('transferSlipNote', 'Note:')->render(function ($sourceOrder) {
           return $sourceOrder?->transferSlipNote ?: '-';
         }),
-      ])->title('Transfer Review'),
+      ])->title('Transfer Review');
 
-      Layout::rows([
+    $shipmentUpdateLayout = Layout::rows([
         Input::make('shipment.tracking_no')
-          ->title('Tracking No')
+          ->title($this->isBranchPickup() ? 'Pickup Ref' : 'Tracking No')
           ->placeholder('TRACK123456')
           ->value($this->sourceOrder?->shipmentTrackingNo),
         Input::make('shipment.carrier')
-          ->title('Carrier')
-          ->placeholder('Flash, Kerry, Thailand Post')
+          ->title($this->isBranchPickup() ? 'Pickup Location' : 'Carrier')
+          ->placeholder($this->isBranchPickup() ? 'Counter A / Branch desk' : 'Flash, Kerry, Thailand Post')
           ->value($this->sourceOrder?->shipmentCarrier),
         TextArea::make('shipment.note')
-          ->title('Shipment Note')
+          ->title($this->isBranchPickup() ? 'Pickup Note' : 'Shipment Note')
           ->rows(3)
-          ->placeholder('Optional shipping note')
+          ->placeholder($this->isBranchPickup() ? 'Optional pickup note' : 'Optional shipping note')
           ->value($this->sourceOrder?->shipmentNote),
-      ])->title('Shipment Update'),
+      ])->title($this->isBranchPickup() ? 'Pickup Update' : 'Shipment Update');
 
-      Layout::legend('sourceOrder', [
+    $shipmentStatusLayout = Layout::legend('sourceOrder', [
         Sight::make('shipmentTrackingNo', 'Tracking No:')->render(function ($sourceOrder) {
           return $sourceOrder?->shipmentTrackingNo ?: '-';
         }),
@@ -272,8 +284,41 @@ class OrderDetailScreen extends Screen {
             ? optional($sourceOrder->deliveredAt)->format('d M, Y H:i')
             : '-';
         }),
-      ])->title('Shipment Status'),
+      ])->title($this->isBranchPickup() ? 'Pickup Status' : 'Shipment Status');
+
+    $layouts = [
+      $orderSummaryLayout,
+      $productsLayout,
+      $totalsLayout,
+      $datesLayout,
+      $transferReviewLayout,
+      $shipmentUpdateLayout,
+      $shipmentStatusLayout,
     ];
+
+    if ($this->hasTransferSlip()) {
+      $layouts = [
+        $transferReviewLayout,
+        $orderSummaryLayout,
+        $productsLayout,
+        $totalsLayout,
+        $datesLayout,
+        $shipmentUpdateLayout,
+        $shipmentStatusLayout,
+      ];
+    }
+
+    return $layouts;
+  }
+
+  private function hasTransferSlip(): bool
+  {
+    return !empty($this->sourceOrder?->transferSlipUrl) || !empty($this->sourceOrder?->transferSubmittedAt);
+  }
+
+  private function isBranchPickup(): bool
+  {
+    return strtolower((string) ($this->sourceOrder?->shippingLabel ?? '')) === 'branch_pickup';
   }
 
   private function canApproveOrder(): bool
