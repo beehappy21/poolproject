@@ -18,8 +18,18 @@ type ProductDetailRecord = {
   productId: bigint;
   code: string;
   name: string;
+  shortDescription: string | null;
+  description: string | null;
+  primaryImageUrl: string | null;
   youtubeUrl: string | null;
   imageUrls: string[];
+  ratingAvg: { toString(): string };
+  ratingCount: number;
+  sortOrder: number;
+  isNew: boolean;
+  isTop: boolean;
+  isFeatured: boolean;
+  isBestSeller: boolean;
   costPriceUsdt: { toString(): string };
   memberPriceUsdt: { toString(): string };
   retailPriceUsdt: { toString(): string };
@@ -769,14 +779,154 @@ export class PrismaPackagesRepository implements PackagesRepository {
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       include: {
         packageItems: {
+          orderBy: [
+            { productDetail: { sortOrder: "asc" } },
+            { productDetail: { createdAt: "asc" } },
+            { id: "asc" },
+          ],
           select: {
             id: true,
+            qty: true,
+            unitMemberPriceUsdt: true,
+            unitRetailPriceUsdt: true,
+            unitPv: true,
+            lineMemberPriceUsdt: true,
+            lineRetailPriceUsdt: true,
+            linePv: true,
+            productDetail: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+                shortDescription: true,
+                description: true,
+                primaryImageUrl: true,
+                imageUrls: true,
+                ratingAvg: true,
+                ratingCount: true,
+                sortOrder: true,
+                isNew: true,
+                isTop: true,
+                isFeatured: true,
+                isBestSeller: true,
+                product: {
+                  select: {
+                    code: true,
+                    name: true,
+                    supplier: {
+                      select: {
+                        code: true,
+                        name: true,
+                        imageUrl: true,
+                      },
+                    },
+                    category: {
+                      select: {
+                        code: true,
+                        name: true,
+                        imageUrl: true,
+                        audienceTags: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
           },
         },
       },
     });
 
-    return packages.map((pkg) => toPackageSummary(pkg));
+    return packages.map((pkg) => {
+      const packageItems = pkg.packageItems.map((item) => {
+        const detail = item.productDetail;
+        const images = [
+          detail.primaryImageUrl,
+          ...detail.imageUrls,
+          detail.product.category.imageUrl,
+          detail.product.supplier.imageUrl,
+        ].filter((value, index, array): value is string => {
+          return Boolean(value) && array.indexOf(value) === index;
+        });
+
+        return {
+          packageItemId: item.id.toString(),
+          qty: item.qty,
+          unitMemberPriceUsdt: item.unitMemberPriceUsdt.toString(),
+          unitRetailPriceUsdt: item.unitRetailPriceUsdt.toString(),
+          unitPv: item.unitPv.toString(),
+          lineMemberPriceUsdt: item.lineMemberPriceUsdt.toString(),
+          lineRetailPriceUsdt: item.lineRetailPriceUsdt.toString(),
+          linePv: item.linePv.toString(),
+          productDetailId: detail.id.toString(),
+          productDetailCode: detail.code,
+          productDetailName: detail.name,
+          shortDescription: detail.shortDescription,
+          description: detail.description,
+          primaryImageUrl: detail.primaryImageUrl,
+          imageUrls: images,
+          ratingAvg: detail.ratingAvg.toString(),
+          ratingCount: detail.ratingCount,
+          sortOrder: detail.sortOrder,
+          isNew: detail.isNew,
+          isTop: detail.isTop,
+          isFeatured: detail.isFeatured,
+          isBestSeller: detail.isBestSeller,
+          productCode: detail.product.code,
+          productName: detail.product.name,
+          supplierCode: detail.product.supplier.code,
+          supplierName: detail.product.supplier.name,
+          categoryCode: detail.product.category.code,
+          categoryName: detail.product.category.name,
+          audienceTags: detail.product.category.audienceTags,
+        };
+      });
+
+      const leadItem = packageItems[0] ?? null;
+      const imageUrls = leadItem?.imageUrls ?? [];
+      const audienceTags = Array.from(
+        new Set(packageItems.flatMap((item) => item.audienceTags ?? [])),
+      );
+      const isFeatured = packageItems.some((item) => item.isFeatured);
+      const isNew = packageItems.some((item) => item.isNew);
+      const isTop = packageItems.some((item) => item.isTop || item.isBestSeller);
+      const ratingValues = packageItems
+        .map((item) => Number(item.ratingAvg))
+        .filter((value) => Number.isFinite(value) && value > 0);
+      const ratingCount = packageItems.reduce(
+        (sum, item) => sum + Number(item.ratingCount || 0),
+        0,
+      );
+      const ratingAvg =
+        ratingValues.length > 0
+          ? (ratingValues.reduce((sum, value) => sum + value, 0) / ratingValues.length).toFixed(2)
+          : "0";
+
+      return {
+        ...toPackageSummary(pkg),
+        supplierCode: leadItem?.supplierCode ?? null,
+        supplierName: leadItem?.supplierName ?? null,
+        categoryCode: leadItem?.categoryCode ?? null,
+        categoryName: leadItem?.categoryName ?? null,
+        primaryImageUrl: leadItem?.primaryImageUrl ?? imageUrls[0] ?? null,
+        imageUrls,
+        shortDescription: leadItem?.shortDescription ?? null,
+        description:
+          leadItem?.description ??
+          (packageItems.length
+            ? `Includes ${packageItems
+                .map((item) => `${item.productDetailName} x${item.qty}`)
+                .join(", ")}.`
+            : null),
+        audienceTags,
+        ratingAvg,
+        ratingCount,
+        isFeatured,
+        isNew,
+        isTop,
+        packageItems,
+      };
+    });
   }
 
   async updatePackageStatus(packageId: string, status: "active" | "inactive") {

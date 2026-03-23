@@ -4,12 +4,28 @@ export type ProductType = {
   id: number;
   packageId?: string;
   packageCode?: string;
+  categoryCode?: string;
+  categoryName?: string;
+  supplierCode?: string;
+  supplierName?: string;
   name: string;
   price: number;
   pv?: number;
   activeDays?: number;
   status?: string;
   itemCount?: number;
+  shortDescription?: string;
+  packageItems?: Array<{
+    packageItemId: string;
+    qty: number;
+    productDetailId: string;
+    productDetailCode: string;
+    productDetailName: string;
+    shortDescription?: string | null;
+    description?: string | null;
+    lineMemberPriceUsdt?: string;
+    linePv?: string;
+  }>;
   rating: number;
   ratingCount?: number;
   image: string;

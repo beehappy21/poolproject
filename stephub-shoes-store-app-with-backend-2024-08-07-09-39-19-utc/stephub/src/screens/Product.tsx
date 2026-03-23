@@ -240,7 +240,7 @@ export const Product: React.FC = () => {
               lineHeight: 1.5,
             }}
           >
-            Package code: {item.packageCode || '-'}
+            รหัสแพ็กเกจ: {item.packageCode || '-'}
           </span>
           <span
             style={{
@@ -260,7 +260,7 @@ export const Product: React.FC = () => {
               lineHeight: 1.5,
             }}
           >
-            Active days: {item.activeDays || 0}
+            จำนวนวันใช้งาน: {item.activeDays || 0}
           </span>
           <span
             style={{
@@ -270,7 +270,7 @@ export const Product: React.FC = () => {
               lineHeight: 1.5,
             }}
           >
-            Included items: {item.itemCount || 0}
+            จำนวนรายการในแพ็กเกจ: {item.itemCount || 0}
           </span>
           <span
             style={{
@@ -280,8 +280,113 @@ export const Product: React.FC = () => {
               lineHeight: 1.5,
             }}
           >
-            Status: {String(item.status || 'active').toUpperCase()}
+            สถานะ: {String(item.status || 'active').toUpperCase()}
           </span>
+          {item.categoryName ? (
+            <span
+              style={{
+                ...theme.fonts.Mulish_400Regular,
+                fontSize: 14,
+                color: theme.colors.textColor,
+                lineHeight: 1.5,
+              }}
+            >
+              หมวดหมู่: {item.categoryName}
+            </span>
+          ) : null}
+          {item.supplierName ? (
+            <span
+              style={{
+                ...theme.fonts.Mulish_400Regular,
+                fontSize: 14,
+                color: theme.colors.textColor,
+                lineHeight: 1.5,
+              }}
+            >
+              ซัพพลายเออร์: {item.supplierName}
+            </span>
+          ) : null}
+        </div>
+      </div>
+    );
+  };
+
+  const renderIncludedItems = (): JSX.Element | null => {
+    if (!usesPackageCatalog || !Array.isArray(item.packageItems) || !item.packageItems.length) {
+      return null;
+    }
+
+    return (
+      <div style={{marginBottom: 28, padding: '0 20px'}}>
+        <h5
+          style={{
+            marginTop: 0,
+            marginBottom: 14,
+            ...theme.fonts.Mulish_600SemiBold,
+            fontSize: 16,
+            fontWeight: 600,
+            color: theme.colors.mainColor,
+          }}
+        >
+          รายการในแพ็กเกจ
+        </h5>
+        <div
+          style={{
+            display: 'grid',
+            gap: 10,
+            backgroundColor: theme.colors.white,
+            borderRadius: 16,
+            padding: 18,
+            border: `1px solid ${theme.colors.aliceBlue2}`,
+          }}
+        >
+          {item.packageItems.map((packageItem: any) => (
+            <div
+              key={packageItem.packageItemId}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: 16,
+                alignItems: 'flex-start',
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    ...theme.fonts.Mulish_600SemiBold,
+                    fontSize: 14,
+                    lineHeight: 1.5,
+                    color: theme.colors.mainColor,
+                  }}
+                >
+                  {packageItem.productDetailName}
+                </div>
+                {packageItem.shortDescription ? (
+                  <div
+                    style={{
+                      ...theme.fonts.Mulish_400Regular,
+                      fontSize: 13,
+                      lineHeight: 1.6,
+                      color: theme.colors.textColor,
+                    }}
+                  >
+                    {packageItem.shortDescription}
+                  </div>
+                ) : null}
+              </div>
+              <div
+                style={{
+                  ...theme.fonts.Mulish_700Bold,
+                  fontSize: 13,
+                  lineHeight: 1.5,
+                  color: theme.colors.mainColor,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                x{packageItem.qty}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -423,7 +528,7 @@ export const Product: React.FC = () => {
             color: theme.colors.mainColor,
           }}
         >
-          {usesPackageCatalog ? 'Package details' : 'Description'}
+          {usesPackageCatalog ? 'รายละเอียดแพ็กเกจ' : 'รายละเอียด'}
         </h5>
         <p
           style={{
@@ -452,7 +557,7 @@ export const Product: React.FC = () => {
     return (
       <>
         <components.Button
-          title={usesPackageCatalog ? 'Add Package' : 'Add to Cart'}
+          title={usesPackageCatalog ? 'เพิ่มแพ็กเกจ' : 'เพิ่มลงตะกร้า'}
           onClick={() => {
             dispatch(actions.addToCart(modifiedItem));
           }}
@@ -519,6 +624,7 @@ export const Product: React.FC = () => {
         {renderRating()}
         {renderPriceWithQuantity()}
         {renderPackageMeta()}
+        {renderIncludedItems()}
         {renderSizes()}
         {renderColors()}
         {renderDescription()}
