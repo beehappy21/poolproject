@@ -177,6 +177,10 @@ export function rethrowHttpError(error: unknown): never {
   }
 
   if (error instanceof Error) {
+    if (error.message === "Sponsor not found.") {
+      throw new BadRequestException("รหัสผู้แนะนำไม่ถูกต้อง");
+    }
+
     if (error.message === "Member not found.") {
       throw new NotFoundException(error.message);
     }

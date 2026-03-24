@@ -2,6 +2,10 @@ import {Shop} from './Shop';
 import {SignIn} from './SignIn';
 import {Filter} from './Filter';
 import {SignUp} from './SignUp';
+import {CompleteRegistration} from './CompleteRegistration';
+import {Commission} from './Commission';
+import {TransferSW} from './TransferSW';
+import {WithdrawSW} from './WithdrawSW';
 import {Home} from './tabs/Home';
 import {Product} from './Product';
 import {SignOut} from './SignOut';
@@ -9,6 +13,7 @@ import {Reviews} from './Reviews';
 import {Order} from './tabs/Order';
 import {Checkout} from './Checkout';
 import {InfoSaved} from './InfoSaved';
+import {TeamMember} from './TeamMember';
 import {Profile} from './tabs/Profile';
 import {Wishlist} from './tabs/Wishlist';
 import {OrderFailed} from './OrderFailed';
@@ -40,8 +45,13 @@ export const screens = {
   Home,
   Shop,
   Order,
+  TeamMember,
   SignUp,
+  CompleteRegistration,
   SignIn,
+  Commission,
+  TransferSW,
+  WithdrawSW,
   Filter,
   Profile,
   Product,

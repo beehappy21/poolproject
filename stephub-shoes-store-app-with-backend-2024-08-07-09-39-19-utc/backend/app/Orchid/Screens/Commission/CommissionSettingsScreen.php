@@ -126,6 +126,22 @@ class CommissionSettingsScreen extends Screen
                 'ข้อมูลที่บันทึกจะถูกอ่านจาก runtime/manual-payment-settings.json และหน้าแอปลูกค้าจะดึงไปแสดงต่อ',
             ],
         ],
+        'signup-share' => [
+            'title' => 'Signup Share',
+            'routeName' => 'platform.commission.signupShare',
+            'eyebrow' => 'Member Signup',
+            'description' => 'ตั้งค่าข้อความแชร์ที่ใช้ใน popup หลังสมัครสมาชิก โดยข้อมูลรหัสสมาชิกและพาสเวิร์ดจะถูกเติมให้อัตโนมัติและแก้จากหน้านี้ไม่ได้.',
+            'accent' => '#2563eb',
+            'cards' => [
+                ['label' => 'ข้อความที่แก้ได้', 'value' => 'Share message', 'note' => 'ใช้เป็นข้อความนำก่อนข้อมูลสมาชิก'],
+                ['label' => 'ข้อมูลตายตัว', 'value' => 'Member code / Password', 'note' => 'ระบบเติมอัตโนมัติใน popup และข้อความแชร์'],
+                ['label' => 'Use case', 'value' => 'Save or send', 'note' => 'ให้สมาชิกแชร์ข้อมูลไปเก็บไว้หรือส่งต่อช่องทางส่วนตัว'],
+            ],
+            'bullets' => [
+                'ข้อความในส่วนนี้ใช้สำหรับปุ่มแชร์จาก popup หลังสมัครสมาชิกสำเร็จ',
+                'รหัสสมาชิกและพาสเวิร์ดถูกล็อกเป็นข้อมูลจากระบบจริง ไม่อนุญาตให้แก้ผ่าน BAO',
+            ],
+        ],
     ];
 
     private array $sectionConfig = self::SECTIONS['settings'];
@@ -197,6 +213,11 @@ class CommissionSettingsScreen extends Screen
         return $this->resolveSectionPayload('manual-payment');
     }
 
+    public function signupShare(Request $request): iterable
+    {
+        return $this->resolveSectionPayload('signup-share');
+    }
+
     private function resolveSectionPayload(string $section): iterable
     {
         $this->sectionConfig = self::SECTIONS[$section] ?? self::SECTIONS['settings'];
@@ -214,6 +235,7 @@ class CommissionSettingsScreen extends Screen
             'commissionSettings' => PoolprojectSettingsStore::readCommissionSettings(),
             'matrixSettings' => PoolprojectSettingsStore::readMatrixSettings(),
             'manualPaymentSettings' => PoolprojectSettingsStore::readManualPaymentSettings(),
+            'signupShareSettings' => PoolprojectSettingsStore::readSignupShareSettings(),
             'commissionNav' => self::commissionNav($section),
         ];
     }

@@ -10,6 +10,9 @@ import {URLS} from '../config';
 import {actions} from '../store/actions';
 import {hooks} from '../hooks';
 
+const LOCAL_AUTH_BYPASS = false;
+const DEV_IMPERSONATION_PASSWORD = 'a1a1a1';
+
 export const SignIn: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = hooks.useAppDispatch();
@@ -21,6 +24,22 @@ export const SignIn: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string>('');
 
   const handleSignIn = async (): Promise<void> => {
+    if (LOCAL_AUTH_BYPASS) {
+      dispatch(
+        actions.setUser({
+          userId: 'local-bypass-user',
+          memberCode: identifier.trim() || 'THLOCAL001',
+          name: 'Stephub Local User',
+          email: 'local-bypass@stephub.test',
+          phone: '0999999999',
+          accessToken: 'local-bypass-token',
+        }),
+      );
+      dispatch(actions.setRememberMe(true));
+      navigate('/TabNavigator');
+      return;
+    }
+
     if (!identifier.trim() || !password.trim()) {
       setErrorMessage('Please enter your email/member code and password.');
       return;
@@ -97,6 +116,40 @@ export const SignIn: React.FC = () => {
       >
         Sign in to continue
       </p>
+      {LOCAL_AUTH_BYPASS ? (
+        <div
+          style={{
+            marginBottom: 20,
+            padding: '12px 14px',
+            borderRadius: 12,
+            backgroundColor: '#FFF4D6',
+            color: theme.colors.mainColor,
+            fontSize: 14,
+            lineHeight: 1.6,
+            ...theme.fonts.Mulish_400Regular,
+          }}
+        >
+          Local bypass is enabled for UI review. Tap Sign in to continue
+          without calling the API.
+        </div>
+      ) : (
+        <div
+          style={{
+            marginBottom: 20,
+            padding: '12px 14px',
+            borderRadius: 12,
+            backgroundColor: '#EEF5FF',
+            color: theme.colors.mainColor,
+            fontSize: 14,
+            lineHeight: 1.6,
+            ...theme.fonts.Mulish_400Regular,
+          }}
+        >
+          Local dev impersonation is enabled. Use a member code with password{' '}
+          <strong>{DEV_IMPERSONATION_PASSWORD}</strong> to sign in as that member
+          on local/dev, or use the member&apos;s real password as usual.
+        </div>
+      )}
       <div>
         <custom.InputField
           label='email'

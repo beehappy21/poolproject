@@ -126,8 +126,27 @@ export interface MembersServiceContract {
     joinedAt?: string | null;
   } | null>;
 
+  getDirectReferralsByMemberCode(memberCode: string): Promise<{
+    member: {
+      memberId: string;
+      memberCode: string;
+      referralCode: string;
+      name: string;
+      sponsorId: string | null;
+    };
+    directReferrals: Array<{
+      memberId: string;
+      memberCode: string;
+      referralCode: string;
+      name: string;
+      sponsorId: string | null;
+      childCount: number;
+    }>;
+  } | null>;
+
   getReferralLink(memberCode: string, baseUrl?: string): Promise<{
     memberCode: string;
+    sponsorCode: string;
     referralCode: string;
     referralLink: string;
   }>;
@@ -315,6 +334,10 @@ export class MembersService implements MembersServiceContract {
     return this.membersRepository.findMemberByCode(memberCode);
   }
 
+  async getDirectReferralsByMemberCode(memberCode: string) {
+    return this.membersRepository.findDirectReferralsByMemberCode(memberCode);
+  }
+
   async getReferralLink(memberCode: string, baseUrl = "http://localhost:3000") {
     const member = await this.membersRepository.findMemberByCode(memberCode);
 
@@ -326,8 +349,9 @@ export class MembersService implements MembersServiceContract {
 
     return {
       memberCode: member.memberCode,
+      sponsorCode: member.memberCode,
       referralCode: member.referralCode,
-      referralLink: `${normalizedBaseUrl}/signup?ref=${encodeURIComponent(member.referralCode)}`,
+      referralLink: `${normalizedBaseUrl}/SignUp?sponsorCode=${encodeURIComponent(member.memberCode)}`,
     };
   }
 

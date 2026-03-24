@@ -14,3 +14,8 @@ Current status:
 - Repository structure only
 - No business logic implemented yet
 - Design documents live under [`docs/web3-ecommerce-design/`](/Users/macbook/poolproject/docs/web3-ecommerce-design/README.md)
+
+Local Stephub stack:
+- `npm run dev:up`: start local Postgres, apply Prisma schema, seed dev data, and launch API, BAO, and Stephub app on the standard local ports
+- `npm run dev:restart`: stop any listeners on the standard local ports and then rerun the standard local boot flow
+- `npm run dev:check`: verify `5432`, `3000`, `8001`, and `3002` plus the key storefront endpoints used by the current Home screen

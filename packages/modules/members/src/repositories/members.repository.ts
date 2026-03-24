@@ -132,6 +132,24 @@ export interface MembersRepository {
     joinedAt?: string | null;
   } | null>;
 
+  findDirectReferralsByMemberCode(memberCode: string): Promise<{
+    member: {
+      memberId: string;
+      memberCode: string;
+      referralCode: string;
+      name: string;
+      sponsorId: string | null;
+    };
+    directReferrals: Array<{
+      memberId: string;
+      memberCode: string;
+      referralCode: string;
+      name: string;
+      sponsorId: string | null;
+      childCount: number;
+    }>;
+  } | null>;
+
   createMember(input: {
     memberCode?: string | null;
     name?: string | null;
@@ -921,6 +939,65 @@ export class PrismaMembersRepository implements MembersRepository {
     const member = await this.findMemberCodeSummaryRecord(memberCode);
 
     return member ? this.toMemberSummary(member) : null;
+  }
+
+  async findDirectReferralsByMemberCode(memberCode: string) {
+    const member = await this.prisma.user.findFirst({
+      where: { memberCode: { equals: memberCode, mode: "insensitive" } },
+      select: {
+        id: true,
+        memberCode: true,
+        referralCode: true,
+        name: true,
+        sponsorId: true,
+      },
+    });
+
+    if (!member) {
+      return null;
+    }
+
+    const directReferrals = await this.prisma.user.findMany({
+      where: { sponsorId: member.id },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      select: {
+        id: true,
+        memberCode: true,
+        referralCode: true,
+        name: true,
+        sponsorId: true,
+      },
+    });
+
+    const referralsWithCounts = await Promise.all(
+      directReferrals.map(async (directReferral) => {
+        const childCount = await this.prisma.user.count({
+          where: { sponsorId: directReferral.id },
+        });
+
+        return {
+          memberId: toIdString(directReferral.id),
+          memberCode: directReferral.memberCode,
+          referralCode: await this.ensureUserReferralCode(directReferral),
+          name: directReferral.name,
+          sponsorId: directReferral.sponsorId
+            ? toIdString(directReferral.sponsorId)
+            : null,
+          childCount,
+        };
+      }),
+    );
+
+    return {
+      member: {
+        memberId: toIdString(member.id),
+        memberCode: member.memberCode,
+        referralCode: await this.ensureUserReferralCode(member),
+        name: member.name,
+        sponsorId: member.sponsorId ? toIdString(member.sponsorId) : null,
+      },
+      directReferrals: referralsWithCounts,
+    };
   }
 
   async createMember(input: {

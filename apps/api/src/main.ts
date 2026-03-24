@@ -20,12 +20,7 @@ async function bootstrap(): Promise<void> {
   app.use(expressBodyParsers.urlencoded({ extended: true, limit: "12mb" }));
 
   app.enableCors({
-    origin: [
-      "http://127.0.0.1:3001",
-      "http://localhost:3001",
-      "http://127.0.0.1:3000",
-      "http://localhost:3000",
-    ],
+    origin: apiConfig.corsOrigins,
     credentials: true,
   });
 

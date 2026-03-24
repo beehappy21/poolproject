@@ -1,4 +1,5 @@
 import React from 'react';
+import {useNavigate} from 'react-router-dom';
 
 import {hooks} from '../hooks';
 import {svg} from '../assets/svg';
@@ -40,6 +41,7 @@ const tabs = [
 
 export const BottomTabBar: React.FC = () => {
   const dispatch = hooks.useAppDispatch();
+  const navigate = useNavigate();
 
   const currentTabScreen = hooks.useAppSelector(state => state.tabSlice.screen);
 
@@ -72,7 +74,10 @@ export const BottomTabBar: React.FC = () => {
         {tabs.map(tab => (
           <div
             key={tab.id}
-            onClick={() => dispatch(actions.setScreen(tab.name))}
+            onClick={() => {
+              dispatch(actions.setScreen(tab.name));
+              navigate('/TabNavigator');
+            }}
             style={{
               display: 'flex',
               flexDirection: 'column',

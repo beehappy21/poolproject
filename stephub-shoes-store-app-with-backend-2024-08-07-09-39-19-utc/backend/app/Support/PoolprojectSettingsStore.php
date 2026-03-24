@@ -9,6 +9,13 @@ class PoolprojectSettingsStore
         'uniLevelRates' => ['0.05', '0.05', '0.05', '0.05', '0.05'],
         'poolRate' => '0.5',
         'cashbackRate' => '0',
+        'appVisibility' => [
+            'cashback' => true,
+            'direct' => true,
+            'unilevel' => true,
+            'matrix' => true,
+            'pool' => true,
+        ],
     ];
 
     private const DEFAULT_MATRIX_SETTINGS = [
@@ -33,6 +40,10 @@ class PoolprojectSettingsStore
         'promptPayNumber' => '0812345678',
         'qrImageUrl' => '',
         'note' => 'กรุณาโอนตามยอดที่แสดงในคำสั่งซื้อ และอัปโหลดสลิปเพื่อรอตรวจสอบ',
+    ];
+
+    private const DEFAULT_SIGNUP_SHARE_SETTINGS = [
+        'shareMessage' => 'ส่งข้อมูลนี้เก็บไว้สำหรับเข้าใช้งานครั้งแรก และเปลี่ยนรหัสผ่านหลังเข้าสู่ระบบทันที',
     ];
 
     public static function readCommissionSettings(): array
@@ -74,6 +85,19 @@ class PoolprojectSettingsStore
         return $normalized;
     }
 
+    public static function readSignupShareSettings(): array
+    {
+        return self::normalizeSignupShareSettings(self::readJsonFile(self::signupShareSettingsPath()));
+    }
+
+    public static function writeSignupShareSettings(array $input): array
+    {
+        $normalized = self::normalizeSignupShareSettings($input);
+        self::writeJsonFile(self::signupShareSettingsPath(), $normalized);
+
+        return $normalized;
+    }
+
     private static function commissionSettingsPath(): string
     {
         return self::runtimeRoot() . DIRECTORY_SEPARATOR . 'commission-settings.json';
@@ -87,6 +111,11 @@ class PoolprojectSettingsStore
     private static function manualPaymentSettingsPath(): string
     {
         return self::runtimeRoot() . DIRECTORY_SEPARATOR . 'manual-payment-settings.json';
+    }
+
+    private static function signupShareSettingsPath(): string
+    {
+        return self::runtimeRoot() . DIRECTORY_SEPARATOR . 'signup-share-settings.json';
     }
 
     private static function runtimeRoot(): string
@@ -132,7 +161,46 @@ class PoolprojectSettingsStore
             'uniLevelRates' => $uni,
             'poolRate' => $poolRate,
             'cashbackRate' => $cashbackRate,
+            'appVisibility' => self::normalizeAppVisibility($input['appVisibility'] ?? []),
         ];
+    }
+
+    private static function normalizeAppVisibility(array $input): array
+    {
+        $defaults = self::DEFAULT_COMMISSION_SETTINGS['appVisibility'];
+
+        return [
+            'cashback' => self::normalizeBoolean($input['cashback'] ?? null, $defaults['cashback']),
+            'direct' => self::normalizeBoolean($input['direct'] ?? null, $defaults['direct']),
+            'unilevel' => self::normalizeBoolean($input['unilevel'] ?? null, $defaults['unilevel']),
+            'matrix' => self::normalizeBoolean($input['matrix'] ?? null, $defaults['matrix']),
+            'pool' => self::normalizeBoolean($input['pool'] ?? null, $defaults['pool']),
+        ];
+    }
+
+    private static function normalizeBoolean(mixed $value, bool $fallback): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_string($value)) {
+            $normalized = strtolower(trim($value));
+
+            if (in_array($normalized, ['true', '1', 'yes', 'on'], true)) {
+                return true;
+            }
+
+            if (in_array($normalized, ['false', '0', 'no', 'off'], true)) {
+                return false;
+            }
+        }
+
+        if (is_int($value)) {
+            return $value === 1;
+        }
+
+        return $fallback;
     }
 
     private static function normalizeMatrixSettings(array $input): array
@@ -179,6 +247,13 @@ class PoolprojectSettingsStore
             'promptPayNumber' => self::normalizeText($input['promptPayNumber'] ?? null, self::DEFAULT_MANUAL_PAYMENT_SETTINGS['promptPayNumber']),
             'qrImageUrl' => self::normalizeNullableText($input['qrImageUrl'] ?? null),
             'note' => self::normalizeText($input['note'] ?? null, self::DEFAULT_MANUAL_PAYMENT_SETTINGS['note']),
+        ];
+    }
+
+    private static function normalizeSignupShareSettings(array $input): array
+    {
+        return [
+            'shareMessage' => self::normalizeText($input['shareMessage'] ?? null, self::DEFAULT_SIGNUP_SHARE_SETTINGS['shareMessage']),
         ];
     }
 

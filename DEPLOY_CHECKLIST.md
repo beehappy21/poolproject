@@ -1,6 +1,6 @@
 # Deploy Checklist
 
-Updated: 2026-03-22
+Updated: 2026-03-24
 
 ## Scope
 
@@ -13,6 +13,28 @@ This checklist covers the current local sales flow that has already been smoke-t
 - mark delivered
 - view delivered bucket
 - export order reports
+
+## Local Start Standard
+
+Use this as the default local-start flow before UI, BAO, or app/API integration work:
+
+1. Start or resume the standard local stack
+- run `npm run dev:up`
+
+2. If ports or watchers look stale, restart the standard local stack
+- run `npm run dev:restart`
+
+3. Verify readiness before testing UI
+- run `npm run dev:check`
+
+4. Standard local URLs
+- Stephub app: `http://127.0.0.1:3002`
+- BAO admin: `http://127.0.0.1:8001/admin`
+- API health: `http://127.0.0.1:3000/health`
+
+Notes:
+- this flow should be the team default starting point for local storefront/profile work
+- `Home` now distinguishes load failure from true empty catalog state, so if API/BAO is unavailable the app should no longer silently look like an empty latest build
 
 ## API Deploy
 

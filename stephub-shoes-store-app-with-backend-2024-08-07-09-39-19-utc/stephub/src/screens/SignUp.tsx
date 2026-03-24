@@ -1,10 +1,47 @@
-import {FC} from 'react';
+import axios from 'axios';
+import {FC, useMemo, useState} from 'react';
+import {useLocation} from 'react-router-dom';
 
+import {URLS} from '../config';
 import {hooks} from '../hooks';
 import {custom} from '../custom';
-import {svg} from '../assets/svg';
 import {theme} from '../constants';
 import {components} from '../components';
+import {actions} from '../store/actions';
+
+type CreatedMemberResponse = {
+  memberId: string;
+  memberCode: string;
+  temporaryPassword?: string;
+  name?: string;
+};
+
+type LoginResponse = {
+  accessToken: string;
+  user?: {
+    userId?: string;
+    memberCode?: string;
+    name?: string;
+    email?: string;
+    phone?: string;
+  };
+};
+
+type LocationState = {
+  sponsorCode?: string;
+};
+
+type SignupShareSettingsResponse = {
+  shareMessage?: string;
+};
+
+const DEFAULT_SHARE_MESSAGE =
+  'ส่งข้อมูลนี้เก็บไว้สำหรับเข้าใช้งานครั้งแรก และเปลี่ยนรหัสผ่านหลังเข้าสู่ระบบทันที';
+
+const normalizeSponsorCode = (rawValue?: string | null) => {
+  const normalized = rawValue?.trim().toUpperCase() || '';
+  return normalized || '';
+};
 
 const renderHeader = (): JSX.Element => {
   return <components.Header goBack={true} />;
@@ -12,6 +49,388 @@ const renderHeader = (): JSX.Element => {
 
 export const SignUp: FC = (): JSX.Element => {
   const navigate = hooks.useAppNavigate();
+  const dispatch = hooks.useAppDispatch();
+  const location = useLocation();
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [createdAccount, setCreatedAccount] = useState<{
+    memberCode: string;
+    password: string;
+  } | null>(null);
+  const [shareMessage, setShareMessage] = useState(DEFAULT_SHARE_MESSAGE);
+  const [shareStatus, setShareStatus] = useState('');
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
+
+  const sponsorCode = useMemo(() => {
+    const query = new URLSearchParams(location.search);
+    const state = (location.state || {}) as LocationState;
+
+    return normalizeSponsorCode(
+      query.get('sponsorCode') ||
+        query.get('sponsor_code') ||
+        state.sponsorCode ||
+        '',
+    );
+  }, [location.search, location.state]);
+
+  const shareText = useMemo(() => {
+    if (!createdAccount) {
+      return '';
+    }
+
+    return [
+      shareMessage,
+      `รหัสสมาชิก: ${createdAccount.memberCode}`,
+      `พาสเวิร์ด: ${createdAccount.password}`,
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }, [createdAccount, shareMessage]);
+
+  const handleCreateAccount = async (): Promise<void> => {
+    if (!sponsorCode) {
+      setErrorMessage('ไม่พบรหัสผู้แนะนำจากลิงก์สมัครสมาชิก');
+      return;
+    }
+
+    setLoading(true);
+    setErrorMessage('');
+
+    try {
+      const createResponse = await axios.post<CreatedMemberResponse>(
+        `${URLS.API_BASE_URL}/members`,
+        {
+          sponsorCode,
+        },
+        {
+          withCredentials: true,
+        },
+      );
+
+      const createdMemberCode = createResponse.data.memberCode?.trim();
+      const createdPassword = createResponse.data.temporaryPassword?.trim();
+
+      if (!createdMemberCode || !createdPassword) {
+        throw new Error('ระบบไม่สามารถสร้างรหัสสมาชิกหรือพาสเวิร์ดชั่วคราวได้');
+      }
+
+      const loginResponse = await axios.post<LoginResponse>(
+        URLS.AUTH_LOGIN,
+        {
+          identifier: createdMemberCode,
+          password: createdPassword,
+        },
+        {
+          withCredentials: true,
+        },
+      );
+
+      dispatch(
+        actions.setUser({
+          userId: loginResponse.data.user?.userId,
+          memberCode: loginResponse.data.user?.memberCode || createdMemberCode,
+          name: loginResponse.data.user?.name || createdMemberCode,
+          email: loginResponse.data.user?.email ?? '',
+          phone: loginResponse.data.user?.phone ?? '',
+          accessToken: loginResponse.data.accessToken,
+        }),
+      );
+      dispatch(actions.setRememberMe(true));
+
+      setCreatedAccount({
+        memberCode: createdMemberCode,
+        password: createdPassword,
+      });
+      setShowChangePassword(false);
+      setNewPassword('');
+      setConfirmPassword('');
+
+      try {
+        const shareSettingsResponse = await axios.get<SignupShareSettingsResponse>(
+          URLS.GET_SIGNUP_SHARE_SETTINGS,
+          {
+            withCredentials: true,
+          },
+        );
+        setShareMessage(
+          shareSettingsResponse.data.shareMessage?.trim() || DEFAULT_SHARE_MESSAGE,
+        );
+      } catch (shareSettingsError) {
+        console.error(shareSettingsError);
+        setShareMessage(DEFAULT_SHARE_MESSAGE);
+      }
+    } catch (error: any) {
+      setErrorMessage(
+        error?.response?.data?.message || error?.message || 'ไม่สามารถสมัครสมาชิกได้',
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleShareCredentials = async (): Promise<void> => {
+    if (!shareText) {
+      return;
+    }
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: 'Stephub member credentials',
+          text: shareText,
+        });
+        setShareStatus('เปิดหน้าต่างแชร์แล้ว');
+      } else {
+        await navigator.clipboard.writeText(shareText);
+        setShareStatus('คัดลอกข้อมูลสำหรับแชร์แล้ว');
+      }
+    } catch (error) {
+      console.error(error);
+      setShareStatus('แชร์ข้อมูลไม่สำเร็จ');
+    } finally {
+      window.setTimeout(() => setShareStatus(''), 2000);
+    }
+  };
+
+  const handleChangePassword = async (): Promise<void> => {
+    if (!createdAccount) {
+      return;
+    }
+
+    const nextPassword = newPassword.trim();
+    const confirmedPassword = confirmPassword.trim();
+
+    if (nextPassword.length < 6) {
+      setShareStatus('พาสเวิร์ดใหม่ต้องมีอย่างน้อย 6 ตัว');
+      window.setTimeout(() => setShareStatus(''), 2000);
+      return;
+    }
+
+    if (nextPassword !== confirmedPassword) {
+      setShareStatus('ยืนยันพาสเวิร์ดใหม่ไม่ตรงกัน');
+      window.setTimeout(() => setShareStatus(''), 2000);
+      return;
+    }
+
+    if (!createdAccount.password.trim()) {
+      setShareStatus('ไม่พบพาสเวิร์ดปัจจุบันสำหรับเปลี่ยนรหัสผ่าน');
+      window.setTimeout(() => setShareStatus(''), 2000);
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      await axios.post(
+        URLS.AUTH_CHANGE_PASSWORD,
+        {
+          currentPassword: createdAccount.password,
+          newPassword: nextPassword,
+        },
+        {
+          withCredentials: true,
+        },
+      );
+
+      setCreatedAccount({
+        ...createdAccount,
+        password: nextPassword,
+      });
+      setNewPassword('');
+      setConfirmPassword('');
+      setShowChangePassword(false);
+      setShareStatus('เปลี่ยนพาสเวิร์ดเรียบร้อยแล้ว');
+      window.setTimeout(() => setShareStatus(''), 2000);
+    } catch (error: any) {
+      console.error(error);
+      setShareStatus(
+        error?.response?.data?.message || 'เปลี่ยนพาสเวิร์ดไม่สำเร็จ',
+      );
+      window.setTimeout(() => setShareStatus(''), 2000);
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
+  const renderPopup = (): JSX.Element | null => {
+    if (!createdAccount) {
+      return null;
+    }
+
+    return (
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.48)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 20,
+          zIndex: 1000,
+        }}
+      >
+        <div
+          style={{
+            width: '100%',
+            maxWidth: 420,
+            borderRadius: 24,
+            backgroundColor: '#fff',
+            padding: 24,
+            boxShadow: '0 24px 64px rgba(15, 23, 42, 0.18)',
+          }}
+        >
+          <h2
+            style={{
+              margin: '0 0 12px 0',
+              fontSize: 26,
+              color: theme.colors.mainColor,
+              ...theme.fonts.Mulish_700Bold,
+            }}
+          >
+            สมัครสำเร็จ
+          </h2>
+          <p
+            style={{
+              margin: '0 0 18px 0',
+              lineHeight: 1.7,
+              color: theme.colors.textColor,
+            }}
+          >
+            กรุณาบันทึกรหัสสมาชิกและพาสเวิร์ดนี้ไว้ก่อนใช้งาน
+          </p>
+          <div
+            style={{
+              borderRadius: 18,
+              backgroundColor: '#F8FAFC',
+              border: '1px solid #E2E8F0',
+              padding: 18,
+              marginBottom: 18,
+            }}
+          >
+            <div style={{marginBottom: 12}}>
+              <div style={{fontSize: 12, color: '#64748B', marginBottom: 4}}>
+                รหัสสมาชิก
+              </div>
+              <div
+                style={{
+                  fontSize: 22,
+                  color: theme.colors.mainColor,
+                  ...theme.fonts.Mulish_700Bold,
+                }}
+              >
+                {createdAccount.memberCode}
+              </div>
+            </div>
+            <div>
+              <div style={{fontSize: 12, color: '#64748B', marginBottom: 4}}>
+                พาสเวิร์ด
+              </div>
+              <div
+                style={{
+                  fontSize: 22,
+                  color: theme.colors.mainColor,
+                  letterSpacing: 1,
+                  ...theme.fonts.Mulish_700Bold,
+                }}
+              >
+                {createdAccount.password}
+              </div>
+            </div>
+          </div>
+          {shareStatus ? (
+            <p
+              style={{
+                margin: '0 0 14px 0',
+                lineHeight: 1.6,
+                color: shareStatus.includes('ไม่') ? theme.colors.coralRed : '#0F766E',
+              }}
+            >
+              {shareStatus}
+            </p>
+          ) : null}
+          <div
+            style={{
+              display: 'grid',
+              gap: 10,
+              gridTemplateColumns: '1fr 1fr',
+              marginBottom: 14,
+            }}
+          >
+            <button
+              onClick={handleShareCredentials}
+              style={{
+                border: '1px solid #D7E2F2',
+                borderRadius: 12,
+                backgroundColor: '#fff',
+                color: theme.colors.mainColor,
+                padding: '12px 14px',
+                fontSize: 15,
+              }}
+            >
+              แชร์ข้อมูล
+            </button>
+            <button
+              onClick={() => setShowChangePassword(current => !current)}
+              style={{
+                border: '1px solid #D7E2F2',
+                borderRadius: 12,
+                backgroundColor: '#fff',
+                color: theme.colors.mainColor,
+                padding: '12px 14px',
+                fontSize: 15,
+              }}
+            >
+              เปลี่ยนพาสเวิร์ด
+            </button>
+          </div>
+          {showChangePassword ? (
+            <div
+              style={{
+                borderRadius: 18,
+                border: '1px solid #E2E8F0',
+                padding: 16,
+                marginBottom: 14,
+              }}
+            >
+              <custom.InputField
+                label='พาสเวิร์ดใหม่'
+                type='password'
+                value={newPassword}
+                onChange={event => setNewPassword(event.target.value)}
+                containerStyle={{marginBottom: 14}}
+                placeholder='อย่างน้อย 6 ตัว'
+              />
+              <custom.InputField
+                label='ยืนยันพาสเวิร์ดใหม่'
+                type='password'
+                value={confirmPassword}
+                onChange={event => setConfirmPassword(event.target.value)}
+                containerStyle={{marginBottom: 14}}
+                placeholder='กรอกอีกครั้ง'
+              />
+              <components.Button
+                title={changingPassword ? 'กำลังเปลี่ยน...' : 'บันทึกพาสเวิร์ดใหม่'}
+                onClick={handleChangePassword}
+              />
+            </div>
+          ) : null}
+          <components.Button
+            title='ไปกรอกข้อมูลเพิ่มเติม'
+            onClick={() =>
+              navigate('/EditProfile', {
+                state: {
+                  memberCode: createdAccount.memberCode,
+                },
+              })
+            }
+          />
+        </div>
+      </div>
+    );
+  };
 
   const renderContent = (): JSX.Element => {
     return (
@@ -26,74 +445,57 @@ export const SignUp: FC = (): JSX.Element => {
             fontSize: 32,
             lineHeight: 1.2,
             textTransform: 'capitalize',
-            marginBottom: 40,
+            marginBottom: 14,
           }}
         >
           Sign up
         </h1>
-        <custom.InputField
-          label='name'
-          placeholder='Zenith Sneaks'
-          icon={<svg.InputCheckSvg />}
-          containerStyle={{marginBottom: 20}}
-        />
-        <custom.InputField
-          label='Email'
-          icon={<svg.InputCheckSvg />}
-          placeholder='zenithsneaks@mail.com'
-          containerStyle={{marginBottom: 20}}
-        />
-        <custom.InputField
-          clickable={true}
-          label='password'
-          placeholder='••••••••'
-          type='password'
-          icon={<svg.EyeOffSvg />}
-          containerStyle={{marginBottom: 20}}
-        />
-        <custom.InputField
-          clickable={true}
-          type='password'
-          label='confirm password'
-          placeholder='••••••••'
-          icon={<svg.EyeOffSvg />}
-          containerStyle={{marginBottom: 20}}
-        />
-        <components.Button
-          title='Sign up'
-          onClick={() => {
-            navigate('/SignUpAccountCreated');
+        <p
+          style={{
+            margin: '0 0 28px 0',
+            textAlign: 'center',
+            color: theme.colors.textColor,
+            lineHeight: 1.7,
           }}
-          style={{marginBottom: 20}}
-        />
-        <div
-          style={{flexDirection: 'row', display: 'flex', alignItems: 'center'}}
         >
-          <span
+          สมัครสมาชิกผ่านรหัสผู้แนะนำจากลิงก์นี้ ระบบจะสร้างรหัสสมาชิกและพาสเวิร์ดให้โดยอัตโนมัติ
+        </p>
+        <custom.InputField
+          label='รหัสผู้แนะนำ'
+          value={sponsorCode}
+          disabled={true}
+          containerStyle={{marginBottom: 20, backgroundColor: '#F8FAFC'}}
+        />
+        {errorMessage ? (
+          <p
             style={{
-              marginRight: 4,
-              ...theme.fonts.Mulish_400Regular,
-              color: theme.colors.textColor,
-              fontSize: 16,
+              margin: '0 0 20px 0',
+              color: theme.colors.coralRed,
               lineHeight: 1.7,
             }}
           >
-            Already have an account?
-          </span>
-          <span
-            style={{
-              ...theme.fonts.Mulish_400Regular,
-              color: theme.colors.mainColor,
-              fontSize: 16,
-              lineHeight: 1.7,
-            }}
-            onClick={() => {
-              navigate('/');
-            }}
-          >
-            Sign in.
-          </span>
-        </div>
+            {errorMessage}
+          </p>
+        ) : null}
+        <components.Button
+          title={loading ? 'กำลังสมัคร...' : 'สมัครสมาชิก'}
+          onClick={handleCreateAccount}
+          style={{marginBottom: 16}}
+        />
+        <button
+          onClick={() => navigate('/')}
+          style={{
+            width: '100%',
+            padding: '14px 18px',
+            borderRadius: 14,
+            border: '1px solid #D7E2F2',
+            backgroundColor: '#fff',
+            color: theme.colors.mainColor,
+            fontSize: 16,
+          }}
+        >
+          กลับไปหน้าเข้าสู่ระบบ
+        </button>
       </div>
     );
   };
@@ -102,6 +504,7 @@ export const SignUp: FC = (): JSX.Element => {
     <>
       {renderHeader()}
       {renderContent()}
+      {renderPopup()}
     </>
   );
 };
