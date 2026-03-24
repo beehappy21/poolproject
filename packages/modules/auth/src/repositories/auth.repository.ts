@@ -14,6 +14,8 @@ export interface AuthRepository {
     password: string;
   }): Promise<AuthUserSummary | null>;
 
+  findUserByIdentifier(identifier: string): Promise<AuthUserSummary | null>;
+
   findUserById(userId: string): Promise<AuthUserSummary | null>;
 
   verifyUserPassword(userId: string, password: string): Promise<boolean>;
@@ -28,21 +30,57 @@ export interface AuthRepository {
 export class PrismaAuthRepository implements AuthRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findUserForLogin(input: {
-    identifier: string;
-    password: string;
-  }): Promise<AuthUserSummary | null> {
+  async findUserByIdentifier(identifier: string): Promise<AuthUserSummary | null> {
+    const normalizedIdentifier = identifier.trim();
     const user = await this.prisma.user.findFirst({
       where: {
         OR: [
           {
             memberCode: {
-              equals: input.identifier,
+              equals: normalizedIdentifier,
               mode: "insensitive" as const,
             },
           },
-          { email: input.identifier.toLowerCase() },
-          { phone: input.identifier },
+          { email: normalizedIdentifier.toLowerCase() },
+          { phone: normalizedIdentifier },
+        ],
+      },
+      select: {
+        id: true,
+        memberCode: true,
+        name: true,
+        email: true,
+        phone: true,
+      },
+    });
+
+    return user
+      ? {
+          userId: user.id.toString(),
+          memberCode: user.memberCode,
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+        }
+      : null;
+  }
+
+  async findUserForLogin(input: {
+    identifier: string;
+    password: string;
+  }): Promise<AuthUserSummary | null> {
+    const normalizedIdentifier = input.identifier.trim();
+    const user = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          {
+            memberCode: {
+              equals: normalizedIdentifier,
+              mode: "insensitive" as const,
+            },
+          },
+          { email: normalizedIdentifier.toLowerCase() },
+          { phone: normalizedIdentifier },
         ],
       },
       select: {

@@ -17,6 +17,11 @@ class CommissionSettingsController extends Controller
             'uniLevelRates' => $request->input('uniLevelRates', $request->input('uni_level_rates')),
             'poolRate' => $request->input('poolRate', $request->input('pool_rate')),
             'cashbackRate' => $request->input('cashbackRate', $request->input('cashback_rate')),
+            'cashbackVisible' => $request->boolean('cashbackVisible'),
+            'directVisible' => $request->boolean('directVisible'),
+            'unilevelVisible' => $request->boolean('unilevelVisible'),
+            'matrixVisible' => $request->boolean('matrixVisible'),
+            'poolVisible' => $request->boolean('poolVisible'),
             'redirectSection' => $request->input('redirectSection', $request->input('redirect_section')),
         ]);
 
@@ -27,6 +32,11 @@ class CommissionSettingsController extends Controller
             'uniLevelRates.*' => ['nullable', 'string'],
             'poolRate' => ['nullable', 'string'],
             'cashbackRate' => ['nullable', 'string'],
+            'cashbackVisible' => ['nullable', 'boolean'],
+            'directVisible' => ['nullable', 'boolean'],
+            'unilevelVisible' => ['nullable', 'boolean'],
+            'matrixVisible' => ['nullable', 'boolean'],
+            'poolVisible' => ['nullable', 'boolean'],
             'redirectSection' => ['nullable', 'string'],
         ]);
 
@@ -37,6 +47,13 @@ class CommissionSettingsController extends Controller
             'uniLevelRates' => $this->cleanRates($payload['uniLevelRates'] ?? $current['uniLevelRates']),
             'poolRate' => $this->cleanSingleRate($payload['poolRate'] ?? $current['poolRate']),
             'cashbackRate' => $this->cleanSingleRate($payload['cashbackRate'] ?? $current['cashbackRate'] ?? '0'),
+            'appVisibility' => [
+                'cashback' => (bool) ($payload['cashbackVisible'] ?? ($current['appVisibility']['cashback'] ?? true)),
+                'direct' => (bool) ($payload['directVisible'] ?? ($current['appVisibility']['direct'] ?? true)),
+                'unilevel' => (bool) ($payload['unilevelVisible'] ?? ($current['appVisibility']['unilevel'] ?? true)),
+                'matrix' => (bool) ($payload['matrixVisible'] ?? ($current['appVisibility']['matrix'] ?? true)),
+                'pool' => (bool) ($payload['poolVisible'] ?? ($current['appVisibility']['pool'] ?? true)),
+            ],
         ];
 
         PoolprojectSettingsStore::writeCommissionSettings($next);
@@ -144,6 +161,23 @@ class CommissionSettingsController extends Controller
             ->with('status', 'Manual payment settings updated.');
     }
 
+    public function saveSignupShare(Request $request): RedirectResponse
+    {
+        $payload = $request->validate([
+            'shareMessage' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $current = PoolprojectSettingsStore::readSignupShareSettings();
+
+        PoolprojectSettingsStore::writeSignupShareSettings([
+            'shareMessage' => trim((string) ($payload['shareMessage'] ?? $current['shareMessage'])),
+        ]);
+
+        return redirect()
+            ->route('platform.commission.signupShare')
+            ->with('status', 'Signup share settings updated.');
+    }
+
     private function cleanRates(array $values): array
     {
         $normalized = array_values(array_filter(array_map(
@@ -192,6 +226,7 @@ class CommissionSettingsController extends Controller
             'direct' => 'platform.commission.direct',
             'unilevel' => 'platform.commission.unilevel',
             'manual-payment' => 'platform.commission.manualPayment',
+            'signup-share' => 'platform.commission.signupShare',
             'pool' => 'platform.commission.pool',
             'cashback' => 'platform.commission.cashback',
             default => 'platform.commission.settings',

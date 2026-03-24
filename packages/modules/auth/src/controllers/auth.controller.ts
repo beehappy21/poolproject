@@ -18,6 +18,10 @@ import {
   optionalUrlString,
 } from "../../../../../apps/api/src/http/request.util";
 import { readManualPaymentSettings } from "../../../../shared/utils/src/manual-payment-settings.util";
+import {
+  createWithdrawRequest,
+  listWithdrawRequestsForUser,
+} from "../../../../shared/utils/src/withdraw-request.util";
 import { CommissionsService } from "../../../commissions";
 import { MatrixService } from "../../../matrix/src";
 import { MembersService } from "../../../members";
@@ -77,7 +81,9 @@ export class AuthController {
       this.membersService.getMemberCycles(user.userId, evaluationAt),
       this.membersService.getReferralLink(
         user.memberCode,
-        process.env.APP_BASE_URL || "http://127.0.0.1:3000",
+        process.env.APP_PUBLIC_BASE_URL ||
+          process.env.APP_BASE_URL ||
+          "http://127.0.0.1:3002",
       ),
     ]);
 
@@ -438,6 +444,41 @@ export class AuthController {
     });
   }
 
+  @Get("withdraw-requests")
+  async listOwnWithdrawRequests(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+    return listWithdrawRequestsForUser(user.userId);
+  }
+
+  @Post("withdraw-requests")
+  async createOwnWithdrawRequest(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+    @Body()
+    body?: {
+      amount?: string;
+      bankName?: string;
+      accountName?: string;
+      accountNumber?: string;
+      note?: string;
+    },
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+
+    return createWithdrawRequest({
+      userId: user.userId,
+      memberCode: user.memberCode,
+      amount: requireDecimalString(body?.amount, "amount"),
+      bankName: requireNonEmptyString(body?.bankName, "bankName"),
+      accountName: requireNonEmptyString(body?.accountName, "accountName"),
+      accountNumber: requireNonEmptyString(body?.accountNumber, "accountNumber"),
+      note: optionalString(body?.note),
+    });
+  }
+
   @Post("orders/:orderId/submit-transfer-slip")
   async submitOwnTransferSlip(
     @Param("orderId") orderId: string,
@@ -507,11 +548,16 @@ export class AuthController {
     @Body() body?: { currentPassword?: string; newPassword?: string },
   ) {
     const user = await this.requireSessionUser(authorization, cookieHeader);
+    const newPassword = requireNonEmptyString(body?.newPassword, "newPassword");
+
+    if (newPassword.trim().length < 6) {
+      throw new BadRequestException("New password must be at least 6 characters.");
+    }
 
     return this.authService.changePassword({
       userId: user.userId,
       currentPassword: requireNonEmptyString(body?.currentPassword, "currentPassword"),
-      newPassword: requireNonEmptyString(body?.newPassword, "newPassword"),
+      newPassword,
     });
   }
 
@@ -526,8 +572,8 @@ export class AuthController {
     const email = body?.email?.trim() || undefined;
     const phone = body?.phone?.trim() || undefined;
 
-    if (!email && !phone) {
-      throw new BadRequestException("Email or phone is required.");
+    if (!name && !email && !phone) {
+      throw new BadRequestException("Name, email, or phone is required.");
     }
 
     return this.membersService.updateMemberProfile(user.userId, {

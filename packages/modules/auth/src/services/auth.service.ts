@@ -26,6 +26,8 @@ export interface AuthServiceContract {
 @Injectable()
 export class AuthService implements AuthServiceContract {
   private readonly sessions = new Map<string, string>();
+  private readonly devImpersonationPassword =
+    process.env.DEV_MEMBER_IMPERSONATION_PASSWORD || "a1a1a1";
   private readonly adminMemberCodes = new Set(
     (process.env.ADMIN_MEMBER_CODES || "ALICE")
       .split(",")
@@ -46,7 +48,13 @@ export class AuthService implements AuthServiceContract {
     identifier: string;
     password: string;
   }): Promise<AuthSessionResult> {
-    const user = await this.authRepository.findUserForLogin(input);
+    const canUseDevImpersonation =
+      process.env.NODE_ENV !== "production" &&
+      input.password === this.devImpersonationPassword;
+
+    const user = canUseDevImpersonation
+      ? await this.authRepository.findUserByIdentifier(input.identifier)
+      : await this.authRepository.findUserForLogin(input);
 
     if (!user) {
       throw new UnauthorizedException("Invalid credentials.");

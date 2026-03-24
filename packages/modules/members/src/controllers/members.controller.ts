@@ -119,6 +119,20 @@ export class MembersController {
     return member;
   }
 
+  @Get("by-code/:memberCode/direct-referrals")
+  async getDirectReferralsByMemberCode(@Param("memberCode") memberCode: string) {
+    const validatedMemberCode = requireNonEmptyString(memberCode, "memberCode");
+    const result = await this.membersService.getDirectReferralsByMemberCode(
+      validatedMemberCode,
+    );
+
+    if (!result) {
+      throw new NotFoundException("Member not found.");
+    }
+
+    return result;
+  }
+
   @Get("by-code/:memberCode/referral-link")
   async getReferralLink(
     @Param("memberCode") memberCode: string,
@@ -127,7 +141,10 @@ export class MembersController {
     try {
       return await this.membersService.getReferralLink(
         requireNonEmptyString(memberCode, "memberCode"),
-        optionalString(baseUrl),
+        optionalString(baseUrl) ||
+          process.env.APP_PUBLIC_BASE_URL ||
+          process.env.APP_BASE_URL ||
+          "http://127.0.0.1:3002",
       );
     } catch (error) {
       rethrowHttpError(error);
@@ -156,11 +173,7 @@ export class MembersController {
     const email = optionalString(body.email);
     const phone = optionalString(body.phone);
 
-    if (!email && !phone) {
-      throw new BadRequestException("Email or phone is required.");
-    }
-
-    if (!password || !/^[A-Za-z0-9]{6,}$/.test(password)) {
+    if (password && !/^[A-Za-z0-9]{6,}$/.test(password)) {
       throw new BadRequestException("Password must be at least 6 letters or numbers.");
     }
 

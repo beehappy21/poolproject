@@ -51,6 +51,7 @@ export const Home: FC = () => {
   const navigate = hooks.useAppNavigate();
 
   const [loading, setLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string>('');
   const [searchValue, setSearchValue] = useState('');
   const [productsData, setProductsData] = useState<ProductType[]>([]);
   const [bannersData, setBannersData] = useState<BannerType[]>([]);
@@ -68,28 +69,43 @@ export const Home: FC = () => {
 
   const getData = async () => {
     setLoading(true);
+    setLoadError('');
 
     try {
-      const [products, collections, bannersResponse, carouselResponse] =
-        await Promise.all([
+      const [productsResult, collectionsResult, bannersResult, carouselResult] =
+        await Promise.allSettled([
           fetchLiveProducts(),
           fetchProductCollections(),
           axios.get(URLS.GET_BANNERS),
           axios.get(URLS.GET_CAROUSEL),
         ]);
 
-      const banners = Array.isArray(bannersResponse?.data?.banners)
-        ? bannersResponse.data.banners
-        : Array.isArray(bannersResponse?.data)
-        ? bannersResponse.data
+      if (productsResult.status !== 'fulfilled') {
+        throw new Error('Unable to load storefront products.');
+      }
+
+      const products = productsResult.value;
+      const collections =
+        collectionsResult.status === 'fulfilled' ? collectionsResult.value : [];
+      const bannersResponse =
+        bannersResult.status === 'fulfilled' ? bannersResult.value : null;
+      const carouselResponse =
+        carouselResult.status === 'fulfilled' ? carouselResult.value : null;
+      const bannersPayload = bannersResponse?.data;
+      const carouselPayload = carouselResponse?.data;
+
+      const banners = Array.isArray(bannersPayload?.banners)
+        ? bannersPayload.banners
+        : Array.isArray(bannersPayload)
+        ? bannersPayload
         : [];
 
-      const slides = Array.isArray(carouselResponse?.data?.slides)
-        ? carouselResponse.data.slides
-        : Array.isArray(carouselResponse?.data?.carousel)
-        ? carouselResponse.data.carousel
-        : Array.isArray(carouselResponse?.data)
-        ? carouselResponse.data
+      const slides = Array.isArray(carouselPayload?.slides)
+        ? carouselPayload.slides
+        : Array.isArray(carouselPayload?.carousel)
+        ? carouselPayload.carousel
+        : Array.isArray(carouselPayload)
+        ? carouselPayload
         : [];
 
       setProductsData(products);
@@ -99,6 +115,13 @@ export const Home: FC = () => {
       setVisibleCount(PRODUCT_BATCH_SIZE);
     } catch (error) {
       console.error(error);
+      setProductsData([]);
+      setCategoryCollections([]);
+      setBannersData(BANNER_PLACEHOLDERS);
+      setCarouselData([]);
+      setLoadError(
+        'ไม่สามารถโหลดข้อมูลหน้าหลักได้ในขณะนี้ กรุณาตรวจสอบ API, BAO และลองใหม่อีกครั้ง',
+      );
     } finally {
       setLoading(false);
     }
@@ -575,9 +598,56 @@ export const Home: FC = () => {
     );
   };
 
+  const renderLoadErrorState = (): JSX.Element => {
+    return (
+      <main
+        style={{
+          paddingTop: HOME_HEADER_HEIGHT + 16,
+          paddingBottom: 96,
+          paddingLeft: 20,
+          paddingRight: 20,
+        }}
+      >
+        <div
+          style={{
+            backgroundColor: '#FFF4D6',
+            padding: 24,
+            lineHeight: 1.7,
+            color: theme.colors.mainColor,
+            marginBottom: 16,
+          }}
+        >
+          {loadError}
+        </div>
+        <button
+          onClick={() => {
+            getData();
+          }}
+          style={{
+            width: '100%',
+            border: 'none',
+            backgroundColor: theme.colors.mainColor,
+            color: theme.colors.mainYellow,
+            height: 50,
+            cursor: 'pointer',
+            borderRadius: 12,
+            textTransform: 'capitalize',
+            ...theme.fonts.Mulish_900Black,
+          }}
+        >
+          โหลดข้อมูลอีกครั้ง
+        </button>
+      </main>
+    );
+  };
+
   const renderContent = (): JSX.Element => {
     if (loading) {
       return <components.TabLoader />;
+    }
+
+    if (loadError) {
+      return renderLoadErrorState();
     }
 
     if (!productsData.length) {

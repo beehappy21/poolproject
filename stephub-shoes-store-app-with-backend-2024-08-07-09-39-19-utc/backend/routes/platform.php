@@ -102,6 +102,10 @@ Route::screen('commission/manual-payment', CommissionSettingsScreen::class)
   ->defaults('section', 'manual-payment')
   ->name('platform.commission.manualPayment');
 
+Route::screen('commission/signup-share', CommissionSettingsScreen::class)
+  ->defaults('section', 'signup-share')
+  ->name('platform.commission.signupShare');
+
 Route::screen('commission/report', CommissionReportScreen::class)
   ->defaults('reportMode', 'overview')
   ->name('platform.commission.report');
@@ -137,6 +141,9 @@ Route::post('commission/save-matrix', [CommissionSettingsController::class, 'sav
 
 Route::post('commission/save-manual-payment', [CommissionSettingsController::class, 'saveManualPayment'])
   ->name('platform.commission.saveManualPayment');
+
+Route::post('commission/save-signup-share', [CommissionSettingsController::class, 'saveSignupShare'])
+  ->name('platform.commission.saveSignupShare');
 
 // Platform > Suppliers
 Route::screen('supplier/list', SupplierListScreen::class)

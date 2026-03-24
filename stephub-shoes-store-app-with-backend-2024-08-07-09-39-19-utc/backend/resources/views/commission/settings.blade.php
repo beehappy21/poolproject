@@ -76,6 +76,9 @@
     .commission-settings-nav a.is-active { border-color:color-mix(in srgb, {{ $accent }} 35%, #cbd5e1); background:color-mix(in srgb, {{ $accent }} 8%, #fff); color:{{ $accent }}; }
     .commission-settings-nav a:hover { background:#f8fafc; }
     .commission-settings-nav span:last-child { color:#94a3b8; }
+    .commission-toggle-grid { display:grid; gap:.85rem; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); margin-top:1rem; }
+    .commission-toggle { display:flex; align-items:center; gap:.7rem; padding:.9rem 1rem; border:1px solid #e2e8f0; border-radius:14px; background:#fff; color:#334155; font-weight:700; }
+    .commission-toggle input { width:18px; height:18px; }
     @media (max-width:980px) { .commission-shell { grid-template-columns:1fr; } }
     @media (max-width:980px) { .commission-settings-layout { grid-template-columns:1fr; } }
 </style>
@@ -96,6 +99,17 @@
     $manualPromptPayNumber = old('promptPayNumber', $manualPaymentSettings['promptPayNumber'] ?? '');
     $manualQrImageUrl = $manualPaymentSettings['qrImageUrl'] ?? '';
     $manualPaymentNote = old('note', $manualPaymentSettings['note'] ?? '');
+    $signupShareSettings = $signupShareSettings ?? [
+        'shareMessage' => 'ส่งข้อมูลนี้เก็บไว้สำหรับเข้าใช้งานครั้งแรก และเปลี่ยนรหัสผ่านหลังเข้าสู่ระบบทันที',
+    ];
+    $signupShareMessage = old('shareMessage', $signupShareSettings['shareMessage'] ?? '');
+    $appVisibility = $commissionSettings['appVisibility'] ?? [
+        'cashback' => true,
+        'direct' => true,
+        'unilevel' => true,
+        'matrix' => true,
+        'pool' => true,
+    ];
     if (!is_array($matrixBoardLevelRates) || $matrixBoardLevelRates === []) {
         $matrixBoardLevelRates = array_map(
             fn () => ($matrixSettings['levelRates'] ?? ['0.1', '0.05', '0.03']),
@@ -180,7 +194,7 @@
                 <div class="commission-panel">
                     <div class="commission-eyebrow">Commission Menu</div>
                     <div class="commission-settings-nav">
-                        @foreach (collect($nav)->whereIn('key', ['settings', 'direct', 'unilevel', 'matrix', 'pool', 'cashback', 'manual-payment']) as $item)
+                        @foreach (collect($nav)->whereIn('key', ['settings', 'direct', 'unilevel', 'matrix', 'pool', 'cashback', 'manual-payment', 'signup-share']) as $item)
                             <a href="{{ $item['route'] }}" @class(['is-active' => !empty($item['isActive'])])>
                                 <span>{{ $item['title'] }}</span>
                                 <span>&rsaquo;</span>
@@ -205,6 +219,43 @@
                             @endforeach
                         </tbody>
                     </table>
+                </div>
+                <div class="commission-panel">
+                    <div class="commission-eyebrow">App Commission Menu Visibility</div>
+                    <input type="hidden" name="redirectSection" value="settings">
+                    @foreach ($directRates as $value)
+                        <input type="hidden" name="directLevelRates[]" value="{{ $value }}">
+                    @endforeach
+                    @foreach ($uniRates as $value)
+                        <input type="hidden" name="uniLevelRates[]" value="{{ $value }}">
+                    @endforeach
+                    <input type="hidden" name="poolRate" value="{{ $poolRate }}">
+                    <input type="hidden" name="cashbackRate" value="{{ $cashbackRate }}">
+
+                    <div class="commission-toggle-grid">
+                        @foreach ([
+                            'cashback' => 'Cashback',
+                            'direct' => 'Direct',
+                            'unilevel' => 'Unilevel',
+                            'matrix' => 'Matrix',
+                            'pool' => 'Pool',
+                        ] as $key => $label)
+                            <label class="commission-toggle">
+                                <input type="hidden" name="{{ $key }}Visible" value="0">
+                                <input type="checkbox" name="{{ $key }}Visible" value="1" {{ !empty($appVisibility[$key]) ? 'checked' : '' }}>
+                                <span>{{ $label }}</span>
+                            </label>
+                        @endforeach
+                    </div>
+
+                    <button
+                        type="submit"
+                        class="commission-save"
+                        formaction="{{ route('platform.commission.save') }}"
+                        formmethod="POST"
+                    >
+                        Save App Visibility
+                    </button>
                 </div>
             </div>
         @endif
@@ -344,6 +395,35 @@
                     formenctype="multipart/form-data"
                 >
                     Save Manual Payment
+                </button>
+            </div>
+        @endif
+
+        @if ($activeKey === 'signup-share')
+            <div class="commission-panel">
+                <div class="commission-eyebrow">Signup Share Message</div>
+                <p class="commission-description" style="margin-top:.55rem;">
+                    ข้อความนี้จะถูกวางไว้ก่อนข้อมูล <strong>รหัสสมาชิก</strong> และ <strong>พาสเวิร์ด</strong>
+                    ใน popup หลังสมัครสมาชิกสำเร็จ โดยข้อมูลสองส่วนนั้นระบบจะเติมให้อัตโนมัติและแก้จากหน้านี้ไม่ได้
+                </p>
+
+                <div class="commission-field" style="margin-top:1rem;">
+                    <label for="shareMessage">ข้อความแชร์</label>
+                    <textarea id="shareMessage" name="shareMessage">{{ $signupShareMessage }}</textarea>
+                    <div class="commission-helper">
+                        ระบบจะเติมส่วนคงที่ให้อัตโนมัติในลำดับนี้:
+                        <br>รหัสสมาชิก: [จากระบบ]
+                        <br>พาสเวิร์ด: [จากระบบ]
+                    </div>
+                </div>
+
+                <button
+                    type="submit"
+                    class="commission-save"
+                    formaction="{{ route('platform.commission.saveSignupShare') }}"
+                    formmethod="POST"
+                >
+                    Save Signup Share Message
                 </button>
             </div>
         @endif

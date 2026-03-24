@@ -6,6 +6,13 @@ export interface CommissionSettings {
   uniLevelRates: string[];
   poolRate: string;
   cashbackRate: string;
+  appVisibility: {
+    cashback: boolean;
+    direct: boolean;
+    unilevel: boolean;
+    matrix: boolean;
+    pool: boolean;
+  };
 }
 
 const SETTINGS_PATH = join(
@@ -19,7 +26,34 @@ const DEFAULT_SETTINGS: CommissionSettings = {
   uniLevelRates: ["0.05", "0.05", "0.05", "0.05", "0.05"],
   poolRate: "0.5",
   cashbackRate: "0",
+  appVisibility: {
+    cashback: true,
+    direct: true,
+    unilevel: true,
+    matrix: true,
+    pool: true,
+  },
 };
+
+function normalizeBoolean(value: unknown, fallback: boolean): boolean {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+
+    if (["true", "1", "yes", "on"].includes(normalized)) {
+      return true;
+    }
+
+    if (["false", "0", "no", "off"].includes(normalized)) {
+      return false;
+    }
+  }
+
+  return fallback;
+}
 
 function isDecimalString(value: unknown): value is string {
   return typeof value === "string" && /^\d+(\.\d+)?$/.test(value.trim());
@@ -71,6 +105,38 @@ export function normalizeCommissionSettings(input: unknown): CommissionSettings 
     cashbackRate: isDecimalString(candidate.cashbackRate)
       ? candidate.cashbackRate.trim()
       : DEFAULT_SETTINGS.cashbackRate,
+    appVisibility: {
+      cashback: normalizeBoolean(
+        candidate.appVisibility && typeof candidate.appVisibility === "object"
+          ? (candidate.appVisibility as Record<string, unknown>).cashback
+          : candidate.cashbackVisible,
+        DEFAULT_SETTINGS.appVisibility.cashback,
+      ),
+      direct: normalizeBoolean(
+        candidate.appVisibility && typeof candidate.appVisibility === "object"
+          ? (candidate.appVisibility as Record<string, unknown>).direct
+          : candidate.directVisible,
+        DEFAULT_SETTINGS.appVisibility.direct,
+      ),
+      unilevel: normalizeBoolean(
+        candidate.appVisibility && typeof candidate.appVisibility === "object"
+          ? (candidate.appVisibility as Record<string, unknown>).unilevel
+          : candidate.unilevelVisible,
+        DEFAULT_SETTINGS.appVisibility.unilevel,
+      ),
+      matrix: normalizeBoolean(
+        candidate.appVisibility && typeof candidate.appVisibility === "object"
+          ? (candidate.appVisibility as Record<string, unknown>).matrix
+          : candidate.matrixVisible,
+        DEFAULT_SETTINGS.appVisibility.matrix,
+      ),
+      pool: normalizeBoolean(
+        candidate.appVisibility && typeof candidate.appVisibility === "object"
+          ? (candidate.appVisibility as Record<string, unknown>).pool
+          : candidate.poolVisible,
+        DEFAULT_SETTINGS.appVisibility.pool,
+      ),
+    },
   };
 }
 
@@ -80,6 +146,7 @@ export function getDefaultCommissionSettings(): CommissionSettings {
     uniLevelRates: [...DEFAULT_SETTINGS.uniLevelRates],
     poolRate: DEFAULT_SETTINGS.poolRate,
     cashbackRate: DEFAULT_SETTINGS.cashbackRate,
+    appVisibility: {...DEFAULT_SETTINGS.appVisibility},
   };
 }
 

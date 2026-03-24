@@ -38,6 +38,22 @@ const stack = createBrowserRouter([
     element: <screens.OrderHistory />,
   },
   {
+    path: '/TeamMember',
+    element: <screens.TeamMember />,
+  },
+  {
+    path: '/Commission',
+    element: <screens.Commission />,
+  },
+  {
+    path: '/TransferSW',
+    element: <screens.TransferSW />,
+  },
+  {
+    path: '/WithdrawSW',
+    element: <screens.WithdrawSW />,
+  },
+  {
     path: '/Checkout',
     element: <screens.Checkout />,
   },
@@ -88,6 +104,10 @@ const stack = createBrowserRouter([
   {
     path: '/SignUp',
     element: <screens.SignUp />,
+  },
+  {
+    path: '/CompleteRegistration',
+    element: <screens.CompleteRegistration />,
   },
   {
     path: '/SignUpAccountCreated',

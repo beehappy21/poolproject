@@ -17,6 +17,10 @@ import {
   readManualPaymentSettings,
   writeManualPaymentSettings,
 } from "../../../packages/shared/utils/src/manual-payment-settings.util";
+import {
+  readSignupShareSettings,
+  writeSignupShareSettings,
+} from "../../../packages/shared/utils/src/signup-share-settings.util";
 
 const MAX_DIRECT_LEVELS = 10;
 const MAX_UNI_LEVELS = 20;
@@ -65,6 +69,28 @@ export class AdminSettingsController {
       ),
       poolRate: requireDecimalRateString(payload.poolRate, "poolRate"),
       cashbackRate: requireDecimalRateString(payload.cashbackRate, "cashbackRate"),
+      appVisibility: {
+        cashback:
+          payload.cashbackVisible === true ||
+          payload.cashbackVisible === "true" ||
+          payload.cashbackVisible === "1",
+        direct:
+          payload.directVisible === true ||
+          payload.directVisible === "true" ||
+          payload.directVisible === "1",
+        unilevel:
+          payload.unilevelVisible === true ||
+          payload.unilevelVisible === "true" ||
+          payload.unilevelVisible === "1",
+        matrix:
+          payload.matrixVisible === true ||
+          payload.matrixVisible === "true" ||
+          payload.matrixVisible === "1",
+        pool:
+          payload.poolVisible === true ||
+          payload.poolVisible === "true" ||
+          payload.poolVisible === "1",
+      },
     });
 
     return {
@@ -142,6 +168,20 @@ export class AdminSettingsController {
       promptPayNumber: optionalString(payload.promptPayNumber) ?? undefined,
       qrImageUrl: optionalString(payload.qrImageUrl) ?? "",
       note: optionalString(payload.note) ?? undefined,
+    });
+  }
+
+  @Get("signup-share")
+  getSignupShareSettings() {
+    return readSignupShareSettings();
+  }
+
+  @Put("signup-share")
+  updateSignupShareSettings(@Body() body: Record<string, unknown>) {
+    const payload = body ?? {};
+
+    return writeSignupShareSettings({
+      shareMessage: optionalString(payload.shareMessage) ?? "",
     });
   }
 }
