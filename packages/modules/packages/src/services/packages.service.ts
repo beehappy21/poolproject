@@ -50,6 +50,8 @@ export class PackagesService {
     poolCapMultiple: string;
     commissionCapScope: "pool_only" | "all_commissions";
     commissionCapMultiple: string;
+    firmEnabled: boolean;
+    firmDcwRewardAmount: string;
   }) {
     return this.packagesRepository.createProductDetail(input);
   }

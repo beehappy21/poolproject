@@ -509,6 +509,8 @@ model ProductDetail {
   dcwUsageAmountOverridden Boolean @default(false)
   dcwCashRewardRate Decimal       @default(0) @db.Decimal(10, 8)
   dcwShoppingRewardRate Decimal   @default(0) @db.Decimal(10, 8)
+  firmEnabled       Boolean       @default(false)
+  firmDcwRewardAmount Decimal     @default(0) @db.Decimal(18, 8)
   status           CatalogStatus @default(ACTIVE)
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt

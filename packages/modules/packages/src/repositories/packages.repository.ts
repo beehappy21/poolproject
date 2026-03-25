@@ -39,6 +39,8 @@ type ProductDetailRecord = {
   poolCapMultiple: { toString(): string };
   commissionCapScope: { toString(): string };
   commissionCapMultiple: { toString(): string };
+  firmEnabled: boolean;
+  firmDcwRewardAmount: { toString(): string };
   status: { toLowerCase(): string };
 };
 
@@ -63,6 +65,31 @@ function normalizeDcwWholeAmount(value?: string): string | undefined {
   }
 
   return floorDecimalString(maxDecimalString(value, "0"));
+}
+
+function computeFirmCostGuardPassed(input: {
+  costPriceUsdt: string;
+  memberPriceUsdt: string;
+}) {
+  return (
+    Number(input.costPriceUsdt || "0") <= Number(input.memberPriceUsdt || "0") * 0.3
+  );
+}
+
+function computeFirmRedemptionEligible(input: {
+  categoryCode?: string | null;
+  firmEnabled: boolean;
+  costPriceUsdt: string;
+  memberPriceUsdt: string;
+}) {
+  return (
+    String(input.categoryCode || "").trim().toLowerCase() === "firm" &&
+    input.firmEnabled &&
+    computeFirmCostGuardPassed({
+      costPriceUsdt: input.costPriceUsdt,
+      memberPriceUsdt: input.memberPriceUsdt,
+    })
+  );
 }
 
 function toPackageSummary(pkg: {
@@ -204,6 +231,8 @@ export interface PackagesRepository {
     retailPriceUsdt: string;
     pv: string;
     poolRate: string;
+    firmEnabled: boolean;
+    firmDcwRewardAmount: string;
   }): Promise<{
     productDetailId: string;
     productId: string;
@@ -220,6 +249,10 @@ export interface PackagesRepository {
     poolCapMultiple: string;
     commissionCapScope: string;
     commissionCapMultiple: string;
+    firmEnabled: boolean;
+    firmDcwRewardAmount: string;
+    firmCostGuardPassed: boolean;
+    firmRedemptionEligible: boolean;
     status: string;
   }>;
 
@@ -244,6 +277,10 @@ export interface PackagesRepository {
       poolCapMultiple: string;
       commissionCapScope: string;
       commissionCapMultiple: string;
+      firmEnabled: boolean;
+      firmDcwRewardAmount: string;
+      firmCostGuardPassed: boolean;
+      firmRedemptionEligible: boolean;
       status: string;
     }>
   >;
@@ -258,6 +295,10 @@ export interface PackagesRepository {
       productName: string;
       categoryCode: string;
       categoryName: string;
+      firmEnabled: boolean;
+      firmDcwRewardAmount: string;
+      firmCostGuardPassed: boolean;
+      firmRedemptionEligible: boolean;
       supplierCode: string;
       supplierName: string;
       code: string;
@@ -509,10 +550,43 @@ export class PrismaPackagesRepository implements PackagesRepository {
     poolCapMultiple: string;
     commissionCapScope: "pool_only" | "all_commissions";
     commissionCapMultiple: string;
+    firmEnabled: boolean;
+    firmDcwRewardAmount: string;
   }) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: BigInt(input.productId) },
+      select: {
+        id: true,
+        category: {
+          select: {
+            code: true,
+          },
+        },
+      },
+    });
+
+    if (!product) {
+      throw new Error("Product not found.");
+    }
+
+    const firmCostGuardPassed = computeFirmCostGuardPassed({
+      costPriceUsdt: input.costPriceUsdt,
+      memberPriceUsdt: input.memberPriceUsdt,
+    });
+
+    if (input.firmEnabled && String(product.category.code).trim().toLowerCase() !== "firm") {
+      throw new Error("Firm-enabled product detail must belong to the firm category.");
+    }
+
+    if (input.firmEnabled && !firmCostGuardPassed) {
+      throw new Error(
+        "Firm-enabled product detail must pass the 30% cost guard against member price.",
+      );
+    }
+
     const detail = (await this.prisma.productDetail.create({
       data: {
-        productId: BigInt(input.productId),
+        productId: product.id,
         code: input.code,
         name: input.name,
         youtubeUrl: input.youtubeUrl,
@@ -534,6 +608,8 @@ export class PrismaPackagesRepository implements PackagesRepository {
             ? "ALL_COMMISSIONS"
             : "POOL_ONLY",
         commissionCapMultiple: input.commissionCapMultiple,
+        firmEnabled: input.firmEnabled,
+        firmDcwRewardAmount: input.firmDcwRewardAmount,
         status: "ACTIVE",
       },
     })) as ProductDetailRecord;
@@ -554,6 +630,15 @@ export class PrismaPackagesRepository implements PackagesRepository {
       poolCapMultiple: detail.poolCapMultiple.toString(),
       commissionCapScope: detail.commissionCapScope.toString().toLowerCase(),
       commissionCapMultiple: detail.commissionCapMultiple.toString(),
+      firmEnabled: detail.firmEnabled,
+      firmDcwRewardAmount: detail.firmDcwRewardAmount.toString(),
+      firmCostGuardPassed,
+      firmRedemptionEligible: computeFirmRedemptionEligible({
+        categoryCode: product.category.code,
+        firmEnabled: detail.firmEnabled,
+        costPriceUsdt: detail.costPriceUsdt.toString(),
+        memberPriceUsdt: detail.memberPriceUsdt.toString(),
+      }),
       status: detail.status.toLowerCase(),
     };
   }
@@ -614,6 +699,18 @@ export class PrismaPackagesRepository implements PackagesRepository {
       poolCapMultiple: detail.poolCapMultiple.toString(),
       commissionCapScope: detail.commissionCapScope.toString().toLowerCase(),
       commissionCapMultiple: detail.commissionCapMultiple.toString(),
+      firmEnabled: detail.firmEnabled,
+      firmDcwRewardAmount: detail.firmDcwRewardAmount.toString(),
+      firmCostGuardPassed: computeFirmCostGuardPassed({
+        costPriceUsdt: detail.costPriceUsdt.toString(),
+        memberPriceUsdt: detail.memberPriceUsdt.toString(),
+      }),
+      firmRedemptionEligible: computeFirmRedemptionEligible({
+        categoryCode: detail.product.category.code,
+        firmEnabled: detail.firmEnabled,
+        costPriceUsdt: detail.costPriceUsdt.toString(),
+        memberPriceUsdt: detail.memberPriceUsdt.toString(),
+      }),
       status: detail.status.toLowerCase(),
     }));
   }
@@ -689,6 +786,18 @@ export class PrismaPackagesRepository implements PackagesRepository {
         productName: detail.product.name,
         categoryCode: detail.product.category.code,
         categoryName: detail.product.category.name,
+        firmEnabled: detail.firmEnabled,
+        firmDcwRewardAmount: detail.firmDcwRewardAmount.toString(),
+        firmCostGuardPassed: computeFirmCostGuardPassed({
+          costPriceUsdt: detail.costPriceUsdt.toString(),
+          memberPriceUsdt: detail.memberPriceUsdt.toString(),
+        }),
+        firmRedemptionEligible: computeFirmRedemptionEligible({
+          categoryCode: detail.product.category.code,
+          firmEnabled: detail.firmEnabled,
+          costPriceUsdt: detail.costPriceUsdt.toString(),
+          memberPriceUsdt: detail.memberPriceUsdt.toString(),
+        }),
         supplierCode: detail.product.supplier.code,
         supplierName: detail.product.supplier.name,
         code: detail.code,
