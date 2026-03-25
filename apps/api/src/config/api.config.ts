@@ -24,6 +24,6 @@ function parseCorsOrigins(value?: string): string[] {
 }
 
 export const apiConfig: ApiConfig = {
-  port: 3000,
+  port: Number(process.env.APP_PORT || process.env.PORT || 3000),
   corsOrigins: parseCorsOrigins(process.env.APP_CORS_ORIGINS),
 };
