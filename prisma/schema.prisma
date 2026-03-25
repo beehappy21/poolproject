@@ -137,8 +137,12 @@ enum WalletTransactionType {
   UNI_CREDIT
   POOL_CREDIT
   MATRIX_CREDIT
+  MATRIX_REENTRY_DEBIT
   CASHBACK_CREDIT
   DCW_CREDIT
+  FIRM_REENTRY_CREDIT
+  FIRM_PRODUCT_DEBIT
+  FIRM_DCW_CREDIT
   COMMISSION_CONVERT_OUT
   SHOPPING_WALLET_CONVERT_IN
   CONVERT_FEE_DEBIT
@@ -168,6 +172,7 @@ enum WalletBalanceBucket {
   WITHDRAWABLE
   SHOPPING
   DISCOUNT
+  FIRM
   PAID_OUT
   NEGATIVE_OFFSET
 }
@@ -218,6 +223,11 @@ enum WalletBindingActionStatus {
   EFFECTIVE
   REJECTED
   ENDED
+}
+
+enum MatrixAccumulationSourceType {
+  ORDER
+  REENTRY
 }
 
 enum RiskFlagSeverity {
@@ -814,6 +824,7 @@ model Wallet {
   withdrawableBalance   Decimal          @default(0) @db.Decimal(18, 8)
   shoppingBalance       Decimal          @default(0) @db.Decimal(18, 8)
   discountBalance       Decimal          @default(0) @db.Decimal(18, 8)
+  firmBalance           Decimal          @default(0) @db.Decimal(18, 8)
   paidOutBalance        Decimal          @default(0) @db.Decimal(18, 8)
   negativeOffsetBalance Decimal          @default(0) @db.Decimal(18, 8)
   payoutLockStatus      PayoutLockStatus @default(UNLOCKED)
@@ -877,10 +888,13 @@ model MatrixCycle {
   boardWidth         Int               @default(2)
   boardDepth         Int               @default(3)
   boardCount         Int               @default(3)
-  organizationPvRate Decimal           @default(0.1) @db.Decimal(10, 8)
+  organizationPvRate Decimal           @default(0.1) @db.Decimal(18, 8)
+  cwReentryAmount    Decimal           @default(0) @db.Decimal(18, 8)
+  personalCarryPv    Decimal           @default(0) @db.Decimal(18, 8)
   levelRatesSnapshot String            @default("[\"0.1\",\"0.05\",\"0.03\"]") @db.Text
   totalAccumulatedPv Decimal           @default(0) @db.Decimal(18, 8)
   currentBoardNo     Int               @default(1)
+  currentBoardRoundNo Int              @default(1)
   status             MatrixCycleStatus @default(ACTIVE)
   startedAt          DateTime          @default(now())
   completedAt        DateTime?
@@ -901,23 +915,27 @@ model MatrixBoard {
   id              BigInt            @id @default(autoincrement())
   cycleId         BigInt
   boardNo         Int
+  roundNo         Int               @default(1)
   slotCount       Int               @default(14)
   openThresholdPv Decimal           @default(0) @db.Decimal(18, 8)
   accumulatedPv   Decimal           @default(0) @db.Decimal(18, 8)
   filledSlots     Int               @default(0)
   status          MatrixBoardStatus @default(LOCKED)
+  reentrySourceBoardId BigInt?
   openedAt        DateTime?
   completedAt     DateTime?
   resetAt         DateTime?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
-  cycle              MatrixCycle               @relation(fields: [cycleId], references: [id])
-  positions          MatrixPosition[]
-  payouts            MatrixPayout[]
-  accumulationEvents MatrixAccumulationEvent[]
+  cycle               MatrixCycle               @relation(fields: [cycleId], references: [id])
+  positions           MatrixPosition[]
+  payouts             MatrixPayout[]
+  accumulationEvents  MatrixAccumulationEvent[]
+  reentrySourceBoard  MatrixBoard?              @relation("MatrixBoardReentrySource", fields: [reentrySourceBoardId], references: [id])
+  reentryChildBoards  MatrixBoard[]             @relation("MatrixBoardReentrySource")
 
-  @@unique([cycleId, boardNo])
+  @@unique([cycleId, boardNo, roundNo])
   @@index([cycleId, status])
 }
 
@@ -926,6 +944,7 @@ model MatrixPosition {
   boardId       BigInt
   slotNo        Int
   levelNo       Int
+  roundNo       Int                  @default(1)
   parentSlotNo  Int?
   sourceUserId  BigInt?
   sourceOrderId BigInt?
@@ -957,6 +976,7 @@ model MatrixPayout {
   sourceUserId      BigInt?
   sourceOrderId     BigInt?
   boardNo           Int
+  roundNo           Int                @default(1)
   levelNo           Int
   rate              Decimal            @default(0) @db.Decimal(10, 8)
   basePv            Decimal            @default(0) @db.Decimal(18, 8)
@@ -979,15 +999,17 @@ model MatrixPayout {
 }
 
 model MatrixAccumulationEvent {
-  id            BigInt   @id @default(autoincrement())
+  id            BigInt                       @id @default(autoincrement())
   cycleId       BigInt
   boardId       BigInt?
   sourceUserId  BigInt
   sourceOrderId BigInt?
+  sourceType    MatrixAccumulationSourceType @default(ORDER)
+  sourceRoundNo Int?
   depthNo       Int
-  sourcePv      Decimal  @default(0) @db.Decimal(18, 8)
-  creditedPv    Decimal  @default(0) @db.Decimal(18, 8)
-  createdAt     DateTime @default(now())
+  sourcePv      Decimal                      @default(0) @db.Decimal(18, 8)
+  creditedPv    Decimal                      @default(0) @db.Decimal(18, 8)
+  createdAt     DateTime                     @default(now())
 
   cycle       MatrixCycle  @relation(fields: [cycleId], references: [id])
   board       MatrixBoard? @relation(fields: [boardId], references: [id])

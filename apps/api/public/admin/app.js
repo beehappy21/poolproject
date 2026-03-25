@@ -38,6 +38,7 @@ const addUniLevelButton = document.getElementById("addUniLevelButton");
 const matrixSettingsForm = document.getElementById("matrixSettingsForm");
 const walletSettingsForm = document.getElementById("walletSettingsForm");
 const matrixOrganizationPvRateInput = document.getElementById("matrixOrganizationPvRateInput");
+const matrixCwReentryAmountInput = document.getElementById("matrixCwReentryAmountInput");
 const matrixLevelRatesList = document.getElementById("matrixLevelRatesList");
 const matrixBoardThresholdsList = document.getElementById("matrixBoardThresholdsList");
 const matrixMemberForm = document.getElementById("matrixMemberForm");
@@ -1333,15 +1334,15 @@ async function loadWalletTopupRequests() {
 function renderMatrixSettings() {
   if (
     !matrixOrganizationPvRateInput ||
+    !matrixCwReentryAmountInput ||
     !matrixLevelRatesList ||
     !matrixBoardThresholdsList
   ) {
     return;
   }
 
-  matrixOrganizationPvRateInput.value = decimalToPercentString(
-    state.matrixSettings.organizationPvRate,
-  );
+  matrixOrganizationPvRateInput.value = state.matrixSettings.organizationPvRate || "0";
+  matrixCwReentryAmountInput.value = state.matrixSettings.cwReentryAmount || "0";
   renderSimpleValueRows(
     matrixLevelRatesList,
     state.matrixSettings.levelRates.map(decimalToPercentString),
@@ -1371,6 +1372,7 @@ async function loadMatrixSettings() {
     boardDepth: settings.boardDepth,
     boardCount: settings.boardCount,
     organizationPvRate: settings.organizationPvRate,
+    cwReentryAmount: settings.cwReentryAmount,
     levelRates: settings.levelRates,
     boardOpenPvThresholds: settings.boardOpenPvThresholds,
   };
@@ -1456,9 +1458,8 @@ async function saveMatrixSettings() {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      organizationPvRate: percentToDecimalString(
-        matrixOrganizationPvRateInput.value,
-      ),
+      organizationPvRate: matrixOrganizationPvRateInput.value.trim(),
+      cwReentryAmount: matrixCwReentryAmountInput.value.trim(),
       levelRates: collectMatrixLevelRates(),
       boardOpenPvThresholds: collectMatrixBoardThresholds(),
     }),
@@ -1469,6 +1470,7 @@ async function saveMatrixSettings() {
     boardDepth: result.boardDepth,
     boardCount: result.boardCount,
     organizationPvRate: result.organizationPvRate,
+    cwReentryAmount: result.cwReentryAmount,
     levelRates: result.levelRates,
     boardOpenPvThresholds: result.boardOpenPvThresholds,
   };

@@ -50,6 +50,7 @@ export class PrismaMatrixRepository {
     boardDepth: number;
     boardCount: number;
     organizationPvRate: string;
+    cwReentryAmount: string;
     levelRatesSnapshot: string;
     boardOpenPvThresholds: string[];
   }) {
@@ -61,14 +62,19 @@ export class PrismaMatrixRepository {
         boardDepth: input.boardDepth,
         boardCount: input.boardCount,
         organizationPvRate: input.organizationPvRate,
+        cwReentryAmount: input.cwReentryAmount,
+        personalCarryPv: "0",
         levelRatesSnapshot: input.levelRatesSnapshot,
         currentBoardNo: 1,
+        currentBoardRoundNo: 1,
         boards: {
           create: input.boardOpenPvThresholds.map((threshold, index) => ({
             boardNo: index + 1,
+            roundNo: 1,
             openThresholdPv: threshold,
             slotCount: this.getSlotCountPerBoard(input.boardWidth, input.boardDepth),
-            status: index === 0 ? "LOCKED" : "LOCKED",
+            status: index === 0 ? "OPEN" : "LOCKED",
+            openedAt: index === 0 ? new Date() : null,
           })),
         },
       },
@@ -86,6 +92,28 @@ export class PrismaMatrixRepository {
       data: {
         totalAccumulatedPv: {
           increment: creditedPv,
+        },
+      },
+    });
+  }
+
+  async addPersonalCarryPv(cycleId: string, amount: string) {
+    return this.prisma.matrixCycle.update({
+      where: { id: BigInt(cycleId) },
+      data: {
+        personalCarryPv: {
+          increment: amount,
+        },
+      },
+    });
+  }
+
+  async consumePersonalCarryPv(cycleId: string, amount: string) {
+    return this.prisma.matrixCycle.update({
+      where: { id: BigInt(cycleId) },
+      data: {
+        personalCarryPv: {
+          decrement: amount,
         },
       },
     });
@@ -122,10 +150,35 @@ export class PrismaMatrixRepository {
     });
   }
 
-  async updateCurrentBoard(cycleId: string, boardNo: number) {
+  async updateCurrentBoard(cycleId: string, boardNo: number, roundNo = 1) {
     return this.prisma.matrixCycle.update({
       where: { id: BigInt(cycleId) },
-      data: { currentBoardNo: boardNo },
+      data: { currentBoardNo: boardNo, currentBoardRoundNo: roundNo },
+    });
+  }
+
+  async createBoardRound(input: {
+    cycleId: string;
+    boardNo: number;
+    roundNo: number;
+    openThresholdPv: string;
+    boardWidth: number;
+    boardDepth: number;
+    reentrySourceBoardId?: string | null;
+  }) {
+    return this.prisma.matrixBoard.create({
+      data: {
+        cycleId: BigInt(input.cycleId),
+        boardNo: input.boardNo,
+        roundNo: input.roundNo,
+        openThresholdPv: input.openThresholdPv,
+        slotCount: this.getSlotCountPerBoard(input.boardWidth, input.boardDepth),
+        status: "OPEN",
+        openedAt: new Date(),
+        reentrySourceBoardId: input.reentrySourceBoardId
+          ? BigInt(input.reentrySourceBoardId)
+          : null,
+      },
     });
   }
 
@@ -145,6 +198,8 @@ export class PrismaMatrixRepository {
     boardId?: string | null;
     sourceUserId: string;
     sourceOrderId?: string | null;
+    sourceType?: "ORDER" | "REENTRY";
+    sourceRoundNo?: number | null;
     depthNo: number;
     sourcePv: string;
     creditedPv: string;
@@ -155,6 +210,8 @@ export class PrismaMatrixRepository {
         boardId: input.boardId ? BigInt(input.boardId) : null,
         sourceUserId: BigInt(input.sourceUserId),
         sourceOrderId: input.sourceOrderId ? BigInt(input.sourceOrderId) : null,
+        sourceType: input.sourceType ?? "ORDER",
+        sourceRoundNo: input.sourceRoundNo ?? null,
         depthNo: input.depthNo,
         sourcePv: input.sourcePv,
         creditedPv: input.creditedPv,
@@ -169,6 +226,7 @@ export class PrismaMatrixRepository {
     sourceUserId: string;
     sourceOrderId: string;
     boardNo: number;
+    roundNo: number;
     slotNo: number;
     levelNo: number;
     parentSlotNo: number | null;
@@ -188,6 +246,7 @@ export class PrismaMatrixRepository {
           sourceOrderId: BigInt(input.sourceOrderId),
           sourcePv: input.sourcePv,
           creditedPv: input.creditedPv,
+          roundNo: input.roundNo,
           status: "FILLED",
         },
         select: { id: true },
@@ -211,6 +270,7 @@ export class PrismaMatrixRepository {
           sourceUserId: BigInt(input.sourceUserId),
           sourceOrderId: BigInt(input.sourceOrderId),
           boardNo: input.boardNo,
+          roundNo: input.roundNo,
           levelNo: input.levelNo,
           rate: input.rate,
           basePv: input.sourcePv,
@@ -247,15 +307,19 @@ export class PrismaMatrixRepository {
       boardDepth: cycle.boardDepth,
       boardCount: cycle.boardCount,
       organizationPvRate: toDecimalString(cycle.organizationPvRate),
+      cwReentryAmount: toDecimalString(cycle.cwReentryAmount),
+      personalCarryPv: toDecimalString(cycle.personalCarryPv),
       levelRatesSnapshot: parseLevelRatesSnapshot(cycle.levelRatesSnapshot),
       totalAccumulatedPv: toDecimalString(cycle.totalAccumulatedPv),
       currentBoardNo: cycle.currentBoardNo,
+      currentBoardRoundNo: cycle.currentBoardRoundNo,
       status: cycle.status.toLowerCase(),
       startedAt: toIsoString(cycle.startedAt),
       completedAt: cycle.completedAt ? toIsoString(cycle.completedAt) : null,
       boards: cycle.boards.map((board) => ({
         boardId: toIdString(board.id),
         boardNo: board.boardNo,
+        roundNo: board.roundNo,
         slotCount: board.slotCount,
         filledSlots: board.filledSlots,
         openThresholdPv: toDecimalString(board.openThresholdPv),

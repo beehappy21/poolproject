@@ -6,6 +6,7 @@ export interface WalletSummary {
   withdrawableBalance: string;
   shoppingBalance: string;
   discountBalance: string;
+  firmBalance: string;
   negativeOffsetBalance: string;
   payoutLockStatus: "unlocked" | "hold" | "locked";
 }
@@ -115,6 +116,20 @@ export interface DiscountWalletCreditResult {
   amount: string;
   discountBalance: string;
   sourceOrderId: string;
+}
+
+export interface FirmWalletCreditResult {
+  userId: string;
+  amount: string;
+  firmBalance: string;
+  sourceMatrixEventId: string;
+}
+
+export interface MatrixReentryDebitResult {
+  userId: string;
+  amount: string;
+  withdrawableBalance: string;
+  sourceBoardId: string;
 }
 
 export interface WalletTopupRequestSummary {

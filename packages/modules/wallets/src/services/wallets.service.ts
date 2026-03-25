@@ -3,6 +3,8 @@ import { Injectable } from "@nestjs/common";
 import {
   CommissionToShoppingConversionResult,
   DiscountWalletCreditResult,
+  FirmWalletCreditResult,
+  MatrixReentryDebitResult,
   ShoppingWalletTopupResult,
   ShoppingWalletTransferResult,
   WalletBalanceReleaseResult,
@@ -76,6 +78,18 @@ export interface WalletsServiceContract {
   creditDiscountWalletFromApprovedOrder(input: {
     orderId: string;
   }): Promise<DiscountWalletCreditResult | null>;
+
+  creditFirmWalletFromMatrixReentry(input: {
+    userId: string;
+    matrixEventId: string;
+    amount: string;
+  }): Promise<FirmWalletCreditResult>;
+
+  debitWithdrawableForMatrixReentry(input: {
+    userId: string;
+    sourceBoardId: string;
+    amount: string;
+  }): Promise<MatrixReentryDebitResult>;
 
   requestWalletTopup(input: {
     userId: string;
@@ -393,6 +407,28 @@ export class WalletsService implements WalletsServiceContract {
     orderId: string;
   }): Promise<DiscountWalletCreditResult | null> {
     return this.walletsRepository.creditDiscountWalletFromApprovedOrder(input);
+  }
+
+  async creditFirmWalletFromMatrixReentry(input: {
+    userId: string;
+    matrixEventId: string;
+    amount: string;
+  }): Promise<FirmWalletCreditResult> {
+    return this.walletsRepository.creditFirmWalletFromMatrixReentry(input);
+  }
+
+  async debitWithdrawableForMatrixReentry(input: {
+    userId: string;
+    sourceBoardId: string;
+    amount: string;
+  }): Promise<MatrixReentryDebitResult> {
+    const wallet = await this.walletsRepository.getWalletSummary(input.userId);
+
+    if (compareDecimalStrings(wallet.withdrawableBalance, input.amount) < 0) {
+      throw new Error("Insufficient CW balance for matrix reentry.");
+    }
+
+    return this.walletsRepository.debitWithdrawableForMatrixReentry(input);
   }
 
   async requestWalletTopup(input: {

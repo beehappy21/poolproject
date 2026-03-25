@@ -64,13 +64,18 @@ export class AdminMatrixSettingsController {
       boardWidth,
       boardDepth,
       boardCount,
-      organizationPvRate: requireDecimalRateString(
+      organizationPvRate: requireDecimalString(
         payload.organizationPvRate,
         "organizationPvRate",
+      ),
+      cwReentryAmount: requireDecimalString(
+        payload.cwReentryAmount ?? current.cwReentryAmount ?? current.organizationPvRate,
+        "cwReentryAmount",
       ),
       levelRates: payload.levelRates.map((value, index) =>
         requireDecimalRateString(value, `levelRates[${index}]`),
       ),
+      boardLevelRates: current.boardLevelRates,
       boardOpenPvThresholds: payload.boardOpenPvThresholds.map((value, index) =>
         requireDecimalString(value, `boardOpenPvThresholds[${index}]`),
       ),

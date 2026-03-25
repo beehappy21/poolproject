@@ -1,6 +1,8 @@
 import {
   CommissionToShoppingConversionResult,
   DiscountWalletCreditResult,
+  FirmWalletCreditResult,
+  MatrixReentryDebitResult,
   ShoppingWalletTopupResult,
   ShoppingWalletTransferResult,
   WalletSummary,
@@ -19,6 +21,7 @@ export interface WalletsRepository {
     withdrawableBalance: string;
     shoppingBalance: string;
     discountBalance: string;
+    firmBalance: string;
     negativeOffsetBalance: string;
     payoutLockStatus: "unlocked" | "hold" | "locked";
   } | null>;
@@ -65,6 +68,18 @@ export interface WalletsRepository {
   creditDiscountWalletFromApprovedOrder(input: {
     orderId: string;
   }): Promise<DiscountWalletCreditResult | null>;
+
+  creditFirmWalletFromMatrixReentry(input: {
+    userId: string;
+    matrixEventId: string;
+    amount: string;
+  }): Promise<FirmWalletCreditResult>;
+
+  debitWithdrawableForMatrixReentry(input: {
+    userId: string;
+    sourceBoardId: string;
+    amount: string;
+  }): Promise<MatrixReentryDebitResult>;
 
   spendShoppingWallet(input: {
     userId: string;
@@ -131,6 +146,7 @@ export class PrismaWalletsRepository implements WalletsRepository {
         withdrawableBalance: true,
         shoppingBalance: true,
         discountBalance: true,
+        firmBalance: true,
         negativeOffsetBalance: true,
         payoutLockStatus: true,
       },
@@ -146,6 +162,7 @@ export class PrismaWalletsRepository implements WalletsRepository {
       withdrawableBalance: wallet.withdrawableBalance.toString(),
       shoppingBalance: wallet.shoppingBalance.toString(),
       discountBalance: wallet.discountBalance.toString(),
+      firmBalance: wallet.firmBalance.toString(),
       negativeOffsetBalance: wallet.negativeOffsetBalance.toString(),
       payoutLockStatus: wallet.payoutLockStatus.toLowerCase() as
         | "unlocked"
@@ -165,6 +182,7 @@ export class PrismaWalletsRepository implements WalletsRepository {
         withdrawableBalance: true,
         shoppingBalance: true,
         discountBalance: true,
+        firmBalance: true,
         negativeOffsetBalance: true,
         payoutLockStatus: true,
       },
@@ -179,6 +197,7 @@ export class PrismaWalletsRepository implements WalletsRepository {
         withdrawableBalance: "0",
         shoppingBalance: "0",
         discountBalance: "0",
+        firmBalance: "0",
         negativeOffsetBalance: "0",
         payoutLockStatus: "unlocked",
       };
@@ -192,6 +211,7 @@ export class PrismaWalletsRepository implements WalletsRepository {
       withdrawableBalance: wallet.withdrawableBalance.toString(),
       shoppingBalance: wallet.shoppingBalance.toString(),
       discountBalance: wallet.discountBalance.toString(),
+      firmBalance: wallet.firmBalance.toString(),
       negativeOffsetBalance: wallet.negativeOffsetBalance.toString(),
       payoutLockStatus: wallet.payoutLockStatus.toLowerCase() as
         | "unlocked"
@@ -760,6 +780,152 @@ export class PrismaWalletsRepository implements WalletsRepository {
         amount: rewardAmount,
         discountBalance: nextDiscountBalance,
         sourceOrderId: order.id.toString(),
+      };
+    });
+  }
+
+  async creditFirmWalletFromMatrixReentry(input: {
+    userId: string;
+    matrixEventId: string;
+    amount: string;
+  }): Promise<FirmWalletCreditResult> {
+    return this.prisma.$transaction(async (tx) => {
+      const wallet = await tx.wallet.upsert({
+        where: { userId: BigInt(input.userId) },
+        update: {},
+        create: { userId: BigInt(input.userId) },
+        select: { firmBalance: true },
+      });
+
+      const existingCredit = await tx.walletTransaction.findFirst({
+        where: {
+          userId: BigInt(input.userId),
+          txType: "FIRM_REENTRY_CREDIT",
+          refType: "matrix",
+          refId: BigInt(input.matrixEventId),
+          status: "POSTED",
+        },
+        select: { id: true },
+      });
+
+      if (existingCredit) {
+        return {
+          userId: input.userId,
+          amount: "0",
+          firmBalance: wallet.firmBalance.toString(),
+          sourceMatrixEventId: input.matrixEventId,
+        };
+      }
+
+      const nextFirmBalance = addDecimalStrings(
+        wallet.firmBalance.toString(),
+        input.amount,
+      );
+
+      await tx.wallet.update({
+        where: { userId: BigInt(input.userId) },
+        data: { firmBalance: nextFirmBalance },
+      });
+
+      await tx.walletTransaction.create({
+        data: {
+          userId: BigInt(input.userId),
+          txType: "FIRM_REENTRY_CREDIT",
+          direction: "CREDIT",
+          balanceBucket: "FIRM",
+          refType: "matrix",
+          refId: BigInt(input.matrixEventId),
+          amount: input.amount,
+          status: "POSTED",
+          note: "Firm wallet credit from matrix reentry",
+        },
+      });
+
+      return {
+        userId: input.userId,
+        amount: input.amount,
+        firmBalance: nextFirmBalance,
+        sourceMatrixEventId: input.matrixEventId,
+      };
+    });
+  }
+
+  async debitWithdrawableForMatrixReentry(input: {
+    userId: string;
+    sourceBoardId: string;
+    amount: string;
+  }): Promise<MatrixReentryDebitResult> {
+    return this.prisma.$transaction(async (tx) => {
+      const wallet = await tx.wallet.upsert({
+        where: { userId: BigInt(input.userId) },
+        update: {},
+        create: { userId: BigInt(input.userId) },
+        select: {
+          approvedBalance: true,
+          withdrawableBalance: true,
+        },
+      });
+
+      const existingDebit = await tx.walletTransaction.findFirst({
+        where: {
+          userId: BigInt(input.userId),
+          txType: "MATRIX_REENTRY_DEBIT",
+          refType: "matrix",
+          refId: BigInt(input.sourceBoardId),
+          status: "POSTED",
+        },
+        select: { id: true },
+      });
+
+      if (existingDebit) {
+        return {
+          userId: input.userId,
+          amount: "0",
+          withdrawableBalance: wallet.withdrawableBalance.toString(),
+          sourceBoardId: input.sourceBoardId,
+        };
+      }
+
+      if (compareDecimalStrings(wallet.withdrawableBalance.toString(), input.amount) < 0) {
+        throw new Error("Insufficient CW balance for matrix reentry.");
+      }
+
+      const nextWithdrawableBalance = subtractDecimalStrings(
+        wallet.withdrawableBalance.toString(),
+        input.amount,
+      );
+      const nextApprovedBalance = maxDecimalString(
+        subtractDecimalStrings(wallet.approvedBalance.toString(), input.amount),
+        "0",
+      );
+
+      await tx.wallet.update({
+        where: { userId: BigInt(input.userId) },
+        data: {
+          approvedBalance: nextApprovedBalance,
+          withdrawableBalance: nextWithdrawableBalance,
+        },
+      });
+
+      await tx.walletTransaction.create({
+        data: {
+          userId: BigInt(input.userId),
+          txType: "MATRIX_REENTRY_DEBIT",
+          direction: "DEBIT",
+          balanceBucket: "WITHDRAWABLE",
+          refType: "matrix",
+          refId: BigInt(input.sourceBoardId),
+          amount: input.amount,
+          status: "POSTED",
+          note: "CW debit for matrix reentry",
+        },
+      });
+
+      return {
+        userId: input.userId,
+        amount: input.amount,
+        withdrawableBalance: nextWithdrawableBalance,
+        sourceBoardId: input.sourceBoardId,
       };
     });
   }

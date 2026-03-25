@@ -21,6 +21,10 @@ Supporting infrastructure:
 - API app shell: `apps/api`
 - worker app shell: `apps/worker`
 
+Current feature specs:
+- [firm_wallet_spec.md](/Users/macbook/poolproject/docs/technical-design/firm_wallet_spec.md)
+- [matrix_runtime_reentry_spec.md](/Users/macbook/poolproject/docs/technical-design/matrix_runtime_reentry_spec.md)
+
 ## Bonus-to-Cycle Allocation (Draft Rule)
 
 Default draft rule:

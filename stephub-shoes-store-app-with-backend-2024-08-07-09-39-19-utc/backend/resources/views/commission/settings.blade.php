@@ -89,6 +89,7 @@
     $poolRate = old('poolRate', $commissionSettings['poolRate'] ?? '0.5');
     $cashbackRate = old('cashbackRate', $commissionSettings['cashbackRate'] ?? '0');
     $matrixOrgRate = old('organizationPvRate', $matrixSettings['organizationPvRate'] ?? '0.1');
+    $matrixCwReentryAmount = old('cwReentryAmount', $matrixSettings['cwReentryAmount'] ?? ($matrixSettings['organizationPvRate'] ?? '0.1'));
     $matrixBoardWidth = old('boardWidth', $matrixSettings['boardWidth'] ?? 2);
     $matrixThresholds = old('boardOpenPvThresholds', $matrixSettings['boardOpenPvThresholds'] ?? ['100', '100', '100']);
     $matrixBoardLevelRates = old('boardLevelRates', $matrixSettings['boardLevelRates'] ?? []);
@@ -441,6 +442,13 @@
                         <input name="organizationPvRate" value="{{ $matrixOrgRate }}" required>
                         <div class="commission-helper">
                             ตัวอย่าง: ถ้าตั้ง 700 หมายถึงสมาชิกต้องมี PV ส่วนตัว 700 ก่อน จึงจะเปิดบอร์ด 1 ได้
+                        </div>
+                    </div>
+                    <div class="commission-field">
+                        <label>CW สำหรับ Reentry</label>
+                        <input name="cwReentryAmount" value="{{ $matrixCwReentryAmount }}" required>
+                        <div class="commission-helper">
+                            กำหนดค่า CW ที่ต้องมีเพื่อเปิด Board 1 รอบถัดไปแยกจากค่า PV เปิดบอร์ด
                         </div>
                     </div>
                 </div>

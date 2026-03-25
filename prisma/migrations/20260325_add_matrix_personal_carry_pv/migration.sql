@@ -1,0 +1,2 @@
+ALTER TABLE "MatrixCycle"
+ADD COLUMN "personalCarryPv" DECIMAL(18, 8) NOT NULL DEFAULT 0;

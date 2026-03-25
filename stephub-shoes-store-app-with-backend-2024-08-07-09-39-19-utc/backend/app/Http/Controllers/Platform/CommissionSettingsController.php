@@ -67,6 +67,7 @@ class CommissionSettingsController extends Controller
     {
         $request->merge([
             'organizationPvRate' => $request->input('organizationPvRate', $request->input('organization_pv_rate')),
+            'cwReentryAmount' => $request->input('cwReentryAmount', $request->input('cw_reentry_amount')),
             'boardWidth' => $request->input('boardWidth', $request->input('board_width')),
             'levelRates' => $request->input('levelRates', $request->input('level_rates')),
             'boardLevelRates' => $request->input('boardLevelRates', $request->input('board_level_rates')),
@@ -75,6 +76,7 @@ class CommissionSettingsController extends Controller
 
         $payload = $request->validate([
             'organizationPvRate' => ['required', 'string'],
+            'cwReentryAmount' => ['required', 'string'],
             'boardWidth' => ['nullable', 'integer', 'min:1'],
             'levelRates' => ['nullable', 'array'],
             'levelRates.*' => ['nullable', 'string'],
@@ -104,6 +106,7 @@ class CommissionSettingsController extends Controller
             'boardDepth' => count($levelRates),
             'boardCount' => count($boardThresholds),
             'organizationPvRate' => $this->cleanSingleRate($payload['organizationPvRate']),
+            'cwReentryAmount' => $this->cleanSingleRate($payload['cwReentryAmount']),
             'levelRates' => $levelRates,
             'boardLevelRates' => $boardLevelRates,
             'boardOpenPvThresholds' => $boardThresholds,
