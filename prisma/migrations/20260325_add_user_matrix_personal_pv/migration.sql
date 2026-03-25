@@ -1,0 +1,2 @@
+ALTER TABLE "User"
+ADD COLUMN "matrixPersonalPv" DECIMAL(18, 8) NOT NULL DEFAULT 0;

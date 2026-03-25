@@ -6,6 +6,7 @@ import {
   addDecimalStrings,
   compareDecimalStrings,
   multiplyDecimalStrings,
+  subtractDecimalStrings,
 } from "../../../../shared/utils/src/money.util";
 import { parseMatrixSettingsSnapshot } from "../../../../shared/utils/src/matrix-settings.util";
 import { WalletsService } from "../../../wallets/src/services/wallets.service";
@@ -85,24 +86,42 @@ export class MatrixService implements MatrixServiceContract {
     }
 
     const settings = parseMatrixSettingsSnapshot(input.matrixSettingsSnapshot);
-    const sourceCycleBeforeProcessing = await this.getActiveCycle(input.sourceUserId);
-    const qualifiesBoardOne =
-      compareDecimalStrings(input.totalPv, settings.organizationPvRate) >= 0;
-
-    if (qualifiesBoardOne) {
-      await this.ensureQualifiedSourceCycle(input.sourceUserId, settings);
-    }
-
-    const sourceCycle =
-      (qualifiesBoardOne
-        ? await this.getActiveCycle(input.sourceUserId)
-        : sourceCycleBeforeProcessing) ?? null;
+    let sourceCycle = await this.getActiveCycle(input.sourceUserId);
 
     if (sourceCycle) {
       await this.matrixRepository.addPersonalCarryPv(sourceCycle.id.toString(), input.totalPv);
+    } else {
+      const updatedSource = await this.matrixRepository.addUserMatrixPersonalPv(
+        input.sourceUserId,
+        input.totalPv,
+      );
+
+      if (
+        compareDecimalStrings(
+          updatedSource.matrixPersonalPv.toString(),
+          settings.organizationPvRate,
+        ) < 0
+      ) {
+        return {
+          orderId: input.orderId,
+          sourceUserId: input.sourceUserId,
+          affectedMemberCount: 0,
+          payoutCount: 0,
+          completedCycleCount: 0,
+          skipped: false,
+        };
+      }
+
+      sourceCycle = await this.ensureQualifiedSourceCycle(input.sourceUserId, settings, {
+        personalCarryPv: subtractDecimalStrings(
+          updatedSource.matrixPersonalPv.toString(),
+          settings.organizationPvRate,
+        ),
+      });
+      await this.matrixRepository.resetUserMatrixPersonalPv(input.sourceUserId);
     }
 
-    if (!qualifiesBoardOne) {
+    if (!sourceCycle) {
       return {
         orderId: input.orderId,
         sourceUserId: input.sourceUserId,
@@ -323,6 +342,9 @@ export class MatrixService implements MatrixServiceContract {
   private async ensureQualifiedSourceCycle(
     userId: string,
     settings: ReturnType<typeof parseMatrixSettingsSnapshot>,
+    options?: {
+      personalCarryPv?: string;
+    },
   ) {
     const existing = await this.getActiveCycle(userId);
     if (existing) {
@@ -337,6 +359,7 @@ export class MatrixService implements MatrixServiceContract {
       boardCount: settings.boardCount,
       organizationPvRate: settings.organizationPvRate,
       cwReentryAmount: settings.cwReentryAmount,
+      personalCarryPv: options?.personalCarryPv ?? "0",
       levelRatesSnapshot: JSON.stringify(settings.boardLevelRates),
       boardOpenPvThresholds: settings.boardOpenPvThresholds,
     });
