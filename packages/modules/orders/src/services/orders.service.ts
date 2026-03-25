@@ -150,6 +150,7 @@ export interface OrdersServiceContract {
     pickupEmail?: string;
     discountWalletAmount?: string;
     shoppingWalletAmount?: string;
+    firmWalletAmount?: string;
     cashPaymentMethod?: string;
   }): Promise<{
     orderId: string;
@@ -297,6 +298,7 @@ export class OrdersService implements OrdersServiceContract {
     pickupEmail?: string;
     discountWalletAmount?: string;
     shoppingWalletAmount?: string;
+    firmWalletAmount?: string;
     cashPaymentMethod?: string;
   }) {
     return this.ordersRepository.createOrder(input);

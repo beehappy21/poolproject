@@ -200,6 +200,7 @@ export interface OrdersRepository {
     pickupEmail?: string;
     discountWalletAmount?: string;
     shoppingWalletAmount?: string;
+    firmWalletAmount?: string;
     cashPaymentMethod?: string;
   }): Promise<{
     orderId: string;
@@ -643,6 +644,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
     pickupEmail?: string;
     discountWalletAmount?: string;
     shoppingWalletAmount?: string;
+    firmWalletAmount?: string;
     cashPaymentMethod?: string;
   }) {
     const userId = BigInt(input.userId);
@@ -708,6 +710,8 @@ export class PrismaOrdersRepository implements OrdersRepository {
       productDetailId: item.productDetailId,
       quantity: item.quantity,
     }));
+    const requestedFirmAmount = input.firmWalletAmount ?? "0";
+    const firmOrderRequested = compareDecimalStrings(requestedFirmAmount, "0") > 0;
 
     if (normalizedItems.some((item) => !item.packageId)) {
       throw new Error("Product is not yet connected to an active package.");
@@ -731,6 +735,46 @@ export class PrismaOrdersRepository implements OrdersRepository {
 
     if (packages.length !== normalizedItems.length) {
       throw new Error("Package not found.");
+    }
+
+    const productDetailIds = Array.from(
+      new Set(
+        normalizedItems
+          .filter((item) => item.productDetailId)
+          .map((item) => item.productDetailId as string),
+      ),
+    );
+    const productDetails = productDetailIds.length
+      ? await this.prisma.productDetail.findMany({
+          where: {
+            id: {
+              in: productDetailIds.map((value) => BigInt(value)),
+            },
+          },
+          select: {
+            id: true,
+            costPriceUsdt: true,
+            memberPriceUsdt: true,
+            firmEnabled: true,
+            firmDcwRewardAmount: true,
+            product: {
+              select: {
+                category: {
+                  select: {
+                    code: true,
+                  },
+                },
+              },
+            },
+          },
+        })
+      : [];
+    const productDetailMap = new Map(
+      productDetails.map((detail) => [detail.id.toString(), detail]),
+    );
+
+    if (productDetails.length !== productDetailIds.length) {
+      throw new Error("Product detail not found.");
     }
 
     const walletSettings = readWalletSettings();
@@ -821,10 +865,10 @@ export class PrismaOrdersRepository implements OrdersRepository {
         unitPv: pkg.pv,
         poolRateMode: pkg.poolRateMode,
         unitPoolRate: pkg.poolRate,
-        dcwSpendEnabled: pkg.dcwSpendEnabled,
-        unitDcwUsageAmount: pkg.dcwUsageAmount,
-        unitDcwCashRewardRate: pkg.dcwCashRewardRate,
-        unitDcwShoppingRewardRate: pkg.dcwShoppingRewardRate,
+        dcwSpendEnabled: firmOrderRequested ? false : pkg.dcwSpendEnabled,
+        unitDcwUsageAmount: firmOrderRequested ? "0" : pkg.dcwUsageAmount,
+        unitDcwCashRewardRate: firmOrderRequested ? "0" : pkg.dcwCashRewardRate,
+        unitDcwShoppingRewardRate: firmOrderRequested ? "0" : pkg.dcwShoppingRewardRate,
         lineTotalUsdt,
         lineTotalPv,
       } satisfies Prisma.OrderItemUncheckedCreateWithoutOrderInput;
@@ -864,12 +908,73 @@ export class PrismaOrdersRepository implements OrdersRepository {
           packageDcwLimit,
         )
       : "0";
+    const firmRewardAmount = normalizedItems.reduce((sum, item) => {
+      if (!item.productDetailId) {
+        return sum;
+      }
+
+      const detail = productDetailMap.get(item.productDetailId);
+      if (!detail) {
+        return sum;
+      }
+
+      return addDecimalStrings(
+        sum,
+        multiplyDecimalStrings(
+          detail.firmDcwRewardAmount.toString(),
+          item.quantity.toString(),
+        ),
+      );
+    }, "0");
+
+    if (firmOrderRequested) {
+      if (compareDecimalStrings(requestedDiscountAmount, "0") > 0) {
+        throw new Error("Discount wallet cannot be combined with Firm wallet redemption.");
+      }
+
+      if (compareDecimalStrings(input.shoppingWalletAmount ?? "0", "0") > 0) {
+        throw new Error("Shopping wallet cannot be combined with Firm wallet redemption.");
+      }
+
+      if (normalizedItems.some((item) => !item.productDetailId)) {
+        throw new Error("Firm wallet redemption requires product-detail items.");
+      }
+
+      const invalidFirmItem = normalizedItems.find((item) => {
+        const detail = item.productDetailId
+          ? productDetailMap.get(item.productDetailId)
+          : null;
+
+        if (!detail) {
+          return true;
+        }
+
+        const categoryCode = detail.product.category.code.trim().toLowerCase();
+        const costGuardPassed =
+          Number(detail.costPriceUsdt.toString()) <=
+          Number(detail.memberPriceUsdt.toString()) * 0.3;
+
+        return categoryCode !== "firm" || !detail.firmEnabled || !costGuardPassed;
+      });
+
+      if (invalidFirmItem) {
+        throw new Error(
+          "Firm wallet redemption is only allowed for firm-enabled product details that pass the 30% cost guard.",
+        );
+      }
+
+      if (compareDecimalStrings(requestedFirmAmount, packagePriceUsdt) !== 0) {
+        throw new Error("Firm wallet redemption amount must equal the order member price.");
+      }
+    }
+
     const remainingAfterDiscount = subtractDecimalStrings(
       packagePriceUsdt,
       dcwAppliedUsdt,
     );
-    const requestedShoppingAmount =
-      input.shoppingWalletAmount ?? remainingAfterDiscount;
+    const requestedShoppingAmount = firmOrderRequested
+      ? "0"
+      : input.shoppingWalletAmount ?? remainingAfterDiscount;
     const availableShopping = wallet?.shoppingBalance.toString() ?? "0";
     const walletAppliedUsdt = walletSettings.shoppingWalletSpendEnabled
       ? minDecimalString(
@@ -877,10 +982,9 @@ export class PrismaOrdersRepository implements OrdersRepository {
           remainingAfterDiscount,
         )
       : "0";
-    const cashDueUsdt = subtractDecimalStrings(
-      remainingAfterDiscount,
-      walletAppliedUsdt,
-    );
+    const cashDueUsdt = firmOrderRequested
+      ? "0"
+      : subtractDecimalStrings(remainingAfterDiscount, walletAppliedUsdt);
     const normalizedCashPaymentMethod = input.cashPaymentMethod?.trim().toLowerCase();
 
     if (compareDecimalStrings(cashDueUsdt, "0") > 0) {
@@ -1033,6 +1137,71 @@ export class PrismaOrdersRepository implements OrdersRepository {
             note: "Shopping wallet used for order purchase",
           },
         });
+      }
+
+      if (firmOrderRequested) {
+        const currentWallet = await tx.wallet.upsert({
+          where: { userId },
+          update: {},
+          create: { userId },
+          select: { firmBalance: true, discountBalance: true },
+        });
+
+        if (
+          compareDecimalStrings(
+            currentWallet.firmBalance.toString(),
+            requestedFirmAmount,
+          ) < 0
+        ) {
+          throw new Error("Insufficient Firm wallet balance.");
+        }
+
+        const nextFirmBalance = subtractDecimalStrings(
+          currentWallet.firmBalance.toString(),
+          requestedFirmAmount,
+        );
+        const nextDiscountBalance = addDecimalStrings(
+          currentWallet.discountBalance.toString(),
+          firmRewardAmount,
+        );
+
+        await tx.wallet.update({
+          where: { userId },
+          data: {
+            firmBalance: nextFirmBalance,
+            discountBalance: nextDiscountBalance,
+          },
+        });
+
+        await tx.walletTransaction.create({
+          data: {
+            userId,
+            txType: "FIRM_PRODUCT_DEBIT",
+            direction: "DEBIT",
+            balanceBucket: "FIRM",
+            refType: "order",
+            refId: createdOrder.id,
+            amount: requestedFirmAmount,
+            status: "POSTED",
+            note: "Firm wallet used for order redemption",
+          },
+        });
+
+        if (compareDecimalStrings(firmRewardAmount, "0") > 0) {
+          await tx.walletTransaction.create({
+            data: {
+              userId,
+              txType: "FIRM_DCW_CREDIT",
+              direction: "CREDIT",
+              balanceBucket: "DISCOUNT",
+              refType: "order",
+              refId: createdOrder.id,
+              amount: firmRewardAmount,
+              status: "POSTED",
+              note: "DCW credit from firm product redemption",
+            },
+          });
+        }
       }
 
       return createdOrder;
