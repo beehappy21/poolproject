@@ -7,7 +7,7 @@ Placeholder scripts directory for:
 
 Smoke helpers:
 - `npm run smoke:cashback`
-  Runs a focused cashback end-to-end smoke against the local API and Postgres.
+  Runs a focused cashback end-to-end smoke against the local API and Postgres, including `reprocess` idempotency checks for cashback-only ledger and wallet-credit rows.
 - `npm run smoke:commissions:direct-uni`
   Runs a focused direct + unilevel runtime smoke against the local API and Postgres by creating a three-member sponsor chain, processing one approved order, and verifying commission ledger plus wallet-credit rows end to end.
 - `npm run smoke:bao:cashback`

@@ -245,19 +245,68 @@ async function main() {
       throw new Error(`Expected 1 cashback ledger row, found ${cashbackRows.length}.`);
     }
 
+    if (ledgerRows.length !== 1) {
+      throw new Error(`Expected only 1 commission ledger row for cashback-only smoke, found ${ledgerRows.length}.`);
+    }
+
     if (walletRows.length !== 1) {
       throw new Error(`Expected 1 cashback wallet row, found ${walletRows.length}.`);
     }
 
     const cashbackRow = cashbackRows[0];
     const walletRow = walletRows[0];
+    const expectedAmount = (
+      Number(cashbackRow.basePv.toString()) * Number(cashbackRow.rate.toString())
+    )
+      .toFixed(8)
+      .replace(/\.?0+$/, "");
 
     if (cashbackRow.status !== "APPROVED") {
       throw new Error(`Expected cashback ledger status APPROVED, found ${cashbackRow.status}.`);
     }
 
+    if (cashbackRow.beneficiaryUserId?.toString() !== createdMemberId) {
+      throw new Error(
+        `Expected cashback beneficiary ${createdMemberId}, found ${cashbackRow.beneficiaryUserId?.toString() || "null"}.`,
+      );
+    }
+
+    if (cashbackRow.commissionAmount.toString() !== expectedAmount) {
+      throw new Error(
+        `Expected cashback amount ${expectedAmount}, found ${cashbackRow.commissionAmount.toString()}.`,
+      );
+    }
+
     if (walletRow.txType !== "CASHBACK_CREDIT") {
       throw new Error(`Expected CASHBACK_CREDIT wallet row, found ${walletRow.txType}.`);
+    }
+
+    if (walletRow.userId.toString() !== createdMemberId) {
+      throw new Error(
+        `Expected cashback wallet user ${createdMemberId}, found ${walletRow.userId.toString()}.`,
+      );
+    }
+
+    if (walletRow.refId.toString() !== cashbackRow.id.toString()) {
+      throw new Error(
+        `Expected cashback wallet ref ${cashbackRow.id.toString()}, found ${walletRow.refId.toString()}.`,
+      );
+    }
+
+    if (walletRow.amount.toString() !== expectedAmount) {
+      throw new Error(
+        `Expected cashback wallet amount ${expectedAmount}, found ${walletRow.amount.toString()}.`,
+      );
+    }
+
+    if (!Array.isArray(reprocessed.walletPostingInputs)) {
+      throw new Error("Expected reprocess walletPostingInputs array.");
+    }
+
+    if (reprocessed.walletPostingInputs.length !== 1) {
+      throw new Error(
+        `Expected reprocess walletPostingInputs length = 1, found ${reprocessed.walletPostingInputs.length}.`,
+      );
     }
 
     process.stdout.write(
@@ -283,12 +332,14 @@ async function main() {
             rate: cashbackRow.rate.toString(),
             basePv: cashbackRow.basePv.toString(),
             amount: cashbackRow.commissionAmount.toString(),
+            expectedAmount,
           },
           cashbackWallet: {
             walletTransactionId: walletRow.id.toString(),
             userId: walletRow.userId.toString(),
             txType: walletRow.txType,
             amount: walletRow.amount.toString(),
+            refId: walletRow.refId.toString(),
           },
         },
         null,
