@@ -1,6 +1,7 @@
 export interface MatrixBoardSummary {
   boardId: string;
   boardNo: number;
+  roundNo: number;
   slotCount: number;
   filledSlots: number;
   openThresholdPv: string;
@@ -18,9 +19,12 @@ export interface MatrixCycleSummary {
   boardDepth: number;
   boardCount: number;
   organizationPvRate: string;
+  cwReentryAmount: string;
+  personalCarryPv: string;
   levelRatesSnapshot: string[];
   totalAccumulatedPv: string;
   currentBoardNo: number;
+  currentBoardRoundNo: number;
   status: string;
   startedAt: string;
   completedAt: string | null;

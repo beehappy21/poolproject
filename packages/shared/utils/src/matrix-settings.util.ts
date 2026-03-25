@@ -6,7 +6,9 @@ export interface MatrixSettings {
   boardDepth: number;
   boardCount: number;
   organizationPvRate: string;
+  cwReentryAmount: string;
   levelRates: string[];
+  boardLevelRates: string[][];
   boardOpenPvThresholds: string[];
 }
 
@@ -17,9 +19,35 @@ const DEFAULT_SETTINGS: MatrixSettings = {
   boardDepth: 3,
   boardCount: 3,
   organizationPvRate: "0.1",
+  cwReentryAmount: "0.1",
   levelRates: ["0.1", "0.05", "0.03"],
+  boardLevelRates: [
+    ["0.1", "0.05", "0.03"],
+    ["0.1", "0.05", "0.03"],
+    ["0.1", "0.05", "0.03"],
+  ],
   boardOpenPvThresholds: ["100", "100", "100"],
 };
+
+function normalizeBoardLevelRates(
+  value: unknown,
+  boardCount: number,
+  fallbackRates: string[],
+): string[][] {
+  if (!Array.isArray(value)) {
+    return Array.from({ length: boardCount }, () => [...fallbackRates]);
+  }
+
+  const normalizedBoards = value.map((boardRates) =>
+    normalizeDecimalArray(boardRates, fallbackRates),
+  );
+
+  if (normalizedBoards.length !== boardCount) {
+    return Array.from({ length: boardCount }, () => [...fallbackRates]);
+  }
+
+  return normalizedBoards;
+}
 
 function isNonNegativeDecimalString(value: unknown): value is string {
   return typeof value === "string" && /^\d+(\.\d+)?$/.test(value.trim());
@@ -80,10 +108,24 @@ export function normalizeMatrixSettings(input: unknown): MatrixSettings {
     organizationPvRate: isNonNegativeDecimalString(candidate.organizationPvRate)
       ? candidate.organizationPvRate.trim()
       : DEFAULT_SETTINGS.organizationPvRate,
+    cwReentryAmount: isNonNegativeDecimalString(candidate.cwReentryAmount)
+      ? candidate.cwReentryAmount.trim()
+      : isNonNegativeDecimalString(candidate.organizationPvRate)
+        ? candidate.organizationPvRate.trim()
+        : DEFAULT_SETTINGS.cwReentryAmount,
     levelRates: normalizeDecimalArray(
       candidate.levelRates,
       DEFAULT_SETTINGS.levelRates,
       boardDepth,
+    ),
+    boardLevelRates: normalizeBoardLevelRates(
+      candidate.boardLevelRates,
+      boardCount,
+      normalizeDecimalArray(
+        candidate.levelRates,
+        DEFAULT_SETTINGS.levelRates,
+        boardDepth,
+      ),
     ),
     boardOpenPvThresholds: normalizeDecimalArray(
       candidate.boardOpenPvThresholds,
@@ -99,7 +141,9 @@ export function getDefaultMatrixSettings(): MatrixSettings {
     boardDepth: DEFAULT_SETTINGS.boardDepth,
     boardCount: DEFAULT_SETTINGS.boardCount,
     organizationPvRate: DEFAULT_SETTINGS.organizationPvRate,
+    cwReentryAmount: DEFAULT_SETTINGS.cwReentryAmount,
     levelRates: [...DEFAULT_SETTINGS.levelRates],
+    boardLevelRates: DEFAULT_SETTINGS.boardLevelRates.map((rates) => [...rates]),
     boardOpenPvThresholds: [...DEFAULT_SETTINGS.boardOpenPvThresholds],
   };
 }
