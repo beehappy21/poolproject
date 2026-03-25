@@ -17,6 +17,7 @@ type StorefrontProduct = {
   shortDescription?: string | null;
   description?: string | null;
   primaryImageUrl?: string | null;
+  youtubeUrl?: string | null;
   imageUrls?: string[];
   memberPriceUsdt: string;
   pv: string;
@@ -70,6 +71,7 @@ export const mapStorefrontProductToProduct = (
     colors: [{name: 'default', code: '#1F2937'}],
     color: 'default',
     shortDescription: item.shortDescription || undefined,
+    youtubeUrl: item.youtubeUrl || undefined,
     description:
       item.description ||
       item.shortDescription ||
