@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 API_BASE_URL="${API_BASE_URL:-http://127.0.0.1:3000}"
 DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/poolproject?schema=public}"
+export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-poolproject}"
 RUN_SUFFIX="$(date +%s)"
 DATE_CUSTOM="${DATE_CUSTOM:-$(date -u -v+4d +%F 2>/dev/null || python3 - <<'PY'
 from datetime import datetime, timedelta, timezone
@@ -163,6 +164,7 @@ async function main() {
 main().finally(async () => prisma.$disconnect());
 JS
 POOL_CUSTOM_JSON="$(curl -s -X POST "$API_BASE_URL/pool/$DATE_CUSTOM/close" -H "$AUTH_HEADER")"
+POOL_CUSTOM_RERUN_JSON="$(curl -s -X POST "$API_BASE_URL/pool/$DATE_CUSTOM/close" -H "$AUTH_HEADER")"
 
 DATABASE_URL="$DATABASE_URL" RUN_SUFFIX="$RUN_SUFFIX" DATE="$DATE_DISABLED" node <<'JS'
 const { PrismaClient } = require("@prisma/client");
@@ -198,6 +200,7 @@ async function main() {
 main().finally(async () => prisma.$disconnect());
 JS
 POOL_DISABLED_JSON="$(curl -s -X POST "$API_BASE_URL/pool/$DATE_DISABLED/close" -H "$AUTH_HEADER")"
+POOL_DISABLED_RERUN_JSON="$(curl -s -X POST "$API_BASE_URL/pool/$DATE_DISABLED/close" -H "$AUTH_HEADER")"
 
 DATABASE_URL="$DATABASE_URL" RUN_SUFFIX="$RUN_SUFFIX" DATE="$DATE_ALL_COMM" node <<'JS'
 const { PrismaClient } = require("@prisma/client");
@@ -239,11 +242,15 @@ async function main() {
 main().finally(async () => prisma.$disconnect());
 JS
 POOL_ALL_COMM_JSON="$(curl -s -X POST "$API_BASE_URL/pool/$DATE_ALL_COMM/close" -H "$AUTH_HEADER")"
+POOL_ALL_COMM_RERUN_JSON="$(curl -s -X POST "$API_BASE_URL/pool/$DATE_ALL_COMM/close" -H "$AUTH_HEADER")"
 
 DATABASE_URL="$DATABASE_URL" \
 POOL_CUSTOM_JSON="$POOL_CUSTOM_JSON" \
+POOL_CUSTOM_RERUN_JSON="$POOL_CUSTOM_RERUN_JSON" \
 POOL_DISABLED_JSON="$POOL_DISABLED_JSON" \
+POOL_DISABLED_RERUN_JSON="$POOL_DISABLED_RERUN_JSON" \
 POOL_ALL_COMM_JSON="$POOL_ALL_COMM_JSON" \
+POOL_ALL_COMM_RERUN_JSON="$POOL_ALL_COMM_RERUN_JSON" \
 DATE_CUSTOM="$DATE_CUSTOM" \
 DATE_DISABLED="$DATE_DISABLED" \
 DATE_ALL_COMM="$DATE_ALL_COMM" \
@@ -269,8 +276,11 @@ async function readPayouts(date) {
 
 async function main() {
   const custom = JSON.parse(process.env.POOL_CUSTOM_JSON);
+  const customRerun = JSON.parse(process.env.POOL_CUSTOM_RERUN_JSON);
   const disabled = JSON.parse(process.env.POOL_DISABLED_JSON);
+  const disabledRerun = JSON.parse(process.env.POOL_DISABLED_RERUN_JSON);
   const allCommissions = JSON.parse(process.env.POOL_ALL_COMM_JSON);
+  const allCommissionsRerun = JSON.parse(process.env.POOL_ALL_COMM_RERUN_JSON);
   const payoutsCustom = await readPayouts(process.env.DATE_CUSTOM);
   const payoutsDisabled = await readPayouts(process.env.DATE_DISABLED);
   const payoutsAllComm = await readPayouts(process.env.DATE_ALL_COMM);
@@ -281,16 +291,24 @@ async function main() {
 
   const pass =
     custom.poolFund === "100" &&
+    customRerun.poolFund === custom.poolFund &&
     custom.payoutPerMember === "50" &&
+    customRerun.payoutPerMember === custom.payoutPerMember &&
     approvedCustom.length === 2 &&
     approvedCustom.every((row) => row.payoutAmount === "50") &&
     disabled.poolFund === "0" &&
+    disabledRerun.poolFund === disabled.poolFund &&
     disabled.payoutPerMember === "0" &&
+    disabledRerun.payoutPerMember === disabled.payoutPerMember &&
     disabled.companyFallbackAmount === "0" &&
+    disabledRerun.companyFallbackAmount === disabled.companyFallbackAmount &&
     payoutsDisabled.length === 0 &&
     allCommissions.poolFund === "200" &&
+    allCommissionsRerun.poolFund === allCommissions.poolFund &&
     allCommissions.payoutPerMember === "100" &&
+    allCommissionsRerun.payoutPerMember === allCommissions.payoutPerMember &&
     allCommissions.companyFallbackAmount === "100" &&
+    allCommissionsRerun.companyFallbackAmount === allCommissions.companyFallbackAmount &&
     approvedAllComm.length === 2 &&
     approvedAllComm.every((row) => row.payoutAmount === "50");
 
@@ -305,14 +323,17 @@ async function main() {
     actual: {
       customRate: {
         result: custom,
+        rerun: customRerun,
         payouts: payoutsCustom,
       },
       disabled: {
         result: disabled,
+        rerun: disabledRerun,
         payouts: payoutsDisabled,
       },
       allCommissions: {
         result: allCommissions,
+        rerun: allCommissionsRerun,
         payouts: payoutsAllComm,
       },
     },

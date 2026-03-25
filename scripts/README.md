@@ -10,6 +10,8 @@ Smoke helpers:
   Runs a focused cashback end-to-end smoke against the local API and Postgres, including `reprocess` idempotency checks for cashback-only ledger and wallet-credit rows.
 - `npm run smoke:commissions:direct-uni`
   Runs a focused direct + unilevel runtime smoke against the local API and Postgres by creating a three-member sponsor chain, processing one approved order, and verifying commission ledger plus wallet-credit rows end to end.
+- `npm run smoke:pool:rules`
+  Resets local state and verifies custom-rate, disabled, and all-commissions pool-cap behavior, including rerun idempotency for repeated pool close calls on the same date.
 - `npm run smoke:bao:cashback`
   Verifies Stephub BAO cashback settings, report page, and CSV/XLSX/PDF export against live local data.
 - `npm run smoke:bao:shipment`
