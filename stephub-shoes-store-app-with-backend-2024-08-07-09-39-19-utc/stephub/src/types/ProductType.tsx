@@ -4,8 +4,6 @@ export type ProductType = {
   id: number;
   productDetailId?: string;
   productCode?: string;
-  packageId?: string;
-  packageCode?: string;
   categoryCode?: string;
   categoryName?: string;
   supplierCode?: string;
@@ -18,17 +16,6 @@ export type ProductType = {
   itemCount?: number;
   shortDescription?: string;
   youtubeUrl?: string;
-  packageItems?: Array<{
-    packageItemId: string;
-    qty: number;
-    productDetailId: string;
-    productDetailCode: string;
-    productDetailName: string;
-    shortDescription?: string | null;
-    description?: string | null;
-    lineMemberPriceUsdt?: string;
-    linePv?: string;
-  }>;
   rating: number;
   ratingCount?: number;
   image: string;

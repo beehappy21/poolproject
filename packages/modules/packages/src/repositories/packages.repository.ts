@@ -233,6 +233,8 @@ export interface PackagesRepository {
     poolRate: string;
     firmEnabled: boolean;
     firmDcwRewardAmount: string;
+    activeDays?: number;
+    earningCapAmount?: string;
   }): Promise<{
     productDetailId: string;
     productId: string;
@@ -550,6 +552,8 @@ export class PrismaPackagesRepository implements PackagesRepository {
     poolCapMultiple: string;
     commissionCapScope: "pool_only" | "all_commissions";
     commissionCapMultiple: string;
+    activeDays?: number;
+    earningCapAmount?: string;
     firmEnabled: boolean;
     firmDcwRewardAmount: string;
   }) {
@@ -608,6 +612,8 @@ export class PrismaPackagesRepository implements PackagesRepository {
             ? "ALL_COMMISSIONS"
             : "POOL_ONLY",
         commissionCapMultiple: input.commissionCapMultiple,
+        activeDays: input.activeDays ?? 30,
+        earningCapAmount: input.earningCapAmount ?? input.memberPriceUsdt,
         firmEnabled: input.firmEnabled,
         firmDcwRewardAmount: input.firmDcwRewardAmount,
         status: "ACTIVE",
@@ -775,9 +781,9 @@ export class PrismaPackagesRepository implements PackagesRepository {
     });
 
     return details.map((detail) => {
-      const storefrontPackage = detail.packageItems[0]?.package;
+        const storefrontPackage = detail.packageItems[0]?.package;
 
-      return {
+        return {
         productDetailId: detail.id.toString(),
         packageId: storefrontPackage?.id?.toString(),
         packageCode: storefrontPackage?.code,
@@ -822,8 +828,7 @@ export class PrismaPackagesRepository implements PackagesRepository {
         isFeatured: detail.isFeatured,
         isBestSeller: detail.isBestSeller,
         status: detail.status.toLowerCase(),
-      };
-    });
+      }});
   }
 
   async createPackage(input: {
@@ -842,17 +847,13 @@ export class PrismaPackagesRepository implements PackagesRepository {
     commissionCapMultiple?: string;
     dcwSpendEnabled?: boolean;
     dcwUsageAmount?: string;
-    dcwRewardRate?: string;
     dcwCashRewardRate?: string;
     dcwShoppingRewardRate?: string;
     productDetailItems?: PackageDetailItemInput[];
   }) {
     const productDetailItems = input.productDetailItems ?? [];
     const unifiedDcwRewardRate =
-      input.dcwRewardRate ??
-      input.dcwCashRewardRate ??
-      input.dcwShoppingRewardRate ??
-      "0";
+      input.dcwCashRewardRate ?? input.dcwShoppingRewardRate ?? "0";
 
     if (!productDetailItems.length) {
       const memberPriceUsdt = input.memberPriceUsdt ?? input.priceUsdt ?? "0";

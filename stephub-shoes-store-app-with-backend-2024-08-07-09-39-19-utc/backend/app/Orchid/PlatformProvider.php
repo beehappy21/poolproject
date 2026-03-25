@@ -38,10 +38,6 @@ class PlatformProvider extends OrchidServiceProvider {
         ->icon('bs.grid')
         ->route('platform.product.list'),
 
-      Menu::make('Packages')
-        ->icon('bs.box-seam')
-        ->route('platform.package.list'),
-
       Menu::make('Commission Setting')
         ->title('Commission Setting')
         ->icon('bs-cash-stack')

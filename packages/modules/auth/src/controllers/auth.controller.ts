@@ -200,15 +200,32 @@ export class AuthController {
     return this.poolService.listMemberPoolPayouts(user.userId);
   }
 
+  @Post("activate-product")
+  async activateProduct(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+    @Body() body?: { productDetailId?: string },
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+
+    return this.membersService.activateProductCycle({
+      memberId: user.userId,
+      productDetailId: requirePositiveIntegerString(
+        body?.productDetailId,
+        "productDetailId",
+      ),
+    });
+  }
+
   @Post("activate-package")
-  async activatePackage(
+  async activateLegacyPackage(
     @Headers("authorization") authorization?: string,
     @Headers("cookie") cookieHeader?: string,
     @Body() body?: { packageId?: string },
   ) {
     const user = await this.requireSessionUser(authorization, cookieHeader);
 
-    return this.membersService.activatePackageCycle({
+    return this.membersService.activateProductCycle({
       memberId: user.userId,
       packageId: requirePositiveIntegerString(body?.packageId, "packageId"),
     });

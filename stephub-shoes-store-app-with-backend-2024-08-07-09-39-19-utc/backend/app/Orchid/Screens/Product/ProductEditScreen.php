@@ -163,6 +163,11 @@ class ProductEditScreen extends Screen
             'rating_count' => old('product.rating_count', (string) ($this->productDetailRecord->ratingCount ?? '0')),
             'sort_order' => old('product.sort_order', (string) ($this->productDetailRecord->sortOrder ?? '0')),
             'pool_rate' => old('product.pool_rate', (string) ($this->productDetailRecord->poolRate ?? '0')),
+            'active_days' => old('product.active_days', (string) ($this->productDetailRecord->activeDays ?? '30')),
+            'earning_cap_amount' => old(
+                'product.earning_cap_amount',
+                (string) ($this->productDetailRecord->earningCapAmount ?? ($this->productDetailRecord->memberPriceUsdt ?? '0'))
+            ),
             'dcw_spend_enabled' => old('product.dcw_spend_enabled', $this->boolAsFormValue($this->productDetailRecord->dcwSpendEnabled ?? false)),
             'dcw_reward_rate' => old(
                 'product.dcw_reward_rate',
@@ -320,6 +325,8 @@ class ProductEditScreen extends Screen
             'product.rating_count' => ['nullable', 'integer', 'min:0'],
             'product.sort_order' => ['nullable', 'integer'],
             'product.pool_rate' => ['nullable', 'numeric', 'min:0'],
+            'product.active_days' => ['required', 'integer', 'min:1'],
+            'product.earning_cap_amount' => ['required', 'numeric', 'min:0'],
             'product.dcw_spend_enabled' => ['nullable'],
             'product.dcw_usage_amount' => ['nullable', 'numeric', 'min:0'],
             'product.dcw_usage_manual_override' => ['nullable'],
@@ -360,6 +367,10 @@ class ProductEditScreen extends Screen
             'ratingCount' => (int) ($product['rating_count'] ?? 0),
             'sortOrder' => (int) ($product['sort_order'] ?? 0),
             'poolRate' => $this->decimalString($product['pool_rate'] ?? 0),
+            'activeDays' => (int) ($product['active_days'] ?? 30),
+            'earningCapAmount' => $this->decimalString(
+                $product['earning_cap_amount'] ?? ($product['member_price'] ?? 0)
+            ),
             'dcwSpendEnabled' => $this->truthy($product['dcw_spend_enabled'] ?? false),
             'dcwUsageAmount' => $this->wholeNumberString(
                 $this->truthy($product['dcw_usage_manual_override'] ?? false)

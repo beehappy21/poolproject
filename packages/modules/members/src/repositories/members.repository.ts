@@ -259,13 +259,14 @@ export interface MembersRepository {
     isDefault: true;
   }>;
 
-  activatePackageCycle(input: {
+  activateProductCycle(input: {
     memberId: string;
-    packageId: string;
+    productDetailId?: string;
+    packageId?: string;
   }): Promise<{
     cycleId: string;
     memberId: string;
-    packageId: string;
+    productDetailId: string;
     cycleNo: number;
     activatedAt: string;
     activeUntil: string;
@@ -849,19 +850,14 @@ export class PrismaMembersRepository implements MembersRepository {
         id: true,
         activatedAt: true,
         activeUntil: true,
+        purchaseBase: true,
+        poolRateMode: true,
+        poolRate: true,
+        poolCapMultiple: true,
+        commissionCapScope: true,
+        commissionCapMultiple: true,
         earningCap: true,
         earnedTotalInCycle: true,
-        package: {
-          select: {
-            priceUsdt: true,
-            memberPriceUsdt: true,
-            poolRateMode: true,
-            poolRate: true,
-            poolCapMultiple: true,
-            commissionCapScope: true,
-            commissionCapMultiple: true,
-          },
-        },
         dailyPoolPayouts: {
           where: {
             status: "APPROVED",
@@ -1211,18 +1207,75 @@ export class PrismaMembersRepository implements MembersRepository {
     };
   }
 
-  async activatePackageCycle(input: { memberId: string; packageId: string }) {
-    const pkg = await this.prisma.package.findUnique({
-      where: { id: BigInt(input.packageId) },
-      select: {
-        id: true,
-        activeDays: true,
-        earningCapAmount: true,
-      },
-    });
+  async activateProductCycle(input: {
+    memberId: string;
+    productDetailId?: string;
+    packageId?: string;
+  }) {
+    const packageSnapshot = input.packageId
+      ? await this.prisma.package.findUnique({
+          where: { id: BigInt(input.packageId) },
+          select: {
+            id: true,
+            activeDays: true,
+            earningCapAmount: true,
+            memberPriceUsdt: true,
+            priceUsdt: true,
+            poolRateMode: true,
+            poolRate: true,
+            poolCapMultiple: true,
+            commissionCapScope: true,
+            commissionCapMultiple: true,
+            status: true,
+          },
+        })
+      : null;
 
-    if (!pkg) {
+    if (input.packageId && (!packageSnapshot || packageSnapshot.status !== "ACTIVE")) {
       throw new Error("Package not found.");
+    }
+
+    const resolvedProductDetailId = input.productDetailId
+      ? input.productDetailId
+      : await (async () => {
+          if (!input.packageId) {
+            return undefined;
+          }
+
+          const packageItem = await this.prisma.packageItem.findFirst({
+            where: {
+              packageId: BigInt(input.packageId),
+              package: { status: "ACTIVE" },
+              productDetail: { status: "ACTIVE" },
+            },
+            orderBy: [{ id: "asc" }],
+            select: {
+              productDetailId: true,
+            },
+          });
+
+          return packageItem?.productDetailId.toString();
+        })();
+
+    const detail = resolvedProductDetailId
+      ? await this.prisma.productDetail.findUnique({
+          where: { id: BigInt(resolvedProductDetailId) },
+          select: {
+            id: true,
+            activeDays: true,
+            earningCapAmount: true,
+            memberPriceUsdt: true,
+            poolRateMode: true,
+            poolRate: true,
+            poolCapMultiple: true,
+            commissionCapScope: true,
+            commissionCapMultiple: true,
+          },
+        })
+      : null;
+
+    if (!detail && !packageSnapshot) {
+      throw new Error("Product detail not found.");
     }
 
     const lastCycle = await this.prisma.memberPackageCycle.findFirst({
@@ -1233,16 +1286,28 @@ export class PrismaMembersRepository implements MembersRepository {
 
     const activatedAt = new Date();
     const activeUntil = new Date(activatedAt);
-    activeUntil.setUTCDate(activeUntil.getUTCDate() + pkg.activeDays);
+    activeUntil.setUTCDate(
+      activeUntil.getUTCDate() +
+        Number(detail?.activeDays ?? packageSnapshot?.activeDays ?? 0),
+    );
 
     const cycle = await this.prisma.memberPackageCycle.create({
       data: {
         userId: BigInt(input.memberId),
-        packageId: pkg.id,
+        packageId: input.packageId ? BigInt(input.packageId) : undefined,
+        productDetailId: detail?.id,
         cycleNo: (lastCycle?.cycleNo ?? 0) + 1,
+        purchaseBase: detail?.memberPriceUsdt ?? packageSnapshot?.memberPriceUsdt ?? packageSnapshot?.priceUsdt,
+        poolRateMode: detail?.poolRateMode ?? packageSnapshot?.poolRateMode,
+        poolRate: detail?.poolRate ?? packageSnapshot?.poolRate,
+        poolCapMultiple: detail?.poolCapMultiple ?? packageSnapshot?.poolCapMultiple,
+        commissionCapScope:
+          detail?.commissionCapScope ?? packageSnapshot?.commissionCapScope,
+        commissionCapMultiple:
+          detail?.commissionCapMultiple ?? packageSnapshot?.commissionCapMultiple,
         activatedAt,
         activeUntil,
-        earningCap: pkg.earningCapAmount,
+        earningCap: detail?.earningCapAmount ?? packageSnapshot?.earningCapAmount ?? "0",
         earnedTotalInCycle: "0",
         earningStatus: "ACTIVE",
         isReceivable: true,
@@ -1253,7 +1318,7 @@ export class PrismaMembersRepository implements MembersRepository {
     return {
       cycleId: toIdString(cycle.id),
       memberId: input.memberId,
-      packageId: input.packageId,
+      productDetailId: resolvedProductDetailId ?? "",
       cycleNo: cycle.cycleNo,
       activatedAt: cycle.activatedAt.toISOString(),
       activeUntil: cycle.activeUntil.toISOString(),
