@@ -118,6 +118,8 @@ const productDetailMemberPriceInput = document.getElementById("productDetailMemb
 const productDetailRetailPriceInput = document.getElementById("productDetailRetailPriceInput");
 const productDetailPvInput = document.getElementById("productDetailPvInput");
 const productDetailPoolRateInput = document.getElementById("productDetailPoolRateInput");
+const productDetailFirmEnabledSelect = document.getElementById("productDetailFirmEnabledSelect");
+const productDetailFirmDcwRewardInput = document.getElementById("productDetailFirmDcwRewardInput");
 const supplierCountMetric = document.getElementById("supplierCountMetric");
 const categoryCountMetric = document.getElementById("categoryCountMetric");
 const catalogProductCountMetric = document.getElementById("catalogProductCountMetric");
@@ -1840,6 +1842,7 @@ async function loadDashboard() {
         <td>${detail.retailPriceUsdt}</td>
         <td>${detail.pv}</td>
         <td>${decimalToPercentString(detail.poolRate)}</td>
+        <td>${detail.firmEnabled ? `enabled · DCW ${detail.firmDcwRewardAmount}<br /><span class="muted">${detail.firmRedemptionEligible ? "eligible" : detail.firmCostGuardPassed ? "needs firm category" : "cost guard failed"}</span>` : '<span class="muted">disabled</span>'}</td>
         <td><span class="muted">DCW on package offer</span></td>
         <td>${detail.status}</td>
       </tr>`;
@@ -2622,6 +2625,8 @@ createProductDetailForm?.addEventListener("submit", async (event) => {
         retailPriceUsdt: productDetailRetailPriceInput.value.trim(),
         pv: productDetailPvInput.value.trim(),
         poolRate: percentToDecimalString(productDetailPoolRateInput.value),
+        firmEnabled: productDetailFirmEnabledSelect.value === "true",
+        firmDcwRewardAmount: productDetailFirmDcwRewardInput.value.trim() || "0",
       }),
     });
 

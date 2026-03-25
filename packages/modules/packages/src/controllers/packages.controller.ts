@@ -101,6 +101,8 @@ export class PackagesController {
       poolCapMultiple?: string;
       commissionCapScope?: string;
       commissionCapMultiple?: string;
+      firmEnabled?: boolean | string;
+      firmDcwRewardAmount?: string;
     },
   ) {
     try {
@@ -158,6 +160,13 @@ export class PackagesController {
               body.commissionCapMultiple,
               "commissionCapMultiple",
             )
+          : "0",
+        firmEnabled:
+          body.firmEnabled === true ||
+          body.firmEnabled === "true" ||
+          body.firmEnabled === "1",
+        firmDcwRewardAmount: optionalString(body.firmDcwRewardAmount)
+          ? requireDecimalString(body.firmDcwRewardAmount, "firmDcwRewardAmount")
           : "0",
       });
     } catch (error) {
