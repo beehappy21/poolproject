@@ -1,5 +1,5 @@
 import axios from 'axios';
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {Carousel} from 'react-responsive-carousel';
 import {useLocation, useNavigate} from 'react-router-dom';
 
@@ -15,9 +15,7 @@ import {components} from '../components';
 type MediaItem =
   | {
       type: 'video';
-      url: string;
       embedUrl: string;
-      thumbnailUrl: string;
     }
   | {
       type: 'image';
@@ -54,9 +52,7 @@ const buildMediaItems = (item: any): MediaItem[] => {
   if (videoId) {
     media.push({
       type: 'video',
-      url: item.youtubeUrl,
-      embedUrl: `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`,
-      thumbnailUrl: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+      embedUrl: `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0&rel=0&playsinline=1&enablejsapi=1`,
     });
   }
 
@@ -92,7 +88,7 @@ export const Product: React.FC = () => {
   const [selectedColor, setSelectedColor] = useState<string>(
     item?.colors?.[0]?.name || 'default',
   );
-  const [videoModalOpen, setVideoModalOpen] = useState(false);
+  const videoFrameRef = useRef<HTMLIFrameElement | null>(null);
 
   const modifiedItem = {
     ...item,
@@ -131,16 +127,37 @@ export const Product: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (videoModalOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
+    const videoItem = mediaItems.find(
+      (media): media is Extract<MediaItem, {type: 'video'}> =>
+        media.type === 'video',
+    );
+
+    if (!videoItem || !videoFrameRef.current) {
+      return;
     }
 
-    return () => {
-      document.body.style.overflow = '';
+    const iframe = videoFrameRef.current;
+
+    const sendYoutubeCommand = (func: string, args: unknown[] = []) => {
+      iframe.contentWindow?.postMessage(
+        JSON.stringify({
+          event: 'command',
+          func,
+          args,
+        }),
+        '*',
+      );
     };
-  }, [videoModalOpen]);
+
+    const timer = window.setTimeout(() => {
+      sendYoutubeCommand('setVolume', [50]);
+      sendYoutubeCommand('playVideo');
+    }, 1200);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [mediaItems]);
 
   if (!item) {
     return (
@@ -166,153 +183,36 @@ export const Product: React.FC = () => {
     return <components.Header goBack={true} line={true} basket={true} />;
   };
 
-  const renderVideoModal = (): JSX.Element | null => {
-    const videoItem = mediaItems.find(
-      (media): media is Extract<MediaItem, {type: 'video'}> =>
-        media.type === 'video',
-    );
-
-    if (!videoModalOpen || !videoItem) {
-      return null;
-    }
-
-    return (
-      <div
-        onClick={() => setVideoModalOpen(false)}
-        style={{
-          position: 'fixed',
-          inset: 0,
-          backgroundColor: 'rgba(13, 20, 35, 0.78)',
-          zIndex: 999999,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 20,
-        }}
-      >
-        <div
-          onClick={event => event.stopPropagation()}
-          style={{
-            width: 'min(960px, 100%)',
-            backgroundColor: theme.colors.white,
-            padding: 14,
-            position: 'relative',
-          }}
-        >
-          <button
-            onClick={() => setVideoModalOpen(false)}
-            style={{
-              position: 'absolute',
-              right: 14,
-              top: 14,
-              width: 40,
-              height: 40,
-              borderRadius: 20,
-              border: 'none',
-              backgroundColor: 'rgba(25, 51, 100, 0.08)',
-              color: theme.colors.mainColor,
-              fontSize: 20,
-              cursor: 'pointer',
-              zIndex: 2,
-            }}
-          >
-            x
-          </button>
-          <div
-            style={{
-              width: '100%',
-              aspectRatio: '16 / 9',
-              backgroundColor: '#000',
-            }}
-          >
-            <iframe
-              src={videoItem.embedUrl}
-              title={item.name}
-              allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture'
-              allowFullScreen={true}
-              style={{
-                width: '100%',
-                height: '100%',
-                border: 'none',
-                display: 'block',
-              }}
-            />
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   const renderMediaSlide = (media: MediaItem, index: number): JSX.Element => {
     if (media.type === 'video') {
       return (
-        <button
+        <div
           key={`video-${index}`}
-          onClick={() => setVideoModalOpen(true)}
           style={{
             width: '100%',
-            padding: 0,
-            border: 'none',
-            backgroundColor: 'transparent',
-            cursor: 'pointer',
+            aspectRatio: '16 / 9',
+            backgroundColor: '#000',
+            overflow: 'hidden',
+            display: 'flex',
+            alignItems: 'stretch',
+            justifyContent: 'stretch',
           }}
         >
-          <div
+          <iframe
+            ref={videoFrameRef}
+            src={media.embedUrl}
+            title={`${item.name} video`}
+            allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture'
+            allowFullScreen={true}
             style={{
               width: '100%',
-              aspectRatio: '16 / 9',
-              backgroundColor: theme.colors.imageBackground,
-              position: 'relative',
-              overflow: 'hidden',
+              height: '100%',
+              border: 'none',
+              display: 'block',
+              flex: 1,
             }}
-          >
-            <img
-              src={media.thumbnailUrl}
-              alt='Video thumbnail'
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                display: 'block',
-              }}
-            />
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                background:
-                  'linear-gradient(180deg, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.22) 100%)',
-              }}
-            />
-            <div
-              style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                width: 88,
-                height: 62,
-                borderRadius: 18,
-                backgroundColor: '#FF2D2D',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 18px 32px rgba(255, 45, 45, 0.28)',
-              }}
-            >
-              <div
-                style={{
-                  width: 0,
-                  height: 0,
-                  borderTop: '12px solid transparent',
-                  borderBottom: '12px solid transparent',
-                  borderLeft: '18px solid white',
-                  marginLeft: 4,
-                }}
-              />
-            </div>
-          </div>
-        </button>
+          />
+        </div>
       );
     }
 
@@ -322,8 +222,11 @@ export const Product: React.FC = () => {
         style={{
           width: '100%',
           aspectRatio: '16 / 9',
-          backgroundColor: theme.colors.imageBackground,
+          backgroundColor: '#000',
           overflow: 'hidden',
+          display: 'flex',
+          alignItems: 'stretch',
+          justifyContent: 'stretch',
         }}
       >
         <img
@@ -332,9 +235,10 @@ export const Product: React.FC = () => {
           style={{
             width: '100%',
             height: '100%',
-            objectFit: 'contain',
+            objectFit: 'cover',
             display: 'block',
-            backgroundColor: theme.colors.imageBackground,
+            backgroundColor: '#000',
+            flex: 1,
           }}
         />
       </div>
@@ -344,17 +248,26 @@ export const Product: React.FC = () => {
   const renderMediaGallery = (): JSX.Element => {
     return (
       <section style={{marginBottom: 28}}>
-        <Carousel
-          infiniteLoop={false}
-          showStatus={false}
-          showThumbs={false}
-          showIndicators={false}
-          showArrows={false}
-          swipeable={true}
-          emulateTouch={true}
+        <div
+          style={{
+            width: '100%',
+            aspectRatio: '16 / 9',
+            backgroundColor: '#000',
+            overflow: 'hidden',
+          }}
         >
-          {mediaItems.map((media, index) => renderMediaSlide(media, index))}
-        </Carousel>
+          <Carousel
+            infiniteLoop={false}
+            showStatus={false}
+            showThumbs={false}
+            showIndicators={false}
+            showArrows={false}
+            swipeable={true}
+            emulateTouch={true}
+          >
+            {mediaItems.map((media, index) => renderMediaSlide(media, index))}
+          </Carousel>
+        </div>
       </section>
     );
   };
@@ -833,7 +746,6 @@ export const Product: React.FC = () => {
     <div style={{minHeight: '100vh', backgroundColor: theme.colors.white}}>
       {renderHeader()}
       {renderContent()}
-      {renderVideoModal()}
     </div>
   );
 };
