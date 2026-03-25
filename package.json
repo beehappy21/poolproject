@@ -21,6 +21,7 @@
     "db:seed": "node scripts/seed-dev.js",
     "smoke:local": "bash scripts/local-smoke.sh",
     "smoke:cashback": "node scripts/cashback-smoke.js",
+    "smoke:commissions:direct-uni": "node scripts/direct-unilevel-smoke.js",
     "smoke:pool:cap": "bash scripts/pool-cap-local-smoke.sh",
     "smoke:pool:rules": "bash scripts/pool-config-rules-local-smoke.sh",
     "smoke:pool:all-comm-e2e": "bash scripts/pool-all-commissions-e2e-smoke.sh",
