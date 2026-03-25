@@ -22,6 +22,7 @@
     "smoke:local": "bash scripts/local-smoke.sh",
     "smoke:cashback": "node scripts/cashback-smoke.js",
     "smoke:firm": "node scripts/firm-wallet-smoke.js",
+    "smoke:matrix:spill": "node scripts/matrix-spill-smoke.js",
     "smoke:commissions:direct-uni": "node scripts/direct-unilevel-smoke.js",
     "smoke:pool:cap": "bash scripts/pool-cap-local-smoke.sh",
     "smoke:pool:rules": "bash scripts/pool-config-rules-local-smoke.sh",

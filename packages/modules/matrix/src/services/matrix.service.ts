@@ -330,6 +330,16 @@ export class MatrixService implements MatrixServiceContract {
           roundNo: currentBoard.roundNo,
           openThresholdPv: currentBoard.openThresholdPv.toString(),
         });
+
+        await this.maybeSpillCompletedReentryRoundToUplineBoardTwo(
+          latestCycle,
+          {
+            boardId: this.getBoardId(currentBoard),
+            boardNo: currentBoard.boardNo,
+            roundNo: currentBoard.roundNo,
+            openThresholdPv: currentBoard.openThresholdPv.toString(),
+          },
+        );
       }
     }
 
@@ -542,6 +552,104 @@ export class MatrixService implements MatrixServiceContract {
     });
 
     await this.matrixRepository.updateCurrentBoard(cycle.cycleId, 1, nextRoundNo);
+  }
+
+  private async maybeSpillCompletedReentryRoundToUplineBoardTwo(
+    cycle: MatrixCycleSummary,
+    currentBoard: {
+      boardId: string;
+      boardNo: number;
+      roundNo: number;
+      openThresholdPv: string;
+    },
+  ) {
+    if (currentBoard.boardNo !== 1 || currentBoard.roundNo < 2) {
+      return;
+    }
+
+    const uplineUserIds = await this.membersService.getUplineCandidateIds(
+      cycle.userId,
+      new Date().toISOString(),
+    );
+
+    for (const uplineUserId of uplineUserIds) {
+      const uplineCycle = await this.getActiveCycle(uplineUserId);
+      if (!uplineCycle) {
+        continue;
+      }
+
+      const targetBoard = uplineCycle.boards.find(
+        (entry) =>
+          entry.boardNo === 2 &&
+          entry.roundNo === 1 &&
+          entry.status === "OPEN" &&
+          entry.filledSlots < entry.slotCount,
+      );
+
+      if (!targetBoard) {
+        continue;
+      }
+
+      const boardLevelRates = this.parseBoardLevelRatesSnapshot(
+        uplineCycle.levelRatesSnapshot,
+        uplineCycle.boardCount,
+        uplineCycle.boardDepth,
+      );
+      const levelRates = this.parseLevelRatesSnapshot(uplineCycle.levelRatesSnapshot);
+      const creditedPv = uplineCycle.organizationPvRate.toString();
+      const slotNo = targetBoard.filledSlots + 1;
+      const levelNo = this.resolveLevelNo(slotNo, uplineCycle.boardWidth, uplineCycle.boardDepth);
+      const parentSlotNo =
+        levelNo === 1
+          ? null
+          : this.resolveParentSlotNo(slotNo, uplineCycle.boardWidth, uplineCycle.boardDepth);
+      const rate =
+        boardLevelRates[targetBoard.boardNo - 1]?.[levelNo - 1] ||
+        levelRates[levelNo - 1] ||
+        "0";
+      const payoutAmount = multiplyDecimalStrings(creditedPv, rate);
+
+      await this.matrixRepository.addAccumulationToCycle(uplineCycle.id.toString(), creditedPv);
+      await this.matrixRepository.addAccumulationToBoard(targetBoard.id.toString(), creditedPv);
+      await this.matrixRepository.createAccumulationEvent({
+        cycleId: uplineCycle.id.toString(),
+        boardId: targetBoard.id.toString(),
+        sourceUserId: cycle.userId,
+        sourceType: "REENTRY",
+        sourceRoundNo: currentBoard.roundNo,
+        depthNo: 0,
+        sourcePv: creditedPv,
+        creditedPv,
+      });
+
+      const payout = await this.matrixRepository.createPositionAndPayout({
+        cycleId: uplineCycle.id.toString(),
+        boardId: targetBoard.id.toString(),
+        beneficiaryUserId: uplineUserId,
+        sourceUserId: cycle.userId,
+        sourceOrderId: null,
+        boardNo: targetBoard.boardNo,
+        roundNo: targetBoard.roundNo,
+        slotNo,
+        levelNo,
+        parentSlotNo,
+        sourcePv: creditedPv,
+        creditedPv,
+        rate,
+        payoutAmount,
+      });
+
+      await this.walletsService.postApprovedEarning({
+        userId: uplineUserId,
+        refType: "matrix",
+        refId: payout.payoutId,
+        amount: payout.payoutAmount,
+        holdRequired: false,
+        earningType: "matrix",
+      });
+
+      return;
+    }
   }
 
   private resolveLevelNo(slotNo: number, width: number, depth: number): number {

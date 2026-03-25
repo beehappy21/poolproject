@@ -253,7 +253,7 @@ export class PrismaMatrixRepository {
     boardId: string;
     beneficiaryUserId: string;
     sourceUserId: string;
-    sourceOrderId: string;
+    sourceOrderId?: string | null;
     boardNo: number;
     roundNo: number;
     slotNo: number;
@@ -272,7 +272,7 @@ export class PrismaMatrixRepository {
           levelNo: input.levelNo,
           parentSlotNo: input.parentSlotNo,
           sourceUserId: BigInt(input.sourceUserId),
-          sourceOrderId: BigInt(input.sourceOrderId),
+          sourceOrderId: input.sourceOrderId ? BigInt(input.sourceOrderId) : null,
           sourcePv: input.sourcePv,
           creditedPv: input.creditedPv,
           roundNo: input.roundNo,
@@ -297,7 +297,7 @@ export class PrismaMatrixRepository {
           positionId: position.id,
           beneficiaryUserId: BigInt(input.beneficiaryUserId),
           sourceUserId: BigInt(input.sourceUserId),
-          sourceOrderId: BigInt(input.sourceOrderId),
+          sourceOrderId: input.sourceOrderId ? BigInt(input.sourceOrderId) : null,
           boardNo: input.boardNo,
           roundNo: input.roundNo,
           levelNo: input.levelNo,

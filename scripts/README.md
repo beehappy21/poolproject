@@ -10,6 +10,8 @@ Smoke helpers:
   Runs a focused cashback end-to-end smoke against the local API and Postgres, including `reprocess` idempotency checks for cashback-only ledger and wallet-credit rows.
 - `npm run smoke:firm`
   Runs a focused Firm wallet redemption smoke against the local API and Postgres by creating a firm-category product, a matching package bridge, and one member order paid fully by Firm wallet, then verifies the firm debit plus DCW credit wallet rows.
+- `npm run smoke:matrix:spill`
+  Runs a focused matrix legacy-parity smoke against the local API and Postgres by forcing a `Board 1 round 2` completion and verifying that the nearest upline with an open `Board 2 round 1` receives one synthetic spill point and payout.
 - `npm run smoke:commissions:direct-uni`
   Runs a focused direct + unilevel runtime smoke against the local API and Postgres by creating a three-member sponsor chain, processing one approved order, and verifying commission ledger plus wallet-credit rows end to end.
 - `npm run smoke:pool:rules`
