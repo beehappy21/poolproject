@@ -16,17 +16,14 @@ export function toQualificationCycleSnapshot(cycle: {
   id: bigint;
   activatedAt: Date;
   activeUntil: Date;
+  purchaseBase?: { toString(): string } | null;
+  poolRateMode?: { toString(): string } | null;
+  poolRate?: { toString(): string } | null;
+  poolCapMultiple?: { toString(): string } | null;
+  commissionCapScope?: { toString(): string } | null;
+  commissionCapMultiple?: { toString(): string } | null;
   earningCap: { toString(): string };
   earnedTotalInCycle: { toString(): string };
-  package?: {
-    priceUsdt?: { toString(): string };
-    memberPriceUsdt?: { toString(): string };
-    poolRateMode?: { toString(): string };
-    poolRate?: { toString(): string };
-    poolCapMultiple?: { toString(): string };
-    commissionCapScope?: { toString(): string };
-    commissionCapMultiple?: { toString(): string };
-  } | null;
   dailyPoolPayouts?: Array<{
     payoutAmount: { toString(): string };
   }>;
@@ -44,23 +41,21 @@ export function toQualificationCycleSnapshot(cycle: {
     activeUntil: toIsoString(cycle.activeUntil),
     earningCap: toDecimalString(cycle.earningCap),
     earnedTotalInCycle: toDecimalString(cycle.earnedTotalInCycle),
-    purchaseBase: toDecimalString(
-      cycle.package?.priceUsdt ?? cycle.package?.memberPriceUsdt,
-    ),
+    purchaseBase: toDecimalString(cycle.purchaseBase),
     poolRateMode:
-      cycle.package?.poolRateMode?.toString().toLowerCase() as
+      cycle.poolRateMode?.toString().toLowerCase() as
         | "default_50_percent"
         | "custom_rate"
         | "disabled"
         | undefined,
-    poolRate: toDecimalString(cycle.package?.poolRate),
-    poolCapMultiple: toDecimalString(cycle.package?.poolCapMultiple),
+    poolRate: toDecimalString(cycle.poolRate),
+    poolCapMultiple: toDecimalString(cycle.poolCapMultiple),
     commissionCapScope:
-      cycle.package?.commissionCapScope?.toString().toLowerCase() as
+      cycle.commissionCapScope?.toString().toLowerCase() as
         | "pool_only"
         | "all_commissions"
         | undefined,
-    commissionCapMultiple: toDecimalString(cycle.package?.commissionCapMultiple),
+    commissionCapMultiple: toDecimalString(cycle.commissionCapMultiple),
     poolEarnedToDate,
     isReceivable: cycle.isReceivable,
     earningStatus: cycle.earningStatus === "ACTIVE" ? "active" : "capped",

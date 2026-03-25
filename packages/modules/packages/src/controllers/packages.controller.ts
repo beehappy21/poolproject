@@ -101,6 +101,8 @@ export class PackagesController {
       poolCapMultiple?: string;
       commissionCapScope?: string;
       commissionCapMultiple?: string;
+      activeDays?: number | string;
+      earningCapAmount?: string;
       firmEnabled?: boolean | string;
       firmDcwRewardAmount?: string;
     },
@@ -161,6 +163,12 @@ export class PackagesController {
               "commissionCapMultiple",
             )
           : "0",
+        activeDays: optionalString(body.activeDays)
+          ? requirePositiveInteger(body.activeDays, "activeDays")
+          : undefined,
+        earningCapAmount: optionalString(body.earningCapAmount)
+          ? requireDecimalString(body.earningCapAmount, "earningCapAmount")
+          : undefined,
         firmEnabled:
           body.firmEnabled === true ||
           body.firmEnabled === "true" ||

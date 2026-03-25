@@ -149,6 +149,7 @@ function resolveRouteAccess(
     path === "/auth/commissions" ||
     path === "/auth/network" ||
     path === "/auth/activate-package" ||
+    path === "/auth/activate-product" ||
     path === "/auth/change-password" ||
     path.startsWith("/auth/orders/")
   ) {

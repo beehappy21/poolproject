@@ -155,19 +155,13 @@ class OrderDetailScreen extends Screen {
         TD::make('name', 'Name')
           ->cantHide()
           ->render(function (OrderLine $product) {
-            return e($product->name ?: 'Package item');
+            return e($product->name ?: 'Product item');
           }),
 
         TD::make('price', 'Price')
           ->cantHide()
           ->render(function (OrderLine $product) {
             return '$' . $product->price;
-          }),
-
-        TD::make('package_code', 'Package Code')
-          ->cantHide()
-          ->render(function (OrderLine $product) {
-            return $product->package_code ?: '-';
           }),
 
         TD::make('pv', 'PV')

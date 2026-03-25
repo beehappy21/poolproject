@@ -101,9 +101,6 @@ export interface OrdersServiceContract {
     createdAt: string;
     items: Array<{
       orderItemId: string;
-      packageId: string | null;
-      packageCode: string | null;
-      packageName: string | null;
       productDetailId: string | null;
       productCode: string | null;
       productName: string | null;
@@ -116,9 +113,6 @@ export interface OrdersServiceContract {
     }>;
     productItems: Array<{
       orderItemId: string;
-      packageId: string | null;
-      packageCode: string | null;
-      packageName: string | null;
       productDetailId: string | null;
       productCode: string | null;
       productName: string | null;
@@ -133,11 +127,9 @@ export interface OrdersServiceContract {
 
   createOrder(input: {
     userId: string;
-    packageId?: string;
     productDetailId?: string;
     quantity?: string;
     items?: Array<{
-      packageId?: string;
       productDetailId?: string;
       quantity: string;
     }>;

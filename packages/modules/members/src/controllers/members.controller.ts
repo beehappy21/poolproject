@@ -200,13 +200,31 @@ export class MembersController {
     }
   }
 
+  @Post(":memberId/activate-product")
+  async activateProduct(
+    @Param("memberId") memberId: string,
+    @Body() body: { productDetailId: string },
+  ) {
+    try {
+      return await this.membersService.activateProductCycle({
+        memberId: requirePositiveIntegerString(memberId, "memberId"),
+        productDetailId: requirePositiveIntegerString(
+          body.productDetailId,
+          "productDetailId",
+        ),
+      });
+    } catch (error) {
+      rethrowHttpError(error);
+    }
+  }
+
   @Post(":memberId/activate-package")
-  async activatePackage(
+  async activateLegacyPackage(
     @Param("memberId") memberId: string,
     @Body() body: { packageId: string },
   ) {
     try {
-      return await this.membersService.activatePackageCycle({
+      return await this.membersService.activateProductCycle({
         memberId: requirePositiveIntegerString(memberId, "memberId"),
         packageId: requirePositiveIntegerString(body.packageId, "packageId"),
       });

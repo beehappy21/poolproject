@@ -5,46 +5,28 @@ import {ProductType} from '../types';
 
 type StorefrontProduct = {
   productDetailId: string;
-  packageId?: string;
-  packageCode?: string;
   productId: string;
   productCode: string;
   productName: string;
-  categoryCode?: string | null;
-  categoryName?: string | null;
-  supplierCode?: string | null;
-  supplierName?: string | null;
+  categoryCode: string;
+  categoryName: string;
+  supplierCode: string;
+  supplierName: string;
   code: string;
   name: string;
   shortDescription?: string | null;
   description?: string | null;
   primaryImageUrl?: string | null;
-  youtubeUrl?: string | null;
   imageUrls?: string[];
   memberPriceUsdt: string;
-  retailPriceUsdt?: string;
   pv: string;
   ratingAvg?: string;
-  ratingCount?: number | string;
-  isFeatured?: boolean;
+  ratingCount?: number;
   isNew?: boolean;
   isTop?: boolean;
+  isFeatured?: boolean;
   isBestSeller?: boolean;
   status: string;
-};
-
-type ProductCategory = {
-  categoryId: string;
-  code: string;
-  name: string;
-  status: string;
-};
-
-type ProductCollection = {
-  id: string;
-  name: string;
-  image: string;
-  products: ProductType[];
 };
 
 const PRODUCT_PLACEHOLDER_IMAGES = [
@@ -53,60 +35,58 @@ const PRODUCT_PLACEHOLDER_IMAGES = [
   'https://images.unsplash.com/photo-1600185365483-26d7a4cc7519?auto=format&fit=crop&w=900&q=80',
 ];
 
-export const mapStorefrontProduct = (
+export const mapStorefrontProductToProduct = (
   item: StorefrontProduct,
   index: number,
 ): ProductType => {
-  const uniqueImages = [item.primaryImageUrl, ...(item.imageUrls || [])].filter(
-    (value, imageIndex, array): value is string =>
-      Boolean(value) && array.indexOf(value) === imageIndex,
-  );
-  const image =
-    uniqueImages[0] ||
+  const fallbackImage =
     PRODUCT_PLACEHOLDER_IMAGES[index % PRODUCT_PLACEHOLDER_IMAGES.length];
+  const gallery = [
+    item.primaryImageUrl,
+    ...(Array.isArray(item.imageUrls) ? item.imageUrls : []),
+  ].filter((value, imageIndex, array): value is string => {
+    return Boolean(value) && array.indexOf(value) === imageIndex;
+  });
+  const image = gallery[0] || fallbackImage;
 
   return {
     id: Number(item.productDetailId),
     productDetailId: item.productDetailId,
     productCode: item.productCode,
-    packageId: item.packageId,
-    packageCode: item.packageCode,
-    categoryCode: item.categoryCode || undefined,
-    categoryName: item.categoryName || undefined,
-    supplierCode: item.supplierCode || undefined,
-    supplierName: item.supplierName || undefined,
+    categoryCode: item.categoryCode,
+    categoryName: item.categoryName,
+    supplierCode: item.supplierCode,
+    supplierName: item.supplierName,
     name: item.name,
     price: Number(item.memberPriceUsdt || 0),
-    rating: Number(item.ratingAvg || 0),
+    pv: Number(item.pv || 0),
+    rating: Number(item.ratingAvg || 0) || 5,
     ratingCount: Number(item.ratingCount || 0),
     status: item.status,
-    itemCount: 1,
-    shortDescription: item.shortDescription || undefined,
-    youtubeUrl: item.youtubeUrl || undefined,
     image,
-    images: uniqueImages.length ? uniqueImages : [image],
+    images: gallery.length ? gallery : [image],
     sizes: ['standard'],
     size: 'standard',
     colors: [{name: 'default', code: '#1F2937'}],
     color: 'default',
+    shortDescription: item.shortDescription || undefined,
     description:
       item.description ||
       item.shortDescription ||
-      `${item.name} (${item.code})`,
-    categories: item.categoryName || item.supplierName || 'สินค้า',
-    is_bestseller: Boolean(item.isBestSeller || item.isTop),
+      `${item.name} by ${item.supplierName}.`,
+    categories: item.categoryName,
+    is_bestseller: Boolean(item.isBestSeller),
     is_featured: Boolean(item.isFeatured),
     is_out_of_stock: item.status !== 'active',
     quantity: 0,
     reviews: [],
     types: ['product'],
     isNew: Boolean(item.isNew),
-    isTop: Boolean(item.isTop || item.isBestSeller),
+    isTop: Boolean(item.isTop),
     isFeatured: Boolean(item.isFeatured),
     audience: ['all'],
-    promotion: item.productCode || item.code,
-    tags: ['product', (item.categoryCode || '').toLowerCase()].filter(Boolean),
-    pv: Number(item.pv || 0),
+    promotion: item.categoryName,
+    tags: [item.categoryCode.toLowerCase(), item.supplierCode.toLowerCase()],
   };
 };
 
@@ -117,95 +97,52 @@ export const fetchLiveProducts = async (): Promise<ProductType[]> => {
   return items
     .filter((item: StorefrontProduct) => item.status === 'active')
     .map((item: StorefrontProduct, index: number) =>
-      mapStorefrontProduct(item, index),
+      mapStorefrontProductToProduct(item, index),
     );
 };
 
 export const getProductCollections = (products: ProductType[]) => {
-  const grouped = new Map<
+  const groupedCollections = new Map<
     string,
-    ProductCollection
+    {
+      id: string;
+      name: string;
+      image: string;
+      products: ProductType[];
+    }
   >();
 
   products.forEach(product => {
-    const rawKey =
-      product.categoryCode || product.supplierCode || product.promotion || 'all';
-    const key = rawKey.toLowerCase();
-    const name = product.categoryName || product.supplierName || 'สินค้าทั้งหมด';
+    const collectionId = product.categoryCode || 'uncategorized';
+    const existingCollection = groupedCollections.get(collectionId);
 
-    if (!grouped.has(key)) {
-      grouped.set(key, {
-        id: key,
-        name,
-        image: product.image,
-        products: [],
-      });
+    if (existingCollection) {
+      existingCollection.products.push(product);
+      return;
     }
 
-    grouped.get(key)?.products.push(product);
+    groupedCollections.set(collectionId, {
+      id: collectionId,
+      name: product.categoryName || 'Products',
+      image: product.image,
+      products: [product],
+    });
   });
 
-  const collections = Array.from(grouped.values()).sort((left, right) => {
-    return right.products.length - left.products.length;
-  });
+  const categoryCollections = Array.from(groupedCollections.values());
 
   return [
-    ...collections,
+    ...categoryCollections,
     {
       id: 'all',
-      name: 'สินค้าทั้งหมด',
+      name: 'All products',
       image: products[0]?.image || '',
       products,
     },
   ].filter(collection => collection.products.length > 0);
 };
 
-export const fetchProductCollections = async (): Promise<ProductCollection[]> => {
-  const [products, categoriesResponse] = await Promise.all([
-    fetchLiveProducts(),
-    axios.get(URLS.GET_PRODUCT_CATEGORIES),
-  ]);
-
-  const categories = Array.isArray(categoriesResponse.data)
-    ? (categoriesResponse.data as ProductCategory[])
-    : [];
-
-  const groupedProducts = new Map<string, ProductType[]>();
-  products.forEach(product => {
-    const key = (product.categoryCode || '').toLowerCase();
-    if (!key) {
-      return;
-    }
-
-    if (!groupedProducts.has(key)) {
-      groupedProducts.set(key, []);
-    }
-
-    groupedProducts.get(key)?.push(product);
-  });
-
-  const collections = categories
-    .filter(category => category.status === 'active')
-    .map(category => {
-      const productsInCategory =
-        groupedProducts.get(category.code.toLowerCase()) || [];
-
-      return {
-        id: category.code.toLowerCase(),
-        name: category.name,
-        image: productsInCategory[0]?.image || '',
-        products: productsInCategory,
-      };
-    })
-    .filter(collection => collection.products.length > 0);
-
-  return [
-    ...collections,
-    {
-      id: 'all',
-      name: 'สินค้าทั้งหมด',
-      image: products[0]?.image || '',
-      products,
-    },
-  ].filter(collection => collection.products.length > 0);
+export const fetchProductCollections = async () => {
+  const products = await fetchLiveProducts();
+  return getProductCollections(products);
 };

@@ -8,7 +8,7 @@ import { PackagesService } from "./services/packages.service";
 
 @Module({
   imports: [PrismaModule],
-  controllers: [PackagesController, ProductsController],
+  controllers: [ProductsController, PackagesController],
   providers: [PrismaPackagesRepository, PackagesService],
   exports: [PackagesService, PrismaPackagesRepository],
 })

@@ -125,19 +125,14 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
         id: true,
         activatedAt: true,
         activeUntil: true,
+        purchaseBase: true,
+        poolRateMode: true,
+        poolRate: true,
+        poolCapMultiple: true,
+        commissionCapScope: true,
+        commissionCapMultiple: true,
         earningCap: true,
         earnedTotalInCycle: true,
-        package: {
-          select: {
-            priceUsdt: true,
-            memberPriceUsdt: true,
-            poolRateMode: true,
-            poolRate: true,
-            poolCapMultiple: true,
-            commissionCapScope: true,
-            commissionCapMultiple: true,
-          },
-        },
         dailyPoolPayouts: {
           where: {
             status: "APPROVED",

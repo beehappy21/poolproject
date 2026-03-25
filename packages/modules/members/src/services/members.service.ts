@@ -260,13 +260,14 @@ export interface MembersServiceContract {
     isDefault: true;
   }>;
 
-  activatePackageCycle(input: {
+  activateProductCycle(input: {
     memberId: string;
-    packageId: string;
+    productDetailId?: string;
+    packageId?: string;
   }): Promise<{
     cycleId: string;
     memberId: string;
-    packageId: string;
+    productDetailId: string;
     cycleNo: number;
     activatedAt: string;
     activeUntil: string;
@@ -414,8 +415,12 @@ export class MembersService implements MembersServiceContract {
     );
   }
 
-  async activatePackageCycle(input: { memberId: string; packageId: string }) {
-    return this.membersRepository.activatePackageCycle(input);
+  async activateProductCycle(input: {
+    memberId: string;
+    productDetailId?: string;
+    packageId?: string;
+  }) {
+    return this.membersRepository.activateProductCycle(input);
   }
 
   async resetMemberPassword(memberId: string, newPassword: string) {

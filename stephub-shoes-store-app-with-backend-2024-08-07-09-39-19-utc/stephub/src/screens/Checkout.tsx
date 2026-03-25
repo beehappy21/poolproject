@@ -329,9 +329,8 @@ export const Checkout: React.FC = () => {
             }
 
             const productItems = cart
-              .filter(item => item.packageId || item.productDetailId)
+              .filter(item => item.productDetailId)
               .map(item => ({
-                packageId: item.packageId ? String(item.packageId) : undefined,
                 productDetailId: item.productDetailId
                   ? String(item.productDetailId)
                   : undefined,
@@ -366,7 +365,6 @@ export const Checkout: React.FC = () => {
               const response = await axios.post(
                 URLS.AUTH_ORDERS,
                 {
-                  packageId: productItems[0].packageId,
                   productDetailId: productItems[0].productDetailId,
                   quantity: productItems[0].quantity,
                   items: productItems,

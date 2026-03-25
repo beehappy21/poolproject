@@ -36,8 +36,6 @@ use App\Orchid\Screens\Size\SizeListScreen;
 use App\Orchid\Screens\Size\SizeEditScreen;
 use App\Orchid\Screens\Product\ProductListScreen;
 use App\Orchid\Screens\Product\ProductEditScreen;
-use App\Orchid\Screens\Package\PackageListScreen;
-use App\Orchid\Screens\Package\PackageEditScreen;
 use App\Orchid\Screens\Supplier\SupplierListScreen;
 use App\Orchid\Screens\Supplier\SupplierEditScreen;
 use App\Orchid\Screens\Commission\CommissionSettingsScreen;
@@ -65,13 +63,6 @@ Route::screen('product/list', ProductListScreen::class)
 
 Route::screen('product/edit/{product?}', ProductEditScreen::class)
   ->name('platform.product.edit');
-
-// Platform > Packages
-Route::screen('package/list', PackageListScreen::class)
-  ->name('platform.package.list');
-
-Route::screen('package/edit/{package?}', PackageEditScreen::class)
-  ->name('platform.package.edit');
 
 // Platform > Commission Settings
 Route::screen('commission/settings', CommissionSettingsScreen::class)

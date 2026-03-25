@@ -427,6 +427,18 @@
             <label for="product_pool_rate">Pool rate</label>
             <input id="product_pool_rate" name="product[pool_rate]" type="number" step="0.00000001" min="0" value="{{ old('product.pool_rate', $product['pool_rate'] ?? '0') }}">
         </div>
+
+        <div class="pool-field">
+            <label for="product_active_days">Active days</label>
+            <input id="product_active_days" name="product[active_days]" type="number" min="1" value="{{ old('product.active_days', $product['active_days'] ?? '30') }}" required>
+            <div class="pool-note">จำนวนวันของรอบรายได้หลัง activate product</div>
+        </div>
+
+        <div class="pool-field">
+            <label for="product_earning_cap_amount">Earning cap amount</label>
+            <input id="product_earning_cap_amount" name="product[earning_cap_amount]" type="number" step="0.00000001" min="0" value="{{ old('product.earning_cap_amount', $product['earning_cap_amount'] ?? $product['member_price'] ?? '0') }}" required>
+            <div class="pool-note">เพดานรายได้ของ cycle สำหรับสินค้ารายละเอียดนี้</div>
+        </div>
     </div>
 
     <div class="pool-grid">

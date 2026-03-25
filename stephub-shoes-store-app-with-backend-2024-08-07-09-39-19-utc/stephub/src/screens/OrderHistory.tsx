@@ -38,9 +38,6 @@ type LiveOrder = {
 
 type OrderProductItem = {
   orderItemId: string;
-  packageId: string | null;
-  packageCode: string | null;
-  packageName: string | null;
   productDetailId: string | null;
   productCode: string | null;
   productName: string | null;

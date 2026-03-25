@@ -504,6 +504,8 @@ model ProductDetail {
   poolCapMultiple  Decimal       @default(0) @db.Decimal(10, 8)
   commissionCapScope CommissionCapScope @default(POOL_ONLY)
   commissionCapMultiple Decimal   @default(0) @db.Decimal(10, 8)
+  activeDays        Int           @default(0)
+  earningCapAmount  Decimal       @default(0) @db.Decimal(18, 8)
   dcwSpendEnabled   Boolean       @default(false)
   dcwUsageAmount    Decimal       @default(0) @db.Decimal(18, 8)
   dcwUsageAmountOverridden Boolean @default(false)
@@ -517,6 +519,7 @@ model ProductDetail {
 
   product      Product       @relation(fields: [productId], references: [id])
   packageItems PackageItem[]
+  memberPackageCycles MemberPackageCycle[]
 
   @@index([productId, status])
 }
@@ -579,8 +582,15 @@ model PackageItem {
 model MemberPackageCycle {
   id                 BigInt        @id @default(autoincrement())
   userId             BigInt
-  packageId          BigInt
+  packageId          BigInt?
+  productDetailId    BigInt?
   cycleNo            Int
+  purchaseBase       Decimal?      @db.Decimal(18, 8)
+  poolRateMode       PoolRateMode?
+  poolRate           Decimal?      @db.Decimal(10, 8)
+  poolCapMultiple    Decimal?      @db.Decimal(10, 8)
+  commissionCapScope CommissionCapScope?
+  commissionCapMultiple Decimal?   @db.Decimal(10, 8)
   activatedAt        DateTime
   activeUntil        DateTime
   earningCap         Decimal       @db.Decimal(18, 8)
@@ -595,7 +605,8 @@ model MemberPackageCycle {
   updatedAt          DateTime      @updatedAt
 
   user              User               @relation(fields: [userId], references: [id])
-  package           Package            @relation(fields: [packageId], references: [id])
+  package           Package?           @relation(fields: [packageId], references: [id])
+  productDetail     ProductDetail?     @relation(fields: [productDetailId], references: [id])
   commissionLedgers CommissionLedger[]
   dailyPoolPayouts  DailyPoolPayout[]
 

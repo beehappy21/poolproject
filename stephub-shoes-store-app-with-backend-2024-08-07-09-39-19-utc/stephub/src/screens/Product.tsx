@@ -101,8 +101,6 @@ export const Product: React.FC = () => {
   };
 
   const mediaItems = buildMediaItems(item || {});
-  const hasPackageBridge = Boolean(item?.packageId);
-  const showProductOnlyPresentation = true;
   const hasRealSizes =
     Array.isArray(item?.sizes) &&
     item.sizes.length > 0 &&
@@ -738,87 +736,7 @@ export const Product: React.FC = () => {
   };
 
   const renderProductItems = (): JSX.Element | null => {
-    if (
-      !hasPackageBridge ||
-      showProductOnlyPresentation ||
-      !Array.isArray(item.packageItems) ||
-      !item.packageItems.length
-    ) {
-      return null;
-    }
-
-    return (
-      <section style={{marginBottom: 28}}>
-        <h3
-          style={{
-            marginTop: 0,
-            marginBottom: 14,
-            color: theme.colors.mainColor,
-            ...theme.fonts.Mulish_600SemiBold,
-            fontSize: 18,
-          }}
-        >
-          รายการสินค้า
-        </h3>
-        <div
-          style={{
-            display: 'grid',
-            gap: 12,
-            padding: 22,
-            backgroundColor: theme.colors.white,
-            border: `1px solid ${theme.colors.aliceBlue2}`,
-          }}
-        >
-          {item.packageItems.map((productBridgeItem: any) => (
-            <div
-              key={productBridgeItem.packageItemId}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                gap: 16,
-                alignItems: 'flex-start',
-              }}
-            >
-              <div>
-                <div
-                  style={{
-                    color: theme.colors.mainColor,
-                    ...theme.fonts.Mulish_600SemiBold,
-                    fontSize: 15,
-                    lineHeight: 1.5,
-                    marginBottom: 4,
-                  }}
-                >
-                  {productBridgeItem.productDetailName}
-                </div>
-                {productBridgeItem.shortDescription ? (
-                  <div
-                    style={{
-                      color: theme.colors.textColor,
-                      ...theme.fonts.Mulish_400Regular,
-                      fontSize: 13,
-                      lineHeight: 1.7,
-                    }}
-                  >
-                    {productBridgeItem.shortDescription}
-                  </div>
-                ) : null}
-              </div>
-              <div
-                style={{
-                  color: theme.colors.mainColor,
-                  ...theme.fonts.Mulish_700Bold,
-                  fontSize: 13,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                x{productBridgeItem.qty}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-    );
+    return null;
   };
 
   const renderActions = (): JSX.Element => {

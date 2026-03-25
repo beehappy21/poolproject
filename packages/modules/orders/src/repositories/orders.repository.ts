@@ -11,6 +11,7 @@ import {
 import {
   addDecimalStrings,
   compareDecimalStrings,
+  floorDecimalString,
   minDecimalString,
   subtractDecimalStrings,
   multiplyDecimalStrings,
@@ -27,6 +28,21 @@ import {
 import { readWalletSettings } from "../../../../shared/utils/src/wallet-settings.util";
 
 const BRANCH_PICKUP_LABEL = "branch_pickup";
+
+function computeDefaultDcwUsageAmount(input: {
+  costPriceUsdt: string;
+  memberPriceUsdt: string;
+}) {
+  return floorDecimalString(
+    maxDecimalString(
+      subtractDecimalStrings(
+        input.memberPriceUsdt,
+        multiplyDecimalStrings(input.costPriceUsdt, "0.7"),
+      ),
+      "0",
+    ),
+  );
+}
 
 function mapFulfillment(order: {
   shippingLabel?: string | null;
@@ -151,9 +167,6 @@ export interface OrdersRepository {
     createdAt: string;
     items: Array<{
       orderItemId: string;
-      packageId: string | null;
-      packageCode: string | null;
-      packageName: string | null;
       productDetailId: string | null;
       productCode: string | null;
       productName: string | null;
@@ -166,9 +179,6 @@ export interface OrdersRepository {
     }>;
     productItems: Array<{
       orderItemId: string;
-      packageId: string | null;
-      packageCode: string | null;
-      packageName: string | null;
       productDetailId: string | null;
       productCode: string | null;
       productName: string | null;
@@ -393,11 +403,6 @@ export class PrismaOrdersRepository implements OrdersRepository {
           select: {
             id: true,
             productId: true,
-            package: {
-              select: {
-                name: true,
-              },
-            },
           },
         },
       },
@@ -464,8 +469,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
         shipmentTrackingNo: order.shipmentTrackingNo ?? null,
         shipmentCarrier: order.shipmentCarrier ?? null,
         shipmentNote: order.shipmentNote ?? null,
-        firstProductName:
-          firstProductDetail?.name ?? firstOrderItem?.package?.name ?? null,
+        firstProductName: firstProductDetail?.name ?? null,
         firstProductImageUrl: firstProductDetail?.imageUrl ?? null,
         productItemCount: order.orderItems.length,
         createdAt: order.createdAt.toISOString(),
@@ -517,20 +521,12 @@ export class PrismaOrdersRepository implements OrdersRepository {
         orderItems: {
           select: {
             id: true,
-            packageId: true,
             productId: true,
             qty: true,
             unitPriceUsdt: true,
             unitPv: true,
             lineTotalUsdt: true,
             lineTotalPv: true,
-            package: {
-              select: {
-                id: true,
-                code: true,
-                name: true,
-              },
-            },
           },
         },
       },
@@ -581,12 +577,9 @@ export class PrismaOrdersRepository implements OrdersRepository {
 
       return {
         orderItemId: item.id.toString(),
-        packageId: item.packageId?.toString() ?? null,
-        packageCode: item.package?.code ?? null,
-        packageName: item.package?.name ?? null,
         productDetailId: detail?.productDetailId ?? item.productId ?? null,
         productCode: detail?.productCode ?? null,
-        productName: detail?.productName ?? item.package?.name ?? null,
+        productName: detail?.productName ?? null,
         productImageUrl: detail?.productImageUrl ?? null,
         quantity: item.qty,
         unitPriceUsdt: item.unitPriceUsdt.toString(),
@@ -663,77 +656,48 @@ export class PrismaOrdersRepository implements OrdersRepository {
       productDetailId: item.productDetailId,
       quantity: Math.max(1, Number.parseInt(item.quantity ?? "1", 10) || 1),
     }));
-
-    const missingPackageProductDetailIds = Array.from(
-      new Set(
-        unresolvedItems
-          .filter((item) => !item.packageId && item.productDetailId)
-          .map((item) => item.productDetailId as string),
-      ),
-    );
-
-    const packageFallbacks = missingPackageProductDetailIds.length
-      ? await this.prisma.packageItem.findMany({
-          where: {
-            productDetailId: {
-              in: missingPackageProductDetailIds.map((value) => BigInt(value)),
-            },
-            package: {
-              status: "ACTIVE",
-            },
-          },
-          orderBy: [
-            { package: { createdAt: "asc" } },
-            { package: { id: "asc" } },
-          ],
-          select: {
-            productDetailId: true,
-            packageId: true,
-          },
-        })
-      : [];
-    const packageFallbackMap = new Map<string, string>();
-
-    packageFallbacks.forEach((item) => {
-      const productDetailId = item.productDetailId.toString();
-      if (!packageFallbackMap.has(productDetailId)) {
-        packageFallbackMap.set(productDetailId, item.packageId.toString());
-      }
-    });
-
     const normalizedItems = unresolvedItems.map((item) => ({
-      packageId:
-        item.packageId ||
-        (item.productDetailId
-          ? packageFallbackMap.get(item.productDetailId)
-          : undefined),
+      packageId: item.packageId,
       productDetailId: item.productDetailId,
       quantity: item.quantity,
     }));
     const requestedFirmAmount = input.firmWalletAmount ?? "0";
     const firmOrderRequested = compareDecimalStrings(requestedFirmAmount, "0") > 0;
 
-    if (normalizedItems.some((item) => !item.packageId)) {
-      throw new Error("Product is not yet connected to an active package.");
+    if (normalizedItems.some((item) => !item.productDetailId && !item.packageId)) {
+      throw new Error("Order item is missing a product detail.");
     }
-    const packageIds = normalizedItems.map((item) => BigInt(item.packageId as string));
-    const packages = await this.prisma.package.findMany({
-      where: { id: { in: packageIds } },
-      select: {
-        id: true,
-        priceUsdt: true,
-        pv: true,
-        poolRateMode: true,
-        poolRate: true,
-        dcwSpendEnabled: true,
-        dcwUsageAmount: true,
-        dcwCashRewardRate: true,
-        dcwShoppingRewardRate: true,
-      },
-    });
+
+    const packageIds = Array.from(
+      new Set(
+        normalizedItems
+          .filter((item) => item.packageId)
+          .map((item) => item.packageId as string),
+      ),
+    );
+    const packages = packageIds.length
+      ? await this.prisma.package.findMany({
+          where: {
+            id: {
+              in: packageIds.map((value) => BigInt(value)),
+            },
+          },
+          select: {
+            id: true,
+            priceUsdt: true,
+            pv: true,
+            poolRateMode: true,
+            poolRate: true,
+            dcwSpendEnabled: true,
+            dcwUsageAmount: true,
+            dcwCashRewardRate: true,
+            dcwShoppingRewardRate: true,
+          },
+        })
+      : [];
     const packageMap = new Map(packages.map((pkg) => [pkg.id.toString(), pkg]));
 
-    if (packages.length !== normalizedItems.length) {
+    if (packages.length !== packageIds.length) {
       throw new Error("Package not found.");
     }
 
@@ -755,6 +719,14 @@ export class PrismaOrdersRepository implements OrdersRepository {
             id: true,
             costPriceUsdt: true,
             memberPriceUsdt: true,
+            pv: true,
+            poolRateMode: true,
+            poolRate: true,
+            dcwSpendEnabled: true,
+            dcwUsageAmount: true,
+            dcwUsageAmountOverridden: true,
+            dcwCashRewardRate: true,
+            dcwShoppingRewardRate: true,
             firmEnabled: true,
             firmDcwRewardAmount: true,
             product: {
@@ -843,46 +815,93 @@ export class PrismaOrdersRepository implements OrdersRepository {
       throw new Error("Shipping address not found.");
     }
     const orderItemCreates = normalizedItems.map((item) => {
-      if (!item.packageId) {
-        throw new Error("Order item is missing a package bridge.");
+      if (!item.productDetailId && item.packageId) {
+        const pkg = packageMap.get(item.packageId);
+
+        if (!pkg) {
+          throw new Error("Package not found.");
+        }
+
+        const lineTotalUsdt = multiplyDecimalStrings(
+          pkg.priceUsdt.toString(),
+          item.quantity.toString(),
+        );
+        const lineTotalPv = multiplyDecimalStrings(
+          pkg.pv.toString(),
+          item.quantity.toString(),
+        );
+
+        return {
+          packageId: pkg.id,
+          productId: null,
+          qty: item.quantity,
+          unitPriceUsdt: pkg.priceUsdt,
+          unitPv: pkg.pv,
+          poolRateMode: pkg.poolRateMode,
+          unitPoolRate: pkg.poolRate,
+          dcwSpendEnabled: firmOrderRequested ? false : pkg.dcwSpendEnabled,
+          unitDcwUsageAmount: firmOrderRequested ? "0" : pkg.dcwUsageAmount,
+          unitDcwCashRewardRate:
+            firmOrderRequested ? "0" : pkg.dcwCashRewardRate,
+          unitDcwShoppingRewardRate:
+            firmOrderRequested ? "0" : pkg.dcwShoppingRewardRate,
+          lineTotalUsdt,
+          lineTotalPv,
+        } satisfies Prisma.OrderItemUncheckedCreateWithoutOrderInput;
       }
 
-      const pkg = packageMap.get(item.packageId)!;
+      if (!item.productDetailId) {
+        throw new Error("Order item is missing a product detail.");
+      }
+
+      const detail = productDetailMap.get(item.productDetailId);
+
+      if (!detail) {
+        throw new Error("Product detail not found.");
+      }
+
+      const dcwUsageAmount = detail.dcwUsageAmountOverridden
+        ? detail.dcwUsageAmount.toString()
+        : computeDefaultDcwUsageAmount({
+            costPriceUsdt: detail.costPriceUsdt.toString(),
+            memberPriceUsdt: detail.memberPriceUsdt.toString(),
+          });
       const lineTotalUsdt = multiplyDecimalStrings(
-        pkg.priceUsdt.toString(),
+        detail.memberPriceUsdt.toString(),
         item.quantity.toString(),
       );
       const lineTotalPv = multiplyDecimalStrings(
-        pkg.pv.toString(),
+        detail.pv.toString(),
         item.quantity.toString(),
       );
 
       return {
-        packageId: pkg.id,
-        productId: item.productDetailId ?? null,
+        productId: item.productDetailId,
         qty: item.quantity,
-        unitPriceUsdt: pkg.priceUsdt,
-        unitPv: pkg.pv,
-        poolRateMode: pkg.poolRateMode,
-        unitPoolRate: pkg.poolRate,
-        dcwSpendEnabled: firmOrderRequested ? false : pkg.dcwSpendEnabled,
-        unitDcwUsageAmount: firmOrderRequested ? "0" : pkg.dcwUsageAmount,
-        unitDcwCashRewardRate: firmOrderRequested ? "0" : pkg.dcwCashRewardRate,
-        unitDcwShoppingRewardRate: firmOrderRequested ? "0" : pkg.dcwShoppingRewardRate,
+        unitPriceUsdt: detail.memberPriceUsdt,
+        unitPv: detail.pv,
+        poolRateMode: detail.poolRateMode,
+        unitPoolRate: detail.poolRate,
+        dcwSpendEnabled: firmOrderRequested ? false : detail.dcwSpendEnabled,
+        unitDcwUsageAmount: firmOrderRequested ? "0" : dcwUsageAmount,
+        unitDcwCashRewardRate:
+          firmOrderRequested ? "0" : detail.dcwCashRewardRate,
+        unitDcwShoppingRewardRate:
+          firmOrderRequested ? "0" : detail.dcwShoppingRewardRate,
         lineTotalUsdt,
         lineTotalPv,
       } satisfies Prisma.OrderItemUncheckedCreateWithoutOrderInput;
     });
 
-    const packagePriceUsdt = orderItemCreates.reduce(
+    const orderSubtotalUsdt = orderItemCreates.reduce(
       (sum, item) => addDecimalStrings(sum, item.lineTotalUsdt.toString()),
       "0",
     );
-    const packagePv = orderItemCreates.reduce(
+    const orderTotalPv = orderItemCreates.reduce(
       (sum, item) => addDecimalStrings(sum, item.lineTotalPv.toString()),
       "0",
     );
-    const packageDcwLimit = orderItemCreates.reduce((sum, item) => {
+    const orderDcwLimitUsdt = orderItemCreates.reduce((sum, item) => {
       const limit = multiplyDecimalStrings(
         item.unitDcwUsageAmount.toString(),
         item.qty.toString(),
@@ -891,21 +910,21 @@ export class PrismaOrdersRepository implements OrdersRepository {
     }, "0");
     const requestedDiscountAmount = input.discountWalletAmount ?? "0";
     const availableDiscount = wallet?.discountBalance.toString() ?? "0";
-    const dcwAllowedForPackage =
+    const dcwAllowedForOrder =
       walletSettings.discountWalletSpendEnabled &&
       orderItemCreates.every((item) => item.dcwSpendEnabled);
 
     if (
       compareDecimalStrings(requestedDiscountAmount, "0") > 0 &&
-      !dcwAllowedForPackage
+      !dcwAllowedForOrder
     ) {
-      throw new Error("Discount wallet is not allowed for this package.");
+      throw new Error("Discount wallet is not allowed for this order.");
     }
 
-    const dcwAppliedUsdt = dcwAllowedForPackage
+    const dcwAppliedUsdt = dcwAllowedForOrder
       ? minDecimalString(
           minDecimalString(requestedDiscountAmount, availableDiscount),
-          packageDcwLimit,
+          orderDcwLimitUsdt,
         )
       : "0";
     const firmRewardAmount = normalizedItems.reduce((sum, item) => {
@@ -963,13 +982,13 @@ export class PrismaOrdersRepository implements OrdersRepository {
         );
       }
 
-      if (compareDecimalStrings(requestedFirmAmount, packagePriceUsdt) !== 0) {
+      if (compareDecimalStrings(requestedFirmAmount, orderSubtotalUsdt) !== 0) {
         throw new Error("Firm wallet redemption amount must equal the order member price.");
       }
     }
 
     const remainingAfterDiscount = subtractDecimalStrings(
-      packagePriceUsdt,
+      orderSubtotalUsdt,
       dcwAppliedUsdt,
     );
     const requestedShoppingAmount = firmOrderRequested
@@ -1033,9 +1052,9 @@ export class PrismaOrdersRepository implements OrdersRepository {
           shippingAddressNote: isBranchPickup
             ? input.pickupBranchNote?.trim() || null
             : shippingAddress?.note ?? null,
-          subtotalUsdt: packagePriceUsdt,
-          totalUsdt: packagePriceUsdt,
-          totalPv: packagePv,
+          subtotalUsdt: orderSubtotalUsdt,
+          totalUsdt: orderSubtotalUsdt,
+          totalPv: orderTotalPv,
           dcwAppliedUsdt,
           walletAppliedUsdt,
           cashDueUsdt,
