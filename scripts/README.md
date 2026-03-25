@@ -8,6 +8,8 @@ Placeholder scripts directory for:
 Smoke helpers:
 - `npm run smoke:cashback`
   Runs a focused cashback end-to-end smoke against the local API and Postgres.
+- `npm run smoke:commissions:direct-uni`
+  Runs a focused direct + unilevel runtime smoke against the local API and Postgres by creating a three-member sponsor chain, processing one approved order, and verifying commission ledger plus wallet-credit rows end to end.
 - `npm run smoke:bao:cashback`
   Verifies Stephub BAO cashback settings, report page, and CSV/XLSX/PDF export against live local data.
 - `npm run smoke:bao:shipment`

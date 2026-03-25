@@ -1,0 +1,386 @@
+const { PrismaClient } = require("@prisma/client");
+const http = require("node:http");
+const https = require("node:https");
+const { URL } = require("node:url");
+
+process.env.DATABASE_URL =
+  process.env.DATABASE_URL ||
+  "postgresql://postgres:postgres@localhost:5432/poolproject?schema=public";
+
+const prisma = new PrismaClient();
+const API_BASE_URL = process.env.API_BASE_URL || "http://127.0.0.1:3000";
+const RUN_SUFFIX = Date.now().toString().slice(-8);
+const MEMBER_PASSWORD = "smokepass1234";
+const ROOT_CODE = `DIRROOT${RUN_SUFFIX}`;
+const MIDDLE_CODE = `DIRMID${RUN_SUFFIX}`;
+const BUYER_CODE = `DIRBUY${RUN_SUFFIX}`;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function request(path, options = {}) {
+  const target = new URL(`${API_BASE_URL}${path}`);
+  const transport = target.protocol === "https:" ? https : http;
+  const payload = options.body ? JSON.stringify(options.body) : null;
+
+  const response = await new Promise((resolve, reject) => {
+    const req = transport.request(
+      target,
+      {
+        method: options.method || "GET",
+        headers: {
+          ...(options.token
+            ? { Authorization: `Bearer ${options.token}` }
+            : {}),
+          ...(payload
+            ? {
+                "content-type": "application/json",
+                "content-length": Buffer.byteLength(payload),
+              }
+            : {}),
+        },
+      },
+      (res) => {
+        let raw = "";
+        res.setEncoding("utf8");
+        res.on("data", (chunk) => {
+          raw += chunk;
+        });
+        res.on("end", () => {
+          resolve({
+            statusCode: res.statusCode || 500,
+            body: raw,
+          });
+        });
+      },
+    );
+
+    req.on("error", reject);
+
+    if (payload) {
+      req.write(payload);
+    }
+
+    req.end();
+  });
+
+  const parsed = response.body ? JSON.parse(response.body) : null;
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    throw new Error(parsed?.message || `${response.statusCode} request failed for ${path}`);
+  }
+
+  return parsed;
+}
+
+async function loginAdmin() {
+  const session = await request("/auth/login", {
+    method: "POST",
+    body: {
+      identifier: "ALICE",
+      password: "dev-password",
+    },
+  });
+
+  return session.accessToken;
+}
+
+async function getActivePackage() {
+  const starter = await prisma.package.findUnique({
+    where: { code: "STARTER" },
+    select: { id: true, status: true, pv: true },
+  });
+
+  if (starter?.status === "ACTIVE") {
+    return {
+      packageId: starter.id.toString(),
+      pv: starter.pv.toString(),
+    };
+  }
+
+  const pkg = await prisma.package.findFirst({
+    where: { status: "ACTIVE" },
+    orderBy: [{ id: "asc" }],
+    select: { id: true, pv: true },
+  });
+
+  if (!pkg) {
+    throw new Error("No active package found for direct/unilevel smoke test.");
+  }
+
+  return {
+    packageId: pkg.id.toString(),
+    pv: pkg.pv.toString(),
+  };
+}
+
+async function waitForWalletRows(commissionIds) {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const walletRows = await prisma.walletTransaction.findMany({
+      where: {
+        refType: "COMMISSION",
+        refId: { in: commissionIds },
+      },
+      orderBy: [{ id: "asc" }],
+      select: {
+        id: true,
+        txType: true,
+        amount: true,
+        refId: true,
+        user: {
+          select: {
+            memberCode: true,
+          },
+        },
+      },
+    });
+
+    if (walletRows.length >= commissionIds.length) {
+      return walletRows;
+    }
+
+    await sleep(200);
+  }
+
+  return [];
+}
+
+async function createMember(input) {
+  return request("/members", {
+    method: "POST",
+    body: input,
+  });
+}
+
+async function activatePackage(memberId, packageId, token) {
+  return request(`/members/${memberId}/activate-package`, {
+    method: "POST",
+    token,
+    body: { packageId },
+  });
+}
+
+async function main() {
+  await request("/health");
+  const token = await loginAdmin();
+  const activePackage = await getActivePackage();
+  const originalSettings = await request("/settings/commissions", {
+    method: "GET",
+    token,
+  });
+
+  await request("/settings/commissions", {
+    method: "PUT",
+    token,
+    body: {
+      directLevelRates: ["0.1"],
+      uniLevelRates: ["0.05", "0.03"],
+      poolRate: "0",
+      cashbackRate: "0",
+    },
+  });
+
+  let orderId = null;
+
+  try {
+    const root = await createMember({
+      memberCode: ROOT_CODE,
+      name: `Direct Uni Root ${RUN_SUFFIX}`,
+      email: `direct.uni.root.${RUN_SUFFIX}@example.com`,
+      sponsorCode: "ALICE",
+      password: MEMBER_PASSWORD,
+    });
+    await activatePackage(root.memberId, activePackage.packageId, token);
+
+    const middle = await createMember({
+      memberCode: MIDDLE_CODE,
+      name: `Direct Uni Middle ${RUN_SUFFIX}`,
+      email: `direct.uni.middle.${RUN_SUFFIX}@example.com`,
+      sponsorCode: root.memberCode,
+      password: MEMBER_PASSWORD,
+    });
+    await activatePackage(middle.memberId, activePackage.packageId, token);
+
+    const buyer = await createMember({
+      memberCode: BUYER_CODE,
+      name: `Direct Uni Buyer ${RUN_SUFFIX}`,
+      email: `direct.uni.buyer.${RUN_SUFFIX}@example.com`,
+      sponsorCode: middle.memberCode,
+      password: MEMBER_PASSWORD,
+    });
+
+    const order = await request("/orders", {
+      method: "POST",
+      token,
+      body: {
+        userId: buyer.memberId,
+        packageId: activePackage.packageId,
+      },
+    });
+    orderId = order.orderId;
+
+    await request(`/orders/${orderId}/approve`, {
+      method: "POST",
+      token,
+    });
+    const processed = await request(`/orders/${orderId}/process-approved`, {
+      method: "POST",
+      token,
+    });
+
+    const ledgerRows = await prisma.commissionLedger.findMany({
+      where: {
+        orderId: BigInt(orderId),
+        commissionType: { in: ["DIRECT", "UNI"] },
+      },
+      orderBy: [{ commissionType: "asc" }, { levelNo: "asc" }],
+      select: {
+        id: true,
+        commissionType: true,
+        levelNo: true,
+        rate: true,
+        basePv: true,
+        commissionAmount: true,
+        status: true,
+        beneficiaryUser: {
+          select: {
+            memberCode: true,
+          },
+        },
+      },
+    });
+
+    const walletRows = ledgerRows.length
+      ? await waitForWalletRows(ledgerRows.map((row) => row.id))
+      : [];
+
+    const directRows = ledgerRows.filter((row) => row.commissionType === "DIRECT");
+    const uniRows = ledgerRows.filter((row) => row.commissionType === "UNI");
+    const directRow = directRows[0];
+    const uniLevelOne = uniRows.find((row) => row.levelNo === 1);
+    const uniLevelTwo = uniRows.find((row) => row.levelNo === 2);
+
+    const expectedDirectAmount = (
+      Number(activePackage.pv) * 0.1
+    ).toFixed(8).replace(/\.?0+$/, "");
+    const expectedUniLevelOneAmount = (
+      Number(activePackage.pv) * 0.05
+    ).toFixed(8).replace(/\.?0+$/, "");
+    const expectedUniLevelTwoAmount = (
+      Number(activePackage.pv) * 0.03
+    ).toFixed(8).replace(/\.?0+$/, "");
+
+    if (processed.commissionDrafts.directCount !== 1) {
+      throw new Error(`Expected directCount = 1, found ${processed.commissionDrafts.directCount}.`);
+    }
+
+    if (processed.commissionDrafts.uniCount !== 2) {
+      throw new Error(`Expected uniCount = 2, found ${processed.commissionDrafts.uniCount}.`);
+    }
+
+    if (directRows.length !== 1) {
+      throw new Error(`Expected 1 direct ledger row, found ${directRows.length}.`);
+    }
+
+    if (uniRows.length !== 2) {
+      throw new Error(`Expected 2 uni ledger rows, found ${uniRows.length}.`);
+    }
+
+    if (walletRows.length !== 3) {
+      throw new Error(`Expected 3 wallet rows, found ${walletRows.length}.`);
+    }
+
+    if (
+      directRow?.status !== "APPROVED" ||
+      directRow?.beneficiaryUser?.memberCode !== middle.memberCode ||
+      directRow?.commissionAmount?.toString() !== expectedDirectAmount
+    ) {
+      throw new Error("Direct commission verification failed.");
+    }
+
+    if (
+      uniLevelOne?.status !== "APPROVED" ||
+      uniLevelOne?.beneficiaryUser?.memberCode !== middle.memberCode ||
+      uniLevelOne?.commissionAmount?.toString() !== expectedUniLevelOneAmount
+    ) {
+      throw new Error("Unilevel level 1 verification failed.");
+    }
+
+    if (
+      uniLevelTwo?.status !== "APPROVED" ||
+      uniLevelTwo?.beneficiaryUser?.memberCode !== root.memberCode ||
+      uniLevelTwo?.commissionAmount?.toString() !== expectedUniLevelTwoAmount
+    ) {
+      throw new Error("Unilevel level 2 verification failed.");
+    }
+
+    const walletSummary = walletRows.map((row) => ({
+      memberCode: row.user.memberCode,
+      txType: row.txType,
+      amount: row.amount.toString(),
+      refId: row.refId.toString(),
+    }));
+
+    console.log(
+      JSON.stringify(
+        {
+          scenario: "direct_unilevel_runtime_smoke",
+          pass: true,
+          orderId,
+          packagePv: activePackage.pv,
+          expected: {
+            direct: expectedDirectAmount,
+            uniLevelOne: expectedUniLevelOneAmount,
+            uniLevelTwo: expectedUniLevelTwoAmount,
+          },
+          actual: {
+            processedCounts: {
+              directCount: processed.commissionDrafts.directCount,
+              uniCount: processed.commissionDrafts.uniCount,
+            },
+            ledgerRows: ledgerRows.map((row) => ({
+              commissionType: row.commissionType,
+              levelNo: row.levelNo,
+              beneficiary: row.beneficiaryUser?.memberCode || null,
+              rate: row.rate.toString(),
+              basePv: row.basePv.toString(),
+              amount: row.commissionAmount.toString(),
+              status: row.status,
+            })),
+            walletRows: walletSummary,
+          },
+        },
+        null,
+        2,
+      ),
+    );
+  } finally {
+    await request("/settings/commissions", {
+      method: "PUT",
+      token,
+      body: {
+        directLevelRates:
+          originalSettings.directLevelRates && originalSettings.directLevelRates.length > 0
+            ? originalSettings.directLevelRates
+            : originalSettings.directRate
+              ? [originalSettings.directRate]
+              : ["0.2"],
+        uniLevelRates:
+          originalSettings.uniLevelRates && originalSettings.uniLevelRates.length > 0
+            ? originalSettings.uniLevelRates
+            : ["0.05"],
+        poolRate: originalSettings.poolRate || "0.5",
+        cashbackRate: originalSettings.cashbackRate || "0",
+      },
+    }).catch(() => null);
+  }
+}
+
+main()
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
