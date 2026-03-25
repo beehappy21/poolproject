@@ -99,6 +99,7 @@ export class OrdersController {
       pickupEmail?: string;
       discountWalletAmount?: string;
       shoppingWalletAmount?: string;
+      firmWalletAmount?: string;
       cashPaymentMethod?: string;
     },
   ) {
@@ -155,6 +156,9 @@ export class OrdersController {
           : undefined,
         shoppingWalletAmount: optionalString(body.shoppingWalletAmount)
           ? requireDecimalString(body.shoppingWalletAmount, "shoppingWalletAmount")
+          : undefined,
+        firmWalletAmount: optionalString(body.firmWalletAmount)
+          ? requireDecimalString(body.firmWalletAmount, "firmWalletAmount")
           : undefined,
         cashPaymentMethod: optionalString(body.cashPaymentMethod),
       });
