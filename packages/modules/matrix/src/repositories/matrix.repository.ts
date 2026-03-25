@@ -51,6 +51,7 @@ export class PrismaMatrixRepository {
     boardCount: number;
     organizationPvRate: string;
     cwReentryAmount: string;
+    personalCarryPv?: string;
     levelRatesSnapshot: string;
     boardOpenPvThresholds: string[];
   }) {
@@ -63,7 +64,7 @@ export class PrismaMatrixRepository {
         boardCount: input.boardCount,
         organizationPvRate: input.organizationPvRate,
         cwReentryAmount: input.cwReentryAmount,
-        personalCarryPv: "0",
+        personalCarryPv: input.personalCarryPv ?? "0",
         levelRatesSnapshot: input.levelRatesSnapshot,
         currentBoardNo: 1,
         currentBoardRoundNo: 1,
@@ -104,6 +105,34 @@ export class PrismaMatrixRepository {
         personalCarryPv: {
           increment: amount,
         },
+      },
+    });
+  }
+
+  async addUserMatrixPersonalPv(userId: string, amount: string) {
+    return this.prisma.user.update({
+      where: { id: BigInt(userId) },
+      data: {
+        matrixPersonalPv: {
+          increment: amount,
+        },
+      },
+      select: {
+        id: true,
+        matrixPersonalPv: true,
+      },
+    });
+  }
+
+  async resetUserMatrixPersonalPv(userId: string) {
+    return this.prisma.user.update({
+      where: { id: BigInt(userId) },
+      data: {
+        matrixPersonalPv: "0",
+      },
+      select: {
+        id: true,
+        matrixPersonalPv: true,
       },
     });
   }
