@@ -8,7 +8,7 @@ process.env.DATABASE_URL =
   "postgresql://postgres:postgres@localhost:5432/poolproject?schema=public";
 
 const prisma = new PrismaClient();
-const API_BASE_URL = process.env.API_BASE_URL || "http://127.0.0.1:3001";
+const API_BASE_URL = process.env.API_BASE_URL || "http://127.0.0.1:3000";
 const RUN_SUFFIX = Date.now().toString().slice(-8);
 const MEMBER_PASSWORD = "smokepass1234";
 const UPLINE_CODE = `MSUP${RUN_SUFFIX}`;

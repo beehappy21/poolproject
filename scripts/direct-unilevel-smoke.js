@@ -10,10 +10,7 @@ process.env.DATABASE_URL =
 const prisma = new PrismaClient();
 const API_BASE_URL = process.env.API_BASE_URL || "http://127.0.0.1:3000";
 const RUN_SUFFIX = Date.now().toString().slice(-8);
-const MEMBER_PASSWORD = "smokepass1234";
-const ROOT_CODE = `DIRROOT${RUN_SUFFIX}`;
-const MIDDLE_CODE = `DIRMID${RUN_SUFFIX}`;
-const BUYER_CODE = `DIRBUY${RUN_SUFFIX}`;
+const ORDER_NO = `ORD-DIRECT-UNI-${RUN_SUFFIX}`;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -115,7 +112,7 @@ async function getActivePackage() {
 }
 
 async function waitForWalletRows(commissionIds) {
-  for (let attempt = 0; attempt < 10; attempt += 1) {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
     const walletRows = await prisma.walletTransaction.findMany({
       where: {
         refType: "COMMISSION",
@@ -139,25 +136,10 @@ async function waitForWalletRows(commissionIds) {
       return walletRows;
     }
 
-    await sleep(200);
+    await sleep(500);
   }
 
   return [];
-}
-
-async function createMember(input) {
-  return request("/members", {
-    method: "POST",
-    body: input,
-  });
-}
-
-async function activatePackage(memberId, packageId, token) {
-  return request(`/members/${memberId}/activate-package`, {
-    method: "POST",
-    token,
-    body: { packageId },
-  });
 }
 
 async function main() {
@@ -183,46 +165,64 @@ async function main() {
   let orderId = null;
 
   try {
-    const root = await createMember({
-      memberCode: ROOT_CODE,
-      name: `Direct Uni Root ${RUN_SUFFIX}`,
-      email: `direct.uni.root.${RUN_SUFFIX}@example.com`,
-      sponsorCode: "ALICE",
-      password: MEMBER_PASSWORD,
-    });
-    await activatePackage(root.memberId, activePackage.packageId, token);
-
-    const middle = await createMember({
-      memberCode: MIDDLE_CODE,
-      name: `Direct Uni Middle ${RUN_SUFFIX}`,
-      email: `direct.uni.middle.${RUN_SUFFIX}@example.com`,
-      sponsorCode: root.memberCode,
-      password: MEMBER_PASSWORD,
-    });
-    await activatePackage(middle.memberId, activePackage.packageId, token);
-
-    const buyer = await createMember({
-      memberCode: BUYER_CODE,
-      name: `Direct Uni Buyer ${RUN_SUFFIX}`,
-      email: `direct.uni.buyer.${RUN_SUFFIX}@example.com`,
-      sponsorCode: middle.memberCode,
-      password: MEMBER_PASSWORD,
-    });
-
-    const order = await request("/orders", {
-      method: "POST",
-      token,
-      body: {
-        userId: buyer.memberId,
-        packageId: activePackage.packageId,
+    const users = await prisma.user.findMany({
+      where: {
+        memberCode: { in: ["ALICE", "BOB", "DAVE"] },
+      },
+      select: {
+        id: true,
+        memberCode: true,
       },
     });
-    orderId = order.orderId;
+    const userMap = new Map(users.map((user) => [user.memberCode, user]));
+    const root = userMap.get("ALICE");
+    const middle = userMap.get("BOB");
+    const buyer = userMap.get("DAVE");
 
-    await request(`/orders/${orderId}/approve`, {
-      method: "POST",
-      token,
+    if (!root || !middle || !buyer) {
+      throw new Error(
+        "Seed members ALICE, BOB, and DAVE are required for direct/unilevel smoke test.",
+      );
+    }
+
+    const order = await prisma.order.create({
+      data: {
+        orderNo: ORDER_NO,
+        userId: BigInt(buyer.id),
+        subtotalUsdt: activePackage.pv,
+        totalUsdt: activePackage.pv,
+        totalPv: activePackage.pv,
+        paidAt: new Date(),
+        approvedAt: new Date(),
+        commissionSettingsSnapshot: JSON.stringify({
+          directLevelRates: ["0.1"],
+          uniLevelRates: ["0.05", "0.03"],
+          poolRate: "0",
+          cashbackRate: "0",
+        }),
+        approvalStatus: "APPROVED",
+        status: "APPROVED",
+        orderItems: {
+          create: [
+            {
+              packageId: BigInt(activePackage.packageId),
+              qty: 1,
+              unitPriceUsdt: activePackage.pv,
+              unitPv: activePackage.pv,
+              poolRateMode: "DEFAULT_50_PERCENT",
+              unitPoolRate: "0",
+              lineTotalUsdt: activePackage.pv,
+              lineTotalPv: activePackage.pv,
+            },
+          ],
+        },
+      },
+      select: {
+        id: true,
+      },
     });
+    orderId = order.id.toString();
+
     const processed = await request(`/orders/${orderId}/process-approved`, {
       method: "POST",
       token,

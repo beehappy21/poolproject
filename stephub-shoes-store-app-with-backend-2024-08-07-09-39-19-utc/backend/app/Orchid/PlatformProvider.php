@@ -9,6 +9,7 @@ use Orchid\Platform\ItemPermission;
 use Orchid\Platform\OrchidServiceProvider;
 use Orchid\Screen\Actions\Menu;
 use Orchid\Support\Color;
+use Illuminate\Support\Facades\Schema;
 use App\Models\Order;
 
 class PlatformProvider extends OrchidServiceProvider {
@@ -73,8 +74,13 @@ class PlatformProvider extends OrchidServiceProvider {
       Menu::make('Orders')
         ->icon('bs.cart3')
         ->badge(function () {
-          if (Order::where('order_status', 'pending')->count() > 0) {
-            return Order::where('order_status', 'pending')->count();
+          if (! Schema::connection('poolproject')->hasTable((new Order())->getTable())) {
+            return null;
+          }
+
+          $pendingCount = Order::where('order_status', 'pending')->count();
+          if ($pendingCount > 0) {
+            return $pendingCount;
           }
         })
         ->route('platform.order.list'),
