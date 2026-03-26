@@ -51,6 +51,8 @@ select
      and (select count(*) from "Product") > 0
      and (select count(*) from "ProductDetail") > 0
      and (select count(*) from "User" where "memberCode" like '\''TH%'\'' and "isAdmin" = false) > 0
+     and to_regclass('\''public."WithdrawRequest"'\'') is not null
+     and to_regclass('\''public."KycRequest"'\'') is not null
      and exists (select 1 from pg_views where viewname = '\''stephub_products_v1'\'')
      and exists (select 1 from pg_views where viewname = '\''stephub_members_v1'\'')
     then '\''OK'\''
@@ -61,7 +63,35 @@ select
   exit 1
 }
 
+sqlite3 "$ROOT_DIR/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/database/database.sqlite" \
+  "select count(*) from users where email = 'superadmin@blifehealthy.com';" | grep -qx '1' && \
+  echo "[ok] BAO superadmin exists" || {
+  echo "[fail] BAO superadmin exists"
+  exit 1
+}
+
+sqlite3 "$ROOT_DIR/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/database/database.sqlite" \
+  "select count(*) from users where email = 'superadmin@blifehealthy.com' and permissions like '%platform.index%';" | grep -qx '1' && \
+  echo "[ok] BAO superadmin dashboard access exists" || {
+  echo "[fail] BAO superadmin dashboard access exists"
+  exit 1
+}
+
 check_json_count "Storefront products are present" "http://127.0.0.1:3000/products/storefront"
 check_json_count "Storefront categories are present" "http://127.0.0.1:3000/products/categories"
+
+python3 - <<'PY' "$ROOT_DIR/runtime/withdraw-settings.json"
+import json, os, sys
+path = sys.argv[1]
+if not os.path.exists(path):
+    raise SystemExit(1)
+with open(path, encoding="utf-8") as f:
+    data = json.load(f)
+required = {"withdrawEnabled", "withholdingTaxRate", "autoSweepRate", "feeFlatAmount", "minimumWithdrawAmount"}
+if required.issubset(data):
+    raise SystemExit(0)
+raise SystemExit(1)
+PY
+echo "[ok] Withdraw settings baseline exists"
 
 echo "[ok] Stephub baseline checks passed"

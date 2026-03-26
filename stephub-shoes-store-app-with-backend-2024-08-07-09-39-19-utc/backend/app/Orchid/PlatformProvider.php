@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Orchid;
 
+use App\Support\AdminPermissions;
 use Orchid\Platform\Dashboard;
 use Orchid\Platform\ItemPermission;
 use Orchid\Platform\OrchidServiceProvider;
@@ -37,15 +38,18 @@ class PlatformProvider extends OrchidServiceProvider {
       Menu::make('Products')
         ->title('Navigation')
         ->icon('bs.grid')
+        ->permission(AdminPermissions::CATALOG_MANAGE)
         ->route('platform.product.list'),
 
       Menu::make('Commission Setting')
         ->title('Commission Setting')
         ->icon('bs-cash-stack')
+        ->permission(AdminPermissions::COMMISSIONS_MANAGE)
         ->route('platform.commission.settings'),
 
       Menu::make('Commission Report')
         ->icon('bs-table')
+        ->permission(AdminPermissions::COMMISSIONS_MANAGE)
         ->list([
           Menu::make('Commission Report')
             ->icon('bs-table')
@@ -69,10 +73,12 @@ class PlatformProvider extends OrchidServiceProvider {
 
       Menu::make('Suppliers')
         ->icon('bs.truck')
+        ->permission(AdminPermissions::CATALOG_MANAGE)
         ->route('platform.supplier.list'),
 
       Menu::make('Orders')
         ->icon('bs.cart3')
+        ->permission(AdminPermissions::ORDERS_MANAGE)
         ->badge(function () {
           if (! Schema::connection('poolproject')->hasTable((new Order())->getTable())) {
             return null;
@@ -88,6 +94,7 @@ class PlatformProvider extends OrchidServiceProvider {
       Menu::make('Order Reports')
         ->title('Reports')
         ->icon('bs.clipboard-data')
+        ->permission(AdminPermissions::ORDERS_MANAGE)
         ->list([
           Menu::make('Sales Report')
             ->icon('bs-receipt')
@@ -108,58 +115,85 @@ class PlatformProvider extends OrchidServiceProvider {
 
       Menu::make('Carousel')
         ->icon('bs.collection-play')
+        ->permission(AdminPermissions::MARKETING_MANAGE)
         ->route('platform.slide.list'),
 
       Menu::make('Categories')
         ->icon('bs.grid')
+        ->permission(AdminPermissions::CATALOG_MANAGE)
         ->route('platform.category.list'),
 
       Menu::make('Members')
         ->icon('bs.people')
+        ->permission(AdminPermissions::MEMBERS_MANAGE)
         ->route('platform.member.list'),
+
+      Menu::make('KYC Requests')
+        ->icon('bs-person-vcard')
+        ->permission(AdminPermissions::KYC_MANAGE)
+        ->route('platform.kyc.list'),
 
       Menu::make('Sizes')
         ->icon('bs.bounding-box')
+        ->permission(AdminPermissions::CATALOG_MANAGE)
         ->route('platform.size.list'),
 
       Menu::make('Promocodes')
         ->icon('bs.percent')
+        ->permission(AdminPermissions::MARKETING_MANAGE)
         ->route('platform.promocode.list'),
 
       Menu::make('Colors')
         ->icon('bs.palette')
+        ->permission(AdminPermissions::CATALOG_MANAGE)
         ->route('platform.color.list'),
 
       Menu::make('Promotions')
         ->icon('bs.gift')
+        ->permission(AdminPermissions::MARKETING_MANAGE)
         ->route('platform.promotion.list'),
 
       Menu::make('Tags')
         ->icon('bs.tag')
+        ->permission(AdminPermissions::CATALOG_MANAGE)
         ->route('platform.tag.list'),
 
       Menu::make('Reviews')
         ->icon('bs.chat-left-text')
+        ->permission(AdminPermissions::MARKETING_MANAGE)
         ->route('platform.review.list'),
 
       Menu::make('App Users')
         ->icon('bs.person')
+        ->permission(AdminPermissions::MEMBERS_MANAGE)
         ->route('platform.appuser.list'),
+
+      Menu::make('Withdrawals')
+        ->title('Finance')
+        ->icon('bs-bank')
+        ->permission(AdminPermissions::WITHDRAWALS_MANAGE)
+        ->route('platform.withdraw.list'),
 
       Menu::make('Banner')
         ->icon('bs.image')
+        ->permission(AdminPermissions::MARKETING_MANAGE)
         ->route('platform.banner.list'),
 
-      Menu::make(__('Users'))
-        ->icon('bs.people')
+      Menu::make('Admins')
+        ->title('Admin')
+        ->icon('bs-people')
         ->route('platform.systems.users')
-        ->permission('platform.systems.users')
-        ->title(__('Access Controls')),
+        ->permission(AdminPermissions::SYSTEMS_USERS),
 
-      Menu::make(__('Roles'))
-        ->icon('bs.shield')
+      Menu::make('Roles')
+        ->icon('bs-shield')
         ->route('platform.systems.roles')
-        ->permission('platform.systems.roles')
+        ->permission(AdminPermissions::SYSTEMS_ROLES),
+
+      Menu::make('Activity Logs')
+        ->icon('bs-journal-text')
+        ->route('platform.admin.logs')
+        ->permission(AdminPermissions::ADMIN_LOGS)
         ->divider(),
 
       Menu::make('Documentation')
@@ -184,8 +218,17 @@ class PlatformProvider extends OrchidServiceProvider {
   public function permissions(): array {
     return [
       ItemPermission::group(__('System'))
-        ->addPermission('platform.systems.roles', __('Roles'))
-        ->addPermission('platform.systems.users', __('Users')),
+        ->addPermission(AdminPermissions::PLATFORM_INDEX, __('Dashboard Access'))
+        ->addPermission(AdminPermissions::CATALOG_MANAGE, __('Catalog Management'))
+        ->addPermission(AdminPermissions::MARKETING_MANAGE, __('Marketing Management'))
+        ->addPermission(AdminPermissions::MEMBERS_MANAGE, __('Members Management'))
+        ->addPermission(AdminPermissions::ORDERS_MANAGE, __('Orders Management'))
+        ->addPermission(AdminPermissions::COMMISSIONS_MANAGE, __('Commission Management'))
+        ->addPermission(AdminPermissions::WITHDRAWALS_MANAGE, __('Withdrawals Management'))
+        ->addPermission(AdminPermissions::KYC_MANAGE, __('KYC Management'))
+        ->addPermission(AdminPermissions::ADMIN_LOGS, __('Admin Activity Logs'))
+        ->addPermission(AdminPermissions::SYSTEMS_ROLES, __('Roles'))
+        ->addPermission(AdminPermissions::SYSTEMS_USERS, __('Users')),
     ];
   }
 }

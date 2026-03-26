@@ -1,12 +1,14 @@
 import { Injectable } from "@nestjs/common";
 
 import {
+  KycRequestSummary,
   CommissionToShoppingConversionResult,
   DiscountWalletCreditResult,
   FirmWalletCreditResult,
   MatrixReentryDebitResult,
   ShoppingWalletTopupResult,
   ShoppingWalletTransferResult,
+  WithdrawRequestSummary,
   WalletBalanceReleaseResult,
   WalletBalanceReservationInput,
   WalletBalanceReservationResult,
@@ -30,6 +32,7 @@ import {
 import { RiskService } from "../../../risk/src/services/risk.service";
 import { PrismaWalletsRepository } from "../repositories/wallets.repository";
 import { readWalletSettings } from "../../../../shared/utils/src/wallet-settings.util";
+import { readWithdrawSettings } from "../../../../shared/utils/src/withdraw-settings.util";
 
 export interface WalletsServiceContract {
   getWalletSummary(userId: string): Promise<WalletSummary>;
@@ -114,6 +117,68 @@ export interface WalletsServiceContract {
     actorUserId: string;
     rejectionReason: string;
   }): Promise<WalletTopupRequestSummary>;
+
+  requestWithdraw(input: {
+    userId: string;
+    amount: string;
+    bankName: string;
+    bankBranch?: string;
+    accountNumber: string;
+    accountName: string;
+    accountType?: string;
+    note?: string;
+  }): Promise<WithdrawRequestSummary>;
+
+  listWithdrawRequests(filters?: {
+    userId?: string;
+    status?: "pending" | "approved" | "rejected" | "cancelled" | "exported" | "paid";
+  }): Promise<WithdrawRequestSummary[]>;
+
+  approveWithdrawRequest(input: {
+    requestId: string;
+    actorUserId: string;
+  }): Promise<WithdrawRequestSummary>;
+
+  rejectWithdrawRequest(input: {
+    requestId: string;
+    actorUserId: string;
+    rejectionReason: string;
+  }): Promise<WithdrawRequestSummary>;
+
+  markWithdrawRequestExported(input: {
+    requestIds: string[];
+    actorUserId: string;
+  }): Promise<WithdrawRequestSummary[]>;
+
+  createKycRequest(input: {
+    userId: string;
+    nationalId?: string;
+    bankName?: string;
+    bankBranch?: string;
+    bankAccountNumber?: string;
+    bankAccountName?: string;
+    bankAccountType?: string;
+    personalIdImageUrl?: string;
+    bankBookImageUrl?: string;
+    selfieImageUrl?: string;
+    note?: string;
+  }): Promise<KycRequestSummary>;
+
+  listKycRequests(filters?: {
+    userId?: string;
+    status?: "pending" | "approved" | "rejected";
+  }): Promise<KycRequestSummary[]>;
+
+  approveKycRequest(input: {
+    requestId: string;
+    actorUserId: string;
+  }): Promise<KycRequestSummary>;
+
+  rejectKycRequest(input: {
+    requestId: string;
+    actorUserId: string;
+    rejectionReason: string;
+  }): Promise<KycRequestSummary>;
 }
 
 @Injectable()
@@ -473,6 +538,122 @@ export class WalletsService implements WalletsServiceContract {
     rejectionReason: string;
   }): Promise<WalletTopupRequestSummary> {
     return this.walletsRepository.rejectWalletTopupRequest(input);
+  }
+
+  async requestWithdraw(input: {
+    userId: string;
+    amount: string;
+    bankName: string;
+    bankBranch?: string;
+    accountNumber: string;
+    accountName: string;
+    accountType?: string;
+    note?: string;
+  }): Promise<WithdrawRequestSummary> {
+    const settings = readWithdrawSettings();
+
+    if (!settings.withdrawEnabled) {
+      throw new Error("Withdraw request is disabled.");
+    }
+
+    if (compareDecimalStrings(input.amount, settings.minimumWithdrawAmount) < 0) {
+      throw new Error("Withdraw amount is lower than the configured minimum.");
+    }
+
+    const wallet = await this.walletsRepository.getWalletSummary(input.userId);
+    if (compareDecimalStrings(wallet.withdrawableBalance, input.amount) < 0) {
+      throw new Error("Insufficient withdrawable balance.");
+    }
+
+    const taxAmount = multiplyDecimalStrings(input.amount, settings.withholdingTaxRate);
+    const autoSweepAmount = multiplyDecimalStrings(input.amount, settings.autoSweepRate);
+    const feeAmount = settings.feeFlatAmount;
+    const netBankAmount = maxDecimalString(
+      subtractDecimalStrings(
+        subtractDecimalStrings(
+          subtractDecimalStrings(input.amount, taxAmount),
+          autoSweepAmount,
+        ),
+        feeAmount,
+      ),
+      "0",
+    );
+
+    return this.walletsRepository.createWithdrawRequest({
+      ...input,
+      taxAmount,
+      autoSweepAmount,
+      feeAmount,
+      netBankAmount,
+    });
+  }
+
+  async listWithdrawRequests(filters?: {
+    userId?: string;
+    status?: "pending" | "approved" | "rejected" | "cancelled" | "exported" | "paid";
+  }): Promise<WithdrawRequestSummary[]> {
+    return this.walletsRepository.listWithdrawRequests(filters);
+  }
+
+  async approveWithdrawRequest(input: {
+    requestId: string;
+    actorUserId: string;
+  }): Promise<WithdrawRequestSummary> {
+    return this.walletsRepository.approveWithdrawRequest(input);
+  }
+
+  async rejectWithdrawRequest(input: {
+    requestId: string;
+    actorUserId: string;
+    rejectionReason: string;
+  }): Promise<WithdrawRequestSummary> {
+    return this.walletsRepository.rejectWithdrawRequest(input);
+  }
+
+  async markWithdrawRequestExported(input: {
+    requestIds: string[];
+    actorUserId: string;
+  }): Promise<WithdrawRequestSummary[]> {
+    void input.actorUserId;
+    return this.walletsRepository.markWithdrawRequestsExported(input.requestIds);
+  }
+
+  async createKycRequest(input: {
+    userId: string;
+    nationalId?: string;
+    bankName?: string;
+    bankBranch?: string;
+    bankAccountNumber?: string;
+    bankAccountName?: string;
+    bankAccountType?: string;
+    personalIdImageUrl?: string;
+    bankBookImageUrl?: string;
+    selfieImageUrl?: string;
+    note?: string;
+  }): Promise<KycRequestSummary> {
+    return this.walletsRepository.createKycRequest(input);
+  }
+
+  async listKycRequests(filters?: {
+    userId?: string;
+    status?: "pending" | "approved" | "rejected";
+  }): Promise<KycRequestSummary[]> {
+    return this.walletsRepository.listKycRequests(filters);
+  }
+
+  async approveKycRequest(input: {
+    requestId: string;
+    actorUserId: string;
+  }): Promise<KycRequestSummary> {
+    return this.walletsRepository.approveKycRequest(input);
+  }
+
+  async rejectKycRequest(input: {
+    requestId: string;
+    actorUserId: string;
+    rejectionReason: string;
+  }): Promise<KycRequestSummary> {
+    return this.walletsRepository.rejectKycRequest(input);
   }
 
   private assertAllowedPaymentMethod(

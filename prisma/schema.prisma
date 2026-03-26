@@ -184,6 +184,21 @@ enum WalletTopupRequestStatus {
   CANCELLED
 }
 
+enum WithdrawRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+  EXPORTED
+  PAID
+}
+
+enum KycRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum WalletTransactionStatus {
   POSTED
   REVERSED
@@ -346,6 +361,10 @@ model User {
   counterpartyWalletTransactions WalletTransaction[]            @relation("WalletTransactionCounterpartyUser")
   walletTopupRequests            WalletTopupRequest[]           @relation("WalletTopupRequestUser")
   approvedWalletTopupRequests    WalletTopupRequest[]           @relation("WalletTopupRequestApprovedByUser")
+  withdrawRequests               WithdrawRequest[]              @relation("WithdrawRequestUser")
+  approvedWithdrawRequests       WithdrawRequest[]              @relation("WithdrawRequestApprovedByUser")
+  kycRequests                    KycRequest[]                   @relation("KycRequestUser")
+  approvedKycRequests            KycRequest[]                   @relation("KycRequestApprovedByUser")
   payoutBatchApprovals           PayoutBatch[]                  @relation("PayoutBatchApprovedByUser")
   payoutBatchSubmissions         PayoutBatch[]                  @relation("PayoutBatchSubmittedByUser")
   payoutBatchReconciliations     PayoutBatch[]                  @relation("PayoutBatchReconciledByUser")
@@ -892,6 +911,67 @@ model WalletTopupRequest {
 
   @@index([userId, status, requestedAt])
   @@index([status, requestedAt])
+  @@index([approvedByUserId])
+}
+
+model WithdrawRequest {
+  id               BigInt                @id @default(autoincrement())
+  userId           BigInt
+  amount           Decimal               @default(0) @db.Decimal(18, 8)
+  bankName         String                @db.VarChar(255)
+  bankBranch       String?               @db.VarChar(255)
+  accountNumber    String                @db.VarChar(100)
+  accountName      String                @db.VarChar(255)
+  accountType      String?               @db.VarChar(100)
+  taxAmount        Decimal               @default(0) @db.Decimal(18, 8)
+  autoSweepAmount  Decimal               @default(0) @db.Decimal(18, 8)
+  feeAmount        Decimal               @default(0) @db.Decimal(18, 8)
+  netBankAmount    Decimal               @default(0) @db.Decimal(18, 8)
+  note             String?               @db.Text
+  status           WithdrawRequestStatus @default(PENDING)
+  requestedAt      DateTime              @default(now())
+  approvedAt       DateTime?
+  approvedByUserId BigInt?
+  exportedAt       DateTime?
+  paidAt           DateTime?
+  rejectionReason  String?               @db.Text
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  user           User  @relation("WithdrawRequestUser", fields: [userId], references: [id])
+  approvedByUser User? @relation("WithdrawRequestApprovedByUser", fields: [approvedByUserId], references: [id])
+
+  @@index([userId, status, requestedAt])
+  @@index([status, requestedAt])
+  @@index([approvedByUserId])
+}
+
+model KycRequest {
+  id                  BigInt           @id @default(autoincrement())
+  userId              BigInt
+  nationalId          String?          @db.VarChar(30)
+  bankName            String?          @db.VarChar(255)
+  bankBranch          String?          @db.VarChar(255)
+  bankAccountNumber   String?          @db.VarChar(100)
+  bankAccountName     String?          @db.VarChar(255)
+  bankAccountType     String?          @db.VarChar(100)
+  personalIdImageUrl  String?          @db.Text
+  bankBookImageUrl    String?          @db.Text
+  selfieImageUrl      String?          @db.Text
+  note                String?          @db.Text
+  status              KycRequestStatus @default(PENDING)
+  submittedAt         DateTime         @default(now())
+  approvedAt          DateTime?
+  approvedByUserId    BigInt?
+  rejectionReason     String?          @db.Text
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  user           User  @relation("KycRequestUser", fields: [userId], references: [id])
+  approvedByUser User? @relation("KycRequestApprovedByUser", fields: [approvedByUserId], references: [id])
+
+  @@index([userId, status, submittedAt])
+  @@index([status, submittedAt])
   @@index([approvedByUserId])
 }
 
