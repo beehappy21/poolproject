@@ -47,6 +47,23 @@ export function optionalUrlString(
   return normalized;
 }
 
+export function optionalImageReferenceString(
+  value: unknown,
+  fieldName: string,
+): string | undefined {
+  const normalized = optionalString(value);
+
+  if (!normalized) {
+    return undefined;
+  }
+
+  if (/^data:image\/(?:png|jpeg|jpg|webp);base64,/i.test(normalized)) {
+    return normalized;
+  }
+
+  return optionalUrlString(normalized, fieldName);
+}
+
 export function optionalUrlStringArray(
   value: unknown,
   fieldName: string,

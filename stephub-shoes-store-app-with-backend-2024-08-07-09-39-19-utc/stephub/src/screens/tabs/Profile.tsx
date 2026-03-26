@@ -281,6 +281,11 @@ export const Profile: React.FC = () => {
           onClick={() => navigate('/EditProfile')}
         />
         <items.ProfileItem
+          title='KYC / ยืนยันตัวตน'
+          icon={<svg.InputCheckSvg />}
+          onClick={() => navigate('/Kyc')}
+        />
+        <items.ProfileItem
           title='Order history'
           icon={<svg.CalendarSvg />}
           onClick={() => {

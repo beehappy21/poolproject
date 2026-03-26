@@ -223,6 +223,9 @@
                 </div>
                 <div class="commission-panel">
                     <div class="commission-eyebrow">App Commission Menu Visibility</div>
+                    <div class="commission-helper">
+                        เปิดหรือปิดเมนูแต่ละตัวบนแถบหน้า Commission ของแอป หากปิด เมนูนั้นจะไม่แสดงบนหน้าแอป
+                    </div>
                     <input type="hidden" name="redirectSection" value="settings">
                     @foreach ($directRates as $value)
                         <input type="hidden" name="directLevelRates[]" value="{{ $value }}">
@@ -244,7 +247,7 @@
                             <label class="commission-toggle">
                                 <input type="hidden" name="{{ $key }}Visible" value="0">
                                 <input type="checkbox" name="{{ $key }}Visible" value="1" {{ !empty($appVisibility[$key]) ? 'checked' : '' }}>
-                                <span>{{ $label }}</span>
+                                <span>{{ $label }} <small style="opacity:.72;">(แสดงบนแอป)</small></span>
                             </label>
                         @endforeach
                     </div>
@@ -255,7 +258,7 @@
                         formaction="{{ route('platform.commission.save') }}"
                         formmethod="POST"
                     >
-                        Save App Visibility
+                        บันทึกการแสดงผลเมนูบนแอป
                     </button>
                 </div>
             </div>

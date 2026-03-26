@@ -9,6 +9,22 @@ export interface MatrixBoardSummary {
   status: string;
   openedAt: string | null;
   completedAt: string | null;
+  positions?: MatrixPositionSummary[];
+}
+
+export interface MatrixPositionSummary {
+  positionId: string;
+  slotNo: number;
+  levelNo: number;
+  roundNo: number;
+  parentSlotNo: number | null;
+  sourceUserId: string | null;
+  sourceMemberCode: string | null;
+  sourceMemberName: string | null;
+  sourcePv: string;
+  creditedPv: string;
+  status: string;
+  assignedAt: string;
 }
 
 export interface MatrixCycleSummary {
