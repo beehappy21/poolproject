@@ -139,6 +139,8 @@ export const EditProfile: React.FC = () => {
   const [addresses, setAddresses] = useState<ShippingAddress[]>([]);
   const [showAddressForm, setShowAddressForm] = useState(false);
   const [addressLabel, setAddressLabel] = useState('');
+  const [addressRecipientName, setAddressRecipientName] = useState('');
+  const [addressRecipientPhone, setAddressRecipientPhone] = useState('');
   const [addressLine, setAddressLine] = useState('');
   const [addressNote, setAddressNote] = useState('');
   const [countryCode, setCountryCode] = useState<'TH' | 'OTHER'>('TH');
@@ -197,6 +199,15 @@ export const EditProfile: React.FC = () => {
     setEmail(user?.email || '');
     setPhone(user?.phone || '');
   }, [initialName.firstName, initialName.lastName, user?.email, user?.phone]);
+
+  useEffect(() => {
+    if (!showAddressForm) {
+      return;
+    }
+
+    setAddressRecipientName(current => current || fullName);
+    setAddressRecipientPhone(current => current || phone.trim());
+  }, [showAddressForm, fullName, phone]);
 
   useEffect(() => {
     void loadAddresses();
@@ -259,8 +270,8 @@ export const EditProfile: React.FC = () => {
     }
 
     if (
-      !fullName ||
-      !phone.trim() ||
+      !addressRecipientName.trim() ||
+      !addressRecipientPhone.trim() ||
       !addressLine.trim() ||
       !provinceName.trim() ||
       !districtName.trim() ||
@@ -268,7 +279,7 @@ export const EditProfile: React.FC = () => {
       !postalCode.trim()
     ) {
       setErrorMessage(
-        'กรุณากรอกชื่อ นามสกุล เบอร์โทร ที่อยู่ จังหวัด อำเภอ ตำบล และรหัสไปรษณีย์ให้ครบ',
+        'กรุณากรอกชื่อผู้รับ เบอร์โทรผู้รับ ที่อยู่ จังหวัด อำเภอ ตำบล และรหัสไปรษณีย์ให้ครบ',
       );
       return;
     }
@@ -282,8 +293,8 @@ export const EditProfile: React.FC = () => {
         URLS.AUTH_SHIPPING_ADDRESSES,
         {
           label: addressLabel.trim() || undefined,
-          recipientName: fullName,
-          phone: phone.trim(),
+          recipientName: addressRecipientName.trim(),
+          phone: addressRecipientPhone.trim(),
           email: email.trim() || undefined,
           countryCode,
           countryName,
@@ -308,6 +319,8 @@ export const EditProfile: React.FC = () => {
 
       setAddresses(current => [response.data, ...current]);
       setAddressLabel('');
+      setAddressRecipientName(fullName);
+      setAddressRecipientPhone(phone.trim());
       setAddressLine('');
       setAddressNote('');
       setCountryCode('TH');
@@ -451,6 +464,20 @@ export const EditProfile: React.FC = () => {
                 placeholder='เช่น บ้าน, ที่ทำงาน'
                 value={addressLabel}
                 onChange={event => setAddressLabel(event.target.value)}
+              />
+              <custom.InputField
+                label='ชื่อผู้รับ'
+                containerStyle={{marginBottom: 16}}
+                placeholder='กรอกชื่อผู้รับ'
+                value={addressRecipientName}
+                onChange={event => setAddressRecipientName(event.target.value)}
+              />
+              <custom.InputField
+                label='เบอร์โทรผู้รับ'
+                containerStyle={{marginBottom: 16}}
+                placeholder='กรอกเบอร์โทรผู้รับ'
+                value={addressRecipientPhone}
+                onChange={event => setAddressRecipientPhone(event.target.value)}
               />
               <custom.InputField
                 label='ที่อยู่จัดส่ง'

@@ -41,6 +41,12 @@ echo "Seeding dev data..."
   npm run db:seed
 )
 
+echo "Ensuring Stephub local baseline..."
+(
+  cd "$ROOT_DIR"
+  bash scripts/ensure-stephub-local-state.sh
+)
+
 if is_listening 3000; then
   echo "API already listening on 3000"
 else

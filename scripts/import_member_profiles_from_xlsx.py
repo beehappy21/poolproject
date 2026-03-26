@@ -88,7 +88,8 @@ def build_sql(rows: list[dict[str, str]]) -> tuple[str, dict[str, int]]:
                   "rankCode",
                   "honorTitle",
                   "mobileCenterCode",
-                  "joinedAtOverride"
+                  "joinedAtOverride",
+                  "updatedAt"
                 )
                 select
                   u."id",
@@ -98,7 +99,8 @@ def build_sql(rows: list[dict[str, str]]) -> tuple[str, dict[str, int]]:
                   {sql_literal(rank_code)},
                   {sql_literal(honor_title)},
                   {sql_literal(mobile_center)},
-                  {sql_literal(joined_date)}::date
+                  {sql_literal(joined_date)}::date,
+                  now()
                 from public."User" u
                 left join public."User" uu on uu."memberCode" = {sql_literal(upline_code)}
                 where u."memberCode" = {sql_literal(member_code)}
@@ -110,7 +112,8 @@ def build_sql(rows: list[dict[str, str]]) -> tuple[str, dict[str, int]]:
                   "rankCode" = excluded."rankCode",
                   "honorTitle" = excluded."honorTitle",
                   "mobileCenterCode" = excluded."mobileCenterCode",
-                  "joinedAtOverride" = excluded."joinedAtOverride";
+                  "joinedAtOverride" = excluded."joinedAtOverride",
+                  "updatedAt" = now();
                 """
             ).strip()
         )
@@ -132,6 +135,8 @@ def run_sql(sql: str, database_url: str) -> None:
                 "-i",
                 "poolproject-postgres",
                 "psql",
+                "-v",
+                "ON_ERROR_STOP=1",
                 database_url,
             ],
             check=True,
