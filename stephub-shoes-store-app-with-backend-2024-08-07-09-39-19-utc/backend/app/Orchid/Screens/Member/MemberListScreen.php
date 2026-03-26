@@ -15,19 +15,28 @@ class MemberListScreen extends Screen
     public function query(Request $request): iterable
     {
         $search = trim((string) $request->query('search', ''));
-        $members = Member::query()->orderBy('seq_no');
+        $members = Member::query()
+            ->with(['memberProfile', 'sponsor'])
+            ->orderBy('id');
 
         if ($search !== '') {
             $members->where(function ($query) use ($search) {
                 $like = '%' . $search . '%';
                 $query
-                    ->where('member_code', 'ilike', $like)
-                    ->orWhere('full_name', 'ilike', $like)
-                    ->orWhere('sponsor_code', 'ilike', $like)
-                    ->orWhere('upline_code', 'ilike', $like)
-                    ->orWhere('national_id', 'ilike', $like)
+                    ->where('memberCode', 'ilike', $like)
+                    ->orWhere('name', 'ilike', $like)
                     ->orWhere('email', 'ilike', $like)
-                    ->orWhere('phone', 'ilike', $like);
+                    ->orWhere('phone', 'ilike', $like)
+                    ->orWhereHas('sponsor', function ($sponsorQuery) use ($like) {
+                        $sponsorQuery->where('memberCode', 'ilike', $like);
+                    })
+                    ->orWhereHas('memberProfile', function ($profileQuery) use ($like) {
+                        $profileQuery
+                            ->where('nationalId', 'ilike', $like)
+                            ->orWhere('rankCode', 'ilike', $like)
+                            ->orWhere('honorTitle', 'ilike', $like)
+                            ->orWhere('mobileCenterCode', 'ilike', $like);
+                    });
             });
         }
 

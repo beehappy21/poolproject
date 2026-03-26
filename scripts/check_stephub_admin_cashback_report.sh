@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-BASE_URL="${1:-http://127.0.0.1:8000}"
+BASE_URL="${1:-http://127.0.0.1:8001}"
 COOKIE_JAR="/tmp/stephub-cashback-report.cookies"
 LOGIN_PAGE="$(mktemp)"
 LOGIN_POST_HEADERS="$(mktemp)"
@@ -12,10 +12,10 @@ CSV_HEADERS="$(mktemp)"
 CSV_BODY="$(mktemp)"
 
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@stephub.local}"
-ADMIN_PASSWORD="${ADMIN_PASSWORD:-Admin1234!}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-Admin123}"
 
 extract_token() {
-  perl -ne 'if(/name="_token" value="([^"]+)"/){print $1; exit}' "$1"
+  perl -0ne 'if(/name="_token" value="([^"]+)"/){print $1; exit} if(/meta name="csrf_token" content="([^"]+)"/){print $1; exit}' "$1"
 }
 
 query_pg() {

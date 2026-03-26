@@ -5,14 +5,26 @@ set -uo pipefail
 BASE_URL="${1:-http://127.0.0.1:8001}"
 COOKIE_JAR="/tmp/stephub-commission.cookies"
 LOGIN_PAGE="$(mktemp)"
+ADMIN_EMAIL="${ADMIN_EMAIL:-admin@stephub.local}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-Admin123}"
+FAILED=0
+
+extract_token() {
+  perl -0ne 'if(/name="_token" value="([^"]+)"/){print $1; exit} if(/meta name="csrf_token" content="([^"]+)"/){print $1; exit}' "$1"
+}
 
 curl -s -c "$COOKIE_JAR" "$BASE_URL/admin/login" -o "$LOGIN_PAGE"
-TOKEN="$(perl -ne 'if(/name="_token" value="([^"]+)"/){print $1; exit}' "$LOGIN_PAGE")"
+TOKEN="$(extract_token "$LOGIN_PAGE")"
 
-curl -s -b "$COOKIE_JAR" -c "$COOKIE_JAR" -X POST "$BASE_URL/admin/login" \
+if [[ -z "${TOKEN:-}" ]]; then
+  echo "Failed to extract BAO login token from $BASE_URL/admin/login" >&2
+  exit 1
+fi
+
+curl -sS -b "$COOKIE_JAR" -c "$COOKIE_JAR" -X POST "$BASE_URL/admin/login" \
   --data-urlencode "_token=$TOKEN" \
-  --data-urlencode "email=admin@stephub.local" \
-  --data-urlencode "password=Admin123" \
+  --data-urlencode "email=$ADMIN_EMAIL" \
+  --data-urlencode "password=$ADMIN_PASSWORD" \
   --data-urlencode "remember=true" \
   -o /tmp/stephub-commission-login-post.html \
   -D /tmp/stephub-commission-login-post.headers >/dev/null
@@ -26,7 +38,7 @@ for path in \
   /admin/commission/report/pool
 do
   page_file="$(mktemp)"
-  if status="$(curl -s -b "$COOKIE_JAR" -o "$page_file" -w '%{http_code}' "$BASE_URL$path" 2>/tmp/commission-page.err)"; then
+  if status="$(curl -sS -b "$COOKIE_JAR" -o "$page_file" -w '%{http_code}' "$BASE_URL$path" 2>/tmp/commission-page.err)"; then
     :
   else
     status="curl_error"
@@ -62,13 +74,16 @@ do
   fi
 
   echo "PAGE path=$path status=$status marker=$marker"
+  if [[ "$status" != "200" ]]; then
+    FAILED=1
+  fi
 done
 
 for fmt in csv xlsx pdf
 do
   header_file="$(mktemp)"
   body_file="$(mktemp)"
-  if status="$(curl -s -b "$COOKIE_JAR" -D "$header_file" -o "$body_file" -w '%{http_code}' "$BASE_URL/admin/commission/report/export/overview?format=$fmt" 2>/tmp/commission-export.err)"; then
+  if status="$(curl -sS -b "$COOKIE_JAR" -D "$header_file" -o "$body_file" -w '%{http_code}' "$BASE_URL/admin/commission/report/export/overview?format=$fmt" 2>/tmp/commission-export.err)"; then
     :
   else
     status="curl_error"
@@ -78,4 +93,9 @@ do
   size="$(wc -c < "$body_file" | tr -d ' ')"
 
   echo "EXPORT format=$fmt status=$status type=${content_type:-n/a} size=$size disposition=${content_disposition:-n/a}"
+  if [[ "$status" != "200" || "$size" == "0" ]]; then
+    FAILED=1
+  fi
 done
+
+exit "$FAILED"
