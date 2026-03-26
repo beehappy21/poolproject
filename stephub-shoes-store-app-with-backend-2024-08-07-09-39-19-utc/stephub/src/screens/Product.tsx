@@ -88,6 +88,7 @@ export const Product: React.FC = () => {
   const [selectedColor, setSelectedColor] = useState<string>(
     item?.colors?.[0]?.name || 'default',
   );
+  const [activeMediaIndex, setActiveMediaIndex] = useState(0);
   const videoFrameRef = useRef<HTMLIFrameElement | null>(null);
 
   const modifiedItem = {
@@ -97,6 +98,7 @@ export const Product: React.FC = () => {
   };
 
   const mediaItems = buildMediaItems(item || {});
+  const hasLeadingVideo = mediaItems[0]?.type === 'video';
   const hasRealSizes =
     Array.isArray(item?.sizes) &&
     item.sizes.length > 0 &&
@@ -127,12 +129,7 @@ export const Product: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const videoItem = mediaItems.find(
-      (media): media is Extract<MediaItem, {type: 'video'}> =>
-        media.type === 'video',
-    );
-
-    if (!videoItem || !videoFrameRef.current) {
+    if (!hasLeadingVideo || !videoFrameRef.current) {
       return;
     }
 
@@ -149,6 +146,11 @@ export const Product: React.FC = () => {
       );
     };
 
+    if (activeMediaIndex !== 0) {
+      sendYoutubeCommand('pauseVideo');
+      return;
+    }
+
     const timer = window.setTimeout(() => {
       sendYoutubeCommand('setVolume', [50]);
       sendYoutubeCommand('playVideo');
@@ -156,8 +158,9 @@ export const Product: React.FC = () => {
 
     return () => {
       window.clearTimeout(timer);
+      sendYoutubeCommand('pauseVideo');
     };
-  }, [mediaItems]);
+  }, [activeMediaIndex, hasLeadingVideo, mediaItems]);
 
   if (!item) {
     return (
@@ -264,6 +267,8 @@ export const Product: React.FC = () => {
             showArrows={false}
             swipeable={true}
             emulateTouch={true}
+            selectedItem={activeMediaIndex}
+            onChange={index => setActiveMediaIndex(index)}
           >
             {mediaItems.map((media, index) => renderMediaSlide(media, index))}
           </Carousel>

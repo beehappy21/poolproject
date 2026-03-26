@@ -15,6 +15,7 @@ import {
   requireDecimalString,
   requirePositiveIntegerString,
   optionalString,
+  optionalImageReferenceString,
   optionalUrlString,
 } from "../../../../../apps/api/src/http/request.util";
 import { readManualPaymentSettings } from "../../../../shared/utils/src/manual-payment-settings.util";
@@ -536,12 +537,15 @@ export class AuthController {
       bankAccountNumber: optionalString(body?.bankAccountNumber),
       bankAccountName: optionalString(body?.bankAccountName),
       bankAccountType: optionalString(body?.bankAccountType),
-      personalIdImageUrl: optionalUrlString(
+      personalIdImageUrl: optionalImageReferenceString(
         body?.personalIdImageUrl,
         "personalIdImageUrl",
       ),
-      bankBookImageUrl: optionalUrlString(body?.bankBookImageUrl, "bankBookImageUrl"),
-      selfieImageUrl: optionalUrlString(body?.selfieImageUrl, "selfieImageUrl"),
+      bankBookImageUrl: optionalImageReferenceString(
+        body?.bankBookImageUrl,
+        "bankBookImageUrl",
+      ),
+      selfieImageUrl: optionalImageReferenceString(body?.selfieImageUrl, "selfieImageUrl"),
       note: optionalString(body?.note),
     });
   }

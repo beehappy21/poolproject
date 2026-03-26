@@ -27,6 +27,7 @@ export const AUTH_COMMISSIONS = `${API_BASE_URL}/auth/commissions`;
 export const AUTH_MATRIX = `${API_BASE_URL}/auth/matrix`;
 export const AUTH_WALLETS_TRANSFER = `${API_BASE_URL}/auth/wallets/transfer`;
 export const AUTH_WITHDRAW_REQUESTS = `${API_BASE_URL}/auth/withdraw-requests`;
+export const AUTH_KYC_REQUESTS = `${API_BASE_URL}/auth/kyc-requests`;
 export const AUTH_SHIPPING_ADDRESSES = `${API_BASE_URL}/auth/shipping-addresses`;
 export const AUTH_PAYMENT_INSTRUCTIONS = `${API_BASE_URL}/auth/payment-instructions`;
 export const GET_COMMISSION_SETTINGS = `${API_BASE_URL}/settings/commissions`;
@@ -36,6 +37,10 @@ export const buildMemberDirectReferralsUrl = (memberCode: string) =>
   `${API_BASE_URL}/members/by-code/${encodeURIComponent(memberCode)}/direct-referrals`;
 export const buildMemberReferralLinkUrl = (memberCode: string) =>
   `${API_BASE_URL}/members/by-code/${encodeURIComponent(memberCode)}/referral-link`;
+export const buildMemberByCodeUrl = (memberCode: string) =>
+  `${API_BASE_URL}/members/by-code/${encodeURIComponent(memberCode)}`;
+export const buildMatrixByMemberIdUrl = (memberId: string | number) =>
+  `${API_BASE_URL}/matrix/member/${memberId}`;
 
 export const buildAuthOrderDetailUrl = (orderId: string | number) =>
   `${AUTH_ORDERS}/${orderId}`;
@@ -71,11 +76,14 @@ export const URLS = {
   AUTH_MATRIX,
   AUTH_WALLETS_TRANSFER,
   AUTH_WITHDRAW_REQUESTS,
+  AUTH_KYC_REQUESTS,
   AUTH_SHIPPING_ADDRESSES,
   AUTH_PAYMENT_INSTRUCTIONS,
   GET_COMMISSION_SETTINGS,
   GET_MATRIX_SETTINGS,
   GET_SIGNUP_SHARE_SETTINGS,
+  buildMemberByCodeUrl,
+  buildMatrixByMemberIdUrl,
   buildMemberDirectReferralsUrl,
   buildMemberReferralLinkUrl,
   buildAuthOrderDetailUrl,

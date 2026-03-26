@@ -22,6 +22,7 @@ const stack = createBrowserRouter([
       {path: 'Commission', element: <screens.Commission />},
       {path: 'TransferSW', element: <screens.TransferSW />},
       {path: 'WithdrawSW', element: <screens.WithdrawSW />},
+      {path: 'Kyc', element: <screens.Kyc />},
       {path: 'Checkout', element: <screens.Checkout />},
       {path: 'OrderSuccessful', element: <screens.OrderSuccessful />},
       {path: 'OrderFailed', element: <screens.OrderFailed />},

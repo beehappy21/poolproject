@@ -38,6 +38,19 @@ export class PrismaMatrixRepository {
       include: {
         boards: {
           orderBy: [{ boardNo: "asc" }],
+          include: {
+            positions: {
+              orderBy: [{ levelNo: "asc" }, { slotNo: "asc" }],
+              include: {
+                sourceUser: {
+                  select: {
+                    memberCode: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
         },
       },
     });
@@ -82,6 +95,19 @@ export class PrismaMatrixRepository {
       include: {
         boards: {
           orderBy: [{ boardNo: "asc" }],
+          include: {
+            positions: {
+              orderBy: [{ levelNo: "asc" }, { slotNo: "asc" }],
+              include: {
+                sourceUser: {
+                  select: {
+                    memberCode: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
         },
       },
     });
@@ -324,6 +350,19 @@ export class PrismaMatrixRepository {
       include: {
         boards: {
           orderBy: [{ boardNo: "asc" }],
+          include: {
+            positions: {
+              orderBy: [{ levelNo: "asc" }, { slotNo: "asc" }],
+              include: {
+                sourceUser: {
+                  select: {
+                    memberCode: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
         },
       },
     });
@@ -356,6 +395,20 @@ export class PrismaMatrixRepository {
         status: board.status.toLowerCase(),
         openedAt: board.openedAt ? toIsoString(board.openedAt) : null,
         completedAt: board.completedAt ? toIsoString(board.completedAt) : null,
+        positions: board.positions.map((position) => ({
+          positionId: toIdString(position.id),
+          slotNo: position.slotNo,
+          levelNo: position.levelNo,
+          roundNo: position.roundNo,
+          parentSlotNo: position.parentSlotNo,
+          sourceUserId: position.sourceUserId ? toIdString(position.sourceUserId) : null,
+          sourceMemberCode: position.sourceUser?.memberCode ?? null,
+          sourceMemberName: position.sourceUser?.name ?? null,
+          sourcePv: toDecimalString(position.sourcePv),
+          creditedPv: toDecimalString(position.creditedPv),
+          status: position.status.toLowerCase(),
+          assignedAt: toIsoString(position.assignedAt),
+        })),
       })),
     }));
   }
