@@ -14,6 +14,10 @@ is_listening() {
   lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1
 }
 
+get_project_api_pids() {
+  ps -ax -o pid=,command= | grep 'poolproject' | grep -E 'node .*nest start api( --watch)?|dist/apps/api/apps/api/src/main(\.js)?' | awk '{print $1}' || true
+}
+
 start_bg() {
   local name="$1"
   local log_file="$2"
@@ -47,12 +51,23 @@ echo "Ensuring Stephub local baseline..."
   bash scripts/ensure-stephub-local-state.sh
 )
 
-if is_listening 3000; then
+API_PIDS="$(get_project_api_pids || true)"
+API_PID_COUNT="$(printf '%s\n' "$API_PIDS" | sed '/^$/d' | wc -l | tr -d ' ')"
+if [[ "$API_PID_COUNT" -gt 1 ]]; then
+  echo "Multiple project API processes detected: $API_PIDS"
+  while IFS= read -r pid; do
+    [[ -n "$pid" ]] || continue
+    kill "$pid" || true
+  done <<< "$API_PIDS"
+  sleep 2
+fi
+
+if is_listening 3000 && [[ "$API_PID_COUNT" -le 1 ]]; then
   echo "API already listening on 3000"
 else
   (
     cd "$ROOT_DIR"
-    start_bg "API" "$API_LOG" npm run dev:api
+    start_bg "API" "$API_LOG" node dist/apps/api/apps/api/src/main.js
   )
 fi
 
