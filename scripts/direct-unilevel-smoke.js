@@ -11,6 +11,13 @@ const prisma = new PrismaClient();
 const API_BASE_URL = process.env.API_BASE_URL || "http://127.0.0.1:3000";
 const RUN_SUFFIX = Date.now().toString().slice(-8);
 const ORDER_NO = `ORD-DIRECT-UNI-${RUN_SUFFIX}`;
+const ROOT_CODE = `DUSR${RUN_SUFFIX}A`;
+const MIDDLE_CODE = `DUSR${RUN_SUFFIX}B`;
+const BUYER_CODE = `DUSR${RUN_SUFFIX}C`;
+const ROOT_EMAIL = `direct.root.${RUN_SUFFIX}@example.com`;
+const MIDDLE_EMAIL = `direct.middle.${RUN_SUFFIX}@example.com`;
+const BUYER_EMAIL = `direct.buyer.${RUN_SUFFIX}@example.com`;
+const MEMBER_PASSWORD = "smokepass1234";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -163,32 +170,63 @@ async function main() {
   });
 
   let orderId = null;
+  let rootMemberId = null;
+  let middleMemberId = null;
+  let buyerMemberId = null;
 
   try {
-    const users = await prisma.user.findMany({
-      where: {
-        memberCode: { in: ["ALICE", "BOB", "DAVE"] },
-      },
-      select: {
-        id: true,
-        memberCode: true,
+    const root = await request("/members", {
+      method: "POST",
+      body: {
+        memberCode: ROOT_CODE,
+        name: `Direct Root ${RUN_SUFFIX}`,
+        email: ROOT_EMAIL,
+        sponsorCode: "ALICE",
+        password: MEMBER_PASSWORD,
       },
     });
-    const userMap = new Map(users.map((user) => [user.memberCode, user]));
-    const root = userMap.get("ALICE");
-    const middle = userMap.get("BOB");
-    const buyer = userMap.get("DAVE");
+    rootMemberId = root.memberId;
 
-    if (!root || !middle || !buyer) {
-      throw new Error(
-        "Seed members ALICE, BOB, and DAVE are required for direct/unilevel smoke test.",
-      );
-    }
+    const middle = await request("/members", {
+      method: "POST",
+      body: {
+        memberCode: MIDDLE_CODE,
+        name: `Direct Middle ${RUN_SUFFIX}`,
+        email: MIDDLE_EMAIL,
+        sponsorCode: ROOT_CODE,
+        password: MEMBER_PASSWORD,
+      },
+    });
+    middleMemberId = middle.memberId;
+
+    const buyer = await request("/members", {
+      method: "POST",
+      body: {
+        memberCode: BUYER_CODE,
+        name: `Direct Buyer ${RUN_SUFFIX}`,
+        email: BUYER_EMAIL,
+        sponsorCode: MIDDLE_CODE,
+        password: MEMBER_PASSWORD,
+      },
+    });
+    buyerMemberId = buyer.memberId;
+
+    await request(`/members/${rootMemberId}/activate-package`, {
+      method: "POST",
+      token,
+      body: { packageId: activePackage.packageId },
+    });
+
+    await request(`/members/${middleMemberId}/activate-package`, {
+      method: "POST",
+      token,
+      body: { packageId: activePackage.packageId },
+    });
 
     const order = await prisma.order.create({
       data: {
         orderNo: ORDER_NO,
-        userId: BigInt(buyer.id),
+        userId: BigInt(buyerMemberId),
         subtotalUsdt: activePackage.pv,
         totalUsdt: activePackage.pv,
         totalPv: activePackage.pv,
@@ -292,7 +330,7 @@ async function main() {
 
     if (
       directRow?.status !== "APPROVED" ||
-      directRow?.beneficiaryUser?.memberCode !== middle.memberCode ||
+      directRow?.beneficiaryUser?.memberCode !== MIDDLE_CODE ||
       directRow?.commissionAmount?.toString() !== expectedDirectAmount
     ) {
       throw new Error("Direct commission verification failed.");
@@ -300,7 +338,7 @@ async function main() {
 
     if (
       uniLevelOne?.status !== "APPROVED" ||
-      uniLevelOne?.beneficiaryUser?.memberCode !== middle.memberCode ||
+      uniLevelOne?.beneficiaryUser?.memberCode !== MIDDLE_CODE ||
       uniLevelOne?.commissionAmount?.toString() !== expectedUniLevelOneAmount
     ) {
       throw new Error("Unilevel level 1 verification failed.");
@@ -308,7 +346,7 @@ async function main() {
 
     if (
       uniLevelTwo?.status !== "APPROVED" ||
-      uniLevelTwo?.beneficiaryUser?.memberCode !== root.memberCode ||
+      uniLevelTwo?.beneficiaryUser?.memberCode !== ROOT_CODE ||
       uniLevelTwo?.commissionAmount?.toString() !== expectedUniLevelTwoAmount
     ) {
       throw new Error("Unilevel level 2 verification failed.");
