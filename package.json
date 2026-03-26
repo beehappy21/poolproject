@@ -11,6 +11,8 @@
     "dev:up": "bash scripts/dev-up.sh",
     "dev:restart": "bash scripts/dev-restart.sh",
     "dev:check": "bash scripts/dev-check.sh",
+    "dev:baseline:stephub": "bash scripts/ensure-stephub-local-state.sh",
+    "dev:check:stephub": "bash scripts/check-stephub-local-baseline.sh",
     "start:api": "nest start api",
     "start:worker": "nest start worker",
     "lint": "tsc --noEmit -p apps/api/tsconfig.app.json && tsc --noEmit -p apps/worker/tsconfig.app.json",

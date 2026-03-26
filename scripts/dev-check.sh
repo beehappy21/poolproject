@@ -57,4 +57,6 @@ check_url "BAO slides endpoint" "http://127.0.0.1:8001/api/slides"
 check_url "BAO banners endpoint" "http://127.0.0.1:8001/api/banners"
 check_url "Stephub app root" "http://127.0.0.1:3002"
 
+bash scripts/check-stephub-local-baseline.sh
+
 echo "Local dev stack checks passed."

@@ -33,7 +33,7 @@ const PRODUCT_BATCH_SIZE = 20;
 const BANNER_INSERT_INTERVAL = 8;
 const MOBILE_BREAKPOINT = 768;
 const CATEGORY_VISIBLE_COUNT = 5;
-const HOME_HEADER_HEIGHT = 92;
+const HOME_HEADER_HEIGHT = 64;
 
 const BANNER_PLACEHOLDERS: BannerType[] = [
   {
@@ -229,7 +229,6 @@ export const Home: FC = () => {
         burger={true}
         basket={true}
         line={true}
-        fixed={true}
         searchValue={searchValue}
         searchPlaceholder='ค้นหาสินค้า'
         onSearchChange={event => setSearchValue(event.target.value)}

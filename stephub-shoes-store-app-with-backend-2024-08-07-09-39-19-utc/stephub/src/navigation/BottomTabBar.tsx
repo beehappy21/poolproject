@@ -67,8 +67,6 @@ export const BottomTabBar: React.FC = () => {
           backgroundColor: theme.colors.mainColor,
           paddingLeft: 20,
           paddingRight: 20,
-          borderTopLeftRadius: 20,
-          borderTopRightRadius: 20,
         }}
       >
         {tabs.map(tab => (

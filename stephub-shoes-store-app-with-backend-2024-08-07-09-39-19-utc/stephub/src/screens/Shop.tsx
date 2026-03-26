@@ -2,10 +2,10 @@ import React, {useEffect, useState} from 'react';
 import {useLocation} from 'react-router-dom';
 import {animated, useSpring} from '@react-spring/web';
 
+import {components} from '../components';
 import {custom} from '../custom';
 import {svg} from '../assets/svg';
 import {theme} from '../constants';
-import {actions} from '../store/actions';
 import {items as ShopItem} from '../items';
 import {hooks, RootState} from '../hooks';
 
@@ -18,11 +18,9 @@ const sortingBy = [
 ];
 
 export const Shop: React.FC = () => {
-  const dispatch = hooks.useAppDispatch();
   const navigate = hooks.useAppNavigate();
 
   const location = useLocation();
-  const title = location.state?.title || 'สินค้า';
   const products = location.state?.products || [];
 
   const [sort, setSort] = useState(sortingBy[0]);
@@ -45,11 +43,6 @@ export const Shop: React.FC = () => {
 
   const {selectedColors, selectedSizes, selectedCategories, selectedTags} =
     hooks.useAppSelector((state: RootState) => state.filterSlice);
-
-  const cart = hooks.useAppSelector((state: RootState) => state.cartSlice.list);
-  const total = hooks.useAppSelector(
-    (state: RootState) => state.cartSlice.total,
-  );
 
   const filteredProducts = products.filter((product: any) => {
     const sizeMatch =
@@ -104,16 +97,6 @@ export const Shop: React.FC = () => {
     window.scrollTo(0, 0);
   }, []);
 
-  const handleOnClick = () => {
-    if (cart.length > 0) {
-      dispatch(actions.setScreen('Order'));
-      navigate('/TabNavigator');
-      return;
-    }
-
-    return alert('ยังไม่มีสินค้าในตะกร้า');
-  };
-
   const renderHeader = () => {
     return (
       <header
@@ -126,84 +109,13 @@ export const Shop: React.FC = () => {
           zIndex: 4,
         }}
       >
-        {/* Top Info */}
-        <div
-          style={{
-            height: 52,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
-          <button
-            style={{
-              position: 'absolute',
-              left: 0,
-              padding: 20,
-              cursor: 'pointer',
-              backgroundColor: 'transparent',
-              border: 'none',
-            }}
-            onClick={() => navigate(-1)}
-          >
-            <svg.GoBackSvg />
-          </button>
-          <h4
-            style={{
-              width: 'calc(100% - 100px)',
-              textAlign: 'center',
-              position: 'absolute',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              ...theme.fonts.Mulish_600SemiBold,
-              fontSize: 18,
-              color: theme.colors.mainColor,
-            }}
-          >
-            {title}
-          </h4>
-          <button
-            onClick={handleOnClick}
-            style={{
-              position: 'absolute',
-              right: 0,
-              paddingTop: 12,
-              paddingBottom: 12,
-              paddingLeft: 20,
-              paddingRight: 20,
-              borderRadius: 12,
-            }}
-          >
-            <svg.BasketSvg />
-            <span
-              style={{
-                paddingLeft: 6,
-                paddingRight: 6,
-                borderRadius: 10,
-                right: 35,
-                bottom: 12,
-                position: 'absolute',
-                display: 'flex',
-                paddingTop: 2,
-                paddingBottom: 2.8,
-                fontSize: 10,
-                color: theme.colors.white,
-                ...theme.fonts.Mulish_700Bold,
-                backgroundColor: theme.colors.coralRed,
-              }}
-            >
-              {cart.length > 0 ? `$${total.toFixed(2)}` : '$0'}
-            </span>
-          </button>
-        </div>
-        {/* Filters and sorting */}
+        <components.Header goBack={true} line={true} />
         <div
           style={{
             display: 'flex',
             alignItems: 'baseline',
             justifyContent: 'space-between',
-            padding: '0 20px',
-            paddingBottom: 19,
+            padding: '12px 20px 19px 20px',
           }}
         >
           <button

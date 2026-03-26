@@ -23,10 +23,7 @@ type Props = {
 
 export const Header: React.FC<Props> = ({
   line,
-  title,
-  burger,
   goBack,
-  basket,
   fixed,
   searchValue,
   searchPlaceholder,
@@ -34,6 +31,7 @@ export const Header: React.FC<Props> = ({
 }) => {
   const navigate = useNavigate();
   const [modal, setModal] = useState(false);
+  const [localSearchValue, setLocalSearchValue] = useState('');
 
   const backdropAnimation = useSpring({
     opacity: modal ? 1 : 0,
@@ -75,12 +73,14 @@ export const Header: React.FC<Props> = ({
       return (
         <button
           style={{
-            position: 'absolute',
-            left: 0,
-            padding: 20,
+            padding: 10,
             cursor: 'pointer',
             backgroundColor: 'transparent',
             border: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
           }}
           onClick={() => navigate(-1)}
         >
@@ -92,58 +92,43 @@ export const Header: React.FC<Props> = ({
     return null;
   };
 
-  const renderBurger = (): JSX.Element | null => {
-    if (burger) {
-      return (
-        <button
-          style={{
-            position: 'absolute',
-            left: 0,
-            padding: 20,
-            cursor: 'pointer',
-            backgroundColor: 'transparent',
-            border: 'none',
-          }}
-          onClick={() => setModal(true)}
-        >
-          <svg.BurgerSvg />
-        </button>
-      );
-    }
-
-    return null;
-  };
-
-  const renderTitle = (): JSX.Element => {
+  const renderBurger = (): JSX.Element => {
     return (
-      <h4
+      <button
         style={{
-          width: 'calc(100% - 100px)',
-          textAlign: 'center',
-          position: 'absolute',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          ...theme.fonts.Mulish_600SemiBold,
-          fontSize: 18,
-          color: theme.colors.mainColor,
+          padding: 10,
+          cursor: 'pointer',
+          backgroundColor: 'transparent',
+          border: 'none',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
         }}
+        onClick={() => setModal(true)}
       >
-        {title}
-      </h4>
+        <svg.BurgerSvg />
+      </button>
     );
   };
 
-  const renderSearch = (): JSX.Element | null => {
-    if (!onSearchChange) {
-      return null;
-    }
+  const renderSearch = (): JSX.Element => {
+    const value = onSearchChange ? searchValue || '' : localSearchValue;
+
+    const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+      if (onSearchChange) {
+        onSearchChange(event);
+        return;
+      }
+
+      setLocalSearchValue(event.target.value);
+    };
 
     return (
       <div
         style={{
           flex: 1,
-          marginLeft: burger || goBack ? 56 : 16,
-          marginRight: basket ? 72 : 16,
+          minWidth: 0,
           height: 40,
           borderRadius: 999,
           border: `1px solid ${theme.colors.aliceBlue2}`,
@@ -179,9 +164,9 @@ export const Header: React.FC<Props> = ({
           />
         </div>
         <input
-          value={searchValue || ''}
-          onChange={onSearchChange}
-          placeholder={searchPlaceholder || 'ค้นหา'}
+          value={value}
+          onChange={handleChange}
+          placeholder={searchPlaceholder || 'ค้นหาสินค้า'}
           style={{
             width: '100%',
             border: 'none',
@@ -196,46 +181,42 @@ export const Header: React.FC<Props> = ({
     );
   };
 
-  const renderBasket = (): JSX.Element | null => {
-    if (basket) {
-      return (
-        <button
-          onClick={handleOnClick}
+  const renderBasket = (): JSX.Element => {
+    return (
+      <button
+        onClick={handleOnClick}
+        style={{
+          paddingTop: 12,
+          paddingBottom: 12,
+          paddingLeft: 16,
+          paddingRight: 16,
+          borderRadius: 12,
+          position: 'relative',
+          flexShrink: 0,
+        }}
+      >
+        <svg.BasketSvg />
+        <div
           style={{
+            paddingLeft: 6,
+            paddingRight: 6,
+            borderRadius: 10,
+            right: 8,
+            top: 4,
             position: 'absolute',
-            right: 0,
-            paddingTop: 12,
-            paddingBottom: 12,
-            paddingLeft: 20,
-            paddingRight: 20,
-            borderRadius: 12,
+            display: 'flex',
+            paddingTop: 2,
+            paddingBottom: 2,
+            fontSize: 10,
+            color: theme.colors.white,
+            ...theme.fonts.Mulish_700Bold,
+            backgroundColor: theme.colors.coralRed,
           }}
         >
-          <svg.BasketSvg />
-          <div
-            style={{
-              paddingLeft: 6,
-              paddingRight: 6,
-              borderRadius: 10,
-              right: 35,
-              bottom: 10,
-              position: 'absolute',
-              display: 'flex',
-              paddingTop: 2,
-              paddingBottom: 2,
-              fontSize: 10,
-              color: theme.colors.white,
-              ...theme.fonts.Mulish_700Bold,
-              backgroundColor: theme.colors.coralRed,
-            }}
-          >
-            {cart.length > 0 ? `$${total.toFixed(2)}` : '$0'}
-          </div>
-        </button>
-      );
-    }
-
-    return null;
+          {cart.length > 0 ? `$${total.toFixed(2)}` : '$0'}
+        </div>
+      </button>
+    );
   };
 
   const renderModal = (): JSX.Element => {
@@ -374,19 +355,18 @@ export const Header: React.FC<Props> = ({
           height: 64,
           position: fixed ? 'fixed' : 'sticky',
           display: 'flex',
-          justifyContent: 'space-between',
           alignItems: 'center',
-          flexDirection: 'row',
           backgroundColor: theme.colors.white,
           zIndex: 40,
           borderBottom: line ? `1px solid ${theme.colors.aliceBlue2}` : 'none',
-          paddingLeft: 4,
-          paddingRight: 4,
+          paddingLeft: 12,
+          paddingRight: 8,
+          gap: 8,
         }}
       >
-        {renderGoBack()}
         {renderBurger()}
-        {onSearchChange ? renderSearch() : renderTitle()}
+        {renderGoBack()}
+        {renderSearch()}
         {renderBasket()}
       </header>
     </>
