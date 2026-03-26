@@ -133,6 +133,130 @@ export class WalletsController {
     });
   }
 
+  @Get("withdraw-requests")
+  async listWithdrawRequests(
+    @Query("userId") userId?: string,
+    @Query("status") status?: string,
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    await this.requireAdminSessionUser(authorization, cookieHeader);
+
+    return this.walletsService.listWithdrawRequests({
+      userId: optionalString(userId)
+        ? requirePositiveIntegerString(userId, "userId")
+        : undefined,
+      status: optionalString(status)
+        ? (requireNonEmptyString(status, "status").toLowerCase() as
+            | "pending"
+            | "approved"
+            | "rejected"
+            | "cancelled"
+            | "exported"
+            | "paid")
+        : undefined,
+    });
+  }
+
+  @Post("withdraw-requests/:requestId/approve")
+  async approveWithdrawRequest(
+    @Param("requestId") requestId: string,
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    const adminUser = await this.requireAdminSessionUser(authorization, cookieHeader);
+
+    return this.walletsService.approveWithdrawRequest({
+      requestId: requirePositiveIntegerString(requestId, "requestId"),
+      actorUserId: adminUser.userId,
+    });
+  }
+
+  @Post("withdraw-requests/:requestId/reject")
+  async rejectWithdrawRequest(
+    @Param("requestId") requestId: string,
+    @Body() body: { rejectionReason: string },
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    const adminUser = await this.requireAdminSessionUser(authorization, cookieHeader);
+
+    return this.walletsService.rejectWithdrawRequest({
+      requestId: requirePositiveIntegerString(requestId, "requestId"),
+      actorUserId: adminUser.userId,
+      rejectionReason: requireNonEmptyString(body.rejectionReason, "rejectionReason"),
+    });
+  }
+
+  @Post("withdraw-requests/export")
+  async markWithdrawRequestsExported(
+    @Body() body: { requestIds: string[] },
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    const adminUser = await this.requireAdminSessionUser(authorization, cookieHeader);
+    const requestIds = Array.isArray(body.requestIds) ? body.requestIds : [];
+
+    return this.walletsService.markWithdrawRequestExported({
+      requestIds: requestIds.map((requestId) =>
+        requirePositiveIntegerString(requestId, "requestIds"),
+      ),
+      actorUserId: adminUser.userId,
+    });
+  }
+
+  @Get("kyc-requests")
+  async listKycRequests(
+    @Query("userId") userId?: string,
+    @Query("status") status?: string,
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    await this.requireAdminSessionUser(authorization, cookieHeader);
+
+    return this.walletsService.listKycRequests({
+      userId: optionalString(userId)
+        ? requirePositiveIntegerString(userId, "userId")
+        : undefined,
+      status: optionalString(status)
+        ? (requireNonEmptyString(status, "status").toLowerCase() as
+            | "pending"
+            | "approved"
+            | "rejected")
+        : undefined,
+    });
+  }
+
+  @Post("kyc-requests/:requestId/approve")
+  async approveKycRequest(
+    @Param("requestId") requestId: string,
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    const adminUser = await this.requireAdminSessionUser(authorization, cookieHeader);
+
+    return this.walletsService.approveKycRequest({
+      requestId: requirePositiveIntegerString(requestId, "requestId"),
+      actorUserId: adminUser.userId,
+    });
+  }
+
+  @Post("kyc-requests/:requestId/reject")
+  async rejectKycRequest(
+    @Param("requestId") requestId: string,
+    @Body() body: { rejectionReason: string },
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    const adminUser = await this.requireAdminSessionUser(authorization, cookieHeader);
+
+    return this.walletsService.rejectKycRequest({
+      requestId: requirePositiveIntegerString(requestId, "requestId"),
+      actorUserId: adminUser.userId,
+      rejectionReason: requireNonEmptyString(body.rejectionReason, "rejectionReason"),
+    });
+  }
+
   @Post(":userId/topup-requests")
   async createWalletTopupRequest(
     @Param("userId") userId: string,

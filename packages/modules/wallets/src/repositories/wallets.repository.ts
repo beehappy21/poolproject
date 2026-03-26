@@ -1,10 +1,12 @@
 import {
+  KycRequestSummary,
   CommissionToShoppingConversionResult,
   DiscountWalletCreditResult,
   FirmWalletCreditResult,
   MatrixReentryDebitResult,
   ShoppingWalletTopupResult,
   ShoppingWalletTransferResult,
+  WithdrawRequestSummary,
   WalletSummary,
   WalletNegativeOffsetResult,
   WalletPostingInput,
@@ -12,7 +14,13 @@ import {
   WalletTopupRequestSummary,
   WalletTransactionSummary,
 } from "../domain/wallets.types";
-import { Prisma, PrismaClient, WalletTopupRequestStatus } from "@prisma/client";
+import {
+  KycRequestStatus,
+  Prisma,
+  PrismaClient,
+  WalletTopupRequestStatus,
+  WithdrawRequestStatus,
+} from "@prisma/client";
 
 export interface WalletsRepository {
   getWalletState(userId: string): Promise<{
@@ -118,6 +126,69 @@ export interface WalletsRepository {
     actorUserId: string;
     rejectionReason: string;
   }): Promise<WalletTopupRequestSummary>;
+
+  createWithdrawRequest(input: {
+    userId: string;
+    amount: string;
+    bankName: string;
+    bankBranch?: string;
+    accountNumber: string;
+    accountName: string;
+    accountType?: string;
+    taxAmount: string;
+    autoSweepAmount: string;
+    feeAmount: string;
+    netBankAmount: string;
+    note?: string;
+  }): Promise<WithdrawRequestSummary>;
+
+  listWithdrawRequests(filters?: {
+    userId?: string;
+    status?: "pending" | "approved" | "rejected" | "cancelled" | "exported" | "paid";
+  }): Promise<WithdrawRequestSummary[]>;
+
+  approveWithdrawRequest(input: {
+    requestId: string;
+    actorUserId: string;
+  }): Promise<WithdrawRequestSummary>;
+
+  rejectWithdrawRequest(input: {
+    requestId: string;
+    actorUserId: string;
+    rejectionReason: string;
+  }): Promise<WithdrawRequestSummary>;
+
+  markWithdrawRequestsExported(requestIds: string[]): Promise<WithdrawRequestSummary[]>;
+
+  createKycRequest(input: {
+    userId: string;
+    nationalId?: string;
+    bankName?: string;
+    bankBranch?: string;
+    bankAccountNumber?: string;
+    bankAccountName?: string;
+    bankAccountType?: string;
+    personalIdImageUrl?: string;
+    bankBookImageUrl?: string;
+    selfieImageUrl?: string;
+    note?: string;
+  }): Promise<KycRequestSummary>;
+
+  listKycRequests(filters?: {
+    userId?: string;
+    status?: "pending" | "approved" | "rejected";
+  }): Promise<KycRequestSummary[]>;
+
+  approveKycRequest(input: {
+    requestId: string;
+    actorUserId: string;
+  }): Promise<KycRequestSummary>;
+
+  rejectKycRequest(input: {
+    requestId: string;
+    actorUserId: string;
+    rejectionReason: string;
+  }): Promise<KycRequestSummary>;
 }
 
 import { Injectable } from "@nestjs/common";
@@ -1152,6 +1223,333 @@ export class PrismaWalletsRepository implements WalletsRepository {
     return this.toWalletTopupRequestSummary(rejectedRequest);
   }
 
+  async createWithdrawRequest(input: {
+    userId: string;
+    amount: string;
+    bankName: string;
+    bankBranch?: string;
+    accountNumber: string;
+    accountName: string;
+    accountType?: string;
+    taxAmount: string;
+    autoSweepAmount: string;
+    feeAmount: string;
+    netBankAmount: string;
+    note?: string;
+  }): Promise<WithdrawRequestSummary> {
+    const prismaClient = this.prisma as PrismaClient;
+    const request = await prismaClient.withdrawRequest.create({
+      data: {
+        userId: BigInt(input.userId),
+        amount: input.amount,
+        bankName: input.bankName,
+        bankBranch: input.bankBranch ?? null,
+        accountNumber: input.accountNumber,
+        accountName: input.accountName,
+        accountType: input.accountType ?? null,
+        taxAmount: input.taxAmount,
+        autoSweepAmount: input.autoSweepAmount,
+        feeAmount: input.feeAmount,
+        netBankAmount: input.netBankAmount,
+        note: input.note ?? null,
+        status: "PENDING",
+      },
+      include: {
+        user: {
+          select: {
+            memberCode: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    return this.toWithdrawRequestSummary(request);
+  }
+
+  async listWithdrawRequests(filters?: {
+    userId?: string;
+    status?: "pending" | "approved" | "rejected" | "cancelled" | "exported" | "paid";
+  }): Promise<WithdrawRequestSummary[]> {
+    const prismaClient = this.prisma as PrismaClient;
+    const requests = await prismaClient.withdrawRequest.findMany({
+      where: {
+        userId: filters?.userId ? BigInt(filters.userId) : undefined,
+        status: filters?.status
+          ? (filters.status.toUpperCase() as WithdrawRequestStatus)
+          : undefined,
+      },
+      include: {
+        user: {
+          select: {
+            memberCode: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: [{ requestedAt: "desc" }, { id: "desc" }],
+    });
+
+    return requests.map((request) => this.toWithdrawRequestSummary(request));
+  }
+
+  async approveWithdrawRequest(input: {
+    requestId: string;
+    actorUserId: string;
+  }): Promise<WithdrawRequestSummary> {
+    const prismaClient = this.prisma as PrismaClient;
+    const existingRequest = await prismaClient.withdrawRequest.findUnique({
+      where: { id: BigInt(input.requestId) },
+      include: {
+        user: {
+          select: {
+            memberCode: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!existingRequest) {
+      throw new Error("Withdraw request not found.");
+    }
+
+    if (existingRequest.status !== "PENDING") {
+      throw new Error("Withdraw request is not pending.");
+    }
+
+    const approvedRequest = await prismaClient.withdrawRequest.update({
+      where: { id: existingRequest.id },
+      data: {
+        status: "APPROVED",
+        approvedAt: new Date(),
+        approvedByUserId: BigInt(input.actorUserId),
+        rejectionReason: null,
+      },
+      include: {
+        user: {
+          select: {
+            memberCode: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    return this.toWithdrawRequestSummary(approvedRequest);
+  }
+
+  async rejectWithdrawRequest(input: {
+    requestId: string;
+    actorUserId: string;
+    rejectionReason: string;
+  }): Promise<WithdrawRequestSummary> {
+    const prismaClient = this.prisma as PrismaClient;
+    const existingRequest = await prismaClient.withdrawRequest.findUnique({
+      where: { id: BigInt(input.requestId) },
+    });
+
+    if (!existingRequest) {
+      throw new Error("Withdraw request not found.");
+    }
+
+    if (existingRequest.status !== "PENDING" && existingRequest.status !== "APPROVED") {
+      throw new Error("Withdraw request is not actionable.");
+    }
+
+    const rejectedRequest = await prismaClient.withdrawRequest.update({
+      where: { id: existingRequest.id },
+      data: {
+        status: "REJECTED",
+        approvedAt: null,
+        approvedByUserId: BigInt(input.actorUserId),
+        rejectionReason: input.rejectionReason,
+      },
+      include: {
+        user: {
+          select: {
+            memberCode: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    return this.toWithdrawRequestSummary(rejectedRequest);
+  }
+
+  async markWithdrawRequestsExported(requestIds: string[]): Promise<WithdrawRequestSummary[]> {
+    const ids = requestIds.map((requestId) => BigInt(requestId));
+    const prismaClient = this.prisma as PrismaClient;
+    await prismaClient.withdrawRequest.updateMany({
+      where: {
+        id: { in: ids },
+        status: {
+          in: ["APPROVED", "EXPORTED"],
+        },
+      },
+      data: {
+        status: "EXPORTED",
+        exportedAt: new Date(),
+      },
+    });
+
+    const requests = await prismaClient.withdrawRequest.findMany({
+      where: { id: { in: ids } },
+      include: {
+        user: {
+          select: {
+            memberCode: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: { id: "asc" },
+    });
+
+    return requests.map((request) => this.toWithdrawRequestSummary(request));
+  }
+
+  async createKycRequest(input: {
+    userId: string;
+    nationalId?: string;
+    bankName?: string;
+    bankBranch?: string;
+    bankAccountNumber?: string;
+    bankAccountName?: string;
+    bankAccountType?: string;
+    personalIdImageUrl?: string;
+    bankBookImageUrl?: string;
+    selfieImageUrl?: string;
+    note?: string;
+  }): Promise<KycRequestSummary> {
+    const prismaClient = this.prisma as PrismaClient;
+    const request = await prismaClient.kycRequest.create({
+      data: {
+        userId: BigInt(input.userId),
+        nationalId: input.nationalId ?? null,
+        bankName: input.bankName ?? null,
+        bankBranch: input.bankBranch ?? null,
+        bankAccountNumber: input.bankAccountNumber ?? null,
+        bankAccountName: input.bankAccountName ?? null,
+        bankAccountType: input.bankAccountType ?? null,
+        personalIdImageUrl: input.personalIdImageUrl ?? null,
+        bankBookImageUrl: input.bankBookImageUrl ?? null,
+        selfieImageUrl: input.selfieImageUrl ?? null,
+        note: input.note ?? null,
+        status: "PENDING",
+      },
+      include: {
+        user: {
+          select: {
+            memberCode: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    return this.toKycRequestSummary(request);
+  }
+
+  async listKycRequests(filters?: {
+    userId?: string;
+    status?: "pending" | "approved" | "rejected";
+  }): Promise<KycRequestSummary[]> {
+    const prismaClient = this.prisma as PrismaClient;
+    const requests = await prismaClient.kycRequest.findMany({
+      where: {
+        userId: filters?.userId ? BigInt(filters.userId) : undefined,
+        status: filters?.status
+          ? (filters.status.toUpperCase() as KycRequestStatus)
+          : undefined,
+      },
+      include: {
+        user: {
+          select: {
+            memberCode: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: [{ submittedAt: "desc" }, { id: "desc" }],
+    });
+
+    return requests.map((request) => this.toKycRequestSummary(request));
+  }
+
+  async approveKycRequest(input: {
+    requestId: string;
+    actorUserId: string;
+  }): Promise<KycRequestSummary> {
+    const prismaClient = this.prisma as PrismaClient;
+    const existingRequest = await prismaClient.kycRequest.findUnique({
+      where: { id: BigInt(input.requestId) },
+    });
+
+    if (!existingRequest) {
+      throw new Error("KYC request not found.");
+    }
+
+    if (existingRequest.status !== "PENDING" && existingRequest.status !== "REJECTED") {
+      throw new Error("KYC request is not actionable.");
+    }
+
+    const approvedRequest = await prismaClient.kycRequest.update({
+      where: { id: existingRequest.id },
+      data: {
+        status: "APPROVED",
+        approvedAt: new Date(),
+        approvedByUserId: BigInt(input.actorUserId),
+        rejectionReason: null,
+      },
+      include: {
+        user: {
+          select: {
+            memberCode: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    return this.toKycRequestSummary(approvedRequest);
+  }
+
+  async rejectKycRequest(input: {
+    requestId: string;
+    actorUserId: string;
+    rejectionReason: string;
+  }): Promise<KycRequestSummary> {
+    const prismaClient = this.prisma as PrismaClient;
+    const existingRequest = await prismaClient.kycRequest.findUnique({
+      where: { id: BigInt(input.requestId) },
+    });
+
+    if (!existingRequest) {
+      throw new Error("KYC request not found.");
+    }
+
+    const rejectedRequest = await prismaClient.kycRequest.update({
+      where: { id: existingRequest.id },
+      data: {
+        status: "REJECTED",
+        approvedByUserId: BigInt(input.actorUserId),
+        rejectionReason: input.rejectionReason,
+      },
+      include: {
+        user: {
+          select: {
+            memberCode: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    return this.toKycRequestSummary(rejectedRequest);
+  }
+
   private resolveTransactionType(input: WalletPostingInput) {
     if (input.direction === "debit") {
       return "REVERSAL_DEBIT" as const;
@@ -1202,6 +1600,110 @@ export class PrismaWalletsRepository implements WalletsRepository {
         | "rejected"
         | "cancelled",
       requestedAt: request.requestedAt.toISOString(),
+      approvedAt: request.approvedAt?.toISOString() ?? null,
+      approvedByUserId: request.approvedByUserId?.toString() ?? null,
+      rejectionReason: request.rejectionReason ?? null,
+    };
+  }
+
+  private toWithdrawRequestSummary(request: {
+    id: bigint;
+    userId: bigint;
+    amount: Prisma.Decimal;
+    bankName: string;
+    bankBranch: string | null;
+    accountNumber: string;
+    accountName: string;
+    accountType: string | null;
+    taxAmount: Prisma.Decimal;
+    autoSweepAmount: Prisma.Decimal;
+    feeAmount: Prisma.Decimal;
+    netBankAmount: Prisma.Decimal;
+    note: string | null;
+    status: WithdrawRequestStatus;
+    requestedAt: Date;
+    approvedAt: Date | null;
+    approvedByUserId: bigint | null;
+    exportedAt: Date | null;
+    paidAt: Date | null;
+    rejectionReason: string | null;
+    user: {
+      memberCode: string;
+      name: string;
+    };
+  }): WithdrawRequestSummary {
+    return {
+      requestId: request.id.toString(),
+      userId: request.userId.toString(),
+      memberCode: request.user.memberCode,
+      memberName: request.user.name,
+      requestedAt: request.requestedAt.toISOString(),
+      amount: request.amount.toString(),
+      bankName: request.bankName,
+      bankBranch: request.bankBranch ?? null,
+      accountNumber: request.accountNumber,
+      accountName: request.accountName,
+      accountType: request.accountType ?? null,
+      taxAmount: request.taxAmount.toString(),
+      autoSweepAmount: request.autoSweepAmount.toString(),
+      feeAmount: request.feeAmount.toString(),
+      netBankAmount: request.netBankAmount.toString(),
+      note: request.note ?? null,
+      status: request.status.toLowerCase() as
+        | "pending"
+        | "approved"
+        | "rejected"
+        | "cancelled"
+        | "exported"
+        | "paid",
+      approvedAt: request.approvedAt?.toISOString() ?? null,
+      approvedByUserId: request.approvedByUserId?.toString() ?? null,
+      exportedAt: request.exportedAt?.toISOString() ?? null,
+      paidAt: request.paidAt?.toISOString() ?? null,
+      rejectionReason: request.rejectionReason ?? null,
+    };
+  }
+
+  private toKycRequestSummary(request: {
+    id: bigint;
+    userId: bigint;
+    nationalId: string | null;
+    bankName: string | null;
+    bankBranch: string | null;
+    bankAccountNumber: string | null;
+    bankAccountName: string | null;
+    bankAccountType: string | null;
+    personalIdImageUrl: string | null;
+    bankBookImageUrl: string | null;
+    selfieImageUrl: string | null;
+    note: string | null;
+    status: KycRequestStatus;
+    submittedAt: Date;
+    approvedAt: Date | null;
+    approvedByUserId: bigint | null;
+    rejectionReason: string | null;
+    user: {
+      memberCode: string;
+      name: string;
+    };
+  }): KycRequestSummary {
+    return {
+      requestId: request.id.toString(),
+      userId: request.userId.toString(),
+      memberCode: request.user.memberCode,
+      memberName: request.user.name,
+      nationalId: request.nationalId ?? null,
+      bankName: request.bankName ?? null,
+      bankBranch: request.bankBranch ?? null,
+      bankAccountNumber: request.bankAccountNumber ?? null,
+      bankAccountName: request.bankAccountName ?? null,
+      bankAccountType: request.bankAccountType ?? null,
+      personalIdImageUrl: request.personalIdImageUrl ?? null,
+      bankBookImageUrl: request.bankBookImageUrl ?? null,
+      selfieImageUrl: request.selfieImageUrl ?? null,
+      note: request.note ?? null,
+      status: request.status.toLowerCase() as "pending" | "approved" | "rejected",
+      submittedAt: request.submittedAt.toISOString(),
       approvedAt: request.approvedAt?.toISOString() ?? null,
       approvedByUserId: request.approvedByUserId?.toString() ?? null,
       rejectionReason: request.rejectionReason ?? null,

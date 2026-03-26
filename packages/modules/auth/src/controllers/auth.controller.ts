@@ -18,10 +18,6 @@ import {
   optionalUrlString,
 } from "../../../../../apps/api/src/http/request.util";
 import { readManualPaymentSettings } from "../../../../shared/utils/src/manual-payment-settings.util";
-import {
-  createWithdrawRequest,
-  listWithdrawRequestsForUser,
-} from "../../../../shared/utils/src/withdraw-request.util";
 import { CommissionsService } from "../../../commissions";
 import { MatrixService } from "../../../matrix/src";
 import { MembersService } from "../../../members";
@@ -467,7 +463,9 @@ export class AuthController {
     @Headers("cookie") cookieHeader?: string,
   ) {
     const user = await this.requireSessionUser(authorization, cookieHeader);
-    return listWithdrawRequestsForUser(user.userId);
+    return this.walletsService.listWithdrawRequests({
+      userId: user.userId,
+    });
   }
 
   @Post("withdraw-requests")
@@ -478,20 +476,72 @@ export class AuthController {
     body?: {
       amount?: string;
       bankName?: string;
+      bankBranch?: string;
       accountName?: string;
       accountNumber?: string;
+      accountType?: string;
       note?: string;
     },
   ) {
     const user = await this.requireSessionUser(authorization, cookieHeader);
 
-    return createWithdrawRequest({
+    return this.walletsService.requestWithdraw({
       userId: user.userId,
-      memberCode: user.memberCode,
       amount: requireDecimalString(body?.amount, "amount"),
       bankName: requireNonEmptyString(body?.bankName, "bankName"),
+      bankBranch: optionalString(body?.bankBranch),
       accountName: requireNonEmptyString(body?.accountName, "accountName"),
       accountNumber: requireNonEmptyString(body?.accountNumber, "accountNumber"),
+      accountType: optionalString(body?.accountType),
+      note: optionalString(body?.note),
+    });
+  }
+
+  @Get("kyc-requests")
+  async listOwnKycRequests(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+    return this.walletsService.listKycRequests({
+      userId: user.userId,
+    });
+  }
+
+  @Post("kyc-requests")
+  async createOwnKycRequest(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+    @Body()
+    body?: {
+      nationalId?: string;
+      bankName?: string;
+      bankBranch?: string;
+      bankAccountNumber?: string;
+      bankAccountName?: string;
+      bankAccountType?: string;
+      personalIdImageUrl?: string;
+      bankBookImageUrl?: string;
+      selfieImageUrl?: string;
+      note?: string;
+    },
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+
+    return this.walletsService.createKycRequest({
+      userId: user.userId,
+      nationalId: optionalString(body?.nationalId),
+      bankName: optionalString(body?.bankName),
+      bankBranch: optionalString(body?.bankBranch),
+      bankAccountNumber: optionalString(body?.bankAccountNumber),
+      bankAccountName: optionalString(body?.bankAccountName),
+      bankAccountType: optionalString(body?.bankAccountType),
+      personalIdImageUrl: optionalUrlString(
+        body?.personalIdImageUrl,
+        "personalIdImageUrl",
+      ),
+      bankBookImageUrl: optionalUrlString(body?.bankBookImageUrl, "bankBookImageUrl"),
+      selfieImageUrl: optionalUrlString(body?.selfieImageUrl, "selfieImageUrl"),
       note: optionalString(body?.note),
     });
   }

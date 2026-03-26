@@ -145,3 +145,50 @@ export interface WalletTopupRequestSummary {
   approvedByUserId: string | null;
   rejectionReason: string | null;
 }
+
+export interface WithdrawRequestSummary {
+  requestId: string;
+  userId: string;
+  memberCode: string;
+  memberName: string;
+  requestedAt: string;
+  amount: string;
+  bankName: string;
+  bankBranch: string | null;
+  accountNumber: string;
+  accountName: string;
+  accountType: string | null;
+  taxAmount: string;
+  autoSweepAmount: string;
+  feeAmount: string;
+  netBankAmount: string;
+  note: string | null;
+  status: "pending" | "approved" | "rejected" | "cancelled" | "exported" | "paid";
+  approvedAt: string | null;
+  approvedByUserId: string | null;
+  exportedAt: string | null;
+  paidAt: string | null;
+  rejectionReason: string | null;
+}
+
+export interface KycRequestSummary {
+  requestId: string;
+  userId: string;
+  memberCode: string;
+  memberName: string;
+  nationalId: string | null;
+  bankName: string | null;
+  bankBranch: string | null;
+  bankAccountNumber: string | null;
+  bankAccountName: string | null;
+  bankAccountType: string | null;
+  personalIdImageUrl: string | null;
+  bankBookImageUrl: string | null;
+  selfieImageUrl: string | null;
+  note: string | null;
+  status: "pending" | "approved" | "rejected";
+  submittedAt: string;
+  approvedAt: string | null;
+  approvedByUserId: string | null;
+  rejectionReason: string | null;
+}

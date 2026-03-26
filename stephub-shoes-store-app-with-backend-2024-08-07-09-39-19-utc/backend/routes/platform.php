@@ -23,7 +23,12 @@ use App\Orchid\Screens\Color\ColorListScreen;
 use App\Orchid\Screens\Color\ColorEditScreen;
 use App\Orchid\Screens\Order\OrderListScreen;
 use App\Orchid\Screens\Order\OrderDetailScreen;
+use App\Orchid\Screens\Withdraw\WithdrawRequestListScreen;
+use App\Orchid\Screens\Withdraw\WithdrawRequestDetailScreen;
+use App\Orchid\Screens\Kyc\KycRequestListScreen;
+use App\Orchid\Screens\Kyc\KycRequestDetailScreen;
 use App\Orchid\Screens\AppUser\AppUserListScreen;
+use App\Orchid\Screens\Admin\AdminAuditLogListScreen;
 use App\Orchid\Screens\Carousel\SlideListScreen;
 use App\Orchid\Screens\Carousel\SlideEditScreen;
 use App\Orchid\Screens\Review\ReviewListScreen;
@@ -42,9 +47,11 @@ use App\Orchid\Screens\Commission\CommissionSettingsScreen;
 use App\Orchid\Screens\Commission\CommissionReportScreen;
 use App\Http\Controllers\Platform\CommissionReportController;
 use App\Http\Controllers\Platform\OrderReportController;
+use App\Http\Controllers\Platform\WithdrawReportController;
 use App\Http\Controllers\Platform\CommissionSettingsController;
 use App\Orchid\Screens\Tag\TagListScreen;
 use App\Orchid\Screens\Tag\TagEditScreen;
+use App\Support\AdminPermissions;
 
 /*
 |--------------------------------------------------------------------------
@@ -57,203 +64,221 @@ use App\Orchid\Screens\Tag\TagEditScreen;
 |
 */
 
-// Platform > Products
-Route::screen('product/list', ProductListScreen::class)
-  ->name('platform.product.list');
+Route::middleware('admin.access:'.AdminPermissions::CATALOG_MANAGE)->group(function (): void {
+  Route::screen('product/list', ProductListScreen::class)
+    ->name('platform.product.list');
 
-Route::screen('product/edit/{product?}', ProductEditScreen::class)
-  ->name('platform.product.edit');
+  Route::screen('product/edit/{product?}', ProductEditScreen::class)
+    ->name('platform.product.edit');
 
-// Platform > Commission Settings
-Route::screen('commission/settings', CommissionSettingsScreen::class)
-  ->defaults('section', 'settings')
-  ->name('platform.commission.settings');
+  Route::screen('supplier/list', SupplierListScreen::class)
+    ->name('platform.supplier.list');
 
-Route::screen('commission/direct', CommissionSettingsScreen::class)
-  ->defaults('section', 'direct')
-  ->name('platform.commission.direct');
+  Route::screen('supplier/edit/{supplier?}', SupplierEditScreen::class)
+    ->name('platform.supplier.edit');
 
-Route::screen('commission/unilevel', CommissionSettingsScreen::class)
-  ->defaults('section', 'unilevel')
-  ->name('platform.commission.unilevel');
+  Route::screen('tag/list', TagListScreen::class)
+    ->name('platform.tag.list');
 
-Route::screen('commission/matrix', CommissionSettingsScreen::class)
-  ->defaults('section', 'matrix')
-  ->name('platform.commission.matrix');
+  Route::screen('tag/edit/{tag?}', TagEditScreen::class)
+    ->name('platform.tag.edit');
 
-Route::screen('commission/pool', CommissionSettingsScreen::class)
-  ->defaults('section', 'pool')
-  ->name('platform.commission.pool');
+  Route::screen('size/list', SizeListScreen::class)
+    ->name('platform.size.list');
 
-Route::screen('commission/cashback', CommissionSettingsScreen::class)
-  ->defaults('section', 'cashback')
-  ->name('platform.commission.cashback');
+  Route::screen('size/edit/{size?}', SizeEditScreen::class)
+    ->name('platform.size.edit');
 
-Route::screen('commission/manual-payment', CommissionSettingsScreen::class)
-  ->defaults('section', 'manual-payment')
-  ->name('platform.commission.manualPayment');
+  Route::screen('color/list', ColorListScreen::class)
+    ->name('platform.color.list');
 
-Route::screen('commission/signup-share', CommissionSettingsScreen::class)
-  ->defaults('section', 'signup-share')
-  ->name('platform.commission.signupShare');
+  Route::screen('color/edit/{color?}', ColorEditScreen::class)
+    ->name('platform.color.edit');
 
-Route::screen('commission/report', CommissionReportScreen::class)
-  ->defaults('reportMode', 'overview')
-  ->name('platform.commission.report');
+  Route::screen('category/list', CategoryListScreen::class)
+    ->name('platform.category.list');
 
-Route::screen('commission/report/direct', CommissionReportScreen::class)
-  ->defaults('reportMode', 'direct')
-  ->name('platform.commission.report.direct');
+  Route::screen('category/edit/{category?}', CategoryEditScreen::class)
+    ->name('platform.category.edit');
+});
 
-Route::screen('commission/report/unilevel', CommissionReportScreen::class)
-  ->defaults('reportMode', 'unilevel')
-  ->name('platform.commission.report.unilevel');
+Route::middleware('admin.access:'.AdminPermissions::COMMISSIONS_MANAGE)->group(function (): void {
+  Route::screen('commission/settings', CommissionSettingsScreen::class)
+    ->defaults('section', 'settings')
+    ->name('platform.commission.settings');
 
-Route::screen('commission/report/matrix', CommissionReportScreen::class)
-  ->defaults('reportMode', 'matrix')
-  ->name('platform.commission.report.matrix');
+  Route::screen('commission/direct', CommissionSettingsScreen::class)
+    ->defaults('section', 'direct')
+    ->name('platform.commission.direct');
 
-Route::screen('commission/report/pool', CommissionReportScreen::class)
-  ->defaults('reportMode', 'pool')
-  ->name('platform.commission.report.pool');
+  Route::screen('commission/unilevel', CommissionSettingsScreen::class)
+    ->defaults('section', 'unilevel')
+    ->name('platform.commission.unilevel');
 
-Route::screen('commission/report/cashback', CommissionReportScreen::class)
-  ->defaults('reportMode', 'cashback')
-  ->name('platform.commission.report.cashback');
+  Route::screen('commission/matrix', CommissionSettingsScreen::class)
+    ->defaults('section', 'matrix')
+    ->name('platform.commission.matrix');
 
-Route::get('commission/report/export/{reportMode?}', [CommissionReportController::class, 'export'])
-  ->name('platform.commission.report.export');
+  Route::screen('commission/pool', CommissionSettingsScreen::class)
+    ->defaults('section', 'pool')
+    ->name('platform.commission.pool');
 
-Route::post('commission/save', [CommissionSettingsController::class, 'saveCommission'])
-  ->name('platform.commission.save');
+  Route::screen('commission/cashback', CommissionSettingsScreen::class)
+    ->defaults('section', 'cashback')
+    ->name('platform.commission.cashback');
 
-Route::post('commission/save-matrix', [CommissionSettingsController::class, 'saveMatrix'])
-  ->name('platform.commission.saveMatrix');
+  Route::screen('commission/manual-payment', CommissionSettingsScreen::class)
+    ->defaults('section', 'manual-payment')
+    ->name('platform.commission.manualPayment');
 
-Route::post('commission/save-manual-payment', [CommissionSettingsController::class, 'saveManualPayment'])
-  ->name('platform.commission.saveManualPayment');
+  Route::screen('commission/signup-share', CommissionSettingsScreen::class)
+    ->defaults('section', 'signup-share')
+    ->name('platform.commission.signupShare');
 
-Route::post('commission/save-signup-share', [CommissionSettingsController::class, 'saveSignupShare'])
-  ->name('platform.commission.saveSignupShare');
+  Route::screen('commission/report', CommissionReportScreen::class)
+    ->defaults('reportMode', 'overview')
+    ->name('platform.commission.report');
 
-// Platform > Suppliers
-Route::screen('supplier/list', SupplierListScreen::class)
-  ->name('platform.supplier.list');
+  Route::screen('commission/report/direct', CommissionReportScreen::class)
+    ->defaults('reportMode', 'direct')
+    ->name('platform.commission.report.direct');
 
-Route::screen('supplier/edit/{supplier?}', SupplierEditScreen::class)
-  ->name('platform.supplier.edit');
+  Route::screen('commission/report/unilevel', CommissionReportScreen::class)
+    ->defaults('reportMode', 'unilevel')
+    ->name('platform.commission.report.unilevel');
 
-// Platform > Tags
-Route::screen('tag/list', TagListScreen::class)
-  ->name('platform.tag.list');
+  Route::screen('commission/report/matrix', CommissionReportScreen::class)
+    ->defaults('reportMode', 'matrix')
+    ->name('platform.commission.report.matrix');
 
-Route::screen('tag/edit/{tag?}', TagEditScreen::class)
-  ->name('platform.tag.edit');
+  Route::screen('commission/report/pool', CommissionReportScreen::class)
+    ->defaults('reportMode', 'pool')
+    ->name('platform.commission.report.pool');
 
-// Platform > Audience
-Route::screen('audience/list', AudienceListScreen::class)
-  ->name('platform.audience.list');
+  Route::screen('commission/report/cashback', CommissionReportScreen::class)
+    ->defaults('reportMode', 'cashback')
+    ->name('platform.commission.report.cashback');
 
-Route::screen('audience/edit/{audience?}', AudienceEditScreen::class)
-  ->name('platform.audience.edit');
+  Route::get('commission/report/export/{reportMode?}', [CommissionReportController::class, 'export'])
+    ->name('platform.commission.report.export');
 
-// Platform > Members
-Route::screen('member/list', MemberListScreen::class)
-  ->name('platform.member.list');
+  Route::post('commission/save', [CommissionSettingsController::class, 'saveCommission'])
+    ->name('platform.commission.save');
 
-Route::screen('member/edit/{member}', MemberEditScreen::class)
-  ->name('platform.member.edit');
+  Route::post('commission/save-matrix', [CommissionSettingsController::class, 'saveMatrix'])
+    ->name('platform.commission.saveMatrix');
 
-// Platform > Sizes
-Route::screen('size/list', SizeListScreen::class)
-  ->name('platform.size.list');
+  Route::post('commission/save-manual-payment', [CommissionSettingsController::class, 'saveManualPayment'])
+    ->name('platform.commission.saveManualPayment');
 
-Route::screen('size/edit/{size?}', SizeEditScreen::class)
-  ->name('platform.size.edit');
+  Route::post('commission/save-signup-share', [CommissionSettingsController::class, 'saveSignupShare'])
+    ->name('platform.commission.saveSignupShare');
+});
 
-// Platform > Reviews
-Route::screen('review/list', ReviewListScreen::class)
-  ->name('platform.review.list');
+Route::middleware('admin.access:'.AdminPermissions::MARKETING_MANAGE)->group(function (): void {
+  Route::screen('audience/list', AudienceListScreen::class)
+    ->name('platform.audience.list');
 
-Route::screen('review/detail/{review?}', ReviewDetailScreen::class)
-  ->name('platform.review.detail');
+  Route::screen('audience/edit/{audience?}', AudienceEditScreen::class)
+    ->name('platform.audience.edit');
 
-// Platform > Orders
-Route::screen('order/list', OrderListScreen::class)
-  ->defaults('bucket', 'all')
-  ->name('platform.order.list');
+  Route::screen('review/list', ReviewListScreen::class)
+    ->name('platform.review.list');
 
-Route::screen('order/list/awaiting-payment', OrderListScreen::class)
-  ->defaults('bucket', 'awaiting-payment')
-  ->name('platform.order.awaitingPayment');
+  Route::screen('review/detail/{review?}', ReviewDetailScreen::class)
+    ->name('platform.review.detail');
 
-Route::screen('order/list/transfer-review', OrderListScreen::class)
-  ->defaults('bucket', 'transfer-review')
-  ->name('platform.order.transferReview');
+  Route::screen('slide/list', SlideListScreen::class)
+    ->name('platform.slide.list');
 
-Route::screen('order/list/awaiting-shipment', OrderListScreen::class)
-  ->defaults('bucket', 'awaiting-shipment')
-  ->name('platform.order.awaitingShipment');
+  Route::screen('slide/edit/{slide?}', SlideEditScreen::class)
+    ->name('platform.slide.edit');
 
-Route::screen('order/list/shipped', OrderListScreen::class)
-  ->defaults('bucket', 'shipped')
-  ->name('platform.order.shipped');
+  Route::screen('banner/list', BannerListScreen::class)
+    ->name('platform.banner.list');
 
-Route::screen('order/list/delivered', OrderListScreen::class)
-  ->defaults('bucket', 'delivered')
-  ->name('platform.order.delivered');
+  Route::screen('banner/edit/{banner?}', BannerEditScreen::class)
+    ->name('platform.banner.edit');
 
-Route::get('order/export/{bucket?}', [OrderReportController::class, 'export'])
-  ->name('platform.order.export');
+  Route::screen('promotion/list', PromotionListScreen::class)
+    ->name('platform.promotion.list');
 
-Route::screen('order/detail/{order?}', OrderDetailScreen::class)
-  ->name('platform.order.detail');
+  Route::screen('promotion/edit/{promotion?}', PromotionEditScreen::class)
+    ->name('platform.promotion.edit');
 
-// Platform > Carousel
-Route::screen('slide/list', SlideListScreen::class)
-  ->name('platform.slide.list');
+  Route::screen('promocode/list', PromocodeListScreen::class)
+    ->name('platform.promocode.list');
 
-Route::screen('slide/edit/{slide?}', SlideEditScreen::class)
-  ->name('platform.slide.edit');
+  Route::screen('promocode/edit/{promocode?}', PromocodeEditScreen::class)
+    ->name('platform.promocode.edit');
+});
 
-// Platform > Colors
-Route::screen('color/list', ColorListScreen::class)
-  ->name('platform.color.list');
+Route::middleware('admin.access:'.AdminPermissions::MEMBERS_MANAGE)->group(function (): void {
+  Route::screen('member/list', MemberListScreen::class)
+    ->name('platform.member.list');
 
-Route::screen('color/edit/{color?}', ColorEditScreen::class)
-  ->name('platform.color.edit');
+  Route::screen('member/edit/{member}', MemberEditScreen::class)
+    ->name('platform.member.edit');
 
-// Platform > Categories
-Route::screen('category/list', CategoryListScreen::class)
-  ->name('platform.category.list');
+  Route::screen('appuser/list', AppUserListScreen::class)
+    ->name('platform.appuser.list');
+});
 
-Route::screen('category/edit/{category?}', CategoryEditScreen::class)
-  ->name('platform.category.edit');
+Route::middleware('admin.access:'.AdminPermissions::KYC_MANAGE)->group(function (): void {
+  Route::screen('kyc/list', KycRequestListScreen::class)
+    ->name('platform.kyc.list');
 
-// Platform > Banners
-Route::screen('banner/list', BannerListScreen::class)
-  ->name('platform.banner.list');
+  Route::screen('kyc/detail/{kycRequest}', KycRequestDetailScreen::class)
+    ->name('platform.kyc.detail');
+});
 
-Route::screen('banner/edit/{banner?}', BannerEditScreen::class)
-  ->name('platform.banner.edit');
+Route::middleware('admin.access:'.AdminPermissions::ORDERS_MANAGE)->group(function (): void {
+  Route::screen('order/list', OrderListScreen::class)
+    ->defaults('bucket', 'all')
+    ->name('platform.order.list');
 
-// Platform > AppUsers
-Route::screen('appuser/list', AppUserListScreen::class)
-  ->name('platform.appuser.list');
+  Route::screen('order/list/awaiting-payment', OrderListScreen::class)
+    ->defaults('bucket', 'awaiting-payment')
+    ->name('platform.order.awaitingPayment');
 
-// Platform > Promotions
-Route::screen('promotion/list', PromotionListScreen::class)
-  ->name('platform.promotion.list');
+  Route::screen('order/list/transfer-review', OrderListScreen::class)
+    ->defaults('bucket', 'transfer-review')
+    ->name('platform.order.transferReview');
 
-Route::screen('promotion/edit/{promotion?}', PromotionEditScreen::class)
-  ->name('platform.promotion.edit');
+  Route::screen('order/list/awaiting-shipment', OrderListScreen::class)
+    ->defaults('bucket', 'awaiting-shipment')
+    ->name('platform.order.awaitingShipment');
 
-// Platform > Promocodes
-Route::screen('promocode/list', PromocodeListScreen::class)
-  ->name('platform.promocode.list');
+  Route::screen('order/list/shipped', OrderListScreen::class)
+    ->defaults('bucket', 'shipped')
+    ->name('platform.order.shipped');
 
-Route::screen('promocode/edit/{promocode?}', PromocodeEditScreen::class)
-  ->name('platform.promocode.edit');
+  Route::screen('order/list/delivered', OrderListScreen::class)
+    ->defaults('bucket', 'delivered')
+    ->name('platform.order.delivered');
+
+  Route::get('order/export/{bucket?}', [OrderReportController::class, 'export'])
+    ->name('platform.order.export');
+
+  Route::screen('order/detail/{order?}', OrderDetailScreen::class)
+    ->name('platform.order.detail');
+});
+
+Route::middleware('admin.access:'.AdminPermissions::WITHDRAWALS_MANAGE)->group(function (): void {
+  Route::screen('withdraw/list', WithdrawRequestListScreen::class)
+    ->name('platform.withdraw.list');
+
+  Route::screen('withdraw/detail/{withdrawRequest}', WithdrawRequestDetailScreen::class)
+    ->name('platform.withdraw.detail');
+
+  Route::get('withdraw/export', [WithdrawReportController::class, 'export'])
+    ->name('platform.withdraw.export');
+});
+
+Route::middleware('admin.access:'.AdminPermissions::ADMIN_LOGS)->group(function (): void {
+  Route::screen('admin/logs', AdminAuditLogListScreen::class)
+    ->name('platform.admin.logs');
+});
 
 // Main
 Route::screen('/main', PlatformScreen::class)

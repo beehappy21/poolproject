@@ -33,6 +33,7 @@
     "smoke:wallet:mixed": "bash scripts/wallet-mixed-payment-smoke.sh",
     "smoke:wallet:dcw": "bash scripts/discount-wallet-smoke.sh",
     "smoke:bao:cashback": "bash scripts/check_stephub_admin_cashback_report.sh",
+    "smoke:bao:withdraw-kyc": "bash scripts/check_stephub_admin_withdraw_kyc.sh",
     "smoke:bao:shipment": "bash scripts/check_stephub_order_shipment_flow.sh",
     "smoke:bao:all": "bash scripts/run_bao_browser_checks.sh",
     "cleanup:cashback-smoke": "node scripts/backfills/cleanup-cashback-smoke-artifacts.js",
