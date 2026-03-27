@@ -12,6 +12,7 @@ import {
 } from "@nestjs/common";
 
 import {
+  optionalImageReferenceString,
   optionalString,
   optionalUrlString,
   requireDecimalString,
@@ -273,7 +274,10 @@ export class WalletsController {
       amount: requireDecimalString(body.amount, "amount"),
       paymentMethod: requireNonEmptyString(body.paymentMethod, "paymentMethod")
         .toLowerCase(),
-      transferSlipUrl: optionalUrlString(body.transferSlipUrl, "transferSlipUrl"),
+      transferSlipUrl: optionalImageReferenceString(
+        body.transferSlipUrl,
+        "transferSlipUrl",
+      ),
       note: optionalString(body.note),
     });
   }
