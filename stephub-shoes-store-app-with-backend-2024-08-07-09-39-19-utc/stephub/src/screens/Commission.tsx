@@ -201,6 +201,7 @@ type WalletSummary = {
   withdrawableBalance?: string;
   shoppingBalance?: string;
   discountBalance?: string;
+  firmBalance?: string;
 };
 
 type DashboardResponse = {
@@ -208,9 +209,50 @@ type DashboardResponse = {
 };
 
 type CommissionEntry = {
+  commissionId?: string;
+  orderId?: string | null;
+  sourceUserId?: string;
+  beneficiaryUserId?: string | null;
+  commissionType?: string;
+  levelNo?: number | null;
   amount?: string;
   status?: string;
+  companyFallbackReason?: string | null;
   createdAt?: string;
+};
+
+type CommissionListResponse = {
+  items?: CommissionEntry[];
+};
+
+type CommissionResponsePayload = CommissionEntry[] | CommissionListResponse;
+
+type WalletTransactionSummary = {
+  transactionId: string;
+  txType: string;
+  amount: string;
+  note?: string | null;
+  status: string;
+  createdAt: string;
+};
+
+type WithdrawRequestSummary = {
+  requestId: string;
+  amount: string;
+  netBankAmount: string;
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'exported' | 'paid';
+  requestedAt: string;
+};
+
+type DirectReferralSummary = {
+  memberId: string;
+  memberCode: string;
+  name: string;
+  childCount: number;
+};
+
+type DirectReferralsResponse = {
+  directReferrals?: DirectReferralSummary[];
 };
 
 type MatrixBoardSummary = {
@@ -291,8 +333,9 @@ type DashboardMetrics = {
   cwTotal: string;
   sw: string;
   swReentryTarget: string;
-  withdraw: string;
+  withdrawPending: string;
   dcw: string;
+  firm: string;
 };
 
 const defaultMetrics: DashboardMetrics = {
@@ -300,8 +343,9 @@ const defaultMetrics: DashboardMetrics = {
   cwTotal: '0.00',
   sw: '0.00',
   swReentryTarget: '0.00',
-  withdraw: '0.00',
+  withdrawPending: '0.00',
   dcw: '0.00',
+  firm: '0.00',
 };
 
 const decimalFormatter = new Intl.NumberFormat('en-US', {
@@ -324,6 +368,47 @@ const parseDecimal = (value?: string | number | null): number => {
 
 const formatDecimal = (value: number): string => {
   return decimalFormatter.format(value);
+};
+
+const formatDateTime = (value?: string | null) => {
+  if (!value) {
+    return '-';
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return '-';
+  }
+
+  return parsed.toLocaleString('th-TH');
+};
+
+const isWithinLastDays = (value?: string | null, days = 5) => {
+  if (!value) {
+    return false;
+  }
+
+  const parsed = new Date(value).getTime();
+  if (Number.isNaN(parsed)) {
+    return false;
+  }
+
+  return parsed >= Date.now() - (days - 1) * 24 * 60 * 60 * 1000;
+};
+
+const getCommissionTypeLabel = (value?: string | null) => {
+  switch (value?.toLowerCase()) {
+    case 'direct':
+      return 'Direct';
+    case 'uni':
+      return 'Unilevel';
+    case 'pool':
+      return 'Pool';
+    case 'cashback':
+      return 'Cashback';
+    default:
+      return 'Commission';
+  }
 };
 
 const toStartOfToday = () => {
@@ -367,13 +452,13 @@ const dashboardTiles = (
   },
   {
     key: 'withdraw',
-    title: 'Withdraw',
-    value: metrics.withdraw,
+    title: 'ถอน',
+    value: metrics.withdrawPending,
   },
   {
     key: 'sw-transfer',
     title: 'โอน SW',
-    value: metrics.sw,
+    value: '',
   },
   {
     key: 'dcw',
@@ -383,7 +468,12 @@ const dashboardTiles = (
   {
     key: 'top-leader',
     title: 'Top leader',
-    value: 'TOP 10',
+    value: '',
+  },
+  {
+    key: 'firm',
+    title: 'Firm',
+    value: metrics.firm,
   },
 ];
 
@@ -394,6 +484,16 @@ export const Commission: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedKey, setSelectedKey] = useState<CommissionKey | null>(null);
   const [swReentryEnabled, setSwReentryEnabled] = useState(false);
+  const [commissionEntries, setCommissionEntries] = useState<CommissionEntry[]>([]);
+  const [walletTransactions, setWalletTransactions] = useState<WalletTransactionSummary[]>([]);
+  const [directReferrals, setDirectReferrals] = useState<DirectReferralSummary[]>([]);
+  const [detailPanel, setDetailPanel] = useState<
+    'cw-convert' | 'cw-today' | 'dcw' | 'top-leader' | null
+  >(null);
+  const [convertAmount, setConvertAmount] = useState('');
+  const [convertSubmitting, setConvertSubmitting] = useState(false);
+  const [convertMessage, setConvertMessage] = useState('');
+  const [convertError, setConvertError] = useState('');
   const [metrics, setMetrics] = useState<DashboardMetrics>(defaultMetrics);
   const [matrixData, setMatrixData] = useState<MatrixResponse>({cycles: []});
   const [viewportWidth, setViewportWidth] = useState<number>(() =>
@@ -429,12 +529,16 @@ export const Commission: React.FC = () => {
         dashboardResult,
         commissionsResult,
         matrixResult,
+        transactionsResult,
+        withdrawRequestsResult,
       ] = await Promise.allSettled([
         axios.get<CommissionSettingsResponse>(URLS.GET_COMMISSION_SETTINGS),
         axios.get<MatrixSettingsResponse>(URLS.GET_MATRIX_SETTINGS),
         axios.get<DashboardResponse>(URLS.AUTH_DASHBOARD, authRequestConfig),
-        axios.get<CommissionEntry[]>(URLS.AUTH_COMMISSIONS, authRequestConfig),
+        axios.get<CommissionResponsePayload>(URLS.AUTH_COMMISSIONS, authRequestConfig),
         axios.get<MatrixResponse>(URLS.AUTH_MATRIX, authRequestConfig),
+        axios.get<WalletTransactionSummary[]>(URLS.AUTH_TRANSACTIONS, authRequestConfig),
+        axios.get<WithdrawRequestSummary[]>(URLS.AUTH_WITHDRAW_REQUESTS, authRequestConfig),
       ]);
 
       if (commissionSettingsResult.status === 'fulfilled') {
@@ -454,8 +558,21 @@ export const Commission: React.FC = () => {
           ? dashboardResult.value.data.wallet
           : undefined;
 
-      const commissions =
-        commissionsResult.status === 'fulfilled' ? commissionsResult.value.data : [];
+      const commissionPayload: CommissionResponsePayload | undefined =
+        commissionsResult.status === 'fulfilled' ? commissionsResult.value.data : undefined;
+      const commissions: CommissionEntry[] = Array.isArray(commissionPayload)
+        ? commissionPayload
+        : commissionPayload?.items || [];
+      setCommissionEntries(commissions);
+
+      const transactions =
+        transactionsResult.status === 'fulfilled' ? transactionsResult.value.data : [];
+      setWalletTransactions(transactions);
+
+      const withdrawRequestItems =
+        withdrawRequestsResult.status === 'fulfilled'
+          ? withdrawRequestsResult.value.data
+          : [];
       const matrixPayload =
         matrixResult.status === 'fulfilled' ? matrixResult.value.data : undefined;
       let resolvedMatrixData: MatrixResponse = matrixPayload || {cycles: []};
@@ -580,22 +697,52 @@ export const Commission: React.FC = () => {
         return sum + parseDecimal(entry.amount);
       }, 0);
 
+      if (user?.memberCode) {
+        try {
+          const directReferralsResponse = await axios.get<DirectReferralsResponse>(
+            URLS.buildMemberDirectReferralsUrl(user.memberCode),
+            {withCredentials: true},
+          );
+          setDirectReferrals(directReferralsResponse.data.directReferrals || []);
+        } catch (directReferralError) {
+          console.error(directReferralError);
+          setDirectReferrals([]);
+        }
+      } else {
+        setDirectReferrals([]);
+      }
+
       const swBalance = parseDecimal(wallet?.shoppingBalance);
       const reentryTarget = resolveReentryTarget(resolvedMatrixData, matrixSettings);
+      const pendingWithdrawTotal = withdrawRequestItems.reduce((sum, request) => {
+        if (
+          request.status === 'pending' ||
+          request.status === 'approved' ||
+          request.status === 'exported'
+        ) {
+          return sum + parseDecimal(request.netBankAmount || request.amount);
+        }
+
+        return sum;
+      }, 0);
 
       setMetrics({
         cwToday: formatDecimal(cwToday),
-        cwTotal: formatDecimal(parseDecimal(wallet?.approvedBalance)),
+        cwTotal: formatDecimal(parseDecimal(wallet?.withdrawableBalance)),
         sw: formatDecimal(swBalance),
         swReentryTarget: formatDecimal(reentryTarget),
-        withdraw: formatDecimal(parseDecimal(wallet?.withdrawableBalance)),
+        withdrawPending: formatDecimal(pendingWithdrawTotal),
         dcw: formatDecimal(parseDecimal(wallet?.discountBalance)),
+        firm: formatDecimal(parseDecimal(wallet?.firmBalance)),
       });
 
     } catch (error) {
       console.error(error);
       setMetrics(defaultMetrics);
       setMatrixData({cycles: []});
+      setCommissionEntries([]);
+      setWalletTransactions([]);
+      setDirectReferrals([]);
     } finally {
       setLoading(false);
     }
@@ -656,14 +803,98 @@ export const Commission: React.FC = () => {
       ? '168px'
       : '196px';
 
-  const tiles = dashboardTiles(metrics);
+  const cwAvailableForDisplay = useMemo(() => {
+    const total = parseDecimal(metrics.cwTotal);
+    const reentry = swReentryEnabled ? parseDecimal(metrics.swReentryTarget) : 0;
+    return Math.max(total - reentry, 0);
+  }, [metrics.cwTotal, metrics.swReentryTarget, swReentryEnabled]);
+
+  const cwRecentEntries = useMemo(() => {
+    return commissionEntries
+      .filter(entry => isWithinLastDays(entry.createdAt, 5))
+      .sort((left, right) => {
+        return (
+          new Date(right.createdAt || 0).getTime() -
+          new Date(left.createdAt || 0).getTime()
+        );
+      });
+  }, [commissionEntries]);
+
+  const recentDcwTransactions = useMemo(() => {
+    return walletTransactions
+      .filter(
+        transaction =>
+          transaction.txType === 'dcw_credit' &&
+          isWithinLastDays(transaction.createdAt, 5),
+      )
+      .sort((left, right) => {
+        return (
+          new Date(right.createdAt || 0).getTime() -
+          new Date(left.createdAt || 0).getTime()
+        );
+      });
+  }, [walletTransactions]);
+
+  const memberDirectory = useMemo(() => {
+    const directory = new Map<string, {memberCode?: string; name?: string}>();
+
+    directReferrals.forEach(referral => {
+      directory.set(referral.memberId, {
+        memberCode: referral.memberCode,
+        name: referral.name,
+      });
+    });
+
+    (matrixData.cycles || []).forEach(cycle => {
+      (cycle.boards || []).forEach(board => {
+        (board.positions || []).forEach(position => {
+          if (position.sourceUserId) {
+            directory.set(position.sourceUserId, {
+              memberCode: position.sourceMemberCode || undefined,
+              name: position.sourceMemberName || undefined,
+            });
+          }
+        });
+      });
+    });
+
+    return directory;
+  }, [directReferrals, matrixData]);
+
+  const topLeaderRows = useMemo(() => {
+    const totals = new Map<string, number>();
+
+    commissionEntries.forEach(entry => {
+      if (!entry.sourceUserId || entry.status?.toLowerCase() === 'fallback') {
+        return;
+      }
+
+      totals.set(
+        entry.sourceUserId,
+        (totals.get(entry.sourceUserId) || 0) + parseDecimal(entry.amount),
+      );
+    });
+
+    return Array.from(totals.entries())
+      .map(([sourceUserId, amount]) => {
+        const member = memberDirectory.get(sourceUserId);
+        return {
+          sourceUserId,
+          memberCode: member?.memberCode || `U${sourceUserId}`,
+          name: member?.name || 'สมาชิกใต้สายงาน',
+          amount,
+        };
+      })
+      .sort((left, right) => right.amount - left.amount)
+      .slice(0, 10);
+  }, [commissionEntries, memberDirectory]);
+
+  const tiles = dashboardTiles({
+    ...metrics,
+    cwTotal: formatDecimal(cwAvailableForDisplay),
+  });
 
   const handleTileClick = (tileKey: string) => {
-    if (tileKey === 'sw') {
-      navigate('/TopupWallet');
-      return;
-    }
-
     if (tileKey === 'sw-transfer') {
       navigate('/TransferSW');
       return;
@@ -671,6 +902,81 @@ export const Commission: React.FC = () => {
 
     if (tileKey === 'withdraw') {
       navigate('/WithdrawSW');
+      return;
+    }
+
+    if (tileKey === 'cw-today') {
+      setDetailPanel('cw-today');
+      return;
+    }
+
+    if (tileKey === 'dcw') {
+      setDetailPanel('dcw');
+      return;
+    }
+
+    if (tileKey === 'top-leader') {
+      setDetailPanel('top-leader');
+      return;
+    }
+
+    if (tileKey === 'firm') {
+      navigate('/Firm');
+      return;
+    }
+
+    if (tileKey === 'cw-total') {
+      setDetailPanel('cw-convert');
+      return;
+    }
+
+  };
+
+  const handleConvertCwToSw = async () => {
+    if (!user?.accessToken) {
+      setConvertError('ต้องมี session ก่อนจึงจะเปลี่ยน CW เป็น SW');
+      return;
+    }
+
+    const amount = parseDecimal(convertAmount);
+    if (amount <= 0) {
+      setConvertError('กรุณาระบุจำนวน CW ที่ต้องการเปลี่ยน');
+      return;
+    }
+
+    if (amount > cwAvailableForDisplay) {
+      setConvertError('จำนวนที่เปลี่ยนต้องไม่เกิน CW คงเหลือหลังหัก reentry');
+      return;
+    }
+
+    setConvertSubmitting(true);
+    setConvertError('');
+    setConvertMessage('');
+
+    try {
+      const response = await axios.post(
+        URLS.AUTH_WALLETS_CONVERT,
+        {amount: amount.toFixed(2)},
+        {
+          headers: {
+            Authorization: `Bearer ${user.accessToken}`,
+          },
+        },
+      );
+
+      setConvertAmount('');
+      setConvertMessage(
+        `เปลี่ยน CW เป็น SW สำเร็จ ได้รับ SW ${formatDecimal(
+          parseDecimal(response.data?.netShoppingAmount),
+        )}`,
+      );
+      await loadCommissionPage();
+    } catch (error: any) {
+      setConvertError(
+        error?.response?.data?.message || 'ไม่สามารถเปลี่ยน CW เป็น SW ได้ในขณะนี้',
+      );
+    } finally {
+      setConvertSubmitting(false);
     }
   };
 
@@ -1154,6 +1460,296 @@ export const Commission: React.FC = () => {
     );
   };
 
+  const renderDetailPanel = (): JSX.Element | null => {
+    if (!detailPanel) {
+      return null;
+    }
+
+    let title = '';
+    let content: JSX.Element | null = null;
+
+    if (detailPanel === 'cw-convert') {
+      title = 'เปลี่ยน CW เป็น SW';
+      content = (
+        <div style={{display: 'grid', gap: 14}}>
+          <div
+            style={{
+              padding: 16,
+              borderRadius: 14,
+              backgroundColor: '#EFF6FF',
+              border: '1px solid #BFDBFE',
+            }}
+          >
+            <div style={{marginBottom: 6, color: theme.colors.textColor}}>CW ที่ใช้ได้</div>
+            <div
+              style={{
+                color: theme.colors.mainColor,
+                fontSize: 24,
+                ...theme.fonts.Mulish_700Bold,
+              }}
+            >
+              {formatDecimal(cwAvailableForDisplay)}
+            </div>
+            {swReentryEnabled ? (
+              <div style={{marginTop: 8, color: theme.colors.textColor}}>
+                หัก Reentry แล้ว {formatDecimal(parseDecimal(metrics.swReentryTarget))}
+              </div>
+            ) : null}
+          </div>
+
+          <input
+            value={convertAmount}
+            onChange={event => setConvertAmount(event.target.value)}
+            placeholder='จำนวน CW ที่ต้องการเปลี่ยน'
+            inputMode='decimal'
+            style={{
+              height: 48,
+              borderRadius: 12,
+              border: `1px solid ${theme.colors.aliceBlue2}`,
+              padding: '0 14px',
+              color: theme.colors.mainColor,
+              ...theme.fonts.Mulish_400Regular,
+            }}
+          />
+
+          {convertMessage ? (
+            <div
+              style={{
+                padding: 14,
+                borderRadius: 14,
+                backgroundColor: '#DCFCE7',
+                color: '#166534',
+              }}
+            >
+              {convertMessage}
+            </div>
+          ) : null}
+
+          {convertError ? (
+            <div
+              style={{
+                padding: 14,
+                borderRadius: 14,
+                backgroundColor: '#FEE2E2',
+                color: '#B91C1C',
+              }}
+            >
+              {convertError}
+            </div>
+          ) : null}
+
+          <button
+            type='button'
+            disabled={convertSubmitting || loading}
+            onClick={handleConvertCwToSw}
+            style={{
+              height: 50,
+              border: 'none',
+              borderRadius: 14,
+              cursor: convertSubmitting ? 'not-allowed' : 'pointer',
+              backgroundColor: theme.colors.mainColor,
+              color: theme.colors.mainYellow,
+              ...theme.fonts.Mulish_700Bold,
+            }}
+          >
+            {convertSubmitting ? 'กำลังเปลี่ยน...' : 'ยืนยันเปลี่ยน CW เป็น SW'}
+          </button>
+        </div>
+      );
+    }
+
+    if (detailPanel === 'cw-today') {
+      title = 'ค่าคอมมิชชั่นย้อนหลัง 5 วัน';
+      content = cwRecentEntries.length ? (
+        <div style={{overflowX: 'auto'}}>
+          <table style={{width: '100%', borderCollapse: 'collapse'}}>
+            <thead>
+              <tr style={{textAlign: 'left', color: '#64748B'}}>
+                <th style={{padding: '0 0 12px'}}>วันเวลา</th>
+                <th style={{padding: '0 0 12px'}}>ข้อคอมมิชชั่น</th>
+                <th style={{padding: '0 0 12px'}}>ยอด</th>
+                <th style={{padding: '0 0 12px'}}>สถานะ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cwRecentEntries.map(entry => (
+                <tr key={entry.commissionId || `${entry.createdAt}-${entry.amount}`}>
+                  <td style={{padding: '12px 0', borderTop: '1px solid #E2E8F0'}}>
+                    {formatDateTime(entry.createdAt)}
+                  </td>
+                  <td style={{padding: '12px 0', borderTop: '1px solid #E2E8F0'}}>
+                    {getCommissionTypeLabel(entry.commissionType)}
+                    {entry.levelNo ? ` L${entry.levelNo}` : ''}
+                  </td>
+                  <td style={{padding: '12px 0', borderTop: '1px solid #E2E8F0'}}>
+                    {formatDecimal(parseDecimal(entry.amount))}
+                  </td>
+                  <td style={{padding: '12px 0', borderTop: '1px solid #E2E8F0'}}>
+                    {entry.status || '-'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div style={{color: theme.colors.textColor}}>
+          ยังไม่มีรายการค่าคอมมิชชั่นย้อนหลัง 5 วัน
+        </div>
+      );
+    }
+
+    if (detailPanel === 'dcw') {
+      title = 'DCW ย้อนหลัง 5 วัน';
+      content = recentDcwTransactions.length ? (
+        <div style={{display: 'grid', gap: 12}}>
+          {recentDcwTransactions.map(transaction => (
+            <article
+              key={transaction.transactionId}
+              style={{
+                padding: 14,
+                borderRadius: 14,
+                backgroundColor: '#F8FAFC',
+                border: `1px solid ${theme.colors.aliceBlue2}`,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 12,
+                  marginBottom: 8,
+                }}
+              >
+                <div style={{color: theme.colors.mainColor, ...theme.fonts.Mulish_700Bold}}>
+                  DCW Credit
+                </div>
+                <div style={{color: '#166534', ...theme.fonts.Mulish_700Bold}}>
+                  +{formatDecimal(parseDecimal(transaction.amount))}
+                </div>
+              </div>
+              <div style={{color: theme.colors.textColor, lineHeight: 1.7}}>
+                <div>เวลา: {formatDateTime(transaction.createdAt)}</div>
+                <div>สถานะ: {transaction.status}</div>
+                {transaction.note ? <div>หมายเหตุ: {transaction.note}</div> : null}
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div style={{color: theme.colors.textColor}}>ยังไม่มีรายการ DCW ย้อนหลัง 5 วัน</div>
+      );
+    }
+
+    if (detailPanel === 'top-leader') {
+      title = '10 คนใต้สายงานที่มียอดคอมมิชชั่นสูงสุด';
+      content = topLeaderRows.length ? (
+        <div style={{display: 'grid', gap: 12}}>
+          {topLeaderRows.map((row, index) => (
+            <article
+              key={row.sourceUserId}
+              style={{
+                padding: 14,
+                borderRadius: 14,
+                backgroundColor: '#F8FAFC',
+                border: `1px solid ${theme.colors.aliceBlue2}`,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 12,
+              }}
+            >
+              <div>
+                <div style={{color: theme.colors.mainColor, ...theme.fonts.Mulish_700Bold}}>
+                  {index + 1}. {row.memberCode}
+                </div>
+                <div style={{color: theme.colors.textColor}}>{row.name}</div>
+              </div>
+              <div style={{color: theme.colors.mainColor, ...theme.fonts.Mulish_700Bold}}>
+                {formatDecimal(row.amount)}
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div style={{color: theme.colors.textColor}}>
+          ยังไม่มีข้อมูลเพียงพอสำหรับจัดอันดับ top leader
+        </div>
+      );
+    }
+
+    if (!content) {
+      return null;
+    }
+
+    return (
+      <div
+        onClick={() => setDetailPanel(null)}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 1001,
+          backgroundColor: 'rgba(15, 23, 42, 0.55)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 20,
+        }}
+      >
+        <div
+          onClick={event => event.stopPropagation()}
+          style={{
+            width: '100%',
+            maxWidth: 760,
+            maxHeight: '80vh',
+            overflowY: 'auto',
+            borderRadius: 24,
+            backgroundColor: theme.colors.white,
+            padding: 24,
+            boxShadow: '0 24px 48px rgba(15, 23, 42, 0.24)',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 12,
+              marginBottom: 18,
+            }}
+          >
+            <h3
+              style={{
+                margin: 0,
+                color: theme.colors.mainColor,
+                fontSize: 24,
+                ...theme.fonts.Mulish_700Bold,
+              }}
+            >
+              {title}
+            </h3>
+            <button
+              onClick={() => setDetailPanel(null)}
+              style={{
+                border: 'none',
+                backgroundColor: '#EEF4FB',
+                color: theme.colors.mainColor,
+                borderRadius: 999,
+                padding: '10px 14px',
+                cursor: 'pointer',
+                ...theme.fonts.Mulish_700Bold,
+              }}
+            >
+              ปิด
+            </button>
+          </div>
+          {content}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
       <components.Header title='คอมมิชชั่น / Commission' goBack={true} />
@@ -1242,7 +1838,6 @@ export const Commission: React.FC = () => {
         {!selectedCard ? (
           <>
             <section
-              onClick={() => navigate('/TopupWallet')}
               style={{
                 marginBottom: 16,
                 padding: '16px 18px',
@@ -1250,7 +1845,6 @@ export const Commission: React.FC = () => {
                 background: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)',
                 border: '1px solid #BFDBFE',
                 boxShadow: '0 16px 32px rgba(59, 130, 246, 0.10)',
-                cursor: 'pointer',
               }}
             >
               <div
@@ -1261,7 +1855,13 @@ export const Commission: React.FC = () => {
                   gap: 16,
                 }}
               >
-                <div
+                <button
+                  type='button'
+                  onClick={() => {
+                    setConvertMessage('');
+                    setConvertError('');
+                    setDetailPanel('cw-convert');
+                  }}
                   style={{
                     minWidth: 44,
                     width: 44,
@@ -1273,11 +1873,13 @@ export const Commission: React.FC = () => {
                     backgroundColor: 'rgba(37, 99, 235, 0.14)',
                     color: '#1D4ED8',
                     fontSize: 18,
+                    border: 'none',
+                    cursor: 'pointer',
                     ...theme.fonts.Mulish_700Bold,
                   }}
                 >
                   SW
-                </div>
+                </button>
                 <div
                   style={{
                     flex: 1,
@@ -1353,9 +1955,13 @@ export const Commission: React.FC = () => {
                     justifyContent: 'space-between',
                     gap: 12,
                     cursor:
-                      tile.key === 'sw' ||
+                      tile.key === 'cw-today' ||
+                      tile.key === 'cw-total' ||
+                      tile.key === 'withdraw' ||
                       tile.key === 'sw-transfer' ||
-                      tile.key === 'withdraw'
+                      tile.key === 'dcw' ||
+                      tile.key === 'top-leader' ||
+                      tile.key === 'firm'
                         ? 'pointer'
                         : 'default',
                   }}
@@ -1380,18 +1986,32 @@ export const Commission: React.FC = () => {
                     >
                       {tile.title}
                     </p>
-                    <p
-                      style={{
-                        margin: 0,
-                        color: theme.colors.mainColor,
-                        fontSize: 20,
-                        lineHeight: 1,
-                        whiteSpace: 'nowrap',
-                        ...theme.fonts.Mulish_700Bold,
-                      }}
-                    >
-                      {tile.value}
-                    </p>
+                    {tile.value ? (
+                      <p
+                        style={{
+                          margin: 0,
+                          color: theme.colors.mainColor,
+                          fontSize: 20,
+                          lineHeight: 1,
+                          whiteSpace: 'nowrap',
+                          ...theme.fonts.Mulish_700Bold,
+                        }}
+                      >
+                        {tile.value}
+                      </p>
+                    ) : (
+                      <p
+                        style={{
+                          margin: 0,
+                          color: '#94A3B8',
+                          fontSize: 24,
+                          lineHeight: 1,
+                          ...theme.fonts.Mulish_700Bold,
+                        }}
+                      >
+                        &rsaquo;
+                      </p>
+                    )}
                   </div>
                 </article>
               ))}
@@ -1447,6 +2067,7 @@ export const Commission: React.FC = () => {
         ) : null}
 
         {renderMatrixBoardModal()}
+        {renderDetailPanel()}
       </main>
     </>
   );
