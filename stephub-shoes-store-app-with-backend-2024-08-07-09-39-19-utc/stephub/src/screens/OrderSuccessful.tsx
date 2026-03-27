@@ -1,50 +1,88 @@
-import React, {useEffect} from 'react';
+import axios from 'axios';
+import React, {useEffect, useState} from 'react';
 import {useLocation} from 'react-router-dom';
 
 import {hooks} from '../hooks';
+import {URLS} from '../config';
 import {theme} from '../constants';
 import {components} from '../components';
+import {RootState} from '../store';
 import {actions} from '../store/actions';
+
+type PaymentInstructions = {
+  accountName: string;
+  bankName: string;
+  accountNumber: string;
+  promptPayName: string;
+  promptPayNumber: string;
+  qrImageUrl: string;
+  note: string;
+};
 
 export const OrderSuccessful: React.FC = () => {
   const dispatch = hooks.useAppDispatch();
   const navigate = hooks.useAppNavigate();
+  const user = hooks.useAppSelector((state: RootState) => state.userSlice.user);
   const location = useLocation();
   const order = location.state?.order;
   const productItems = Array.isArray(location.state?.productItems)
     ? location.state.productItems
     : [];
+  const [paymentInstructions, setPaymentInstructions] =
+    useState<PaymentInstructions | null>(null);
 
   useEffect(() => {
     dispatch(actions.resetCart());
     window.scrollTo(0, 0);
   }, [dispatch]);
 
+  useEffect(() => {
+    const loadPaymentInstructions = async () => {
+      if (!user?.accessToken) {
+        setPaymentInstructions(null);
+        return;
+      }
+
+      try {
+        const response = await axios.get<PaymentInstructions>(
+          URLS.AUTH_PAYMENT_INSTRUCTIONS,
+          {
+            headers: {
+              Authorization: `Bearer ${user.accessToken}`,
+            },
+            withCredentials: true,
+          },
+        );
+
+        setPaymentInstructions(response.data);
+      } catch (error) {
+        console.error(error);
+        setPaymentInstructions(null);
+      }
+    };
+
+    loadPaymentInstructions();
+  }, [user?.accessToken]);
+
   const renderContent = (): JSX.Element => {
     return (
-      <div
-        style={{
-          height: '100vh',
-          padding: '20px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}
-      >
-        <img
-          src={require('../assets/icons/03.png')}
-          alt='order successful'
+      <>
+        <components.Header title='Order successful' goBack={true} />
+        <div
           style={{
-            width: 225.18,
-            display: 'block',
-            margin: '0 auto',
-            marginBottom: 4,
+            minHeight: 'calc(100vh - 72px)',
+            padding: '20px 20px 120px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            background:
+              'linear-gradient(180deg, #F7FAFF 0%, #FFFFFF 260px)',
           }}
-        />
+        >
         <h2
           style={{
             textAlign: 'center',
+            marginTop: 12,
             marginBottom: 14,
             fontSize: 22,
             color: theme.colors.mainColor,
@@ -66,9 +104,123 @@ export const OrderSuccessful: React.FC = () => {
           }}
         >
           {order?.orderNo
-            ? `เลขที่คำสั่งซื้อ ${order.orderNo}${'\n'}กรุณาอัปโหลดสลิปโอนเงินจากหน้าประวัติคำสั่งซื้อเพื่อดำเนินการต่อ`
-            : `ยืนยันรายการสินค้าสำเร็จแล้ว${'\n'}กรุณาไปที่หน้าประวัติคำสั่งซื้อเพื่ออัปโหลดสลิปโอนเงิน`}
+            ? `เลขที่คำสั่งซื้อ ${order.orderNo}${'\n'}กรุณาโอนเงินตามข้อมูลด้านล่าง และอัปโหลดสลิปจากหน้าประวัติคำสั่งซื้อเพื่อดำเนินการต่อ`
+            : `ยืนยันรายการสินค้าสำเร็จแล้ว${'\n'}กรุณาโอนเงินตามข้อมูลด้านล่าง และไปที่หน้าประวัติคำสั่งซื้อเพื่ออัปโหลดสลิป`}
         </p>
+        {paymentInstructions ? (
+          <div
+            style={{
+              width: '100%',
+              padding: 18,
+              borderRadius: 16,
+              backgroundColor: '#FFFFFF',
+              border: '1px solid #E8EFF4',
+              display: 'grid',
+              gap: 8,
+              marginBottom: 20,
+              boxShadow: '0 16px 40px rgba(15, 23, 42, 0.06)',
+            }}
+          >
+            <span
+              style={{
+                ...theme.fonts.Mulish_700Bold,
+                fontSize: 16,
+                lineHeight: 1.5,
+                color: theme.colors.mainColor,
+              }}
+            >
+              ข้อมูลสำหรับชำระเงิน
+            </span>
+            <span
+              style={{
+                ...theme.fonts.Mulish_700Bold,
+                fontSize: 18,
+                lineHeight: 1.5,
+                color: '#FF4343',
+              }}
+            >
+              ยอดที่ต้องโอน: $
+              {Number(order?.cashDueUsdt || order?.totalUsdt || 0).toFixed(2)}
+            </span>
+            <span
+              style={{
+                ...theme.fonts.Mulish_400Regular,
+                fontSize: 14,
+                lineHeight: 1.5,
+                color: theme.colors.textColor,
+              }}
+            >
+              วิธีชำระ: {order?.cashPaymentMethod || 'bank_transfer'}
+            </span>
+            <span
+              style={{
+                ...theme.fonts.Mulish_400Regular,
+                fontSize: 14,
+                lineHeight: 1.5,
+                color: theme.colors.textColor,
+              }}
+            >
+              ธนาคาร: {paymentInstructions.bankName}
+            </span>
+            <span
+              style={{
+                ...theme.fonts.Mulish_400Regular,
+                fontSize: 14,
+                lineHeight: 1.5,
+                color: theme.colors.textColor,
+              }}
+            >
+              ชื่อบัญชี: {paymentInstructions.accountName}
+            </span>
+            <span
+              style={{
+                ...theme.fonts.Mulish_400Regular,
+                fontSize: 14,
+                lineHeight: 1.5,
+                color: theme.colors.textColor,
+              }}
+            >
+              เลขบัญชี: {paymentInstructions.accountNumber}
+            </span>
+            <span
+              style={{
+                ...theme.fonts.Mulish_400Regular,
+                fontSize: 14,
+                lineHeight: 1.5,
+                color: theme.colors.textColor,
+              }}
+            >
+              PromptPay: {paymentInstructions.promptPayName} •{' '}
+              {paymentInstructions.promptPayNumber}
+            </span>
+            {paymentInstructions.qrImageUrl ? (
+              <img
+                alt='QR รับเงิน'
+                src={paymentInstructions.qrImageUrl}
+                style={{
+                  width: '100%',
+                  maxWidth: 260,
+                  margin: '8px auto 0',
+                  borderRadius: 12,
+                  border: '1px solid #E8EFF4',
+                  backgroundColor: theme.colors.white,
+                }}
+              />
+            ) : null}
+            {paymentInstructions.note ? (
+              <span
+                style={{
+                  ...theme.fonts.Mulish_400Regular,
+                  fontSize: 13,
+                  lineHeight: 1.7,
+                  color: theme.colors.textColor,
+                }}
+              >
+                {paymentInstructions.note}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
         {productItems.length ? (
           <div
             style={{
@@ -176,7 +328,8 @@ export const OrderSuccessful: React.FC = () => {
           colorScheme='light'
           containerStyle={{width: '100%'}}
         />
-      </div>
+        </div>
+      </>
     );
   };
 
