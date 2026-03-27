@@ -20,6 +20,7 @@ const stack = createBrowserRouter([
       {path: 'OrderHistory', element: <screens.OrderHistory />},
       {path: 'TeamMember', element: <screens.TeamMember />},
       {path: 'Commission', element: <screens.Commission />},
+      {path: 'Firm', element: <screens.Firm />},
       {path: 'TransferSW', element: <screens.TransferSW />},
       {path: 'TopupWallet', element: <screens.TopupWallet />},
       {path: 'WithdrawSW', element: <screens.WithdrawSW />},
