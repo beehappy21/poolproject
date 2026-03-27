@@ -35,20 +35,49 @@ $checks = [
 $failed = false;
 
 foreach ($checks as $path) {
-    $request = Illuminate\Http\Request::create($path, 'GET');
-    $response = $http->handle($request);
-    $status = $response->getStatusCode();
-    $contentType = method_exists($response, 'headers')
-        ? ($response->headers->get('content-type') ?? '')
-        : '';
+    $status = 500;
+    $contentType = '';
+    $attempt = 0;
+
+    while ($attempt < 3) {
+        $attempt++;
+        $request = Illuminate\Http\Request::create($path, 'GET');
+
+        try {
+            $response = $http->handle($request);
+            $status = $response->getStatusCode();
+            $contentType = method_exists($response, 'headers')
+                ? ($response->headers->get('content-type') ?? '')
+                : '';
+            $http->terminate($request, $response);
+
+            if ($status === 200) {
+                break;
+            }
+        } catch (Throwable $exception) {
+            $message = $exception->getMessage();
+            $contentType = 'exception';
+
+            if (
+                str_contains($message, 'Operation not permitted') ||
+                str_contains($message, 'connection to server') ||
+                str_contains($message, 'Undefined table')
+            ) {
+                usleep(300000);
+                continue;
+            }
+
+            throw $exception;
+        }
+
+        usleep(300000);
+    }
 
     echo sprintf("CHECK path=%s status=%d type=%s\n", $path, $status, $contentType);
 
     if ($status !== 200) {
         $failed = true;
     }
-
-    $http->terminate($request, $response);
 }
 
 exit($failed ? 1 : 0);

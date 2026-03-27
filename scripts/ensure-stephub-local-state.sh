@@ -42,6 +42,12 @@ JSON
   fi
 )
 
+echo "Applying Stephub UAT commission settings..."
+(
+  cd "$ROOT_DIR"
+  bash scripts/apply-stephub-uat-settings.sh >/dev/null
+)
+
 echo "Applying Stephub compatibility views..."
 docker exec -i poolproject-postgres psql -v ON_ERROR_STOP=1 -U postgres -d poolproject \
   < "$ROOT_DIR/scripts/migrations/create_stephub_compat_views.sql" >/dev/null
