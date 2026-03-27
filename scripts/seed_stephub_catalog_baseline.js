@@ -12,6 +12,11 @@ const CATEGORY_COUNT = 10;
 const PRODUCTS_PER_CATEGORY = 5;
 const FORCE = process.argv.includes("--force");
 
+process.stdout.write(
+  "Stephub demo catalog restore is permanently disabled.\n",
+);
+process.exit(0);
+
 const CATEGORY_COLORS = [
   "#E11D48",
   "#EA580C",

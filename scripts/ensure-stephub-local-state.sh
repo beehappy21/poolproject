@@ -34,11 +34,8 @@ echo "Ensuring Stephub superadmin exists..."
   php -d error_reporting='E_ALL & ~E_DEPRECATED' artisan db:seed --class=Database\\Seeders\\EnsureStephubSuperadminSeeder --force >/dev/null
 )
 
-echo "Ensuring Stephub demo catalog exists when catalog is empty..."
-(
-  cd "$ROOT_DIR"
-  node scripts/seed_stephub_catalog_baseline.js
-)
+echo "Stephub demo catalog restore is permanently disabled for local baseline."
+echo "Preserving catalog data from the current database or backup restore."
 
 echo "Ensuring withdraw settings defaults exist..."
 (
