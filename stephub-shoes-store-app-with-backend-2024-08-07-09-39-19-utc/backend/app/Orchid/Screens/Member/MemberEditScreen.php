@@ -21,7 +21,7 @@ class MemberEditScreen extends Screen
 
     public function query(Member $member): iterable
     {
-        $this->member = Member::query()
+        $this->member = Member::member003()
             ->with(['memberProfile', 'sponsor'])
             ->findOrFail($member->id);
 

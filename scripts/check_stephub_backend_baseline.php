@@ -19,19 +19,24 @@ while ($attempt < $maxAttempts) {
     $attempt++;
 
     try {
-        $productCategoryCount = Illuminate\Support\Facades\DB::connection('poolproject')
+        $productCategoryCount = (int) Illuminate\Support\Facades\DB::connection('poolproject')
             ->table('ProductCategory')
             ->count();
-        $productCount = Illuminate\Support\Facades\DB::connection('poolproject')
+        $productCount = (int) Illuminate\Support\Facades\DB::connection('poolproject')
             ->table('Product')
             ->count();
-        $productDetailCount = Illuminate\Support\Facades\DB::connection('poolproject')
+        $productDetailCount = (int) Illuminate\Support\Facades\DB::connection('poolproject')
             ->table('ProductDetail')
             ->count();
-        $memberCount = Illuminate\Support\Facades\DB::connection('poolproject')
+        $memberCount = (int) Illuminate\Support\Facades\DB::connection('poolproject')
             ->table('User')
             ->where('memberCode', 'like', 'TH%')
             ->where('isAdmin', false)
+            ->count();
+        $unexpectedMemberCount = (int) Illuminate\Support\Facades\DB::connection('poolproject')
+            ->table('User')
+            ->where('isAdmin', false)
+            ->where('memberCode', 'not like', 'TH%')
             ->count();
 
         $withdrawTable = Illuminate\Support\Facades\DB::connection('poolproject')
@@ -47,15 +52,15 @@ while ($attempt < $maxAttempts) {
         $memberViewCount = Illuminate\Support\Facades\DB::connection('poolproject')
             ->selectOne('select count(*)::int as value from stephub_members_v1');
 
-        $activeCategoryCount = Illuminate\Support\Facades\DB::connection('poolproject')
+        $activeCategoryCount = (int) Illuminate\Support\Facades\DB::connection('poolproject')
             ->table('ProductCategory')
             ->where('status', 'ACTIVE')
             ->count();
-        $activeProductCount = Illuminate\Support\Facades\DB::connection('poolproject')
+        $activeProductCount = (int) Illuminate\Support\Facades\DB::connection('poolproject')
             ->table('Product')
             ->where('status', 'ACTIVE')
             ->count();
-        $activeDetailCount = Illuminate\Support\Facades\DB::connection('poolproject')
+        $activeDetailCount = (int) Illuminate\Support\Facades\DB::connection('poolproject')
             ->table('ProductDetail')
             ->where('status', 'ACTIVE')
             ->count();
@@ -63,16 +68,36 @@ while ($attempt < $maxAttempts) {
         $ok = $productCategoryCount > 0
             && $productCount > 0
             && $productDetailCount > 0
-            && $memberCount > 0
+            && $memberCount === 210
+            && $unexpectedMemberCount === 0
             && !empty($withdrawTable?->value)
             && !empty($kycTable?->value)
             && !empty($productsView?->value)
             && !empty($membersView?->value)
             && (int) ($productViewCount?->value ?? 0) > 0
-            && (int) ($memberViewCount?->value ?? 0) > 0
+            && (int) ($memberViewCount?->value ?? 0) === 210
             && $activeCategoryCount > 0
             && $activeProductCount > 0
             && $activeDetailCount > 0;
+
+        if (! $ok) {
+            fwrite(STDERR, json_encode([
+                'productCategoryCount' => $productCategoryCount,
+                'productCount' => $productCount,
+                'productDetailCount' => $productDetailCount,
+                'memberCount' => $memberCount,
+                'unexpectedMemberCount' => $unexpectedMemberCount,
+                'withdrawTable' => $withdrawTable?->value ?? null,
+                'kycTable' => $kycTable?->value ?? null,
+                'productsView' => $productsView?->value ?? null,
+                'membersView' => $membersView?->value ?? null,
+                'productViewCount' => (int) ($productViewCount?->value ?? 0),
+                'memberViewCount' => (int) ($memberViewCount?->value ?? 0),
+                'activeCategoryCount' => $activeCategoryCount,
+                'activeProductCount' => $activeProductCount,
+                'activeDetailCount' => $activeDetailCount,
+            ], JSON_UNESCAPED_SLASHES).PHP_EOL);
+        }
 
         exit($ok ? 0 : 1);
     } catch (Throwable $exception) {

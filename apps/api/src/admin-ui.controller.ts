@@ -145,14 +145,14 @@ export class AdminUiController {
         <form class="login-form panel" id="loginForm">
           <label>
             <span>Member Code or Email</span>
-            <input id="identifierInput" type="text" placeholder="ALICE or alice@example.com" required />
+            <input id="identifierInput" type="text" placeholder="TH0000013 or member003 email" required />
           </label>
           <label>
             <span>Password</span>
-            <input id="passwordInput" type="password" placeholder="dev-password" required />
+            <input id="passwordInput" type="password" placeholder="a1a1a1" required />
           </label>
           <button type="submit">Sign In</button>
-          <p class="form-hint">Default dev login: <code>ALICE / dev-password</code></p>
+          <p class="form-hint">Default local admin login: <code>TH0000013 / a1a1a1</code></p>
         </form>
         <div class="panel action-panel">
           <button id="refreshButton" class="ghost">Check Session</button>

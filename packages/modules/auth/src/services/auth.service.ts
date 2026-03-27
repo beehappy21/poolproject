@@ -29,7 +29,7 @@ export class AuthService implements AuthServiceContract {
   private readonly devImpersonationPassword =
     process.env.DEV_MEMBER_IMPERSONATION_PASSWORD || "a1a1a1";
   private readonly adminMemberCodes = new Set(
-    (process.env.ADMIN_MEMBER_CODES || "ALICE")
+    (process.env.ADMIN_MEMBER_CODES || "TH0000013")
       .split(",")
       .map((value) => value.trim().toUpperCase())
       .filter(Boolean),

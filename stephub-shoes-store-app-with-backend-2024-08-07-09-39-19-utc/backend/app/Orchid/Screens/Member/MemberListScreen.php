@@ -15,7 +15,7 @@ class MemberListScreen extends Screen
     public function query(Request $request): iterable
     {
         $search = trim((string) $request->query('search', ''));
-        $members = Member::query()
+        $members = Member::member003()
             ->with(['memberProfile', 'sponsor'])
             ->orderBy('id');
 

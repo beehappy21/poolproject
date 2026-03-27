@@ -37,7 +37,7 @@ class OrderCreateScreen extends Screen
 
     public function query(Request $request): iterable
     {
-        $members = Member::query()
+        $members = Member::member003()
             ->orderBy('memberCode')
             ->get(['id', 'memberCode', 'name', 'email', 'phone']);
 
@@ -390,7 +390,7 @@ class OrderCreateScreen extends Screen
 
         try {
             foreach ($orderGroups as $group) {
-                $member = Member::query()->find($group['member_id']);
+                $member = Member::member003()->find($group['member_id']);
 
                 if (!$member instanceof Member) {
                     throw new \RuntimeException(sprintf('Selected member %s was not found.', (string) $group['member_id']));
