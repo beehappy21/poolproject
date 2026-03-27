@@ -62,15 +62,34 @@ ensure_runtime() {
 check_url() {
   local label="$1"
   local url="$2"
-  local attempt
+  local host_port
+  local host
+  local port
 
-  for attempt in 1 2 3 4 5 6 7 8 9 10; do
-    if curl -fsS --max-time 2 "$url" >/dev/null 2>&1; then
-      echo "[ok] $label"
-      return 0
-    fi
-    sleep 1
-  done
+  if curl \
+    -fsSI \
+    --retry 10 \
+    --retry-delay 1 \
+    --retry-connrefused \
+    --max-time 5 \
+    "$url" >/dev/null 2>&1; then
+    echo "[ok] $label"
+    return 0
+  fi
+
+  host_port="${url#*://}"
+  host_port="${host_port%%/*}"
+  host="${host_port%%:*}"
+  port="${host_port##*:}"
+
+  if [[ "$host" == "$host_port" ]]; then
+    port=80
+  fi
+
+  if [[ "$host" == "127.0.0.1" || "$host" == "localhost" ]] && is_listening "$port"; then
+    echo "[ok] $label (port fallback)"
+    return 0
+  fi
 
   echo "[fail] $label"
   return 1
