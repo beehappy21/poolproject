@@ -10,3 +10,4 @@ prisma/dev.db
 .vscode
 logs
 runtime
+backups/
