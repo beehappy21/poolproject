@@ -19,12 +19,12 @@ class ProductListScreen extends Screen {
   }
 
   public function name(): ?string {
-    return 'Products';
+    return 'Product';
   }
 
   public function commandBar(): iterable {
     return [
-      Link::make('Create')
+      Link::make('Create Product')
         ->icon('bs.plus-circle')
         ->route('platform.product.edit'),
     ];
@@ -66,7 +66,7 @@ class ProductListScreen extends Screen {
             return $product->old_price ? '<del>$' . $product->old_price . '</del>' : '-';
           }),
 
-        TD::make('code', 'Code')
+        TD::make('code', 'SKU')
           ->cantHide()
           ->render(function (Product $product) {
             return e($product->code);

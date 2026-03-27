@@ -35,11 +35,24 @@ class PlatformProvider extends OrchidServiceProvider {
   public function menu(): array {
     return [
 
-      Menu::make('Products')
+      Menu::make('Catalog Management')
         ->title('Navigation')
-        ->icon('bs.grid')
+        ->icon('bs-box-seam')
         ->permission(AdminPermissions::CATALOG_MANAGE)
-        ->route('platform.product.list'),
+        ->list([
+          Menu::make('Suppliers')
+            ->icon('bs.truck')
+            ->route('platform.supplier.list'),
+          Menu::make('Categories')
+            ->icon('bs.grid')
+            ->route('platform.category.list'),
+          Menu::make('Product Families')
+            ->icon('bs.collection')
+            ->route('platform.product-family.list'),
+          Menu::make('Product')
+            ->icon('bs.box')
+            ->route('platform.product.list'),
+        ]),
 
       Menu::make('Commission Setting')
         ->title('Commission Setting')
@@ -70,11 +83,6 @@ class PlatformProvider extends OrchidServiceProvider {
             ->icon('bs-arrow-repeat')
             ->route('platform.commission.report.cashback'),
         ]),
-
-      Menu::make('Suppliers')
-        ->icon('bs.truck')
-        ->permission(AdminPermissions::CATALOG_MANAGE)
-        ->route('platform.supplier.list'),
 
       Menu::make('Orders')
         ->icon('bs.cart3')
@@ -122,11 +130,6 @@ class PlatformProvider extends OrchidServiceProvider {
         ->icon('bs.collection-play')
         ->permission(AdminPermissions::MARKETING_MANAGE)
         ->route('platform.slide.list'),
-
-      Menu::make('Categories')
-        ->icon('bs.grid')
-        ->permission(AdminPermissions::CATALOG_MANAGE)
-        ->route('platform.category.list'),
 
       Menu::make('Members')
         ->icon('bs.people')

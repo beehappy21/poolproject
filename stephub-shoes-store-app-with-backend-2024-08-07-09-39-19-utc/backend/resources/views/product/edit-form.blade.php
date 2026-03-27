@@ -6,7 +6,8 @@
     $categoryOptions = $categoryOptions ?? [];
     $youtubeEmbedUrl = $youtubeEmbedUrl ?? null;
     $imagePreviewUrl = $imagePreviewUrl ?? null;
-    $galleryUrls = array_pad(array_slice($product['gallery_urls'] ?? [], 0, 9), 9, '');
+    $existingImageUrls = array_values(array_filter($product['image_urls'] ?? []));
+    $fieldHasError = static fn (string $key): bool => $errors->has($key);
 @endphp
 
 <style>
@@ -50,6 +51,27 @@
         padding: 0.75rem 0.9rem;
         width: 100%;
         background: #fff;
+    }
+
+    .pool-field .pool-input-error {
+        border-color: #ef4444;
+        background: #fef2f2;
+        box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+    }
+
+    .pool-field input:invalid,
+    .pool-field select:invalid,
+    .pool-field textarea:invalid {
+        border-color: #ef4444;
+        background: #fef2f2;
+        box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+    }
+
+    .pool-field-error {
+        margin-top: 0.35rem;
+        color: #dc2626;
+        font-size: 0.85rem;
+        font-weight: 600;
     }
 
     .pool-field textarea {
@@ -200,7 +222,7 @@
 </style>
 
 <div class="pool-block">
-    <h3>Product detail</h3>
+    <h3>SKU / Product detail</h3>
 
     <div class="pool-grid">
         <div class="pool-field">
@@ -225,7 +247,7 @@
 
         <div class="pool-field">
             <label for="product_product_id">Product family</label>
-            <select id="product_product_id" name="product[product_id]" required>
+            <select id="product_product_id" name="product[product_id]">
                 <option value="">Select product family</option>
                 @foreach ($productOptions as $id => $option)
                     <option
@@ -236,16 +258,20 @@
                     >{{ $option['label'] ?? '' }}</option>
                 @endforeach
             </select>
-            <div class="pool-note">เลือก supplier และ category เพื่อกรอง product family ให้ตรงข้อมูลมากขึ้น</div>
+            <div class="pool-note">เลือก product family เดิมได้ หรือปล่อยว่างแล้วกรอก Product family code และ Product family name ด้านล่างเพื่อสร้าง family ใหม่</div>
         </div>
 
         <div class="pool-field">
-            <label for="product_code">Detail code</label>
-            <input id="product_code" name="product[code]" value="{{ old('product.code', $product['code'] ?? '') }}" required>
+            <label for="product_code">SKU</label>
+            <input id="product_code" name="product[code]" value="{{ old('product.code', $product['code'] ?? '') }}" class="@if($fieldHasError('product.code')) pool-input-error @endif">
+            @error('product.code')
+                <div class="pool-field-error">{{ $message }}</div>
+            @enderror
+            <div class="pool-note" id="productCodeHint">ปล่อยว่างได้ ระบบจะ generate SKU ตอนกดบันทึกสำเร็จเท่านั้น เช่น `LON001` และยังแก้เองได้ถ้าต้องการ</div>
         </div>
 
         <div class="pool-field">
-            <label for="product_name">Detail name</label>
+            <label for="product_name">SKU name</label>
             <input id="product_name" name="product[name]" value="{{ old('product.name', $product['name'] ?? '') }}" required>
         </div>
 
@@ -258,12 +284,12 @@
     <div class="pool-grid">
         <div class="pool-field">
             <label for="product_family_code">Product family code</label>
-            <input id="product_family_code" value="{{ $product['product_code'] ?? '' }}" readonly>
+            <input id="product_family_code" name="product[product_family_code]" value="{{ old('product.product_family_code', $product['product_code'] ?? '') }}">
         </div>
 
         <div class="pool-field">
             <label for="product_family_name">Product family name</label>
-            <input id="product_family_name" value="{{ $product['product_name'] ?? '' }}" readonly>
+            <input id="product_family_name" name="product[product_family_name]" value="{{ old('product.product_family_name', $product['product_name'] ?? '') }}">
         </div>
 
         <div class="pool-field">
@@ -295,47 +321,15 @@
                 <div class="pool-note">ถ้ามี YouTube ระบบจะแสดงวิดีโอไว้ก่อนและ autoplay ตอนเปิดหน้าสินค้าใน admin นี้</div>
             </div>
 
-            <div class="pool-field">
-                <label for="product_image_url">Image URL</label>
-                <input
-                    id="product_image_url"
-                    name="product[image_url]"
-                    type="text"
-                    placeholder="https://... or products/your-image.jpg"
-                    value="{{ old('product.image_url', $product['image_url'] ?? '') }}"
-                >
-                <div class="pool-note">วางลิงก์รูปได้ หรือจะเลือกไฟล์ / ลากไฟล์มาวางด้านล่างก็ได้ โดยระบบจะส่งไฟล์จริงแทนการแปลงเป็น base64 ก้อนใหญ่</div>
-            </div>
-
-            <div class="pool-field">
-                <label for="product_image_file">Upload image</label>
-                <input id="product_image_file" name="product[image_file]" type="file" accept="image/*">
-            </div>
-
             <div class="product-dropzone" id="productDropzone" tabindex="0">
-                <strong>Drop image here</strong>
-                <span>Click to choose, drag and drop, or paste an image from clipboard</span>
+                <strong>Drop gallery images here</strong>
+                <span>Click to choose, drag and drop, or paste images from clipboard. The first image becomes the main image.</span>
             </div>
 
             <div class="pool-field">
                 <label for="product_gallery_files">Gallery images</label>
                 <input id="product_gallery_files" name="product[gallery_files][]" type="file" accept="image/*" multiple>
-                <div class="pool-note">เพิ่มรูปเสริมได้อีกสูงสุด 9 รูป รวมรูปหลักแล้วไม่เกิน 10 รูป</div>
-            </div>
-
-            <div class="product-gallery-grid">
-                @foreach ($galleryUrls as $index => $galleryUrl)
-                    <div class="pool-field">
-                        <label for="product_gallery_url_{{ $index + 1 }}">Gallery URL {{ $index + 1 }}</label>
-                        <input
-                            id="product_gallery_url_{{ $index + 1 }}"
-                            name="product[gallery_urls][]"
-                            type="text"
-                            placeholder="https://... or products/gallery-image.jpg"
-                            value="{{ $galleryUrl }}"
-                        >
-                    </div>
-                @endforeach
+                <div class="pool-note">เลือกได้สูงสุด 10 รูป ระบบจะใช้รูปแรกเป็นรูปหลักของ SKU อัตโนมัติ และจะย่อรูปใหญ่ให้ไม่เกิน 1600px ก่อนบันทึก</div>
             </div>
         </div>
 
@@ -387,22 +381,34 @@
     <div class="pool-grid">
         <div class="pool-field">
             <label for="product_cost_price">Cost price</label>
-            <input id="product_cost_price" name="product[cost_price]" type="number" step="0.00000001" min="0" value="{{ old('product.cost_price', $product['cost_price'] ?? '0') }}">
+            <input id="product_cost_price" name="product[cost_price]" type="number" step="0.00000001" min="0" value="{{ old('product.cost_price', $product['cost_price'] ?? '0') }}" class="@if($fieldHasError('product.cost_price')) pool-input-error @endif">
+            @error('product.cost_price')
+                <div class="pool-field-error">{{ $message }}</div>
+            @enderror
         </div>
 
         <div class="pool-field">
             <label for="product_member_price">Member price</label>
-            <input id="product_member_price" name="product[member_price]" type="number" step="0.00000001" min="0" value="{{ old('product.member_price', $product['member_price'] ?? '0') }}">
+            <input id="product_member_price" name="product[member_price]" type="number" step="0.00000001" min="0" value="{{ old('product.member_price', $product['member_price'] ?? '0') }}" class="@if($fieldHasError('product.member_price')) pool-input-error @endif">
+            @error('product.member_price')
+                <div class="pool-field-error">{{ $message }}</div>
+            @enderror
         </div>
 
         <div class="pool-field">
             <label for="product_retail_price">Retail price</label>
-            <input id="product_retail_price" name="product[retail_price]" type="number" step="0.00000001" min="0" value="{{ old('product.retail_price', $product['retail_price'] ?? '0') }}">
+            <input id="product_retail_price" name="product[retail_price]" type="number" step="0.00000001" min="0" value="{{ old('product.retail_price', $product['retail_price'] ?? '0') }}" class="@if($fieldHasError('product.retail_price')) pool-input-error @endif">
+            @error('product.retail_price')
+                <div class="pool-field-error">{{ $message }}</div>
+            @enderror
         </div>
 
         <div class="pool-field">
             <label for="product_pv">PV</label>
-            <input id="product_pv" name="product[pv]" type="number" step="0.00000001" min="0" value="{{ old('product.pv', $product['pv'] ?? '0') }}">
+            <input id="product_pv" name="product[pv]" type="number" step="0.00000001" min="0" value="{{ old('product.pv', $product['pv'] ?? '0') }}" class="@if($fieldHasError('product.pv')) pool-input-error @endif">
+            @error('product.pv')
+                <div class="pool-field-error">{{ $message }}</div>
+            @enderror
             <div class="pool-note">
                 ค่าเริ่มต้นคำนวณจากสูตร `(ราคาสมาชิก - ต้นทุน) x 80%`
                 ได้ <strong id="productPvFormulaValue">{{ $product['pv_formula'] ?? '0.00000000' }}</strong>
@@ -425,18 +431,28 @@
 
         <div class="pool-field">
             <label for="product_pool_rate">Pool rate</label>
-            <input id="product_pool_rate" name="product[pool_rate]" type="number" step="0.00000001" min="0" value="{{ old('product.pool_rate', $product['pool_rate'] ?? '0') }}">
+            <input id="product_pool_rate" name="product[pool_rate]" type="number" step="0.00000001" min="0" max="100" value="{{ old('product.pool_rate', $product['pool_rate'] ?? '0') }}" class="@if($fieldHasError('product.pool_rate')) pool-input-error @endif">
+            @error('product.pool_rate')
+                <div class="pool-field-error">{{ $message }}</div>
+            @enderror
+            <div class="pool-note">ค่านี้ต้องไม่เกิน 100 ถ้าหมายถึง 2.5% ให้กรอก `2.5`</div>
         </div>
 
         <div class="pool-field">
             <label for="product_active_days">Active days</label>
-            <input id="product_active_days" name="product[active_days]" type="number" min="1" value="{{ old('product.active_days', $product['active_days'] ?? '30') }}" required>
+            <input id="product_active_days" name="product[active_days]" type="number" min="1" value="{{ old('product.active_days', $product['active_days'] ?? '30') }}" required class="@if($fieldHasError('product.active_days')) pool-input-error @endif">
+            @error('product.active_days')
+                <div class="pool-field-error">{{ $message }}</div>
+            @enderror
             <div class="pool-note">จำนวนวันของรอบรายได้หลัง activate product</div>
         </div>
 
         <div class="pool-field">
             <label for="product_earning_cap_amount">Earning cap amount</label>
-            <input id="product_earning_cap_amount" name="product[earning_cap_amount]" type="number" step="0.00000001" min="0" value="{{ old('product.earning_cap_amount', $product['earning_cap_amount'] ?? $product['member_price'] ?? '0') }}" required>
+            <input id="product_earning_cap_amount" name="product[earning_cap_amount]" type="number" step="0.00000001" min="0" value="{{ old('product.earning_cap_amount', $product['earning_cap_amount'] ?? $product['member_price'] ?? '0') }}" required class="@if($fieldHasError('product.earning_cap_amount')) pool-input-error @endif">
+            @error('product.earning_cap_amount')
+                <div class="pool-field-error">{{ $message }}</div>
+            @enderror
             <div class="pool-note">เพดานรายได้ของ cycle สำหรับสินค้ารายละเอียดนี้</div>
         </div>
     </div>
@@ -453,7 +469,10 @@
 
         <div class="pool-field">
             <label for="product_dcw_usage_amount">DCW usage amount</label>
-            <input id="product_dcw_usage_amount" name="product[dcw_usage_amount]" type="number" step="1" min="0" value="{{ old('product.dcw_usage_amount', $product['dcw_usage_amount'] ?? '0') }}">
+            <input id="product_dcw_usage_amount" name="product[dcw_usage_amount]" type="number" step="1" min="0" value="{{ old('product.dcw_usage_amount', $product['dcw_usage_amount'] ?? '0') }}" class="@if($fieldHasError('product.dcw_usage_amount')) pool-input-error @endif">
+            @error('product.dcw_usage_amount')
+                <div class="pool-field-error">{{ $message }}</div>
+            @enderror
             <div class="pool-note">
                 ค่าเริ่มต้นคำนวณจากสูตร `ราคาสมาชิก - (ต้นทุน x 70%)`
                 และปัดลงเป็นจำนวนเต็มเสมอ
@@ -477,8 +496,11 @@
 
         <div class="pool-field">
             <label for="product_dcw_reward_rate">DCW reward rate</label>
-            <input id="product_dcw_reward_rate" name="product[dcw_reward_rate]" type="number" step="0.00000001" min="0" value="{{ old('product.dcw_reward_rate', $product['dcw_reward_rate'] ?? '0') }}">
-            <div class="pool-note">ใช้ค่าเดียวกับยอดรวมของ cash + shopping wallet และรองรับการจ่ายผสม โดยยอด DCW ที่ได้จะปัดลงเป็นจำนวนเต็ม</div>
+            <input id="product_dcw_reward_rate" name="product[dcw_reward_rate]" type="number" step="0.00000001" min="0" max="100" value="{{ old('product.dcw_reward_rate', $product['dcw_reward_rate'] ?? '0') }}" class="@if($fieldHasError('product.dcw_reward_rate')) pool-input-error @endif">
+            @error('product.dcw_reward_rate')
+                <div class="pool-field-error">{{ $message }}</div>
+            @enderror
+            <div class="pool-note">ใช้ค่าเดียวกับยอดรวมของ cash + shopping wallet และรองรับการจ่ายผสม โดยยอด DCW ที่ได้จะปัดลงเป็นจำนวนเต็ม ค่านี้ต้องไม่เกิน 100</div>
         </div>
     </div>
 </div>
@@ -553,14 +575,14 @@
         const productFamilySelect = document.getElementById('product_product_id');
         const productMetadata = @json($productMetadata);
         const categoryOptions = @json($categoryOptions);
+        const existingImageUrls = @json($existingImageUrls);
         const productFamilyCode = document.getElementById('product_family_code');
         const productFamilyName = document.getElementById('product_family_name');
         const productCategoryName = document.getElementById('product_category_name');
         const productSupplierName = document.getElementById('product_supplier_name');
-        const fileInput = document.getElementById('product_image_file');
+        const detailCodeInput = document.getElementById('product_code');
+        const detailCodeHint = document.getElementById('productCodeHint');
         const galleryFilesInput = document.getElementById('product_gallery_files');
-        const galleryUrlInputs = Array.from(document.querySelectorAll('input[name="product[gallery_urls][]"]'));
-        const imageUrlInput = document.getElementById('product_image_url');
         const youtubeInput = document.getElementById('product_youtube_url');
         const imagePreview = document.getElementById('productImagePreview');
         const galleryPreview = document.getElementById('productGalleryPreview');
@@ -577,7 +599,9 @@
         const dcwManualOverrideInput = document.getElementById('product_dcw_usage_manual_override');
         const dcwFormulaValue = document.getElementById('productDcwFormulaValue');
         const dcwWarning = document.getElementById('productDcwWarning');
+        const firstErrorInput = document.querySelector('.pool-input-error');
         const fallbackImage = imagePreview.getAttribute('src');
+        const constrainedInputs = Array.from(document.querySelectorAll('input[max], input[min], input[required], select[required], textarea[required]'));
         const initialProductOptions = Array.from(productFamilySelect.options)
             .filter(function (option) {
                 return option.value !== '';
@@ -688,6 +712,40 @@
             repopulateSelect(productFamilySelect, options, hasSelected ? selectedProduct : '', 'Select product family');
         }
 
+        function syncFamilyInputMode() {
+            const hasSelectedFamily = String(productFamilySelect.value || '') !== '';
+
+            productFamilyCode.readOnly = hasSelectedFamily;
+            productFamilyName.readOnly = hasSelectedFamily;
+            productFamilyCode.style.background = hasSelectedFamily ? '#f8fafc' : '#fff';
+            productFamilyName.style.background = hasSelectedFamily ? '#f8fafc' : '#fff';
+
+            if (!hasSelectedFamily) {
+                productCategoryName.value = categorySelect.options[categorySelect.selectedIndex]?.textContent || '';
+                productSupplierName.value = supplierSelect.options[supplierSelect.selectedIndex]?.textContent || '';
+            }
+        }
+
+        function syncDetailCodeSuggestion(force) {
+            const meta = categoryOptions[String(categorySelect.value)] || {};
+            const suggested = String(meta.next_detail_code || '');
+            const currentValue = detailCodeInput.value.trim();
+
+            if (!suggested || !detailCodeHint) {
+                if (detailCodeHint) {
+                    detailCodeHint.textContent = 'ปล่อยว่างได้ ระบบจะ generate SKU ตอนกดบันทึกสำเร็จเท่านั้น และยังแก้เองได้ถ้าต้องการ';
+                }
+                detailCodeInput.placeholder = '';
+                return;
+            }
+
+            if (currentValue === '') {
+                detailCodeInput.placeholder = suggested;
+            }
+
+            detailCodeHint.textContent = `ปล่อยว่างได้ ระบบจะ generate SKU ตอนกดบันทึกสำเร็จเท่านั้น เลขถัดไปตอนนี้คือ ${suggested}`;
+        }
+
         function syncSelectorsFromProductFamily() {
             const meta = productMetadata[String(productFamilySelect.value)] || {};
 
@@ -741,12 +799,7 @@
             imagePreview.src = resolveImagePreviewUrl(url) || fallbackImage;
         }
 
-        function updateGalleryPreview() {
-            const urls = galleryUrlInputs
-                .map(function (input) {
-                    return resolveImagePreviewUrl(input.value);
-                })
-                .filter(Boolean);
+        function selectedGalleryPreviewUrls() {
             const fileUrls = Array.from(galleryFilesInput.files || [])
                 .filter(function (file) {
                     return file.type.startsWith('image/');
@@ -754,9 +807,23 @@
                 .map(function (file) {
                     return URL.createObjectURL(file);
                 });
-            const allUrls = urls.concat(fileUrls).slice(0, 9);
+
+            if (fileUrls.length > 0) {
+                return fileUrls.slice(0, 10);
+            }
+
+            return existingImageUrls
+                .map(resolveImagePreviewUrl)
+                .filter(Boolean)
+                .slice(0, 10);
+        }
+
+        function updateGalleryPreview() {
+            const allUrls = selectedGalleryPreviewUrls();
 
             galleryPreview.innerHTML = '';
+
+            updateImagePreview(allUrls[0] || '');
 
             allUrls.forEach(function (url, index) {
                 const shell = document.createElement('div');
@@ -788,15 +855,6 @@
             }
 
             return `/storage/${trimmed.replace(/^\/+/, '')}`;
-        }
-
-        function applyFile(file) {
-            if (!file || !file.type.startsWith('image/')) {
-                return;
-            }
-
-            const previewUrl = URL.createObjectURL(file);
-            updateImagePreview(previewUrl);
         }
 
         function computedPv() {
@@ -843,29 +901,40 @@
             }
         }
 
-        imageUrlInput.addEventListener('input', function () {
-            updateImagePreview(imageUrlInput.value.trim());
-        });
+        function syncInputValidityState(input) {
+            if (!input) {
+                return;
+            }
 
-        galleryUrlInputs.forEach(function (input) {
-            input.addEventListener('input', updateGalleryPreview);
-        });
+            if (input.checkValidity()) {
+                input.classList.remove('pool-input-error');
+                return;
+            }
+
+            input.classList.add('pool-input-error');
+        }
 
         supplierSelect.addEventListener('change', function () {
             syncCategoryOptions();
             syncProductFamilyOptions();
             applyProductFamilyMetadata();
+            syncFamilyInputMode();
+            syncDetailCodeSuggestion(false);
         });
 
         categorySelect.addEventListener('change', function () {
             syncProductFamilyOptions();
             applyProductFamilyMetadata();
+            syncFamilyInputMode();
+            syncDetailCodeSuggestion(false);
         });
 
         productFamilySelect.addEventListener('change', function () {
             syncSelectorsFromProductFamily();
             syncProductFamilyOptions();
             applyProductFamilyMetadata();
+            syncFamilyInputMode();
+            syncDetailCodeSuggestion(false);
         });
 
         youtubeInput.addEventListener('input', updateYoutubePreview);
@@ -876,14 +945,20 @@
         pvManualOverrideInput.addEventListener('change', syncPvState);
         dcwManualOverrideInput.addEventListener('change', syncDcwState);
 
-        fileInput.addEventListener('change', function () {
-            applyFile(fileInput.files?.[0]);
-        });
-
         galleryFilesInput.addEventListener('change', updateGalleryPreview);
 
+        constrainedInputs.forEach(function (input) {
+            ['input', 'change', 'blur', 'invalid'].forEach(function (eventName) {
+                input.addEventListener(eventName, function () {
+                    syncInputValidityState(input);
+                });
+            });
+
+            syncInputValidityState(input);
+        });
+
         dropzone.addEventListener('click', function () {
-            fileInput.click();
+            galleryFilesInput.click();
         });
 
         dropzone.addEventListener('dragover', function (event) {
@@ -898,40 +973,52 @@
         dropzone.addEventListener('drop', function (event) {
             event.preventDefault();
             dropzone.classList.remove('is-dragging');
-            const file = event.dataTransfer?.files?.[0];
-            if (file) {
+            const files = Array.from(event.dataTransfer?.files || []).filter(function (file) {
+                return file.type.startsWith('image/');
+            }).slice(0, 10);
+            if (files.length > 0) {
                 const transfer = new DataTransfer();
-                transfer.items.add(file);
-                fileInput.files = transfer.files;
-                applyFile(file);
+                files.forEach(function (file) {
+                    transfer.items.add(file);
+                });
+                galleryFilesInput.files = transfer.files;
+                updateGalleryPreview();
             }
         });
 
         dropzone.addEventListener('paste', function (event) {
-            const item = Array.from(event.clipboardData?.items || []).find(function (entry) {
+            const files = Array.from(event.clipboardData?.items || []).filter(function (entry) {
                 return entry.type.startsWith('image/');
-            });
-            if (!item) {
+            }).map(function (entry) {
+                return entry.getAsFile();
+            }).filter(Boolean).slice(0, 10);
+
+            if (files.length === 0) {
                 return;
             }
-            const file = item.getAsFile();
-            if (!file) {
-                return;
-            }
+
             const transfer = new DataTransfer();
-            transfer.items.add(file);
-            fileInput.files = transfer.files;
-            applyFile(file);
+            files.forEach(function (file) {
+                transfer.items.add(file);
+            });
+            galleryFilesInput.files = transfer.files;
+            updateGalleryPreview();
         });
 
         syncCategoryOptions();
         syncProductFamilyOptions();
         syncSelectorsFromProductFamily();
         applyProductFamilyMetadata();
+        syncFamilyInputMode();
+        syncDetailCodeSuggestion(false);
         updateYoutubePreview();
-        updateImagePreview(imageUrlInput.value.trim());
         updateGalleryPreview();
         syncPvState();
         syncDcwState();
+
+        if (firstErrorInput) {
+            firstErrorInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            firstErrorInput.focus({ preventScroll: true });
+        }
     })();
 </script>

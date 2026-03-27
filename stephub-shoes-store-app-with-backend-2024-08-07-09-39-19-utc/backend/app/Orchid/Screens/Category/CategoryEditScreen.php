@@ -70,7 +70,8 @@ class CategoryEditScreen extends Screen
                     ->title('Name:')
                     ->required(!$this->category->exists),
                 Input::make('category.code')
-                    ->title('Code:')
+                    ->title('Code / SKU prefix:')
+                    ->help('ใช้ code นี้เป็นฐานรหัส SKU ของสินค้าในหมวด เช่น Longevity จะได้ LON001, LON002')
                     ->required(!$this->category->exists),
                 Input::make('category.slug')
                     ->title('Slug:'),

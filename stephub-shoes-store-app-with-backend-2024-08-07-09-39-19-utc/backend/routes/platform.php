@@ -42,6 +42,8 @@ use App\Orchid\Screens\Size\SizeListScreen;
 use App\Orchid\Screens\Size\SizeEditScreen;
 use App\Orchid\Screens\Product\ProductListScreen;
 use App\Orchid\Screens\Product\ProductEditScreen;
+use App\Orchid\Screens\ProductFamily\ProductFamilyListScreen;
+use App\Orchid\Screens\ProductFamily\ProductFamilyEditScreen;
 use App\Orchid\Screens\Supplier\SupplierListScreen;
 use App\Orchid\Screens\Supplier\SupplierEditScreen;
 use App\Orchid\Screens\Commission\CommissionSettingsScreen;
@@ -71,6 +73,12 @@ Route::middleware('admin.access:'.AdminPermissions::CATALOG_MANAGE)->group(funct
 
   Route::screen('product/edit/{product?}', ProductEditScreen::class)
     ->name('platform.product.edit');
+
+  Route::screen('product-family/list', ProductFamilyListScreen::class)
+    ->name('platform.product-family.list');
+
+  Route::screen('product-family/edit/{family?}', ProductFamilyEditScreen::class)
+    ->name('platform.product-family.edit');
 
   Route::screen('supplier/list', SupplierListScreen::class)
     ->name('platform.supplier.list');

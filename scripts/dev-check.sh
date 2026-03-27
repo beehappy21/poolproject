@@ -79,9 +79,12 @@ check_url() {
 check_port "Postgres" 5432
 
 ensure_runtime "API" 3000 "$API_LOG" node "$ROOT_DIR/dist/apps/api/apps/api/src/main.js"
+ensure_runtime "BAO" 8001 "$BAO_LOG" "$ROOT_DIR/scripts/start_bao_server.sh"
 ensure_runtime "Stephub app" 3002 "$APP_LOG" env HOST=127.0.0.1 PORT=3002 npm --prefix "$APP_DIR" start
 
 check_port "API" 3000
+check_port "BAO" 8001
 check_port "Stephub app" 3002
+check_url "BAO admin login responds" "http://127.0.0.1:8001/admin/login"
 echo "[info] run 'npm run dev:check:stephub' for full Stephub baseline validation"
 echo "Local dev runtime checks passed."

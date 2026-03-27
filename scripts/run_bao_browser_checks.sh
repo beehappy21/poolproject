@@ -56,8 +56,7 @@ DATABASE_URL="$DATABASE_URL" npm run start:api >/tmp/poolproject-bao-browser-api
 API_PID=$!
 
 (
-  cd "$BACKEND_DIR"
-  php artisan serve --host=127.0.0.1 --port=8001 >/tmp/poolproject-bao-browser.log 2>&1
+  "$ROOT_DIR/scripts/start_bao_server.sh" >/tmp/poolproject-bao-browser.log 2>&1
 ) &
 BAO_PID=$!
 

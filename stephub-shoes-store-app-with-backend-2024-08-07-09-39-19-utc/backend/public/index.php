@@ -9,6 +9,9 @@ define('LARAVEL_START', microtime(true));
 // so the admin UI can render normally during local bring-up.
 error_reporting(E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED);
 ini_set('display_errors', '0');
+ini_set('upload_max_filesize', '32M');
+ini_set('post_max_size', '64M');
+ini_set('max_file_uploads', '20');
 
 /*
 |--------------------------------------------------------------------------
