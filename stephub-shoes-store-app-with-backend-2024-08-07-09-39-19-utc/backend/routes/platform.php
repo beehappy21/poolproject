@@ -23,6 +23,7 @@ use App\Orchid\Screens\Color\ColorListScreen;
 use App\Orchid\Screens\Color\ColorEditScreen;
 use App\Orchid\Screens\Order\OrderListScreen;
 use App\Orchid\Screens\Order\OrderDetailScreen;
+use App\Orchid\Screens\Order\OrderCreateScreen;
 use App\Orchid\Screens\Withdraw\WithdrawRequestListScreen;
 use App\Orchid\Screens\Withdraw\WithdrawRequestDetailScreen;
 use App\Orchid\Screens\Kyc\KycRequestListScreen;
@@ -233,6 +234,9 @@ Route::middleware('admin.access:'.AdminPermissions::KYC_MANAGE)->group(function 
 });
 
 Route::middleware('admin.access:'.AdminPermissions::ORDERS_MANAGE)->group(function (): void {
+  Route::screen('order/create', OrderCreateScreen::class)
+    ->name('platform.order.create');
+
   Route::screen('order/list', OrderListScreen::class)
     ->defaults('bucket', 'all')
     ->name('platform.order.list');

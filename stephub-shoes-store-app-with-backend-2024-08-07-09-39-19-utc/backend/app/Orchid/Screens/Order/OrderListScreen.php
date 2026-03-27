@@ -49,6 +49,9 @@ class OrderListScreen extends Screen {
 
   public function commandBar(): iterable {
     return [
+      Link::make('Create Member Sale')
+        ->icon('bs.cart-plus')
+        ->route('platform.order.create'),
       Link::make('CSV')
         ->icon('bs.download')
         ->route('platform.order.export', ['bucket' => $this->bucket, 'format' => 'csv']),

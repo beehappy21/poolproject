@@ -91,6 +91,11 @@ class PlatformProvider extends OrchidServiceProvider {
         })
         ->route('platform.order.list'),
 
+      Menu::make('Create Member Sale')
+        ->icon('bs.cart-plus')
+        ->permission(AdminPermissions::ORDERS_MANAGE)
+        ->route('platform.order.create'),
+
       Menu::make('Order Reports')
         ->title('Reports')
         ->icon('bs.clipboard-data')
