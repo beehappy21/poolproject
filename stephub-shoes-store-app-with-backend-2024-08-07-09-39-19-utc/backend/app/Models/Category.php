@@ -65,6 +65,55 @@ class Category extends Model
         'code' => Like::class,
     ];
 
+    public const PERMANENT_FIRM_CATEGORY_CODE = 'FIRM';
+    public const PERMANENT_FIRM_CATEGORY_NAME = 'Firm Catalog';
+    public const PERMANENT_FIRM_SUPPLIER_CODE = 'FIRM';
+    public const PERMANENT_FIRM_SUPPLIER_NAME = 'Firm Catalog';
+
+    public static function ensurePermanentFirmCategory(): self
+    {
+        $supplier = Supplier::query()->firstOrCreate(
+            ['code' => self::PERMANENT_FIRM_SUPPLIER_CODE],
+            [
+                'name' => self::PERMANENT_FIRM_SUPPLIER_NAME,
+                'slug' => Str::slug(self::PERMANENT_FIRM_SUPPLIER_NAME),
+                'description' => 'Permanent supplier for firm catalog items.',
+                'sortOrder' => 9999,
+                'isFeatured' => false,
+                'status' => 'ACTIVE',
+            ],
+        );
+
+        /** @var self $category */
+        $category = self::query()->firstOrCreate(
+            ['code' => self::PERMANENT_FIRM_CATEGORY_CODE],
+            [
+                'supplierId' => (int) $supplier->id,
+                'name' => self::PERMANENT_FIRM_CATEGORY_NAME,
+                'slug' => Str::slug(self::PERMANENT_FIRM_CATEGORY_NAME),
+                'description' => 'Permanent catalog for firm redemption products.',
+                'sortOrder' => 9999,
+                'isFeatured' => true,
+                'status' => 'ACTIVE',
+            ],
+        );
+
+        $category->forceFill([
+            'supplierId' => (int) $supplier->id,
+            'code' => self::PERMANENT_FIRM_CATEGORY_CODE,
+            'name' => self::PERMANENT_FIRM_CATEGORY_NAME,
+            'slug' => Str::slug(self::PERMANENT_FIRM_CATEGORY_NAME),
+            'status' => 'ACTIVE',
+        ])->save();
+
+        return $category;
+    }
+
+    public function isPermanentFirmCategory(): bool
+    {
+        return Str::upper((string) $this->code) === self::PERMANENT_FIRM_CATEGORY_CODE;
+    }
+
     public function supplier()
     {
         return $this->belongsTo(Supplier::class, 'supplierId', 'id');

@@ -16,6 +16,8 @@ class CategoryListScreen extends Screen
 {
     public function query(): iterable
     {
+        Category::ensurePermanentFirmCategory();
+
         return [
             'categories' => Category::query()
                 ->with('supplier')
@@ -93,7 +95,8 @@ class CategoryListScreen extends Screen
                                 ->method('remove')
                                 ->parameters([
                                     'category' => $category->id,
-                                ]),
+                                ])
+                                ->canSee(!$category->isPermanentFirmCategory()),
                         ])),
             ]),
         ];
@@ -101,6 +104,12 @@ class CategoryListScreen extends Screen
 
     public function remove(Category $category)
     {
+        if ($category->isPermanentFirmCategory()) {
+            Alert::warning('Firm catalog is permanent and cannot be deleted.');
+
+            return;
+        }
+
         $category->delete();
         Alert::info('You have successfully deleted the category.');
     }
