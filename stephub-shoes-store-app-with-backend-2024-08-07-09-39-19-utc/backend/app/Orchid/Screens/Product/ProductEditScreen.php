@@ -7,11 +7,14 @@ use App\Models\Product;
 use App\Models\ProductDetailRecord;
 use App\Models\ProductRecord;
 use App\Models\Supplier;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Orchid\Screen\Actions\Button;
 use Orchid\Screen\Screen;
 use Orchid\Support\Facades\Alert;
@@ -19,6 +22,10 @@ use Orchid\Support\Facades\Layout;
 
 class ProductEditScreen extends Screen
 {
+    private const RATE_DB_MAX = '99.99999999';
+    private const IMAGE_MAX_DIMENSION = 1600;
+    private const IMAGE_JPEG_QUALITY = 82;
+
     public $product;
 
     private ?ProductDetailRecord $productDetailRecord = null;
@@ -43,8 +50,9 @@ class ProductEditScreen extends Screen
         $this->product = $selectedProductSnapshot;
 
         $productRecords = ProductRecord::query()
+            ->with(['supplier', 'category'])
             ->orderBy('name')
-            ->get(['id', 'code', 'name']);
+            ->get(['id', 'supplierId', 'categoryId', 'code', 'name']);
 
         $suppliers = Supplier::query()
             ->orderBy('name')
@@ -78,52 +86,28 @@ class ProductEditScreen extends Screen
                 $category->id => [
                     'label' => trim($category->code . ' • ' . $category->name),
                     'supplier_id' => (int) $category->supplierId,
+                    'sku_prefix' => $this->categorySkuPrefix($category),
+                    'next_detail_code' => $this->nextDetailCodeForCategory((int) $category->id),
                 ],
             ])
             ->all();
 
-        $supplierByCode = $suppliers
-            ->filter(fn (Supplier $supplier) => trim((string) $supplier->code) !== '')
-            ->keyBy(fn (Supplier $supplier) => Str::lower(trim((string) $supplier->code)));
-
-        $supplierByName = $suppliers
-            ->filter(fn (Supplier $supplier) => trim((string) $supplier->name) !== '')
-            ->keyBy(fn (Supplier $supplier) => Str::lower(trim((string) $supplier->name)));
-
-        $categoriesBySupplier = $categories->groupBy('supplierId');
-
         $this->productMetadata = $productRecords
-            ->mapWithKeys(function (ProductRecord $record) use ($snapshotByProductId, $supplierByCode, $supplierByName, $categoriesBySupplier) {
+            ->mapWithKeys(function (ProductRecord $record) use ($snapshotByProductId) {
                 $snapshot = $snapshotByProductId->get($record->id);
-                $supplierCode = trim((string) ($snapshot->supplier_code ?? ''));
-                $supplierName = trim((string) ($snapshot->supplier_name ?? ''));
-                $supplier = $supplierByCode->get(Str::lower($supplierCode))
-                    ?? $supplierByName->get(Str::lower($supplierName));
-                $category = null;
-
-                if ($supplier instanceof Supplier) {
-                    $categoryCode = trim((string) ($snapshot->category_code ?? ''));
-                    $categoryName = trim((string) ($snapshot->category_name ?? ''));
-                    $categoryCandidates = $categoriesBySupplier->get($supplier->id, collect());
-                    $category = $categoryCandidates->first(function (Category $candidate) use ($categoryCode, $categoryName) {
-                        $candidateCode = Str::lower(trim((string) $candidate->code));
-                        $candidateName = Str::lower(trim((string) $candidate->name));
-
-                        return ($categoryCode !== '' && $candidateCode === Str::lower($categoryCode))
-                            || ($categoryName !== '' && $candidateName === Str::lower($categoryName));
-                    });
-                }
+                $supplier = $record->supplier;
+                $category = $record->category;
 
                 return [
                     $record->id => [
-                        'product_code' => $snapshot->product_code ?? $record->code ?? '',
-                        'product_name' => $snapshot->product_name ?? $record->name ?? '',
-                        'category_name' => $snapshot->category_name ?? '',
-                        'category_code' => $snapshot->category_code ?? '',
-                        'supplier_name' => $snapshot->supplier_name ?? '',
-                        'supplier_code' => $snapshot->supplier_code ?? '',
-                        'supplier_id' => $supplier?->id,
-                        'category_id' => $category?->id,
+                        'product_code' => $record->code ?? ($snapshot->product_code ?? ''),
+                        'product_name' => $record->name ?? ($snapshot->product_name ?? ''),
+                        'category_name' => $category?->name ?? ($snapshot->category_name ?? ''),
+                        'category_code' => $category?->code ?? ($snapshot->category_code ?? ''),
+                        'supplier_name' => $supplier?->name ?? ($snapshot->supplier_name ?? ''),
+                        'supplier_code' => $supplier?->code ?? ($snapshot->supplier_code ?? ''),
+                        'supplier_id' => $record->supplierId ?: $supplier?->id,
+                        'category_id' => $record->categoryId ?: $category?->id,
                     ],
                 ];
             })
@@ -154,8 +138,7 @@ class ProductEditScreen extends Screen
             'short_description' => old('product.short_description', $this->productDetailRecord->shortDescription ?? ''),
             'description' => old('product.description', $this->productDetailRecord->description ?? ''),
             'youtube_url' => old('product.youtube_url', $this->productDetailRecord->youtubeUrl ?? ($this->product->youtube_url ?? '')),
-            'image_url' => old('product.image_url', $this->productDetailRecord->primaryImageUrl ?? ($this->product->image ?? '')),
-            'gallery_urls' => old('product.gallery_urls', $this->initialGalleryUrls()),
+            'image_urls' => $this->productDetailRecord->imageUrls ?? [],
             'cost_price' => old('product.cost_price', (string) ($this->productDetailRecord->costPriceUsdt ?? '0')),
             'member_price' => old('product.member_price', (string) ($this->productDetailRecord->memberPriceUsdt ?? ($this->product->price ?? '0'))),
             'retail_price' => old('product.retail_price', (string) ($this->productDetailRecord->retailPriceUsdt ?? ($this->product->old_price ?? '0'))),
@@ -180,10 +163,10 @@ class ProductEditScreen extends Screen
             'status' => old('product.status', $this->productDetailRecord->status ?? ($this->product->status ?? 'ACTIVE')),
             'product_name' => $this->product->product_name ?? ($this->productMetadata[$selectedProductId]['product_name'] ?? ''),
             'product_code' => $this->product->product_code ?? ($this->productMetadata[$selectedProductId]['product_code'] ?? ''),
-            'category_name' => $this->product->category_name ?? '',
-            'category_code' => $this->product->category_code ?? '',
-            'supplier_name' => $this->product->supplier_name ?? '',
-            'supplier_code' => $this->product->supplier_code ?? '',
+            'category_name' => $this->product->category_name ?? ($this->productMetadata[$selectedProductId]['category_name'] ?? ''),
+            'category_code' => $this->product->category_code ?? ($this->productMetadata[$selectedProductId]['category_code'] ?? ''),
+            'supplier_name' => $this->product->supplier_name ?? ($this->productMetadata[$selectedProductId]['supplier_name'] ?? ''),
+            'supplier_code' => $this->product->supplier_code ?? ($this->productMetadata[$selectedProductId]['supplier_code'] ?? ''),
         ];
 
         $defaultPv = $this->defaultPvValue($formProduct['member_price'], $formProduct['cost_price']);
@@ -220,19 +203,19 @@ class ProductEditScreen extends Screen
             'supplierOptions' => $this->supplierOptions,
             'categoryOptions' => $categoryMetadata,
             'youtubeEmbedUrl' => $this->youtubeEmbedUrl($formProduct['youtube_url']),
-            'imagePreviewUrl' => $this->publicImageUrl($formProduct['image_url']),
+            'imagePreviewUrl' => $this->publicImageUrl($this->productDetailRecord->primaryImageUrl ?? ($this->product->image ?? null)),
         ];
     }
 
     public function name(): ?string
     {
-        return $this->productDetailRecord?->exists ? 'Edit product' : 'Create product';
+        return $this->productDetailRecord?->exists ? 'Edit SKU / Product Detail' : 'Create SKU / Product Detail';
     }
 
     public function commandBar(): iterable
     {
         return [
-            Button::make('Create product')
+            Button::make('Create SKU')
                 ->icon('pencil')
                 ->method('create')
                 ->canSee(!$this->productDetailRecord?->exists),
@@ -244,7 +227,7 @@ class ProductEditScreen extends Screen
                 ->icon('trash')
                 ->method('remove')
                 ->canSee($this->productDetailRecord?->exists)
-                ->confirm('Are you sure you want to delete this product detail?'),
+                ->confirm('Are you sure you want to delete this SKU / product detail?'),
         ];
     }
 
@@ -260,9 +243,9 @@ class ProductEditScreen extends Screen
         $data = $this->validatedData($request);
 
         $record = new ProductDetailRecord();
-        $record->fill($data)->save();
+        $this->saveProductDetailRecord($record, $data);
 
-        Alert::info('You have successfully created the product detail.');
+        Alert::info('You have successfully created the SKU / product detail.');
 
         return redirect()->route('platform.product.edit', $record->id);
     }
@@ -273,8 +256,8 @@ class ProductEditScreen extends Screen
         $this->productDetailRecord = $record;
         $data = $this->validatedData($request, (int) $record->id);
 
-        $record->fill($data)->save();
-        Alert::info('You have successfully updated the product detail.');
+        $this->saveProductDetailRecord($record, $data);
+        Alert::info('You have successfully updated the SKU / product detail.');
 
         return redirect()->route('platform.product.edit', $record->id);
     }
@@ -283,7 +266,7 @@ class ProductEditScreen extends Screen
     {
         $record = $this->resolveProductDetailRecord($request);
         $record->delete();
-        Alert::info('You have successfully deleted the product detail.');
+        Alert::info('You have successfully deleted the SKU / product detail.');
 
         return redirect()->route('platform.product.list');
     }
@@ -293,9 +276,11 @@ class ProductEditScreen extends Screen
         $validated = $request->validate([
             'product.supplier_id' => ['nullable', 'integer', Rule::exists('poolproject.Supplier', 'id')],
             'product.category_id' => ['nullable', 'integer', Rule::exists('poolproject.ProductCategory', 'id')],
-            'product.product_id' => ['required', 'integer', Rule::exists('poolproject.Product', 'id')],
+            'product.product_id' => ['nullable', 'integer', Rule::exists('poolproject.Product', 'id')],
+            'product.product_family_code' => ['nullable', 'string', 'max:50'],
+            'product.product_family_name' => ['nullable', 'string', 'max:255'],
             'product.code' => [
-                'required',
+                'nullable',
                 'string',
                 'max:50',
                 Rule::unique('poolproject.ProductDetail', 'code')->ignore($ignoreId, 'id'),
@@ -310,11 +295,7 @@ class ProductEditScreen extends Screen
             'product.short_description' => ['nullable', 'string', 'max:500'],
             'product.description' => ['nullable', 'string'],
             'product.youtube_url' => ['nullable', 'string', 'max:2048'],
-            'product.image_url' => ['nullable', 'string', 'max:2048'],
-            'product.image_file' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp'],
-            'product.gallery_urls' => ['nullable', 'array', 'max:9'],
-            'product.gallery_urls.*' => ['nullable', 'string', 'max:2048'],
-            'product.gallery_files' => ['nullable', 'array', 'max:9'],
+            'product.gallery_files' => ['nullable', 'array', 'max:10'],
             'product.gallery_files.*' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp'],
             'product.cost_price' => ['nullable', 'numeric', 'min:0'],
             'product.member_price' => ['nullable', 'numeric', 'min:0'],
@@ -324,34 +305,41 @@ class ProductEditScreen extends Screen
             'product.rating_avg' => ['nullable', 'numeric', 'min:0'],
             'product.rating_count' => ['nullable', 'integer', 'min:0'],
             'product.sort_order' => ['nullable', 'integer'],
-            'product.pool_rate' => ['nullable', 'numeric', 'min:0'],
+            'product.pool_rate' => ['nullable', 'numeric', 'min:0', 'lte:100'],
             'product.active_days' => ['required', 'integer', 'min:1'],
             'product.earning_cap_amount' => ['required', 'numeric', 'min:0'],
             'product.dcw_spend_enabled' => ['nullable'],
             'product.dcw_usage_amount' => ['nullable', 'numeric', 'min:0'],
             'product.dcw_usage_manual_override' => ['nullable'],
-            'product.dcw_reward_rate' => ['nullable', 'numeric', 'min:0'],
+            'product.dcw_reward_rate' => ['nullable', 'numeric', 'min:0', 'lte:100'],
             'product.is_new' => ['nullable'],
             'product.is_top' => ['nullable'],
             'product.is_featured' => ['nullable'],
             'product.is_best_seller' => ['nullable'],
             'product.status' => ['required', 'in:ACTIVE,INACTIVE'],
+        ], [
+            'product.code.required' => 'Please enter an SKU code.',
+            'product.code.unique' => 'This SKU code already exists. Please use a different code.',
+            'product.pool_rate.lte' => 'Pool rate must be 100 or less.',
+            'product.dcw_reward_rate.lte' => 'DCW reward rate must be 100 or less.',
         ]);
 
         $product = $validated['product'];
+        $this->assertRateFitsDatabase($product['pool_rate'] ?? 0, 'product.pool_rate', 'Pool rate');
+        $this->assertRateFitsDatabase($product['dcw_reward_rate'] ?? 0, 'product.dcw_reward_rate', 'DCW reward rate');
+        $productId = $this->resolveProductId($product);
+        $resolvedDetailCode = $this->resolveDetailCode($product, $ignoreId);
         $normalizedYoutubeUrl = $this->normalizeYoutubeUrl($product['youtube_url'] ?? null);
-        $resolvedImageUrl = $this->resolveImageUrl($request, $product['image_url'] ?? null);
-        $galleryUrls = $this->resolveGalleryImageUrls($request, $product['gallery_urls'] ?? []);
-        $imageUrls = $this->mergedImageUrls(
-            $resolvedImageUrl,
-            $galleryUrls,
+        $uploadedImageUrls = $this->resolveGalleryImageUrls($request);
+        $imageUrls = $this->mergeUploadedImageUrls(
+            $uploadedImageUrls,
             $this->productDetailRecord?->imageUrls ?? []
         );
-        $primaryImageUrl = $resolvedImageUrl ?: ($imageUrls[0] ?? null);
+        $primaryImageUrl = $imageUrls[0] ?? null;
 
         return [
-            'productId' => (int) $product['product_id'],
-            'code' => $product['code'],
+            'productId' => $productId,
+            'code' => $resolvedDetailCode,
             'name' => $product['name'],
             'slug' => ($product['slug'] ?? '') !== '' ? $product['slug'] : Str::slug($product['name']),
             'shortDescription' => $product['short_description'] ?? null,
@@ -388,46 +376,137 @@ class ProductEditScreen extends Screen
         ];
     }
 
-    private function resolveImageUrl(Request $request, ?string $typedImageUrl): ?string
+    private function resolveProductId(array $product): int
     {
-        if ($request->hasFile('product.image_file')) {
-            /** @var UploadedFile $file */
-            $file = $request->file('product.image_file');
+        $existingProductId = (int) ($product['product_id'] ?? 0);
 
-            return $this->storeBinaryImage(
-                file_get_contents($file->getRealPath()) ?: '',
-                $file->getMimeType() ?: 'application/octet-stream'
-            );
+        if ($existingProductId > 0) {
+            return $existingProductId;
         }
 
-        $url = $this->normalizeStoredImageReference($typedImageUrl);
+        $supplierId = (int) ($product['supplier_id'] ?? 0);
+        $categoryId = (int) ($product['category_id'] ?? 0);
+        $familyCode = Str::upper(trim((string) ($product['product_family_code'] ?? '')));
+        $familyName = trim((string) ($product['product_family_name'] ?? ''));
 
-        if ($url === '') {
-            return null;
+        if ($supplierId <= 0) {
+            throw ValidationException::withMessages([
+                'product.supplier_id' => 'Please select a supplier before creating a new product family.',
+            ]);
         }
 
-        if (str_starts_with($url, 'data:image/')) {
-            return $this->storeDataUrlImage($url);
+        if ($categoryId <= 0) {
+            throw ValidationException::withMessages([
+                'product.category_id' => 'Please select a category before creating a new product family.',
+            ]);
         }
 
-        return $url;
+        if ($familyCode === '') {
+            throw ValidationException::withMessages([
+                'product.product_family_code' => 'Please enter a product family code.',
+            ]);
+        }
+
+        if ($familyName === '') {
+            throw ValidationException::withMessages([
+                'product.product_family_name' => 'Please enter a product family name.',
+            ]);
+        }
+
+        $category = Category::query()->find($categoryId);
+        if (!$category instanceof Category || (int) $category->supplierId !== $supplierId) {
+            throw ValidationException::withMessages([
+                'product.category_id' => 'Selected category does not belong to the selected supplier.',
+            ]);
+        }
+
+        $existingProduct = ProductRecord::query()
+            ->where('code', $familyCode)
+            ->first();
+
+        if ($existingProduct instanceof ProductRecord) {
+            throw ValidationException::withMessages([
+                'product.product_family_code' => 'This product family code already exists. Please select it from the list instead.',
+            ]);
+        }
+
+        $record = new ProductRecord();
+        $record->supplierId = $supplierId;
+        $record->categoryId = $categoryId;
+        $record->code = $familyCode;
+        $record->name = $familyName;
+        $record->slug = Str::slug($familyName);
+        $record->description = null;
+        $record->sortOrder = 0;
+        $record->isFeatured = false;
+        $record->status = 'ACTIVE';
+        $record->save();
+
+        return (int) $record->id;
     }
 
-    private function resolveGalleryImageUrls(Request $request, array $typedGalleryUrls): array
+    private function resolveDetailCode(array $product, ?int $ignoreId = null): string
     {
-        $resolvedUrls = [];
+        $typedCode = Str::upper(trim((string) ($product['code'] ?? '')));
 
-        foreach ($typedGalleryUrls as $value) {
-            $normalized = $this->normalizeStoredImageReference(is_string($value) ? $value : null);
+        if ($typedCode !== '') {
+            return $typedCode;
+        }
 
-            if ($normalized === '') {
+        $categoryId = (int) ($product['category_id'] ?? 0);
+        if ($categoryId <= 0) {
+            throw ValidationException::withMessages([
+                'product.code' => 'Please enter a detail code or select a category so the SKU can be generated automatically.',
+            ]);
+        }
+
+        return $this->nextDetailCodeForCategory($categoryId, $ignoreId);
+    }
+
+    private function categorySkuPrefix(Category $category): string
+    {
+        $raw = Str::upper(preg_replace('/[^A-Za-z0-9]+/', '', (string) ($category->code ?: $category->name)) ?? '');
+
+        return Str::substr($raw !== '' ? $raw : 'SKU', 0, 3);
+    }
+
+    private function nextDetailCodeForCategory(int $categoryId, ?int $ignoreId = null): string
+    {
+        $category = Category::query()->find($categoryId);
+        if (!$category instanceof Category) {
+            return '';
+        }
+
+        $prefix = $this->categorySkuPrefix($category);
+        $codes = DB::connection('poolproject')
+            ->table('ProductDetail as pd')
+            ->join('Product as p', 'p.id', '=', 'pd.productId')
+            ->where('p.categoryId', $categoryId)
+            ->when($ignoreId !== null, fn ($query) => $query->where('pd.id', '!=', $ignoreId))
+            ->pluck('pd.code');
+
+        $maxSequence = 0;
+
+        foreach ($codes as $code) {
+            $normalized = Str::upper(trim((string) $code));
+            if (!str_starts_with($normalized, $prefix)) {
                 continue;
             }
 
-            $resolvedUrls[] = str_starts_with($normalized, 'data:image/')
-                ? $this->storeDataUrlImage($normalized)
-                : $normalized;
+            $suffix = substr($normalized, strlen($prefix));
+            if ($suffix === '' || !ctype_digit($suffix)) {
+                continue;
+            }
+
+            $maxSequence = max($maxSequence, (int) $suffix);
         }
+
+        return sprintf('%s%03d', $prefix, $maxSequence + 1);
+    }
+
+    private function resolveGalleryImageUrls(Request $request): array
+    {
+        $resolvedUrls = [];
 
         $files = $request->file('product.gallery_files', []);
 
@@ -438,7 +517,7 @@ class ProductEditScreen extends Screen
                 }
 
                 $resolvedUrls[] = $this->storeBinaryImage(
-                    file_get_contents($file->getRealPath()) ?: '',
+                    $this->prepareUploadedImageBinary($file),
                     $file->getMimeType() ?: 'application/octet-stream'
                 );
             }
@@ -447,27 +526,18 @@ class ProductEditScreen extends Screen
         return array_values(array_filter(array_unique(array_filter($resolvedUrls))));
     }
 
-    private function mergedImageUrls(?string $primaryImageUrl, array $galleryImageUrls, array $existingImageUrls): array
+    private function mergeUploadedImageUrls(array $uploadedImageUrls, array $existingImageUrls): array
     {
-        $urls = array_values(array_filter(array_map(
+        $existingUrls = array_values(array_filter(array_map(
             static fn ($value) => is_string($value) ? trim($value) : null,
             $existingImageUrls
         )));
 
-        foreach ($galleryImageUrls as $galleryImageUrl) {
-            if (!is_string($galleryImageUrl) || trim($galleryImageUrl) === '') {
-                continue;
-            }
-
-            $urls = array_values(array_filter($urls, static fn ($value) => $value !== $galleryImageUrl));
-            $urls[] = $galleryImageUrl;
+        if ($uploadedImageUrls === []) {
+            return array_slice(array_values(array_unique(array_filter($existingUrls))), 0, 10);
         }
 
-        if (is_string($primaryImageUrl) && $primaryImageUrl !== '') {
-            $urls = array_values(array_filter($urls, static fn ($value) => $value !== $primaryImageUrl));
-            array_unshift($urls, $primaryImageUrl);
-        }
-
+        $urls = array_merge($uploadedImageUrls, $existingUrls);
         $urls = array_values(array_unique(array_filter($urls)));
 
         return array_slice($urls, 0, 10);
@@ -507,6 +577,82 @@ class ProductEditScreen extends Screen
         Storage::disk('public')->put($filename, $binary);
 
         return $filename;
+    }
+
+    private function prepareUploadedImageBinary(UploadedFile $file): string
+    {
+        $binary = file_get_contents($file->getRealPath()) ?: '';
+
+        if ($binary === '') {
+            return '';
+        }
+
+        return $this->resizeImageBinaryIfNeeded($binary, $file->getMimeType() ?: 'application/octet-stream');
+    }
+
+    private function resizeImageBinaryIfNeeded(string $binary, string $mime): string
+    {
+        if (!function_exists('gd_info')) {
+            return $binary;
+        }
+
+        $source = match ($mime) {
+            'image/jpeg', 'image/jpg' => @imagecreatefromstring($binary) ?: null,
+            'image/png' => @imagecreatefromstring($binary) ?: null,
+            'image/webp' => function_exists('imagecreatefromwebp') ? @imagecreatefromstring($binary) ?: null : null,
+            default => null,
+        };
+
+        if ($source === null) {
+            return $binary;
+        }
+
+        $width = imagesx($source);
+        $height = imagesy($source);
+        $needsResize = $width > self::IMAGE_MAX_DIMENSION || $height > self::IMAGE_MAX_DIMENSION;
+
+        if (!$needsResize) {
+            imagedestroy($source);
+
+            return $binary;
+        }
+
+        $scale = min(self::IMAGE_MAX_DIMENSION / max($width, 1), self::IMAGE_MAX_DIMENSION / max($height, 1));
+        $targetWidth = max(1, (int) round($width * $scale));
+        $targetHeight = max(1, (int) round($height * $scale));
+
+        $target = imagecreatetruecolor($targetWidth, $targetHeight);
+        if ($target === false) {
+            imagedestroy($source);
+
+            return $binary;
+        }
+
+        if ($mime === 'image/png' || $mime === 'image/webp') {
+            imagealphablending($target, false);
+            imagesavealpha($target, true);
+            $transparent = imagecolorallocatealpha($target, 0, 0, 0, 127);
+            imagefilledrectangle($target, 0, 0, $targetWidth, $targetHeight, $transparent);
+        }
+
+        imagecopyresampled($target, $source, 0, 0, 0, 0, $targetWidth, $targetHeight, $width, $height);
+
+        ob_start();
+        $encoded = match ($mime) {
+            'image/png' => imagepng($target),
+            'image/webp' => function_exists('imagewebp') ? imagewebp($target, null, self::IMAGE_JPEG_QUALITY) : imagejpeg($target, null, self::IMAGE_JPEG_QUALITY),
+            default => imagejpeg($target, null, self::IMAGE_JPEG_QUALITY),
+        };
+        $resizedBinary = (string) ob_get_clean();
+
+        imagedestroy($target);
+        imagedestroy($source);
+
+        if ($encoded !== true || $resizedBinary === '') {
+            return $binary;
+        }
+
+        return $resizedBinary;
     }
 
     private function normalizeStoredImageReference(?string $value): string
@@ -611,7 +757,7 @@ class ProductEditScreen extends Screen
     {
         $record = $this->findProductDetailRecord($request);
 
-        abort_if($record === null, 404, 'Product detail not found.');
+        abort_if($record === null, 404, 'SKU / product detail not found.');
 
         return $record;
     }
@@ -678,17 +824,6 @@ class ProductEditScreen extends Screen
         ];
     }
 
-    private function initialGalleryUrls(): array
-    {
-        $primaryImageUrl = trim((string) ($this->productDetailRecord->primaryImageUrl ?? ''));
-        $urls = array_values(array_filter(
-            $this->productDetailRecord->imageUrls ?? [],
-            static fn ($value) => is_string($value) && trim($value) !== '' && trim($value) !== $primaryImageUrl
-        ));
-
-        return array_slice($urls, 0, 9);
-    }
-
     private function defaultPvValue(mixed $memberPrice, mixed $costPrice): string
     {
         $member = (float) $memberPrice;
@@ -724,6 +859,42 @@ class ProductEditScreen extends Screen
     private function boolAsFormValue(bool $value): string
     {
         return $value ? '1' : '0';
+    }
+
+    private function saveProductDetailRecord(ProductDetailRecord $record, array $data): void
+    {
+        try {
+            $record->fill($data)->save();
+        } catch (QueryException $exception) {
+            if ($this->isNumericOverflowException($exception)) {
+                throw ValidationException::withMessages([
+                    'product.pool_rate' => 'Pool rate และ DCW reward rate ต้องน้อยกว่า 100. ถ้ากรอกเป็นเปอร์เซ็นต์เต็ม เช่น 250% ให้กรอกเป็น 2.5 แทน',
+                    'product.dcw_reward_rate' => 'Pool rate และ DCW reward rate ต้องน้อยกว่า 100. ถ้ากรอกเป็นเปอร์เซ็นต์เต็ม เช่น 250% ให้กรอกเป็น 2.5 แทน',
+                ]);
+            }
+
+            throw $exception;
+        }
+    }
+
+    private function isNumericOverflowException(QueryException $exception): bool
+    {
+        $message = $exception->getMessage();
+
+        return str_contains($message, 'SQLSTATE[22003]')
+            || str_contains($message, 'numeric field overflow')
+            || str_contains($message, 'Numeric value out of range');
+    }
+
+    private function assertRateFitsDatabase(mixed $value, string $field, string $label): void
+    {
+        if ((float) $value <= 100) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            $field => sprintf('%s must be %s or less. If you mean a percentage, enter 2.5 for 2.5%%.', $label, self::RATE_DB_MAX),
+        ]);
     }
 
     private function decimalString(mixed $value): string

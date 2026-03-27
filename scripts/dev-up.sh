@@ -76,7 +76,7 @@ if is_listening 8001; then
 else
   (
     cd "$BAO_DIR"
-    start_bg "BAO" "$BAO_LOG" php artisan serve --host=127.0.0.1 --port=8001
+    start_bg "BAO" "$BAO_LOG" "$ROOT_DIR/scripts/start_bao_server.sh"
   )
 fi
 

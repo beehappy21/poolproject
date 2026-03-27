@@ -81,7 +81,7 @@ docker exec -i <postgres-container> psql \
 ```
 
 4. Serve BAO
-- run `php artisan serve --host=0.0.0.0 --port=8001`
+- run `bash scripts/start_bao_server.sh`
 
 ## Post-Deploy Smoke
 

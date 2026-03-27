@@ -146,8 +146,7 @@ main() {
     API_PID=$!
 
     (
-      cd "$BACKEND_DIR"
-      php artisan serve --host=127.0.0.1 --port=8001 >/tmp/poolproject-stephub-bao.log 2>&1
+      "$ROOT_DIR/scripts/start_bao_server.sh" >/tmp/poolproject-stephub-bao.log 2>&1
     ) &
     BAO_PID=$!
   fi
