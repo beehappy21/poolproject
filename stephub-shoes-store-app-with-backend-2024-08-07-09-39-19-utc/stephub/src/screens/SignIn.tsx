@@ -147,7 +147,8 @@ export const SignIn: React.FC = () => {
         >
           Local dev impersonation is enabled. Use a member code with password{' '}
           <strong>{DEV_IMPERSONATION_PASSWORD}</strong> to sign in as that member
-          on local/dev, or use the member&apos;s real password as usual.
+          on local/dev. Use a `member003` member such as `TH0000001`, or use
+          the member&apos;s real password as usual.
         </div>
       )}
       <div>

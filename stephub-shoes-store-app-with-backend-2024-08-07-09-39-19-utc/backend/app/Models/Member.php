@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Orchid\Filters\Filterable;
@@ -53,6 +54,13 @@ class Member extends Model
         'createdAt' => 'datetime',
         'updatedAt' => 'datetime',
     ];
+
+    public function scopeMember003(Builder $query): Builder
+    {
+        return $query
+            ->where('isAdmin', false)
+            ->whereRaw('"memberCode" like ?', ['TH%']);
+    }
 
     public function memberProfile(): HasOne
     {

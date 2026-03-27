@@ -3,11 +3,26 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+echo "Resetting local member baseline to member003 only..."
+(
+  cd "$ROOT_DIR"
+  node scripts/reset_member003_member_baseline.mjs scripts/member003-members.json --apply >/dev/null
+)
+
 echo "Importing member003 baseline..."
 (
   cd "$ROOT_DIR"
   node scripts/seed_members_from_xlsx.mjs member003.xlsx 123456 --apply >/dev/null
   python3 scripts/import_member_profiles_from_xlsx.py member003.xlsx --apply >/dev/null
+)
+
+echo "Clearing persisted auth sessions..."
+(
+  cd "$ROOT_DIR"
+  mkdir -p runtime
+  cat > runtime/auth-sessions.json <<'JSON'
+{}
+JSON
 )
 
 echo "Ensuring Stephub superadmin exists..."
