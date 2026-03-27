@@ -27,5 +27,8 @@ stop_port 8001
 echo "Restarting standard local stack..."
 (
   cd "$ROOT_DIR"
+  if [[ "${DEV_RESET_BASELINE:-0}" != "1" ]]; then
+    echo "Preserving current local database state during restart."
+  fi
   bash scripts/dev-up.sh
 )

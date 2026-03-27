@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BAO_DIR="$ROOT_DIR/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend"
 APP_DIR="$ROOT_DIR/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub"
+NODE_BIN="$(command -v node)"
 
 API_LOG="/tmp/poolproject-dev-api.log"
 BAO_LOG="/tmp/poolproject-dev-bao.log"
@@ -97,7 +98,7 @@ check_url() {
 
 check_port "Postgres" 5432
 
-ensure_runtime "API" 3000 "$API_LOG" node "$ROOT_DIR/dist/apps/api/apps/api/src/main.js"
+ensure_runtime "API" 3000 "$API_LOG" bash -lc "cd \"$ROOT_DIR\" && set -a && source \"$ROOT_DIR/.env\" && set +a && exec \"$NODE_BIN\" \"$ROOT_DIR/dist/apps/api/apps/api/src/main.js\""
 ensure_runtime "BAO" 8001 "$BAO_LOG" "$ROOT_DIR/scripts/start_bao_server.sh"
 ensure_runtime "Stephub app" 3002 "$APP_LOG" env HOST=127.0.0.1 PORT=3002 npm --prefix "$APP_DIR" start
 

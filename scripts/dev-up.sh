@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BAO_DIR="$ROOT_DIR/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend"
 APP_DIR="$ROOT_DIR/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub"
+NODE_BIN="$(command -v node)"
+RESET_BASELINE="${DEV_RESET_BASELINE:-0}"
 
 API_LOG="/tmp/poolproject-dev-api.log"
 BAO_LOG="/tmp/poolproject-dev-bao.log"
@@ -27,29 +29,39 @@ start_bg() {
   echo "$name started. log: $log_file"
 }
 
+start_api_bg() {
+  start_bg "API" "$API_LOG" bash -lc "cd \"$ROOT_DIR\" && set -a && source \"$ROOT_DIR/.env\" && set +a && exec \"$NODE_BIN\" \"$ROOT_DIR/dist/apps/api/apps/api/src/main.js\""
+}
+
 echo "Starting local Postgres..."
 (
   cd "$ROOT_DIR"
   docker compose up -d postgres
 )
 
-echo "Applying Prisma schema..."
-(
-  cd "$ROOT_DIR"
-  npm run prisma:push
-)
+if [[ "$RESET_BASELINE" == "1" ]]; then
+  echo "DEV_RESET_BASELINE=1 -> applying schema and baseline seed/reset scripts..."
+  (
+    cd "$ROOT_DIR"
+    npm run prisma:push
+  )
 
-echo "Seeding dev data..."
-(
-  cd "$ROOT_DIR"
-  npm run db:seed
-)
+  echo "Seeding dev data..."
+  (
+    cd "$ROOT_DIR"
+    npm run db:seed
+  )
 
-echo "Ensuring Stephub local baseline..."
-(
-  cd "$ROOT_DIR"
-  bash scripts/ensure-stephub-local-state.sh
-)
+  echo "Ensuring Stephub local baseline..."
+  (
+    cd "$ROOT_DIR"
+    bash scripts/ensure-stephub-local-state.sh
+  )
+else
+  echo "Preserving current local database state."
+  echo "Skipping prisma push, db seed, and Stephub baseline reset."
+  echo "Set DEV_RESET_BASELINE=1 if you intentionally want to rebuild/reset local data."
+fi
 
 API_PIDS="$(get_project_api_pids || true)"
 API_PID_COUNT="$(printf '%s\n' "$API_PIDS" | sed '/^$/d' | wc -l | tr -d ' ')"
@@ -67,7 +79,7 @@ if is_listening 3000 && [[ "$API_PID_COUNT" -le 1 ]]; then
 else
   (
     cd "$ROOT_DIR"
-    start_bg "API" "$API_LOG" node dist/apps/api/apps/api/src/main.js
+    start_api_bg
   )
 fi
 
