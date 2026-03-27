@@ -214,6 +214,26 @@
         font-size: 0.9rem;
     }
 
+    .product-firm-warning {
+        margin-top: 0.5rem;
+        padding: 0.75rem 0.9rem;
+        border-radius: 10px;
+        background: #eff6ff;
+        border: 1px solid #93c5fd;
+        color: #1d4ed8;
+        font-size: 0.9rem;
+    }
+
+    .product-firm-mode {
+        margin-top: 0.75rem;
+        padding: 0.85rem 1rem;
+        border-radius: 12px;
+        background: #f8fafc;
+        border: 1px solid #cbd5e1;
+        color: #334155;
+        font-size: 0.9rem;
+    }
+
     @media (max-width: 900px) {
         .product-media-shell {
             grid-template-columns: 1fr;
@@ -379,7 +399,7 @@
     <h3>Pricing</h3>
 
     <div class="pool-grid">
-        <div class="pool-field">
+        <div class="pool-field" data-firm-hide="1">
             <label for="product_cost_price">Cost price</label>
             <input id="product_cost_price" name="product[cost_price]" type="number" step="0.00000001" min="0" value="{{ old('product.cost_price', $product['cost_price'] ?? '0') }}" class="@if($fieldHasError('product.cost_price')) pool-input-error @endif">
             @error('product.cost_price')
@@ -388,14 +408,15 @@
         </div>
 
         <div class="pool-field">
-            <label for="product_member_price">Member price</label>
+            <label for="product_member_price" id="productMemberPriceLabel">Member price</label>
             <input id="product_member_price" name="product[member_price]" type="number" step="0.00000001" min="0" value="{{ old('product.member_price', $product['member_price'] ?? '0') }}" class="@if($fieldHasError('product.member_price')) pool-input-error @endif">
             @error('product.member_price')
                 <div class="pool-field-error">{{ $message }}</div>
             @enderror
+            <div class="pool-note" id="productMemberPriceNote">ราคาสมาชิกของ SKU นี้</div>
         </div>
 
-        <div class="pool-field">
+        <div class="pool-field" data-firm-hide="1">
             <label for="product_retail_price">Retail price</label>
             <input id="product_retail_price" name="product[retail_price]" type="number" step="0.00000001" min="0" value="{{ old('product.retail_price', $product['retail_price'] ?? '0') }}" class="@if($fieldHasError('product.retail_price')) pool-input-error @endif">
             @error('product.retail_price')
@@ -403,7 +424,7 @@
             @enderror
         </div>
 
-        <div class="pool-field">
+        <div class="pool-field" data-firm-hide="1">
             <label for="product_pv">PV</label>
             <input id="product_pv" name="product[pv]" type="number" step="0.00000001" min="0" value="{{ old('product.pv', $product['pv'] ?? '0') }}" class="@if($fieldHasError('product.pv')) pool-input-error @endif">
             @error('product.pv')
@@ -429,7 +450,7 @@
             </div>
         </div>
 
-        <div class="pool-field">
+        <div class="pool-field" data-firm-hide="1">
             <label for="product_pool_rate">Pool rate</label>
             <input id="product_pool_rate" name="product[pool_rate]" type="number" step="0.00000001" min="0" max="100" value="{{ old('product.pool_rate', $product['pool_rate'] ?? '0') }}" class="@if($fieldHasError('product.pool_rate')) pool-input-error @endif">
             @error('product.pool_rate')
@@ -438,7 +459,7 @@
             <div class="pool-note">ค่านี้ต้องไม่เกิน 100 ถ้าหมายถึง 2.5% ให้กรอก `2.5`</div>
         </div>
 
-        <div class="pool-field">
+        <div class="pool-field" data-firm-hide="1">
             <label for="product_active_days">Active days</label>
             <input id="product_active_days" name="product[active_days]" type="number" min="1" value="{{ old('product.active_days', $product['active_days'] ?? '30') }}" required class="@if($fieldHasError('product.active_days')) pool-input-error @endif">
             @error('product.active_days')
@@ -447,7 +468,7 @@
             <div class="pool-note">จำนวนวันของรอบรายได้หลัง activate product</div>
         </div>
 
-        <div class="pool-field">
+        <div class="pool-field" data-firm-hide="1">
             <label for="product_earning_cap_amount">Earning cap amount</label>
             <input id="product_earning_cap_amount" name="product[earning_cap_amount]" type="number" step="0.00000001" min="0" value="{{ old('product.earning_cap_amount', $product['earning_cap_amount'] ?? $product['member_price'] ?? '0') }}" required class="@if($fieldHasError('product.earning_cap_amount')) pool-input-error @endif">
             @error('product.earning_cap_amount')
@@ -459,6 +480,36 @@
 
     <div class="pool-grid">
         <div class="pool-field">
+            <label for="product_firm_enabled">เปิดขายใน Firm catalog</label>
+            <select id="product_firm_enabled" name="product[firm_enabled]">
+                <option value="0" @selected((string) ($product['firm_enabled'] ?? '0') === '0')>ปิด</option>
+                <option value="1" @selected((string) ($product['firm_enabled'] ?? '0') === '1')>เปิด</option>
+            </select>
+            <div class="pool-note">เมื่อเปิด ระบบจะใช้โหมด Firm-to-DCW และย้าย SKU นี้ไปอยู่ Firm catalog ให้อัตโนมัติ</div>
+            <div class="product-firm-warning" id="productFirmGuardNotice">
+                ตรวจสอบ 30% cost guard จากต้นทุนและราคาสมาชิกเพื่อเปิดขายใน Firm catalog
+            </div>
+        </div>
+
+        <div class="pool-field" id="productFirmAmountPaidField" @if ((string) ($product['firm_enabled'] ?? '0') !== '1') style="display:none" @endif>
+            <label for="product_firm_amount_paid">ยอด Firm ที่จ่าย</label>
+            <input id="product_firm_amount_paid" name="product[firm_amount_paid]" type="number" step="0.00000001" min="0" value="{{ old('product.firm_amount_paid', $product['firm_amount_paid'] ?? $product['member_price'] ?? '0') }}" class="@if($fieldHasError('product.firm_amount_paid')) pool-input-error @endif">
+            @error('product.firm_amount_paid')
+                <div class="pool-field-error">{{ $message }}</div>
+            @enderror
+            <div class="pool-note">จำนวน Firm ที่สมาชิกต้องใช้เพื่อสั่งสินค้านี้</div>
+        </div>
+
+        <div class="pool-field">
+            <label for="product_firm_dcw_reward_amount">จำนวน DCW ที่ได้รับเมื่อใช้ Firm ซื้อ</label>
+            <input id="product_firm_dcw_reward_amount" name="product[firm_dcw_reward_amount]" type="number" step="0.00000001" min="0" value="{{ old('product.firm_dcw_reward_amount', $product['firm_dcw_reward_amount'] ?? '0') }}" class="@if($fieldHasError('product.firm_dcw_reward_amount')) pool-input-error @endif">
+            @error('product.firm_dcw_reward_amount')
+                <div class="pool-field-error">{{ $message }}</div>
+            @enderror
+            <div class="pool-note">กำหนดจำนวน DCW ที่จะเครดิตเมื่อสมาชิกใช้ยอด Firm ซื้อสินค้านี้</div>
+        </div>
+
+        <div class="pool-field" data-firm-hide="1">
             <label for="product_dcw_spend_enabled">Allow DCW spend</label>
             <select id="product_dcw_spend_enabled" name="product[dcw_spend_enabled]">
                 <option value="0" @selected((string) ($product['dcw_spend_enabled'] ?? '0') === '0')>No</option>
@@ -467,7 +518,7 @@
             <div class="pool-note">เปิดเพื่อให้สินค้านี้ตั้งค่า Discount Wallet ได้</div>
         </div>
 
-        <div class="pool-field">
+        <div class="pool-field" data-firm-hide="1">
             <label for="product_dcw_usage_amount">DCW usage amount</label>
             <input id="product_dcw_usage_amount" name="product[dcw_usage_amount]" type="number" step="1" min="0" value="{{ old('product.dcw_usage_amount', $product['dcw_usage_amount'] ?? '0') }}" class="@if($fieldHasError('product.dcw_usage_amount')) pool-input-error @endif">
             @error('product.dcw_usage_amount')
@@ -494,7 +545,7 @@
             </div>
         </div>
 
-        <div class="pool-field">
+        <div class="pool-field" data-firm-hide="1">
             <label for="product_dcw_reward_rate">DCW reward rate</label>
             <input id="product_dcw_reward_rate" name="product[dcw_reward_rate]" type="number" step="0.00000001" min="0" max="100" value="{{ old('product.dcw_reward_rate', $product['dcw_reward_rate'] ?? '0') }}" class="@if($fieldHasError('product.dcw_reward_rate')) pool-input-error @endif">
             @error('product.dcw_reward_rate')
@@ -502,6 +553,12 @@
             @enderror
             <div class="pool-note">ใช้ค่าเดียวกับยอดรวมของ cash + shopping wallet และรองรับการจ่ายผสม โดยยอด DCW ที่ได้จะปัดลงเป็นจำนวนเต็ม ค่านี้ต้องไม่เกิน 100</div>
         </div>
+    </div>
+
+    <div class="product-firm-mode" id="productFirmModeSummary" @if ((string) ($product['firm_enabled'] ?? '0') !== '1') style="display:none" @endif>
+        โหมด Firm-to-DCW จะใช้แค่ 2 ค่า:
+        ยอด Firm ที่จ่าย และจำนวน DCW ที่ได้รับ
+        ระบบจะตั้งค่าอื่นให้อัตโนมัติ เช่น cost = 0, retail = ยอด Firm, PV = 0, pool rate = 0, active days = 1, earning cap = ยอด Firm, และปิด DCW spend
     </div>
 </div>
 
@@ -591,14 +648,28 @@
         const dropzone = document.getElementById('productDropzone');
         const costPriceInput = document.getElementById('product_cost_price');
         const memberPriceInput = document.getElementById('product_member_price');
+        const memberPriceLabel = document.getElementById('productMemberPriceLabel');
+        const memberPriceNote = document.getElementById('productMemberPriceNote');
+        const retailPriceInput = document.getElementById('product_retail_price');
+        const poolRateInput = document.getElementById('product_pool_rate');
+        const activeDaysInput = document.getElementById('product_active_days');
+        const earningCapInput = document.getElementById('product_earning_cap_amount');
         const pvInput = document.getElementById('product_pv');
         const pvManualOverrideInput = document.getElementById('product_pv_manual_override');
         const pvFormulaValue = document.getElementById('productPvFormulaValue');
         const pvWarning = document.getElementById('productPvWarning');
+        const dcwSpendEnabledInput = document.getElementById('product_dcw_spend_enabled');
         const dcwUsageInput = document.getElementById('product_dcw_usage_amount');
         const dcwManualOverrideInput = document.getElementById('product_dcw_usage_manual_override');
         const dcwFormulaValue = document.getElementById('productDcwFormulaValue');
         const dcwWarning = document.getElementById('productDcwWarning');
+        const dcwRewardRateInput = document.getElementById('product_dcw_reward_rate');
+        const firmEnabledInput = document.getElementById('product_firm_enabled');
+        const firmGuardNotice = document.getElementById('productFirmGuardNotice');
+        const firmAmountPaidField = document.getElementById('productFirmAmountPaidField');
+        const firmAmountPaidInput = document.getElementById('product_firm_amount_paid');
+        const firmModeSummary = document.getElementById('productFirmModeSummary');
+        const firmHiddenFields = Array.from(document.querySelectorAll('[data-firm-hide="1"]'));
         const firstErrorInput = document.querySelector('.pool-input-error');
         const fallbackImage = imagePreview.getAttribute('src');
         const constrainedInputs = Array.from(document.querySelectorAll('input[max], input[min], input[required], select[required], textarea[required]'));
@@ -901,6 +972,79 @@
             }
         }
 
+        function passesFirmGuard() {
+            const cost = Number(costPriceInput.value || 0);
+            const member = Number(memberPriceInput.value || 0);
+
+            if (!Number.isFinite(member) || member <= 0) {
+                return false;
+            }
+
+            return cost <= (member * 0.3);
+        }
+
+        function syncFirmState() {
+            if (!firmEnabledInput || !firmGuardNotice) {
+                return;
+            }
+
+            const firmEnabled = String(firmEnabledInput.value || '0') === '1';
+            const guardPassed = firmEnabled ? true : passesFirmGuard();
+            const enabledOption = Array.from(firmEnabledInput.options).find(function (option) {
+                return option.value === '1';
+            });
+
+            if (enabledOption) {
+                enabledOption.disabled = false;
+            }
+
+            firmHiddenFields.forEach(function (field) {
+                field.style.display = firmEnabled ? 'none' : '';
+            });
+
+            if (memberPriceLabel) {
+                memberPriceLabel.textContent = firmEnabled ? 'ยอด Firm ที่จ่าย' : 'Member price';
+            }
+
+            if (memberPriceNote) {
+                memberPriceNote.textContent = firmEnabled
+                    ? 'จำนวน Firm ที่สมาชิกต้องใช้เพื่อสั่งสินค้านี้'
+                    : 'ราคาสมาชิกของ SKU นี้';
+            }
+
+            if (firmAmountPaidField) {
+                firmAmountPaidField.style.display = firmEnabled ? '' : 'none';
+            }
+
+            if (firmModeSummary) {
+                firmModeSummary.style.display = firmEnabled ? '' : 'none';
+            }
+
+            if (firmEnabled) {
+                if (firmAmountPaidInput) {
+                    memberPriceInput.value = firmAmountPaidInput.value || memberPriceInput.value || '0';
+                }
+                costPriceInput.value = '0';
+                retailPriceInput.value = memberPriceInput.value || '0';
+                pvInput.value = '0';
+                poolRateInput.value = '0';
+                activeDaysInput.value = '1';
+                earningCapInput.value = memberPriceInput.value || '0';
+                dcwSpendEnabledInput.value = '0';
+                dcwUsageInput.value = '0';
+                dcwRewardRateInput.value = '0';
+            }
+
+            firmGuardNotice.textContent = firmEnabled
+                ? 'Firm-to-DCW mode เปิดอยู่ ระบบจะใช้เฉพาะยอด Firm ที่จ่ายและจำนวน DCW ที่ได้รับ'
+                : guardPassed
+                    ? 'ผ่าน 30% cost guard แล้ว สามารถเปิดขายใน Firm catalog ได้'
+                    : 'ยังไม่ผ่าน 30% cost guard ระบบจะบังคับปิดการขายใน Firm catalog ไว้ก่อน';
+            firmGuardNotice.style.background = guardPassed ? '#eff6ff' : '#fef2f2';
+            firmGuardNotice.style.borderColor = guardPassed ? '#93c5fd' : '#fca5a5';
+            firmGuardNotice.style.color = guardPassed ? '#1d4ed8' : '#b91c1c';
+        }
+
         function syncInputValidityState(input) {
             if (!input) {
                 return;
@@ -942,8 +1086,20 @@
         memberPriceInput.addEventListener('input', syncPvState);
         costPriceInput.addEventListener('input', syncDcwState);
         memberPriceInput.addEventListener('input', syncDcwState);
+        costPriceInput.addEventListener('input', syncFirmState);
+        memberPriceInput.addEventListener('input', syncFirmState);
         pvManualOverrideInput.addEventListener('change', syncPvState);
         dcwManualOverrideInput.addEventListener('change', syncDcwState);
+        firmEnabledInput.addEventListener('change', syncFirmState);
+
+        if (firmAmountPaidInput) {
+            firmAmountPaidInput.addEventListener('input', function () {
+                memberPriceInput.value = firmAmountPaidInput.value || '0';
+                syncPvState();
+                syncDcwState();
+                syncFirmState();
+            });
+        }
 
         galleryFilesInput.addEventListener('change', updateGalleryPreview);
 
@@ -1015,6 +1171,7 @@
         updateGalleryPreview();
         syncPvState();
         syncDcwState();
+        syncFirmState();
 
         if (firstErrorInput) {
             firstErrorInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
