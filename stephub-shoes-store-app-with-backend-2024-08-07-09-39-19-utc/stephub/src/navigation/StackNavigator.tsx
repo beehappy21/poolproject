@@ -21,6 +21,7 @@ const stack = createBrowserRouter([
       {path: 'TeamMember', element: <screens.TeamMember />},
       {path: 'Commission', element: <screens.Commission />},
       {path: 'TransferSW', element: <screens.TransferSW />},
+      {path: 'TopupWallet', element: <screens.TopupWallet />},
       {path: 'WithdrawSW', element: <screens.WithdrawSW />},
       {path: 'Kyc', element: <screens.Kyc />},
       {path: 'Checkout', element: <screens.Checkout />},

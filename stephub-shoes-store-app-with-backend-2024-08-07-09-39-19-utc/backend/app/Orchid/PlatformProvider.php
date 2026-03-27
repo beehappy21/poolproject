@@ -11,6 +11,7 @@ use Orchid\Platform\OrchidServiceProvider;
 use Orchid\Screen\Actions\Menu;
 use Orchid\Support\Color;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Auth;
 use App\Models\Order;
 
 class PlatformProvider extends OrchidServiceProvider {
@@ -136,6 +137,21 @@ class PlatformProvider extends OrchidServiceProvider {
         ->permission(AdminPermissions::MEMBERS_MANAGE)
         ->route('platform.member.list'),
 
+      Menu::make('Wallet')
+        ->title('Wallet')
+        ->icon('bs.wallet2')
+        ->canSee($this->canSeeWalletMenu())
+        ->list([
+          Menu::make('Wallet Top-up Requests')
+            ->icon('bs.card-checklist')
+            ->canSee($this->canSeeWalletMenu())
+            ->route('platform.wallet.topup.list'),
+          Menu::make('Top Up Wallet')
+            ->icon('bs.plus-circle')
+            ->canSee($this->canSeeWalletMenu())
+            ->route('platform.wallet.topup.manual'),
+        ]),
+
       Menu::make('KYC Requests')
         ->icon('bs-person-vcard')
         ->permission(AdminPermissions::KYC_MANAGE)
@@ -232,11 +248,24 @@ class PlatformProvider extends OrchidServiceProvider {
         ->addPermission(AdminPermissions::MEMBERS_MANAGE, __('Members Management'))
         ->addPermission(AdminPermissions::ORDERS_MANAGE, __('Orders Management'))
         ->addPermission(AdminPermissions::COMMISSIONS_MANAGE, __('Commission Management'))
+        ->addPermission(AdminPermissions::WALLETS_MANAGE, __('Wallet Management'))
         ->addPermission(AdminPermissions::WITHDRAWALS_MANAGE, __('Withdrawals Management'))
         ->addPermission(AdminPermissions::KYC_MANAGE, __('KYC Management'))
         ->addPermission(AdminPermissions::ADMIN_LOGS, __('Admin Activity Logs'))
         ->addPermission(AdminPermissions::SYSTEMS_ROLES, __('Roles'))
         ->addPermission(AdminPermissions::SYSTEMS_USERS, __('Users')),
     ];
+  }
+
+  private function canSeeWalletMenu(): bool
+  {
+    $user = Auth::guard(config('platform.guard'))->user();
+
+    if ($user === null) {
+      return false;
+    }
+
+    return $user->inRole(AdminPermissions::SUPERADMIN_ROLE)
+      || $user->hasAccess(AdminPermissions::WALLETS_MANAGE);
   }
 }

@@ -26,6 +26,7 @@ export const AUTH_ORDERS = `${API_BASE_URL}/auth/orders`;
 export const AUTH_COMMISSIONS = `${API_BASE_URL}/auth/commissions`;
 export const AUTH_MATRIX = `${API_BASE_URL}/auth/matrix`;
 export const AUTH_WALLETS_TRANSFER = `${API_BASE_URL}/auth/wallets/transfer`;
+export const AUTH_WALLET_TOPUP_REQUESTS = `${API_BASE_URL}/auth/wallets/topup-requests`;
 export const AUTH_WITHDRAW_REQUESTS = `${API_BASE_URL}/auth/withdraw-requests`;
 export const AUTH_KYC_REQUESTS = `${API_BASE_URL}/auth/kyc-requests`;
 export const AUTH_SHIPPING_ADDRESSES = `${API_BASE_URL}/auth/shipping-addresses`;
@@ -75,6 +76,7 @@ export const URLS = {
   AUTH_COMMISSIONS,
   AUTH_MATRIX,
   AUTH_WALLETS_TRANSFER,
+  AUTH_WALLET_TOPUP_REQUESTS,
   AUTH_WITHDRAW_REQUESTS,
   AUTH_KYC_REQUESTS,
   AUTH_SHIPPING_ADDRESSES,

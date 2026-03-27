@@ -26,6 +26,9 @@ use App\Orchid\Screens\Order\OrderDetailScreen;
 use App\Orchid\Screens\Order\OrderCreateScreen;
 use App\Orchid\Screens\Withdraw\WithdrawRequestListScreen;
 use App\Orchid\Screens\Withdraw\WithdrawRequestDetailScreen;
+use App\Orchid\Screens\Wallet\WalletManualTopupScreen;
+use App\Orchid\Screens\Wallet\WalletTopupRequestDetailScreen;
+use App\Orchid\Screens\Wallet\WalletTopupRequestListScreen;
 use App\Orchid\Screens\Kyc\KycRequestListScreen;
 use App\Orchid\Screens\Kyc\KycRequestDetailScreen;
 use App\Orchid\Screens\AppUser\AppUserListScreen;
@@ -239,6 +242,17 @@ Route::middleware('admin.access:'.AdminPermissions::KYC_MANAGE)->group(function 
 
   Route::screen('kyc/detail/{kycRequest}', KycRequestDetailScreen::class)
     ->name('platform.kyc.detail');
+});
+
+Route::middleware('admin.access:'.AdminPermissions::WALLETS_MANAGE)->group(function (): void {
+  Route::screen('wallet/topup/list', WalletTopupRequestListScreen::class)
+    ->name('platform.wallet.topup.list');
+
+  Route::screen('wallet/topup/detail/{walletTopupRequest}', WalletTopupRequestDetailScreen::class)
+    ->name('platform.wallet.topup.detail');
+
+  Route::screen('wallet/topup/manual', WalletManualTopupScreen::class)
+    ->name('platform.wallet.topup.manual');
 });
 
 Route::middleware('admin.access:'.AdminPermissions::ORDERS_MANAGE)->group(function (): void {

@@ -1,5 +1,6 @@
 import {Shop} from './Shop';
 import {Kyc} from './Kyc';
+import {TopupWallet} from './TopupWallet';
 import {SignIn} from './SignIn';
 import {Filter} from './Filter';
 import {SignUp} from './SignUp';
@@ -45,6 +46,7 @@ import {ForgotPasswordSentEmail} from './ForgotPasswordSentEmail';
 export const screens = {
   Home,
   Kyc,
+  TopupWallet,
   Shop,
   Order,
   TeamMember,
