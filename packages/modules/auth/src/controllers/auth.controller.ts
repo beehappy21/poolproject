@@ -453,7 +453,10 @@ export class AuthController {
       amount: requireDecimalString(body?.amount, "amount"),
       paymentMethod: requireNonEmptyString(body?.paymentMethod, "paymentMethod")
         .toLowerCase(),
-      transferSlipUrl: optionalUrlString(body?.transferSlipUrl, "transferSlipUrl"),
+      transferSlipUrl: optionalImageReferenceString(
+        body?.transferSlipUrl,
+        "transferSlipUrl",
+      ),
       note: optionalString(body?.note),
     });
   }
