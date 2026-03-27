@@ -24,6 +24,8 @@ class PoolprojectSettingsStore
         'boardCount' => 3,
         'organizationPvRate' => '0.1',
         'cwReentryAmount' => '0.1',
+        'reentryFirmAmount' => '0.1',
+        'reentryPvAmount' => '0.1',
         'levelRates' => ['0.1', '0.05', '0.03'],
         'boardLevelRates' => [
             ['0.1', '0.05', '0.03'],
@@ -231,6 +233,14 @@ class PoolprojectSettingsStore
             'cwReentryAmount' => self::normalizeDecimalString(
                 $input['cwReentryAmount'] ?? ($input['organizationPvRate'] ?? null),
                 self::DEFAULT_MATRIX_SETTINGS['cwReentryAmount']
+            ),
+            'reentryFirmAmount' => self::normalizeDecimalString(
+                $input['reentryFirmAmount'] ?? ($input['cwReentryAmount'] ?? ($input['organizationPvRate'] ?? null)),
+                self::DEFAULT_MATRIX_SETTINGS['reentryFirmAmount']
+            ),
+            'reentryPvAmount' => self::normalizeDecimalString(
+                $input['reentryPvAmount'] ?? ($input['organizationPvRate'] ?? null),
+                self::DEFAULT_MATRIX_SETTINGS['reentryPvAmount']
             ),
             'levelRates' => $normalizedLevelRates,
             'boardLevelRates' => $normalizedBoardLevelRates,

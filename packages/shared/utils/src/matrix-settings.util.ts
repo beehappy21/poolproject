@@ -7,6 +7,8 @@ export interface MatrixSettings {
   boardCount: number;
   organizationPvRate: string;
   cwReentryAmount: string;
+  reentryFirmAmount: string;
+  reentryPvAmount: string;
   levelRates: string[];
   boardLevelRates: string[][];
   boardOpenPvThresholds: string[];
@@ -20,6 +22,8 @@ const DEFAULT_SETTINGS: MatrixSettings = {
   boardCount: 3,
   organizationPvRate: "0.1",
   cwReentryAmount: "0.1",
+  reentryFirmAmount: "0.1",
+  reentryPvAmount: "0.1",
   levelRates: ["0.1", "0.05", "0.03"],
   boardLevelRates: [
     ["0.1", "0.05", "0.03"],
@@ -113,6 +117,18 @@ export function normalizeMatrixSettings(input: unknown): MatrixSettings {
       : isNonNegativeDecimalString(candidate.organizationPvRate)
         ? candidate.organizationPvRate.trim()
         : DEFAULT_SETTINGS.cwReentryAmount,
+    reentryFirmAmount: isNonNegativeDecimalString(candidate.reentryFirmAmount)
+      ? candidate.reentryFirmAmount.trim()
+      : isNonNegativeDecimalString(candidate.cwReentryAmount)
+        ? candidate.cwReentryAmount.trim()
+        : isNonNegativeDecimalString(candidate.organizationPvRate)
+          ? candidate.organizationPvRate.trim()
+          : DEFAULT_SETTINGS.reentryFirmAmount,
+    reentryPvAmount: isNonNegativeDecimalString(candidate.reentryPvAmount)
+      ? candidate.reentryPvAmount.trim()
+      : isNonNegativeDecimalString(candidate.organizationPvRate)
+        ? candidate.organizationPvRate.trim()
+        : DEFAULT_SETTINGS.reentryPvAmount,
     levelRates: normalizeDecimalArray(
       candidate.levelRates,
       DEFAULT_SETTINGS.levelRates,
@@ -142,6 +158,8 @@ export function getDefaultMatrixSettings(): MatrixSettings {
     boardCount: DEFAULT_SETTINGS.boardCount,
     organizationPvRate: DEFAULT_SETTINGS.organizationPvRate,
     cwReentryAmount: DEFAULT_SETTINGS.cwReentryAmount,
+    reentryFirmAmount: DEFAULT_SETTINGS.reentryFirmAmount,
+    reentryPvAmount: DEFAULT_SETTINGS.reentryPvAmount,
     levelRates: [...DEFAULT_SETTINGS.levelRates],
     boardLevelRates: DEFAULT_SETTINGS.boardLevelRates.map((rates) => [...rates]),
     boardOpenPvThresholds: [...DEFAULT_SETTINGS.boardOpenPvThresholds],

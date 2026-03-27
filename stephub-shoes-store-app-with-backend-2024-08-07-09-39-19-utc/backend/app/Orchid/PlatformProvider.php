@@ -59,7 +59,35 @@ class PlatformProvider extends OrchidServiceProvider {
         ->title('Commission Setting')
         ->icon('bs-cash-stack')
         ->permission(AdminPermissions::COMMISSIONS_MANAGE)
-        ->route('platform.commission.settings'),
+        ->list([
+          Menu::make('Overview')
+            ->icon('bs.sliders')
+            ->route('platform.commission.settings'),
+          Menu::make('Direct Bonus')
+            ->icon('bs-cash')
+            ->route('platform.commission.direct'),
+          Menu::make('Unilevel Bonus')
+            ->icon('bs-diagram-3')
+            ->route('platform.commission.unilevel'),
+          Menu::make('Matrix Bonus')
+            ->icon('bs-grid-3x3-gap')
+            ->route('platform.commission.matrix'),
+          Menu::make('Reentry Rules')
+            ->icon('bs-arrow-repeat')
+            ->route('platform.commission.reentry'),
+          Menu::make('Pool Bonus')
+            ->icon('bs-droplet')
+            ->route('platform.commission.pool'),
+          Menu::make('Cash Back')
+            ->icon('bs-arrow-repeat')
+            ->route('platform.commission.cashback'),
+          Menu::make('Manual Payment')
+            ->icon('bs-bank')
+            ->route('platform.commission.manualPayment'),
+          Menu::make('Signup Share')
+            ->icon('bs-share')
+            ->route('platform.commission.signupShare'),
+        ]),
 
       Menu::make('Commission Report')
         ->icon('bs-table')

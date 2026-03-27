@@ -8,7 +8,10 @@ import {
   multiplyDecimalStrings,
   subtractDecimalStrings,
 } from "../../../../shared/utils/src/money.util";
-import { parseMatrixSettingsSnapshot } from "../../../../shared/utils/src/matrix-settings.util";
+import {
+  parseMatrixSettingsSnapshot,
+  readMatrixSettings,
+} from "../../../../shared/utils/src/matrix-settings.util";
 import { WalletsService } from "../../../wallets/src/services/wallets.service";
 import { MatrixCycleSummary, MatrixOrderProcessingResult } from "../domain/matrix.types";
 import { PrismaMatrixRepository } from "../repositories/matrix.repository";
@@ -470,6 +473,7 @@ export class MatrixService implements MatrixServiceContract {
       openThresholdPv: string;
     },
   ) {
+    const reentrySettings = this.resolveReentryRuntimeSettings(cycle.organizationPvRate, cycle.cwReentryAmount);
     const nextRoundNo = currentBoard.roundNo + 1;
     const existingNextRound = cycle.boards.find(
       (entry) => entry.boardNo === 1 && entry.roundNo === nextRoundNo,
@@ -498,16 +502,24 @@ export class MatrixService implements MatrixServiceContract {
         reentrySourceBoardId: currentBoard.boardId,
       });
 
-      await this.matrixRepository.createAccumulationEvent({
+      const reentryEvent = await this.matrixRepository.createAccumulationEvent({
         cycleId: cycle.cycleId,
         boardId: nextBoard.id.toString(),
         sourceUserId: cycle.userId,
         sourceType: "REENTRY",
         sourceRoundNo: nextRoundNo,
         depthNo: 0,
-        sourcePv: cycle.organizationPvRate,
-        creditedPv: cycle.organizationPvRate,
+        sourcePv: reentrySettings.reentryPvAmount,
+        creditedPv: reentrySettings.reentryPvAmount,
       });
+
+      if (compareDecimalStrings(reentrySettings.reentryFirmAmount, "0") > 0) {
+        await this.walletsService.creditFirmWalletFromMatrixReentry({
+          userId: cycle.userId,
+          matrixEventId: reentryEvent.id.toString(),
+          amount: reentrySettings.reentryFirmAmount,
+        });
+      }
 
       await this.matrixRepository.updateCurrentBoard(cycle.cycleId, 1, nextRoundNo);
       return;
@@ -541,15 +553,17 @@ export class MatrixService implements MatrixServiceContract {
       sourceType: "REENTRY",
       sourceRoundNo: nextRoundNo,
       depthNo: 0,
-      sourcePv: cycle.organizationPvRate,
-      creditedPv: cycle.organizationPvRate,
+      sourcePv: reentrySettings.reentryPvAmount,
+      creditedPv: reentrySettings.reentryPvAmount,
     });
 
-    await this.walletsService.creditFirmWalletFromMatrixReentry({
-      userId: cycle.userId,
-      matrixEventId: reentryEvent.id.toString(),
-      amount: cycle.cwReentryAmount,
-    });
+    if (compareDecimalStrings(reentrySettings.reentryFirmAmount, "0") > 0) {
+      await this.walletsService.creditFirmWalletFromMatrixReentry({
+        userId: cycle.userId,
+        matrixEventId: reentryEvent.id.toString(),
+        amount: reentrySettings.reentryFirmAmount,
+      });
+    }
 
     await this.matrixRepository.updateCurrentBoard(cycle.cycleId, 1, nextRoundNo);
   }
@@ -563,6 +577,10 @@ export class MatrixService implements MatrixServiceContract {
       openThresholdPv: string;
     },
   ) {
+    const reentrySettings = this.resolveReentryRuntimeSettings(
+      cycle.organizationPvRate.toString(),
+      cycle.cwReentryAmount.toString(),
+    );
     if (currentBoard.boardNo !== 1 || currentBoard.roundNo < 2) {
       return;
     }
@@ -596,7 +614,7 @@ export class MatrixService implements MatrixServiceContract {
         uplineCycle.boardDepth,
       );
       const levelRates = this.parseLevelRatesSnapshot(uplineCycle.levelRatesSnapshot);
-      const creditedPv = uplineCycle.organizationPvRate.toString();
+      const creditedPv = reentrySettings.reentryPvAmount;
       const slotNo = targetBoard.filledSlots + 1;
       const levelNo = this.resolveLevelNo(slotNo, uplineCycle.boardWidth, uplineCycle.boardDepth);
       const parentSlotNo =
@@ -687,5 +705,17 @@ export class MatrixService implements MatrixServiceContract {
     }
 
     return total;
+  }
+
+  private resolveReentryRuntimeSettings(
+    organizationPvRate: string,
+    cwReentryAmount: string,
+  ): { reentryFirmAmount: string; reentryPvAmount: string } {
+    const runtimeSettings = readMatrixSettings();
+
+    return {
+      reentryFirmAmount: runtimeSettings.reentryFirmAmount || cwReentryAmount,
+      reentryPvAmount: runtimeSettings.reentryPvAmount || organizationPvRate,
+    };
   }
 }
