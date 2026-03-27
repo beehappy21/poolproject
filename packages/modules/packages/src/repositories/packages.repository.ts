@@ -821,6 +821,14 @@ export class PrismaPackagesRepository implements PackagesRepository {
         memberPriceUsdt: detail.memberPriceUsdt.toString(),
         retailPriceUsdt: detail.retailPriceUsdt.toString(),
         pv: detail.pv.toString(),
+        dcwSpendEnabled: detail.dcwSpendEnabled,
+        dcwUsageAmount: detail.dcwUsageAmount.toString(),
+        dcwRewardRate:
+          detail.dcwCashRewardRate.toString() !== "0"
+            ? detail.dcwCashRewardRate.toString()
+            : detail.dcwShoppingRewardRate.toString(),
+        dcwCashRewardRate: detail.dcwCashRewardRate.toString(),
+        dcwShoppingRewardRate: detail.dcwShoppingRewardRate.toString(),
         ratingAvg: detail.ratingAvg.toString(),
         ratingCount: detail.ratingCount,
         isNew: detail.isNew,

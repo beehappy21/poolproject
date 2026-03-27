@@ -11,6 +11,9 @@ export type ProductType = {
   name: string;
   price: number;
   pv?: number;
+  dcwSpendEnabled?: boolean;
+  dcwUsageAmount?: number;
+  dcwRewardRate?: number;
   activeDays?: number;
   status?: string;
   itemCount?: number;

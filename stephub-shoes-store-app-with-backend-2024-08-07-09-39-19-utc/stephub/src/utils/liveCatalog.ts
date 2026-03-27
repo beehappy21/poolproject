@@ -21,6 +21,11 @@ type StorefrontProduct = {
   imageUrls?: string[];
   memberPriceUsdt: string;
   pv: string;
+  dcwSpendEnabled?: boolean;
+  dcwUsageAmount?: string;
+  dcwRewardRate?: string;
+  dcwCashRewardRate?: string;
+  dcwShoppingRewardRate?: string;
   ratingAvg?: string;
   ratingCount?: number;
   isNew?: boolean;
@@ -36,6 +41,29 @@ const PRODUCT_PLACEHOLDER_IMAGES = [
   'https://images.unsplash.com/photo-1600185365483-26d7a4cc7519?auto=format&fit=crop&w=900&q=80',
 ];
 
+const resolveCatalogImageUrl = (value?: string | null): string => {
+  const trimmed = String(value || '').trim();
+
+  if (!trimmed) {
+    return '';
+  }
+
+  if (
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('data:image/') ||
+    trimmed.startsWith('blob:')
+  ) {
+    return trimmed;
+  }
+
+  if (trimmed.startsWith('/storage/')) {
+    return `${URLS.BAO_BASE_URL}${trimmed}`;
+  }
+
+  return `${URLS.BAO_BASE_URL}/storage/${trimmed.replace(/^\/+/, '')}`;
+};
+
 export const mapStorefrontProductToProduct = (
   item: StorefrontProduct,
   index: number,
@@ -43,8 +71,10 @@ export const mapStorefrontProductToProduct = (
   const fallbackImage =
     PRODUCT_PLACEHOLDER_IMAGES[index % PRODUCT_PLACEHOLDER_IMAGES.length];
   const gallery = [
-    item.primaryImageUrl,
-    ...(Array.isArray(item.imageUrls) ? item.imageUrls : []),
+    resolveCatalogImageUrl(item.primaryImageUrl),
+    ...(Array.isArray(item.imageUrls)
+      ? item.imageUrls.map(imageUrl => resolveCatalogImageUrl(imageUrl))
+      : []),
   ].filter((value, imageIndex, array): value is string => {
     return Boolean(value) && array.indexOf(value) === imageIndex;
   });
@@ -61,6 +91,14 @@ export const mapStorefrontProductToProduct = (
     name: item.name,
     price: Number(item.memberPriceUsdt || 0),
     pv: Number(item.pv || 0),
+    dcwSpendEnabled: Boolean(item.dcwSpendEnabled),
+    dcwUsageAmount: Number(item.dcwUsageAmount || 0),
+    dcwRewardRate: Number(
+      item.dcwRewardRate ||
+        item.dcwCashRewardRate ||
+        item.dcwShoppingRewardRate ||
+        0,
+    ),
     rating: Number(item.ratingAvg || 0) || 5,
     ratingCount: Number(item.ratingCount || 0),
     status: item.status,
