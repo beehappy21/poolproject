@@ -78,6 +78,22 @@ class CommissionSettingsScreen extends Screen
                 'การไปบอร์ด 2 เกิดเมื่อคนในบอร์ด 1 ครบแล้ว และคำนวณต่อจากยอด PV ส่วนตัวของสมาชิกในบอร์ด 1 ส่วนบอร์ด 3 ใช้หลักเดียวกับบอร์ด 2',
             ],
         ],
+        'reentry' => [
+            'title' => 'Reentry Rules',
+            'routeName' => 'platform.commission.reentry',
+            'eyebrow' => 'Commission Setting',
+            'description' => 'กำหนดกติกา Reentry ว่าเมื่อเข้าเงื่อนไขแล้วต้องใช้ยอด Reentry เท่าไร และระบบจะจ่าย Firm กับ PV กลับเข้า flow เท่าไรทันที',
+            'accent' => '#14b8a6',
+            'cards' => [
+                ['label' => 'ยอด Reentry', 'value' => 'CW debit', 'note' => 'ยอดที่ระบบใช้ตัดเมื่อเข้าเงื่อนไข reentry'],
+                ['label' => 'Firm ที่ได้', 'value' => 'Immediate credit', 'note' => 'จ่าย Firm wallet ทันทีเมื่อผ่านกติกา'],
+                ['label' => 'PV ที่ได้', 'value' => 'Immediate credit', 'note' => 'ใช้เป็น PV ของ event reentry ทันทีเมื่อผ่านกติกา'],
+            ],
+            'bullets' => [
+                'ใช้หน้านี้กำหนดค่า reentry แยกจาก matrix board shape และอัตราจ่ายแต่ละชั้น',
+                'เมื่อถึงกติกา reentry ระบบจะตัดยอด reentry แล้วจ่าย Firm และ PV ตามค่าที่ตั้งไว้ทันที',
+            ],
+        ],
         'pool' => [
             'title' => 'Pool Bonus',
             'routeName' => 'platform.commission.pool',
@@ -201,6 +217,11 @@ class CommissionSettingsScreen extends Screen
     public function pool(Request $request): iterable
     {
         return $this->resolveSectionPayload('pool');
+    }
+
+    public function reentry(Request $request): iterable
+    {
+        return $this->resolveSectionPayload('reentry');
     }
 
     public function cashback(Request $request): iterable

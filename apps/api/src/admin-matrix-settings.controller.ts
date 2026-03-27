@@ -72,6 +72,14 @@ export class AdminMatrixSettingsController {
         payload.cwReentryAmount ?? current.cwReentryAmount ?? current.organizationPvRate,
         "cwReentryAmount",
       ),
+      reentryFirmAmount: requireDecimalString(
+        payload.reentryFirmAmount ?? current.reentryFirmAmount ?? current.cwReentryAmount,
+        "reentryFirmAmount",
+      ),
+      reentryPvAmount: requireDecimalString(
+        payload.reentryPvAmount ?? current.reentryPvAmount ?? current.organizationPvRate,
+        "reentryPvAmount",
+      ),
       levelRates: payload.levelRates.map((value, index) =>
         requireDecimalRateString(value, `levelRates[${index}]`),
       ),

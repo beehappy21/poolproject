@@ -68,52 +68,59 @@ class CommissionSettingsController extends Controller
         $request->merge([
             'organizationPvRate' => $request->input('organizationPvRate', $request->input('organization_pv_rate')),
             'cwReentryAmount' => $request->input('cwReentryAmount', $request->input('cw_reentry_amount')),
+            'reentryFirmAmount' => $request->input('reentryFirmAmount', $request->input('reentry_firm_amount')),
+            'reentryPvAmount' => $request->input('reentryPvAmount', $request->input('reentry_pv_amount')),
             'boardWidth' => $request->input('boardWidth', $request->input('board_width')),
             'levelRates' => $request->input('levelRates', $request->input('level_rates')),
             'boardLevelRates' => $request->input('boardLevelRates', $request->input('board_level_rates')),
             'boardOpenPvThresholds' => $request->input('boardOpenPvThresholds', $request->input('board_open_pv_thresholds')),
+            'redirectSection' => $request->input('redirectSection', $request->input('redirect_section')),
         ]);
 
         $payload = $request->validate([
-            'organizationPvRate' => ['required', 'string'],
-            'cwReentryAmount' => ['required', 'string'],
+            'organizationPvRate' => ['nullable', 'string'],
+            'cwReentryAmount' => ['nullable', 'string'],
+            'reentryFirmAmount' => ['nullable', 'string'],
+            'reentryPvAmount' => ['nullable', 'string'],
             'boardWidth' => ['nullable', 'integer', 'min:1'],
             'levelRates' => ['nullable', 'array'],
             'levelRates.*' => ['nullable', 'string'],
             'boardLevelRates' => ['nullable', 'array'],
             'boardLevelRates.*' => ['nullable', 'array'],
             'boardLevelRates.*.*' => ['nullable', 'string'],
-            'boardOpenPvThresholds' => ['required', 'array'],
-            'boardOpenPvThresholds.*' => ['required', 'string'],
+            'boardOpenPvThresholds' => ['nullable', 'array'],
+            'boardOpenPvThresholds.*' => ['nullable', 'string'],
+            'redirectSection' => ['nullable', 'string'],
         ]);
 
-        $boardThresholds = $this->cleanRates($payload['boardOpenPvThresholds']);
+        $current = PoolprojectSettingsStore::readMatrixSettings();
+        $boardThresholds = $this->cleanRates($payload['boardOpenPvThresholds'] ?? ($current['boardOpenPvThresholds'] ?? ['0']));
         $fallbackLevelRates = $this->resolveMatrixFallbackLevelRates(
-            $payload['levelRates'] ?? null,
-            $payload['boardLevelRates'] ?? []
+            $payload['levelRates'] ?? ($current['levelRates'] ?? null),
+            $payload['boardLevelRates'] ?? ($current['boardLevelRates'] ?? [])
         );
         $boardLevelRates = $this->cleanBoardLevelRates(
-            $payload['boardLevelRates'] ?? [],
+            $payload['boardLevelRates'] ?? ($current['boardLevelRates'] ?? []),
             $fallbackLevelRates,
             count($boardThresholds)
         );
         $levelRates = $boardLevelRates[0] ?? $fallbackLevelRates;
 
-        $current = PoolprojectSettingsStore::readMatrixSettings();
-
         PoolprojectSettingsStore::writeMatrixSettings([
             'boardWidth' => (int) ($payload['boardWidth'] ?? $current['boardWidth']),
             'boardDepth' => count($levelRates),
             'boardCount' => count($boardThresholds),
-            'organizationPvRate' => $this->cleanSingleRate($payload['organizationPvRate']),
-            'cwReentryAmount' => $this->cleanSingleRate($payload['cwReentryAmount']),
+            'organizationPvRate' => $this->cleanSingleRate($payload['organizationPvRate'] ?? $current['organizationPvRate']),
+            'cwReentryAmount' => $this->cleanSingleRate($payload['cwReentryAmount'] ?? $current['cwReentryAmount']),
+            'reentryFirmAmount' => $this->cleanSingleRate($payload['reentryFirmAmount'] ?? ($current['reentryFirmAmount'] ?? $current['cwReentryAmount'])),
+            'reentryPvAmount' => $this->cleanSingleRate($payload['reentryPvAmount'] ?? ($current['reentryPvAmount'] ?? $current['organizationPvRate'])),
             'levelRates' => $levelRates,
             'boardLevelRates' => $boardLevelRates,
             'boardOpenPvThresholds' => $boardThresholds,
         ]);
 
         return redirect()
-            ->route('platform.commission.matrix')
+            ->route($this->redirectRouteName((string) ($payload['redirectSection'] ?? 'matrix')))
             ->with('status', 'Matrix settings updated.');
     }
 
@@ -230,6 +237,7 @@ class CommissionSettingsController extends Controller
             'unilevel' => 'platform.commission.unilevel',
             'manual-payment' => 'platform.commission.manualPayment',
             'signup-share' => 'platform.commission.signupShare',
+            'reentry' => 'platform.commission.reentry',
             'pool' => 'platform.commission.pool',
             'cashback' => 'platform.commission.cashback',
             default => 'platform.commission.settings',

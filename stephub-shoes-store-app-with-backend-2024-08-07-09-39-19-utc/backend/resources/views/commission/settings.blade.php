@@ -90,6 +90,8 @@
     $cashbackRate = old('cashbackRate', $commissionSettings['cashbackRate'] ?? '0');
     $matrixOrgRate = old('organizationPvRate', $matrixSettings['organizationPvRate'] ?? '0.1');
     $matrixCwReentryAmount = old('cwReentryAmount', $matrixSettings['cwReentryAmount'] ?? ($matrixSettings['organizationPvRate'] ?? '0.1'));
+    $matrixReentryFirmAmount = old('reentryFirmAmount', $matrixSettings['reentryFirmAmount'] ?? ($matrixSettings['cwReentryAmount'] ?? '0.1'));
+    $matrixReentryPvAmount = old('reentryPvAmount', $matrixSettings['reentryPvAmount'] ?? ($matrixSettings['organizationPvRate'] ?? '0.1'));
     $matrixBoardWidth = old('boardWidth', $matrixSettings['boardWidth'] ?? 2);
     $matrixThresholds = old('boardOpenPvThresholds', $matrixSettings['boardOpenPvThresholds'] ?? ['100', '100', '100']);
     $matrixBoardLevelRates = old('boardLevelRates', $matrixSettings['boardLevelRates'] ?? []);
@@ -149,6 +151,11 @@
             'note' => 'ค่า PV ส่วนตัวขั้นต่ำล่าสุดที่ใช้เป็นเกณฑ์เปิดบอร์ด',
         ],
         [
+            'label' => 'Reentry rule',
+            'value' => 'ยอด Reentry ' . ($matrixSettings['cwReentryAmount'] ?? '0') . ' | Firm ' . ($matrixSettings['reentryFirmAmount'] ?? ($matrixSettings['cwReentryAmount'] ?? '0')) . ' | PV ' . ($matrixSettings['reentryPvAmount'] ?? ($matrixSettings['organizationPvRate'] ?? '0')),
+            'note' => 'เมื่อเข้าเงื่อนไข reentry ระบบจะตัดยอดแล้วจ่าย Firm และ PV ตามค่านี้ทันที',
+        ],
+        [
             'label' => 'อัตราแต่ละบอร์ด',
             'value' => collect($matrixSettings['boardLevelRates'] ?? $matrixBoardLevelRates)->map(
                 fn ($rates, $index) => 'B' . ($index + 1) . ': ' . collect($rates)->map(fn ($rate, $rateIndex) => 'L' . ($rateIndex + 1) . ' ' . $rate)->implode(', ')
@@ -191,18 +198,7 @@
         </div>
 
         @if ($activeKey === 'settings')
-            <div class="commission-settings-layout">
-                <div class="commission-panel">
-                    <div class="commission-eyebrow">Commission Menu</div>
-                    <div class="commission-settings-nav">
-                        @foreach (collect($nav)->whereIn('key', ['settings', 'direct', 'unilevel', 'matrix', 'pool', 'cashback', 'manual-payment', 'signup-share']) as $item)
-                            <a href="{{ $item['route'] }}" @class(['is-active' => !empty($item['isActive'])])>
-                                <span>{{ $item['title'] }}</span>
-                                <span>&rsaquo;</span>
-                            </a>
-                        @endforeach
-                    </div>
-                </div>
+            <div class="commission-settings-layout" style="grid-template-columns:minmax(0, 1fr);">
                 <div class="commission-panel">
                     <div class="commission-eyebrow">Latest Commission Settings</div>
                     <table class="commission-summary-table">
@@ -435,6 +431,7 @@
         @if ($activeKey === 'matrix')
             <div class="commission-panel">
                 <div class="commission-eyebrow">Live Matrix Settings</div>
+                <input type="hidden" name="redirectSection" value="matrix">
                 <div class="commission-form-grid">
                     <div class="commission-field">
                         <label>Board width</label>
@@ -531,6 +528,56 @@
                     formmethod="POST"
                 >
                     Save Matrix Settings
+                </button>
+            </div>
+        @endif
+
+        @if ($activeKey === 'reentry')
+            <div class="commission-panel">
+                <div class="commission-eyebrow">Live Reentry Settings</div>
+                <input type="hidden" name="redirectSection" value="reentry">
+                <input type="hidden" name="boardWidth" value="{{ $matrixBoardWidth }}">
+                <input type="hidden" name="organizationPvRate" value="{{ $matrixOrgRate }}">
+                @foreach ($matrixThresholds as $value)
+                    <input type="hidden" name="boardOpenPvThresholds[]" value="{{ $value }}">
+                @endforeach
+                @foreach ($matrixBoardLevelRates as $boardIndex => $boardRates)
+                    @foreach ($boardRates as $rateValue)
+                        <input type="hidden" name="boardLevelRates[{{ $boardIndex }}][]" value="{{ $rateValue }}">
+                    @endforeach
+                @endforeach
+
+                <div class="commission-form-grid">
+                    <div class="commission-field">
+                        <label>ยอด Reentry</label>
+                        <input name="cwReentryAmount" value="{{ $matrixCwReentryAmount }}" required>
+                        <div class="commission-helper">
+                            ยอดที่ระบบใช้ตัดเมื่อสมาชิกเข้าเงื่อนไข reentry
+                        </div>
+                    </div>
+                    <div class="commission-field">
+                        <label>จำนวน Firm ที่ได้</label>
+                        <input name="reentryFirmAmount" value="{{ $matrixReentryFirmAmount }}" required>
+                        <div class="commission-helper">
+                            เมื่อถึงกติกา reentry ระบบจะโอน Firm wallet ให้ทันทีตามจำนวนนี้
+                        </div>
+                    </div>
+                    <div class="commission-field">
+                        <label>จำนวน PV ที่ได้</label>
+                        <input name="reentryPvAmount" value="{{ $matrixReentryPvAmount }}" required>
+                        <div class="commission-helper">
+                            ใช้เป็น PV ของ event reentry ทันทีเมื่อสมาชิกเข้าเงื่อนไข
+                        </div>
+                    </div>
+                </div>
+
+                <button
+                    type="submit"
+                    class="commission-save"
+                    formaction="{{ route('platform.commission.saveMatrix') }}"
+                    formmethod="POST"
+                >
+                    Save Reentry Settings
                 </button>
             </div>
         @endif

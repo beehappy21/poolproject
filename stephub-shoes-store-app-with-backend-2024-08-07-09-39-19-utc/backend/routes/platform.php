@@ -131,6 +131,10 @@ Route::middleware('admin.access:'.AdminPermissions::COMMISSIONS_MANAGE)->group(f
     ->defaults('section', 'matrix')
     ->name('platform.commission.matrix');
 
+  Route::screen('commission/reentry', CommissionSettingsScreen::class)
+    ->defaults('section', 'reentry')
+    ->name('platform.commission.reentry');
+
   Route::screen('commission/pool', CommissionSettingsScreen::class)
     ->defaults('section', 'pool')
     ->name('platform.commission.pool');
