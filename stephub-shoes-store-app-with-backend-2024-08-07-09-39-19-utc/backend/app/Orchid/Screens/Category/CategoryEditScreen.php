@@ -22,6 +22,7 @@ class CategoryEditScreen extends Screen
 
     public function query(Category $category): iterable
     {
+        Category::ensurePermanentFirmCategory();
         $this->category = $category;
         $this->supplierOptions = Supplier::query()
             ->orderBy('name')
@@ -53,7 +54,7 @@ class CategoryEditScreen extends Screen
             Button::make('Remove')
                 ->icon('trash')
                 ->method('remove')
-                ->canSee($this->category->exists)
+                ->canSee($this->category->exists && !$this->category->isPermanentFirmCategory())
                 ->confirm('Are you sure you want to delete this category?'),
         ];
     }
@@ -101,6 +102,7 @@ class CategoryEditScreen extends Screen
 
     public function create(Request $request)
     {
+        Category::ensurePermanentFirmCategory();
         $data = $this->validatedData($request);
         $data['slug'] = $data['slug'] ?: Str::slug($data['name']);
 
@@ -112,6 +114,7 @@ class CategoryEditScreen extends Screen
 
     public function update(Request $request)
     {
+        Category::ensurePermanentFirmCategory();
         $data = $this->validatedData($request, $this->category->id);
         $data['slug'] = $data['slug'] ?: Str::slug($data['name']);
 
@@ -123,6 +126,12 @@ class CategoryEditScreen extends Screen
 
     public function remove(Category $category)
     {
+        if ($category->isPermanentFirmCategory()) {
+            Alert::warning('Firm catalog is permanent and cannot be deleted.');
+
+            return redirect()->route('platform.category.list');
+        }
+
         $category->delete();
         Alert::info('You have successfully deleted the category.');
 
@@ -158,6 +167,15 @@ class CategoryEditScreen extends Screen
         ]);
 
         $category = $validated['category'];
+
+        if ($this->category->exists && $this->category->isPermanentFirmCategory()) {
+            $firmCategory = Category::ensurePermanentFirmCategory();
+            $category['supplier_id'] = $firmCategory->supplierId;
+            $category['name'] = Category::PERMANENT_FIRM_CATEGORY_NAME;
+            $category['code'] = Category::PERMANENT_FIRM_CATEGORY_CODE;
+            $category['status'] = 'ACTIVE';
+        }
+
         $data = [
             'supplierId' => (int) $category['supplier_id'],
             'name' => $category['name'],

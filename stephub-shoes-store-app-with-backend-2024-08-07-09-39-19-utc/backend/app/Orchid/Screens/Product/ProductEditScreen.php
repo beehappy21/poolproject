@@ -40,6 +40,7 @@ class ProductEditScreen extends Screen
 
     public function query(Request $request): iterable
     {
+        $firmCategory = Category::ensurePermanentFirmCategory();
         $this->productDetailRecord = $this->findProductDetailRecord($request) ?? new ProductDetailRecord();
         $selectedProductId = (int) old('product.product_id', $this->productDetailRecord->productId ?? $request->query('product_id', 0));
         $selectedProductSnapshot = $this->catalogSnapshot($selectedProductId);
@@ -195,6 +196,22 @@ class ProductEditScreen extends Screen
         $formProduct['dcw_usage_formula'] = $defaultDcwUsage;
         $formProduct['dcw_usage_amount'] = (string) $dcwUsageValue;
         $formProduct['dcw_usage_manual_override'] = (string) $dcwManualOverride;
+        $formProduct['firm_enabled'] = old(
+            'product.firm_enabled',
+            $this->boolAsFormValue($this->productDetailRecord->firmEnabled ?? false)
+        );
+        $formProduct['firm_amount_paid'] = old(
+            'product.firm_amount_paid',
+            (string) ($this->productDetailRecord->memberPriceUsdt ?? ($this->product->price ?? '0'))
+        );
+        $formProduct['firm_dcw_reward_amount'] = old(
+            'product.firm_dcw_reward_amount',
+            (string) ($this->productDetailRecord->firmDcwRewardAmount ?? '0')
+        );
+        $formProduct['firm_cost_guard_passed'] = $this->boolAsFormValue(
+            $this->passesFirmCostGuard($formProduct['member_price'], $formProduct['cost_price'])
+        );
+        $formProduct['firm_category_id'] = (string) $firmCategory->id;
 
         return [
             'product' => $formProduct,
@@ -312,6 +329,9 @@ class ProductEditScreen extends Screen
             'product.dcw_usage_amount' => ['nullable', 'numeric', 'min:0'],
             'product.dcw_usage_manual_override' => ['nullable'],
             'product.dcw_reward_rate' => ['nullable', 'numeric', 'min:0', 'lte:100'],
+            'product.firm_enabled' => ['nullable'],
+            'product.firm_amount_paid' => ['nullable', 'numeric', 'min:0'],
+            'product.firm_dcw_reward_amount' => ['nullable', 'numeric', 'min:0'],
             'product.is_new' => ['nullable'],
             'product.is_top' => ['nullable'],
             'product.is_featured' => ['nullable'],
@@ -327,7 +347,39 @@ class ProductEditScreen extends Screen
         $product = $validated['product'];
         $this->assertRateFitsDatabase($product['pool_rate'] ?? 0, 'product.pool_rate', 'Pool rate');
         $this->assertRateFitsDatabase($product['dcw_reward_rate'] ?? 0, 'product.dcw_reward_rate', 'DCW reward rate');
+        $firmCategory = Category::ensurePermanentFirmCategory();
+        $firmEnabled = $this->truthy($product['firm_enabled'] ?? false);
+
+        if ($firmEnabled) {
+            $product['supplier_id'] = (int) $firmCategory->supplierId;
+            $product['category_id'] = (int) $firmCategory->id;
+            $product['member_price'] = $product['firm_amount_paid'] ?? $product['member_price'] ?? 0;
+            $product['cost_price'] = 0;
+            $product['retail_price'] = $product['member_price'];
+            $product['pv'] = 0;
+            $product['pool_rate'] = 0;
+            $product['active_days'] = 1;
+            $product['earning_cap_amount'] = $product['member_price'];
+            $product['dcw_spend_enabled'] = false;
+            $product['dcw_usage_amount'] = 0;
+            $product['dcw_usage_manual_override'] = false;
+            $product['dcw_reward_rate'] = 0;
+        }
+
         $productId = $this->resolveProductId($product);
+
+        if ($firmEnabled) {
+            $productRecord = ProductRecord::query()->find($productId);
+            if (
+                !$productRecord instanceof ProductRecord ||
+                (int) $productRecord->categoryId !== (int) $firmCategory->id
+            ) {
+                throw ValidationException::withMessages([
+                    'product.product_id' => 'Firm products must use a product family inside the Firm catalog. Please select or create a family under Firm catalog.',
+                ]);
+            }
+        }
+
         $resolvedDetailCode = $this->resolveDetailCode($product, $ignoreId);
         $normalizedYoutubeUrl = $this->normalizeYoutubeUrl($product['youtube_url'] ?? null);
         $uploadedImageUrls = $this->resolveGalleryImageUrls($request);
@@ -359,6 +411,8 @@ class ProductEditScreen extends Screen
             'earningCapAmount' => $this->decimalString(
                 $product['earning_cap_amount'] ?? ($product['member_price'] ?? 0)
             ),
+            'firmEnabled' => $firmEnabled,
+            'firmDcwRewardAmount' => $this->decimalString($product['firm_dcw_reward_amount'] ?? 0),
             'dcwSpendEnabled' => $this->truthy($product['dcw_spend_enabled'] ?? false),
             'dcwUsageAmount' => $this->wholeNumberString(
                 $this->truthy($product['dcw_usage_manual_override'] ?? false)
@@ -859,6 +913,18 @@ class ProductEditScreen extends Screen
     private function boolAsFormValue(bool $value): string
     {
         return $value ? '1' : '0';
+    }
+
+    private function passesFirmCostGuard(mixed $memberPrice, mixed $costPrice): bool
+    {
+        $member = (float) $memberPrice;
+        $cost = (float) $costPrice;
+
+        if ($member <= 0) {
+            return false;
+        }
+
+        return $cost <= ($member * 0.3);
     }
 
     private function saveProductDetailRecord(ProductDetailRecord $record, array $data): void

@@ -1004,6 +1004,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
     const cashDueUsdt = firmOrderRequested
       ? "0"
       : subtractDecimalStrings(remainingAfterDiscount, walletAppliedUsdt);
+    const autoApproveFirmOrder = firmOrderRequested && compareDecimalStrings(cashDueUsdt, "0") <= 0;
     const normalizedCashPaymentMethod = input.cashPaymentMethod?.trim().toLowerCase();
 
     if (compareDecimalStrings(cashDueUsdt, "0") > 0) {
@@ -1064,9 +1065,13 @@ export class PrismaOrdersRepository implements OrdersRepository {
               : null,
           paidAt:
             compareDecimalStrings(cashDueUsdt, "0") <= 0 ? new Date() : null,
-          approvalStatus: "PENDING",
-          status:
-            compareDecimalStrings(cashDueUsdt, "0") <= 0 ? "PAID" : "PENDING",
+          approvedAt: autoApproveFirmOrder ? new Date() : null,
+          approvalStatus: autoApproveFirmOrder ? "APPROVED" : "PENDING",
+          status: autoApproveFirmOrder
+            ? "APPROVED"
+            : compareDecimalStrings(cashDueUsdt, "0") <= 0
+              ? "PAID"
+              : "PENDING",
           orderItems: {
             create: orderItemCreates,
           },

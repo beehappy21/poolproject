@@ -25,6 +25,8 @@ class ProductFamilyEditScreen extends Screen
 
     public function query(ProductRecord $family): iterable
     {
+        Category::ensurePermanentFirmCategory();
+
         $this->family = $family;
         $this->supplierOptions = Supplier::query()
             ->orderBy('name')
@@ -178,14 +180,17 @@ class ProductFamilyEditScreen extends Screen
         ]);
 
         $category = Category::query()->find($categoryId);
-        if (!$category instanceof Category || (int) $category->supplierId !== $supplierId) {
-            abort(422, 'Selected category does not belong to the selected supplier.');
+        if (!$category instanceof Category) {
+            abort(422, 'Selected category does not exist.');
         }
 
         $family = $validated['family'];
+        $resolvedSupplierId = (int) $category->supplierId;
 
         return [
-            'supplierId' => $supplierId,
+            // Keep category as the source of truth so the form can recover
+            // gracefully when the supplier select lags behind the chosen category.
+            'supplierId' => $resolvedSupplierId,
             'categoryId' => $categoryId,
             'name' => $family['name'],
             'code' => Str::upper(trim((string) $family['code'])),
