@@ -1,5 +1,5 @@
 import axios from 'axios';
-import React, {useState} from 'react';
+import React, {useEffect, useState} from 'react';
 
 import {hooks} from '../hooks';
 import {URLS} from '../config';
@@ -17,7 +17,13 @@ export const Checkout: React.FC = () => {
 
   const cart = hooks.useAppSelector(state => state.cartSlice.list);
   const total = hooks.useAppSelector(state => state.cartSlice.total);
-  const discount = hooks.useAppSelector(state => state.cartSlice.discount);
+  const discountAmount = hooks.useAppSelector(
+    state => state.cartSlice.discountAmount,
+  );
+  const subtotal = hooks.useAppSelector(state => state.cartSlice.subtotal);
+  const discountWalletAmount = hooks.useAppSelector(
+    state => state.cartSlice.discountWalletAmount,
+  );
   const delivery = hooks.useAppSelector(state => state.cartSlice.delivery);
   const payment = hooks.useAppSelector(state => state.paymentSlice);
   const isBranchPickup = payment.fulfillmentMethod === 'branch_pickup';
@@ -25,6 +31,10 @@ export const Checkout: React.FC = () => {
     payment.addresses.find(
       address => address.shippingAddressId === payment.selectedAddressId,
     ) || null;
+
+  useEffect(() => {
+    dispatch(actions.setDiscountWalletAmount(discountWalletAmount));
+  }, [discountWalletAmount, dispatch]);
 
   const textStyle = {
     margin: 0,
@@ -77,7 +87,7 @@ export const Checkout: React.FC = () => {
               fontSize: 18,
             }}
           >
-            ${total.toFixed(2).replace('.', ',')}
+            ${subtotal.toFixed(2).replace('.', ',')}
           </h4>
         </div>
         <div
@@ -136,7 +146,7 @@ export const Checkout: React.FC = () => {
             );
           })}
           {/* TOTAL */}
-          {discount > 0 && (
+          {discountAmount > 0 && (
             <div
               style={{
                 display: 'flex',
@@ -144,10 +154,24 @@ export const Checkout: React.FC = () => {
                 marginBottom: 10,
               }}
             >
-              <div style={{textTransform: 'capitalize'}}>Discount</div>
-              <div style={{textTransform: 'capitalize'}}>{discount}%</div>
+              <div style={{textTransform: 'capitalize'}}>ส่วนลด DCW</div>
+              <div style={{textTransform: 'capitalize'}}>
+                - ${discountAmount.toFixed(2).replace('.', ',')}
+              </div>
             </div>
           )}
+          <div
+            style={{
+              display: 'flex',
+              ...theme.flex.rowCenterSpaceBetween,
+              marginBottom: 10,
+            }}
+          >
+            <div style={{textTransform: 'capitalize'}}>ยอดจ่ายจริง</div>
+            <div style={{textTransform: 'capitalize'}}>
+              ${total.toFixed(2).replace('.', ',')}
+            </div>
+          </div>
           {/* DELIVERY */}
           <div style={{...theme.flex.rowCenterSpaceBetween, display: 'flex'}}>
             <h6
@@ -388,6 +412,10 @@ export const Checkout: React.FC = () => {
                   pickupEmail: isBranchPickup
                     ? (payment.email || user?.email || '').trim() || undefined
                     : undefined,
+                  discountWalletAmount:
+                    discountWalletAmount > 0
+                      ? String(discountWalletAmount)
+                      : undefined,
                   cashPaymentMethod: 'bank_transfer',
                 },
                 {

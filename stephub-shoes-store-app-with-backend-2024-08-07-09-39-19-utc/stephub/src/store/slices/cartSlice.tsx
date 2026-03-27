@@ -9,6 +9,7 @@ type CartType = {
   promoCode: string;
   list: ProductType[];
   discountAmount: number;
+  discountWalletAmount: number;
 };
 
 const initialState: CartType = {
@@ -19,9 +20,24 @@ const initialState: CartType = {
   subtotal: 0,
   promoCode: '',
   discountAmount: 0,
+  discountWalletAmount: 0,
 };
 
 type StateType = typeof initialState;
+
+const recalculateCartTotals = (state: StateType) => {
+  const subtotal = state.list.reduce((sum, item) => {
+    const quantity = Math.max(1, Number(item.quantity || 1));
+    return sum + Number(item.price || 0) * quantity;
+  }, 0);
+
+  state.subtotal = subtotal;
+  state.discountAmount = Math.max(
+    0,
+    Math.min(Number(state.discountWalletAmount || 0), subtotal),
+  );
+  state.total = Math.max(0, subtotal - state.discountAmount);
+};
 
 export const cartSlice = createSlice({
   name: 'cart',
@@ -36,27 +52,25 @@ export const cartSlice = createSlice({
       if (inCart) {
         state.list.map((item: ProductType) => {
           if (item.id === action.payload.id) {
+            item.dcwSpendEnabled = action.payload.dcwSpendEnabled;
+            item.dcwUsageAmount = action.payload.dcwUsageAmount;
+            item.dcwRewardRate = action.payload.dcwRewardRate;
+            item.productDetailId =
+              action.payload.productDetailId ?? item.productDetailId;
             if (item.quantity) {
               item.quantity += 1;
             }
           }
           return item;
         }, state);
-        state.subtotal += Number(action.payload.price);
-        state.discountAmount = Number(
-          (state.subtotal - state.total).toFixed(2),
-        );
-        state.total +=
-          Number(action.payload.price) * (1 - state.discount / 100);
       } else {
         state.list.push({
           ...action.payload,
           quantity: 1,
         });
-        state.subtotal += Number(action.payload.price);
-        state.total +=
-          Number(action.payload.price) * (1 - state.discount / 100);
       }
+
+      recalculateCartTotals(state);
     },
     removeFromCart: (state, action: PayloadAction<ProductType>) => {
       const inCart = state.list.find(item => item.id === action.payload.id);
@@ -72,28 +86,23 @@ export const cartSlice = createSlice({
           }
           return item;
         }, state);
-        state.subtotal -= Number(action.payload.price);
-        state.discountAmount = Number(
-          (state.subtotal - state.total).toFixed(2),
-        );
-        state.total -=
-          Number(action.payload.price) * (1 - state.discount / 100);
 
         if (state.list.length === 0) {
           state.discount = 0;
           state.promoCode = '';
+          state.discountWalletAmount = 0;
         }
+
+        recalculateCartTotals(state);
       }
     },
     setDiscount: (state, action: PayloadAction<number>) => {
-      if (state.list.length === 0) {
-        state.discount = 0;
-      } else {
-        state.discount = action.payload;
-      }
-      const newTotal = state.subtotal * (1 - state.discount / 100);
-      state.discountAmount = Number((state.subtotal - newTotal).toFixed(2));
-      state.total = state.subtotal * (1 - state.discount / 100);
+      state.discount = action.payload;
+      recalculateCartTotals(state);
+    },
+    setDiscountWalletAmount: (state, action: PayloadAction<number>) => {
+      state.discountWalletAmount = Math.max(0, Number(action.payload || 0));
+      recalculateCartTotals(state);
     },
     resetCart: state => {
       state.list = [];
@@ -103,6 +112,7 @@ export const cartSlice = createSlice({
       state.promoCode = '';
       state.delivery = 0;
       state.discountAmount = 0;
+      state.discountWalletAmount = 0;
     },
     setPromoCode: (state, action: PayloadAction<string>) => {
       state.promoCode = action.payload;
@@ -110,7 +120,14 @@ export const cartSlice = createSlice({
   },
 });
 
-export const {addToCart, resetCart, setDiscount, setPromoCode, removeFromCart} =
+export const {
+  addToCart,
+  resetCart,
+  setDiscount,
+  setDiscountWalletAmount,
+  setPromoCode,
+  removeFromCart,
+} =
   cartSlice.actions;
 
 export default cartSlice.reducer;

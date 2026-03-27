@@ -5,6 +5,7 @@ import {setRememberMe} from '../slices/userSlice';
 import {addToCart} from '../slices/cartSlice';
 import {resetCart} from '../slices/cartSlice';
 import {setDiscount} from '../slices/cartSlice';
+import {setDiscountWalletAmount} from '../slices/cartSlice';
 import {setPromoCode} from '../slices/cartSlice';
 import {resetFilters} from '../slices/filterSlice';
 import {removeFromCart} from '../slices/cartSlice';
@@ -45,6 +46,7 @@ export const actions = {
   addToCart,
   resetCart,
   setDiscount,
+  setDiscountWalletAmount,
   resetFilters,
   setPromoCode,
   addToWishlist,
