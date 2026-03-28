@@ -6,6 +6,7 @@
     $categoryOptions = $categoryOptions ?? [];
     $youtubeEmbedUrl = $youtubeEmbedUrl ?? null;
     $imagePreviewUrl = $imagePreviewUrl ?? null;
+    $homeCardImagePreviewUrl = $homeCardImagePreviewUrl ?? null;
     $existingImageUrls = array_values(array_filter($product['image_urls'] ?? []));
     $fieldHasError = static fn (string $key): bool => $errors->has($key);
 @endphp
@@ -343,13 +344,22 @@
 
             <div class="product-dropzone" id="productDropzone" tabindex="0">
                 <strong>Drop gallery images here</strong>
-                <span>Click to choose, drag and drop, or paste images from clipboard. The first image becomes the main image.</span>
+                <span>Click to choose, drag and drop, or paste images from clipboard. Gallery images are used only for Product Detail.</span>
             </div>
 
             <div class="pool-field">
                 <label for="product_gallery_files">Gallery images</label>
                 <input id="product_gallery_files" name="product[gallery_files][]" type="file" accept="image/*" multiple>
-                <div class="pool-note">เลือกได้สูงสุด 10 รูป ระบบจะใช้รูปแรกเป็นรูปหลักของ SKU อัตโนมัติ และจะย่อรูปใหญ่ให้ไม่เกิน 1600px ก่อนบันทึก</div>
+                <div class="pool-note">เลือกได้สูงสุด 10 รูป สำหรับหน้า Product Detail เท่านั้น รูปหลักหน้า Product Detail แนะนำ 1600 x 900 px (16:9) ระบบจะย่อรูปใหญ่ให้ไม่เกิน 1600px อัตโนมัติ และจะจัดการแสดงผลให้พอดีกับพื้นที่แสดงผลถ้ารูปเล็กหรือสัดส่วนไม่ตรง</div>
+            </div>
+
+            <div class="pool-field">
+                <label for="product_home_card_file">Home card image</label>
+                <input id="product_home_card_file" name="product[home_card_file]" type="file" accept="image/*">
+                @error('product.home_card_file')
+                    <div class="pool-field-error">{{ $message }}</div>
+                @enderror
+                <div class="pool-note">รูปนี้ใช้เฉพาะการ์ดสินค้าหน้า Home เท่านั้น ไม่กระทบลำดับรูปใน Product Detail ขนาดแนะนำ 1080 x 1080 px (1:1) ระบบจะย่อรูปใหญ่ให้ไม่เกิน 1600px อัตโนมัติ และจะจัดการแสดงผลให้อยู่กึ่งกลางกับพื้นที่แสดงผลถ้ารูปเล็กหรือสัดส่วนไม่ตรง</div>
             </div>
         </div>
 
@@ -376,6 +386,18 @@
                     >
                 </div>
                 <div class="product-gallery-preview-grid" id="productGalleryPreview"></div>
+            </div>
+
+            <div class="product-media-card">
+                <h4>Home card preview</h4>
+                <div class="product-media-image" style="aspect-ratio: 1 / 1;">
+                    <img
+                        id="productHomeCardPreview"
+                        src="{{ $homeCardImagePreviewUrl ?: 'data:image/svg+xml;base64,' . base64_encode('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"640\" height=\"640\"><rect width=\"100%\" height=\"100%\" fill=\"#e2e8f0\"/><text x=\"50%\" y=\"50%\" dominant-baseline=\"middle\" text-anchor=\"middle\" fill=\"#475569\" font-family=\"Arial\" font-size=\"28\">No Home Image</text></svg>') }}"
+                        alt="Home card image preview"
+                        style="object-fit: contain; background: #f8fafc;"
+                    >
+                </div>
             </div>
         </div>
     </div>
@@ -640,8 +662,10 @@
         const detailCodeInput = document.getElementById('product_code');
         const detailCodeHint = document.getElementById('productCodeHint');
         const galleryFilesInput = document.getElementById('product_gallery_files');
+        const homeCardFileInput = document.getElementById('product_home_card_file');
         const youtubeInput = document.getElementById('product_youtube_url');
         const imagePreview = document.getElementById('productImagePreview');
+        const homeCardPreview = document.getElementById('productHomeCardPreview');
         const galleryPreview = document.getElementById('productGalleryPreview');
         const youtubeCard = document.getElementById('productYoutubeCard');
         const youtubeFrame = document.getElementById('productYoutubeFrame');
@@ -672,6 +696,7 @@
         const firmHiddenFields = Array.from(document.querySelectorAll('[data-firm-hide="1"]'));
         const firstErrorInput = document.querySelector('.pool-input-error');
         const fallbackImage = imagePreview.getAttribute('src');
+        const fallbackHomeCardImage = homeCardPreview.getAttribute('src');
         const constrainedInputs = Array.from(document.querySelectorAll('input[max], input[min], input[required], select[required], textarea[required]'));
         const initialProductOptions = Array.from(productFamilySelect.options)
             .filter(function (option) {
@@ -868,6 +893,23 @@
 
         function updateImagePreview(url) {
             imagePreview.src = resolveImagePreviewUrl(url) || fallbackImage;
+        }
+
+        function updateHomeCardPreview() {
+            if (!homeCardFileInput || !homeCardPreview) {
+                return;
+            }
+
+            const file = Array.from(homeCardFileInput.files || []).find(function (entry) {
+                return entry.type.startsWith('image/');
+            });
+
+            if (file) {
+                homeCardPreview.src = URL.createObjectURL(file);
+                return;
+            }
+
+            homeCardPreview.src = resolveImagePreviewUrl(@json($product['home_card_image_url'] ?? '')) || fallbackHomeCardImage;
         }
 
         function selectedGalleryPreviewUrls() {
@@ -1102,6 +1144,9 @@
         }
 
         galleryFilesInput.addEventListener('change', updateGalleryPreview);
+        if (homeCardFileInput) {
+            homeCardFileInput.addEventListener('change', updateHomeCardPreview);
+        }
 
         constrainedInputs.forEach(function (input) {
             ['input', 'change', 'blur', 'invalid'].forEach(function (eventName) {
@@ -1169,6 +1214,7 @@
         syncDetailCodeSuggestion(false);
         updateYoutubePreview();
         updateGalleryPreview();
+        updateHomeCardPreview();
         syncPvState();
         syncDcwState();
         syncFirmState();
