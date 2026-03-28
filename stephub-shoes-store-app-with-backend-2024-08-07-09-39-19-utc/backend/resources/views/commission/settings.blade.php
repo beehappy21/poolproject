@@ -218,50 +218,53 @@
                     </table>
                 </div>
                 <div class="commission-panel">
-                    <div class="commission-eyebrow">App Commission Menu Visibility</div>
-                    <div class="commission-helper">
-                        เปิดหรือปิดเมนูแต่ละตัวบนแถบหน้า Commission ของแอป หากปิด เมนูนั้นจะไม่แสดงบนหน้าแอป
-                    </div>
-                    <input type="hidden" name="redirectSection" value="settings">
-                    @foreach ($directRates as $value)
-                        <input type="hidden" name="directLevelRates[]" value="{{ $value }}">
-                    @endforeach
-                    @foreach ($uniRates as $value)
-                        <input type="hidden" name="uniLevelRates[]" value="{{ $value }}">
-                    @endforeach
-                    <input type="hidden" name="poolRate" value="{{ $poolRate }}">
-                    <input type="hidden" name="cashbackRate" value="{{ $cashbackRate }}">
-
-                    <div class="commission-toggle-grid">
-                        @foreach ([
-                            'cashback' => 'Cashback',
-                            'direct' => 'Direct',
-                            'unilevel' => 'Unilevel',
-                            'matrix' => 'Matrix',
-                            'pool' => 'Pool',
-                        ] as $key => $label)
-                            <label class="commission-toggle">
-                                <input type="hidden" name="{{ $key }}Visible" value="0">
-                                <input type="checkbox" name="{{ $key }}Visible" value="1" {{ !empty($appVisibility[$key]) ? 'checked' : '' }}>
-                                <span>{{ $label }} <small style="opacity:.72;">(แสดงบนแอป)</small></span>
-                            </label>
+                    <form action="{{ route('platform.commission.save') }}" method="POST">
+                        @csrf
+                        <div class="commission-eyebrow">App Commission Menu Visibility</div>
+                        <div class="commission-helper">
+                            เปิดหรือปิดเมนูแต่ละตัวบนแถบหน้า Commission ของแอป หากปิด เมนูนั้นจะไม่แสดงบนหน้าแอป
+                        </div>
+                        <input type="hidden" name="redirectSection" value="settings">
+                        @foreach ($directRates as $value)
+                            <input type="hidden" name="directLevelRates[]" value="{{ $value }}">
                         @endforeach
-                    </div>
+                        @foreach ($uniRates as $value)
+                            <input type="hidden" name="uniLevelRates[]" value="{{ $value }}">
+                        @endforeach
+                        <input type="hidden" name="poolRate" value="{{ $poolRate }}">
+                        <input type="hidden" name="cashbackRate" value="{{ $cashbackRate }}">
 
-                    <button
-                        type="submit"
-                        class="commission-save"
-                        formaction="{{ route('platform.commission.save') }}"
-                        formmethod="POST"
-                    >
-                        บันทึกการแสดงผลเมนูบนแอป
-                    </button>
+                        <div class="commission-toggle-grid">
+                            @foreach ([
+                                'cashback' => 'Cashback',
+                                'direct' => 'Direct',
+                                'unilevel' => 'Unilevel',
+                                'matrix' => 'Matrix',
+                                'pool' => 'Pool',
+                            ] as $key => $label)
+                                <label class="commission-toggle">
+                                    <input type="hidden" name="{{ $key }}Visible" value="0">
+                                    <input type="checkbox" name="{{ $key }}Visible" value="1" {{ !empty($appVisibility[$key]) ? 'checked' : '' }}>
+                                    <span>{{ $label }} <small style="opacity:.72;">(แสดงบนแอป)</small></span>
+                                </label>
+                            @endforeach
+                        </div>
+
+                        <button
+                            type="submit"
+                            class="commission-save"
+                        >
+                            บันทึกการแสดงผลเมนูบนแอป
+                        </button>
+                    </form>
                 </div>
             </div>
         @endif
 
         @if ($activeKey === 'direct' || $activeKey === 'unilevel' || $activeKey === 'pool' || $activeKey === 'cashback')
             <div class="commission-panel">
+                <form action="{{ route('platform.commission.save') }}" method="POST">
+                @csrf
                 <div class="commission-eyebrow">Live Commission Settings</div>
                 <input type="hidden" name="redirectSection" value="{{ $activeKey }}">
 
@@ -331,16 +334,17 @@
                 <button
                     type="submit"
                     class="commission-save"
-                    formaction="{{ route('platform.commission.save') }}"
-                    formmethod="POST"
                 >
                     Save Commission Settings
                 </button>
+                </form>
             </div>
         @endif
 
         @if ($activeKey === 'manual-payment')
             <div class="commission-panel">
+                <form action="{{ route('platform.commission.saveManualPayment') }}" method="POST" enctype="multipart/form-data">
+                @csrf
                 <div class="commission-eyebrow">Manual Payment Instructions</div>
                 <div class="commission-form-grid">
                     <div class="commission-field">
@@ -390,17 +394,17 @@
                 <button
                     type="submit"
                     class="commission-save"
-                    formaction="{{ route('platform.commission.saveManualPayment') }}"
-                    formmethod="POST"
-                    formenctype="multipart/form-data"
                 >
                     Save Manual Payment
                 </button>
+                </form>
             </div>
         @endif
 
         @if ($activeKey === 'signup-share')
             <div class="commission-panel">
+                <form action="{{ route('platform.commission.saveSignupShare') }}" method="POST">
+                @csrf
                 <div class="commission-eyebrow">Signup Share Message</div>
                 <p class="commission-description" style="margin-top:.55rem;">
                     ข้อความนี้จะถูกวางไว้ก่อนข้อมูล <strong>รหัสสมาชิก</strong> และ <strong>พาสเวิร์ด</strong>
@@ -420,16 +424,17 @@
                 <button
                     type="submit"
                     class="commission-save"
-                    formaction="{{ route('platform.commission.saveSignupShare') }}"
-                    formmethod="POST"
                 >
                     Save Signup Share Message
                 </button>
+                </form>
             </div>
         @endif
 
         @if ($activeKey === 'matrix')
             <div class="commission-panel">
+                <form action="{{ route('platform.commission.saveMatrix') }}" method="POST">
+                @csrf
                 <div class="commission-eyebrow">Live Matrix Settings</div>
                 <input type="hidden" name="redirectSection" value="matrix">
                 <div class="commission-form-grid">
@@ -524,16 +529,17 @@
                 <button
                     type="submit"
                     class="commission-save"
-                    formaction="{{ route('platform.commission.saveMatrix') }}"
-                    formmethod="POST"
                 >
                     Save Matrix Settings
                 </button>
+                </form>
             </div>
         @endif
 
         @if ($activeKey === 'reentry')
             <div class="commission-panel">
+                <form action="{{ route('platform.commission.saveMatrix') }}" method="POST">
+                @csrf
                 <div class="commission-eyebrow">Live Reentry Settings</div>
                 <input type="hidden" name="redirectSection" value="reentry">
                 <input type="hidden" name="boardWidth" value="{{ $matrixBoardWidth }}">
@@ -574,11 +580,10 @@
                 <button
                     type="submit"
                     class="commission-save"
-                    formaction="{{ route('platform.commission.saveMatrix') }}"
-                    formmethod="POST"
                 >
                     Save Reentry Settings
                 </button>
+                </form>
             </div>
         @endif
 

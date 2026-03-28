@@ -1435,6 +1435,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
       sourceUserId: string;
       approvedAt: string;
       totalPv: string;
+      commissionSettingsSnapshot: string | null;
       items: Array<{
         lineTotalPv: string;
         poolRateMode?: "default_50_percent" | "custom_rate" | "disabled";
@@ -1459,6 +1460,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
         userId: true,
         approvedAt: true,
         totalPv: true,
+        commissionSettingsSnapshot: true,
         orderItems: {
           select: orderItemSelect,
         },
@@ -1470,6 +1472,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
       sourceUserId: toIdString(order.userId),
       approvedAt: toIsoString(order.approvedAt),
       totalPv: toDecimalString(order.totalPv),
+      commissionSettingsSnapshot: order.commissionSettingsSnapshot,
       items: order.orderItems.map((item) => ({
         lineTotalPv: toDecimalString(item.lineTotalPv),
         poolRateMode: item.poolRateMode?.toString().toLowerCase() as

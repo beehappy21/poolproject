@@ -1,14 +1,14 @@
 # Project Handoff
 
-Updated: 2026-03-24
+Updated: 2026-03-28
 
 ## Current State
 
 - Current branch: `main`
 - Local `main` is synced with `origin/main`
-- Latest merged PR: `#28`
-- Latest merged commit on `main`: `a07a5e5`
-- Working tree was clean when this handoff was prepared
+- Latest merged PR: `#58`
+- Latest merged commit on `main`: `d6e7507`
+- Current local work may include uncommitted follow-up fixes around commission visibility gating, BAO commission settings form save behavior, and app login password visibility
 
 Main local URLs:
 
@@ -22,7 +22,54 @@ Default local-start flow:
 2. If ports/watchers look stale, run `npm run dev:restart`
 3. Run `npm run dev:check`
 
-Use this flow before reviewing UI regressions. It now brings up the app, BAO, API, DB, and seed data with the least manual setup.
+Use this flow before reviewing UI regressions. It now preserves current DB/runtime state by default and does not reset member/order/wallet/commission data unless explicitly requested.
+
+## Safe vs Dangerous Commands
+
+Safe everyday commands:
+
+- `npm run dev:up`
+- `npm run dev:restart`
+- `npm run dev:check`
+- opening BAO/app locally
+- normal BAO setting saves
+
+Dangerous commands that can reset or overwrite local state:
+
+- `DEV_RESET_BASELINE=1 npm run dev:up`
+- `DEV_RESET_BASELINE=1 npm run dev:restart`
+- `node scripts/reset_member003_member_baseline.mjs ... --apply`
+- `npm run smoke:local`
+- `npm run smoke:wallet:mixed`
+- `npm run smoke:wallet:dcw`
+- `npm run smoke:pool:cap`
+- `npm run smoke:pool:rules`
+- `npm run smoke:pool:all-comm-e2e`
+- `bash scripts/apply-stephub-uat-settings.sh`
+- `bash scripts/calc-scenarios.sh`
+
+Destructive guard:
+
+- destructive reset/smoke scripts now require `ALLOW_DESTRUCTIVE_LOCAL_RESET=1`
+- without that flag they exit immediately
+
+Examples:
+
+- intentional baseline reset:
+  - `ALLOW_DESTRUCTIVE_LOCAL_RESET=1 DEV_RESET_BASELINE=1 npm run dev:restart`
+- intentional destructive smoke:
+  - `ALLOW_DESTRUCTIVE_LOCAL_RESET=1 npm run smoke:pool:cap`
+
+Protected data that should be preserved by default:
+
+- `CommissionLedger`
+- `CompanyBonusLedger`
+- `Order` / `OrderItem`
+- `Wallet` / `WalletTransaction` / `WalletTopupRequest`
+- `Matrix*`
+- `DailyPool*`
+- runtime `commission-settings.json`
+- runtime `matrix-settings.json`
 
 ## Latest Merged PRs
 

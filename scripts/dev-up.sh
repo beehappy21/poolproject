@@ -8,6 +8,9 @@ APP_DIR="$ROOT_DIR/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/
 API_LOG="/tmp/poolproject-dev-api.log"
 BAO_LOG="/tmp/poolproject-dev-bao.log"
 APP_LOG="/tmp/poolproject-dev-app.log"
+DEV_RESET_BASELINE="${DEV_RESET_BASELINE:-0}"
+DEV_APPLY_PRISMA_PUSH="${DEV_APPLY_PRISMA_PUSH:-0}"
+DEV_RUN_DB_SEED="${DEV_RUN_DB_SEED:-0}"
 
 is_listening() {
   local port="$1"
@@ -33,23 +36,39 @@ echo "Starting local Postgres..."
   docker compose up -d postgres
 )
 
-echo "Applying Prisma schema..."
-(
-  cd "$ROOT_DIR"
-  npm run prisma:push
-)
+if [[ "$DEV_APPLY_PRISMA_PUSH" == "1" ]]; then
+  echo "Applying Prisma schema..."
+  (
+    cd "$ROOT_DIR"
+    npm run prisma:push
+  )
+else
+  echo "Skipping Prisma schema push to preserve local data. Set DEV_APPLY_PRISMA_PUSH=1 to enable."
+fi
 
-echo "Seeding dev data..."
-(
-  cd "$ROOT_DIR"
-  npm run db:seed
-)
+if [[ "$DEV_RUN_DB_SEED" == "1" ]]; then
+  echo "Seeding dev data..."
+  (
+    cd "$ROOT_DIR"
+    npm run db:seed
+  )
+else
+  echo "Skipping dev seed to preserve local data. Set DEV_RUN_DB_SEED=1 to enable."
+fi
 
-echo "Ensuring Stephub local baseline..."
-(
-  cd "$ROOT_DIR"
-  bash scripts/ensure-stephub-local-state.sh
-)
+if [[ "$DEV_RESET_BASELINE" == "1" ]]; then
+  echo "Applying destructive Stephub baseline reset..."
+  (
+    cd "$ROOT_DIR"
+    DEV_RESET_BASELINE=1 bash scripts/ensure-stephub-local-state.sh
+  )
+else
+  echo "Preserving existing local member/order/wallet/commission data."
+  (
+    cd "$ROOT_DIR"
+    bash scripts/ensure-stephub-local-state.sh
+  )
+fi
 
 API_PIDS="$(get_project_api_pids || true)"
 API_PID_COUNT="$(printf '%s\n' "$API_PIDS" | sed '/^$/d' | wc -l | tr -d ' ')"

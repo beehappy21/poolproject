@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 API_BASE_URL="${API_BASE_URL:-http://127.0.0.1:3000}"
 DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/poolproject?schema=public}"
+ALLOW_DESTRUCTIVE_LOCAL_RESET="${ALLOW_DESTRUCTIVE_LOCAL_RESET:-0}"
 RUN_SUFFIX="$(date +%s)"
 BASE_PACKAGE_CODE="DCWBASE${RUN_SUFFIX}"
 OVERRIDE_PACKAGE_CODE="DCWOVR${RUN_SUFFIX}"
@@ -11,6 +12,11 @@ AUTH_HEADER=""
 ORIGINAL_WALLET_SETTINGS_JSON=""
 
 cd "$ROOT_DIR"
+
+if [[ "$ALLOW_DESTRUCTIVE_LOCAL_RESET" != "1" ]]; then
+  echo "Refusing to run destructive discount-wallet smoke reset. Set ALLOW_DESTRUCTIVE_LOCAL_RESET=1 to continue." >&2
+  exit 1
+fi
 
 cleanup() {
   if [[ -n "${ORIGINAL_WALLET_SETTINGS_JSON:-}" && -n "${AUTH_HEADER:-}" ]]; then

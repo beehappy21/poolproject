@@ -18,6 +18,7 @@ import {
   optionalImageReferenceString,
   optionalUrlString,
 } from "../../../../../apps/api/src/http/request.util";
+import { readCommissionSettings } from "../../../../shared/utils/src/commission-settings.util";
 import { readManualPaymentSettings } from "../../../../shared/utils/src/manual-payment-settings.util";
 import { CommissionsService } from "../../../commissions";
 import { MatrixService } from "../../../matrix/src";
@@ -145,11 +146,14 @@ export class AuthController {
   ) {
     const user = await this.requireSessionUser(authorization, cookieHeader);
 
-    return this.commissionsService.listCommissions({
-      beneficiaryUserId: user.userId,
-      page: 1,
-      pageSize: 20,
-    });
+    return filterCommissionResponseByVisibility(
+      await this.commissionsService.listCommissions({
+        beneficiaryUserId: user.userId,
+        page: 1,
+        pageSize: 20,
+      }),
+      readCommissionSettings().appVisibility,
+    );
   }
 
   @Get("network")
@@ -168,6 +172,13 @@ export class AuthController {
   ) {
     const user = await this.requireSessionUser(authorization, cookieHeader);
 
+    if (readCommissionSettings().appVisibility.matrix === false) {
+      return {
+        userId: user.userId,
+        cycles: [],
+      };
+    }
+
     return {
       userId: user.userId,
       cycles: await this.matrixService.getMemberMatrixCycles(user.userId),
@@ -180,6 +191,15 @@ export class AuthController {
     @Headers("cookie") cookieHeader?: string,
   ) {
     const user = await this.requireSessionUser(authorization, cookieHeader);
+
+    if (readCommissionSettings().appVisibility.matrix === false) {
+      return {
+        items: [],
+        total: 0,
+        page: 1,
+        pageSize: 20,
+      };
+    }
 
     return this.matrixService.listMatrixPayouts({
       beneficiaryUserId: user.userId,
@@ -194,6 +214,11 @@ export class AuthController {
     @Headers("cookie") cookieHeader?: string,
   ) {
     const user = await this.requireSessionUser(authorization, cookieHeader);
+
+    if (readCommissionSettings().appVisibility.pool === false) {
+      return [];
+    }
+
     return this.poolService.listMemberPoolPayouts(user.userId);
   }
 
@@ -595,11 +620,15 @@ export class AuthController {
       this.commissionsService.listCommissions({ orderId: validatedOrderId }),
       this.commissionsService.listCompanyFallbacks({ sourceRefId: validatedOrderId }),
     ]);
+    const appVisibility = readCommissionSettings().appVisibility;
 
     return {
       order,
-      commissions,
-      companyFallbacks,
+      commissions: filterCommissionResponseByVisibility(commissions, appVisibility),
+      companyFallbacks: filterCompanyFallbacksByVisibility(
+        companyFallbacks,
+        appVisibility,
+      ),
     };
   }
 
@@ -714,4 +743,73 @@ export class AuthController {
   private clearSessionCookie(): string {
     return "adminAccessToken=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0";
   }
+}
+
+function isCommissionTypeVisible(
+  commissionType: string | null | undefined,
+  appVisibility: ReturnType<typeof readCommissionSettings>["appVisibility"],
+): boolean {
+  switch ((commissionType || "").trim().toLowerCase()) {
+    case "cashback":
+      return appVisibility.cashback !== false;
+    case "direct":
+      return appVisibility.direct !== false;
+    case "uni":
+    case "unilevel":
+      return appVisibility.unilevel !== false;
+    case "pool":
+      return appVisibility.pool !== false;
+    default:
+      return true;
+  }
+}
+
+function filterCommissionResponseByVisibility<
+  T extends
+    | Array<{ commissionType: string }>
+    | {
+        items: Array<{ commissionType: string }>;
+        total: number;
+        page: number;
+        pageSize: number;
+      },
+>(
+  payload: T,
+  appVisibility: ReturnType<typeof readCommissionSettings>["appVisibility"],
+): T {
+  if (Array.isArray(payload)) {
+    return payload.filter((entry) =>
+      isCommissionTypeVisible(entry.commissionType, appVisibility),
+    ) as T;
+  }
+
+  const items = payload.items.filter((entry) =>
+    isCommissionTypeVisible(entry.commissionType, appVisibility),
+  );
+
+  return {
+    ...payload,
+    items,
+    total: items.length,
+  };
+}
+
+function filterCompanyFallbacksByVisibility<
+  T extends Array<{ sourceType: string }> | { items: Array<{ sourceType: string }> },
+>(
+  payload: T,
+  appVisibility: ReturnType<typeof readCommissionSettings>["appVisibility"],
+): T {
+  if (Array.isArray(payload)) {
+    return payload.filter((entry) =>
+      isCommissionTypeVisible(entry.sourceType, appVisibility),
+    ) as T;
+  }
+
+  return {
+    ...payload,
+    items: payload.items.filter((entry) =>
+      isCommissionTypeVisible(entry.sourceType, appVisibility),
+    ),
+  };
 }
