@@ -207,6 +207,16 @@ export interface OrdersServiceContract {
     matrixSettingsSnapshot: string | null;
   } | null>;
 
+  cancelOrder(input: {
+    orderId: string;
+    reason?: string;
+  }): Promise<{
+    orderId: string;
+    status: string;
+    approvalStatus: string;
+    cancellationReason: string | null;
+  } | null>;
+
   getApprovedOrder(orderId: string): Promise<{
     orderId: string;
     sourceUserId: string;
@@ -344,6 +354,10 @@ export class OrdersService implements OrdersServiceContract {
 
   async approveOrder(orderId: string) {
     return this.ordersRepository.approveOrder(orderId);
+  }
+
+  async cancelOrder(input: { orderId: string; reason?: string }) {
+    return this.ordersRepository.cancelOrder(input);
   }
 
   async getApprovedOrder(orderId: string): Promise<{

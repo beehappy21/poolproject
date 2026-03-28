@@ -22,6 +22,7 @@ type StorefrontProduct = {
   imageUrls?: string[];
   memberPriceUsdt: string;
   pv: string;
+  firmRedemptionEligible?: boolean;
   dcwSpendEnabled?: boolean;
   dcwUsageAmount?: string;
   dcwRewardRate?: string;
@@ -93,6 +94,7 @@ export const mapStorefrontProductToProduct = (
     name: item.name,
     price: Number(item.memberPriceUsdt || 0),
     pv: Number(item.pv || 0),
+    firmRedemptionEligible: Boolean(item.firmRedemptionEligible),
     dcwSpendEnabled: Boolean(item.dcwSpendEnabled),
     dcwUsageAmount: Number(item.dcwUsageAmount || 0),
     dcwRewardRate: Number(
@@ -145,6 +147,24 @@ export const fetchLiveProducts = async (): Promise<ProductType[]> => {
 };
 
 export const getProductCollections = (products: ProductType[]) => {
+  const normalizeCollectionId = (product: ProductType): string => {
+    const categoryCode = String(product.categoryCode || '').trim().toLowerCase();
+    if (categoryCode === 'firm' || product.firmRedemptionEligible) {
+      return 'firm';
+    }
+
+    return categoryCode || 'uncategorized';
+  };
+
+  const resolveCollectionName = (product: ProductType): string => {
+    const categoryCode = String(product.categoryCode || '').trim().toLowerCase();
+    if (categoryCode === 'firm' || product.firmRedemptionEligible) {
+      return 'Firm Catalog';
+    }
+
+    return product.categoryName || 'Products';
+  };
+
   const groupedCollections = new Map<
     string,
     {
@@ -156,17 +176,25 @@ export const getProductCollections = (products: ProductType[]) => {
   >();
 
   products.forEach(product => {
-    const collectionId = product.categoryCode || 'uncategorized';
+    const collectionId = normalizeCollectionId(product);
     const existingCollection = groupedCollections.get(collectionId);
 
     if (existingCollection) {
-      existingCollection.products.push(product);
+      const alreadyIncluded = existingCollection.products.some(
+        existing =>
+          String(existing.productDetailId || existing.id) ===
+          String(product.productDetailId || product.id),
+      );
+
+      if (!alreadyIncluded) {
+        existingCollection.products.push(product);
+      }
       return;
     }
 
     groupedCollections.set(collectionId, {
       id: collectionId,
-      name: product.categoryName || 'Products',
+      name: resolveCollectionName(product),
       image: product.image,
       products: [product],
     });

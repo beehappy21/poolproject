@@ -53,7 +53,10 @@ export class PackagesService {
     activeDays?: number;
     earningCapAmount?: string;
     firmEnabled: boolean;
+    firmOverrideCostGuard?: boolean;
     firmDcwRewardAmount: string;
+    firmRedeemStockLimit?: number | null;
+    stockQuantity?: number | null;
   }) {
     return this.packagesRepository.createProductDetail(input);
   }

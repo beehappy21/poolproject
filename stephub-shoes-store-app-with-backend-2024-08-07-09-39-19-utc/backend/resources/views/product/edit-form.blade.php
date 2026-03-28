@@ -429,7 +429,7 @@
             @enderror
         </div>
 
-        <div class="pool-field">
+        <div class="pool-field" data-firm-hide="1">
             <label for="product_member_price" id="productMemberPriceLabel">Member price</label>
             <input id="product_member_price" name="product[member_price]" type="number" step="0.00000001" min="0" value="{{ old('product.member_price', $product['member_price'] ?? '0') }}" class="@if($fieldHasError('product.member_price')) pool-input-error @endif">
             @error('product.member_price')
@@ -507,10 +507,19 @@
                 <option value="0" @selected((string) ($product['firm_enabled'] ?? '0') === '0')>ปิด</option>
                 <option value="1" @selected((string) ($product['firm_enabled'] ?? '0') === '1')>เปิด</option>
             </select>
-            <div class="pool-note">เมื่อเปิด ระบบจะใช้โหมด Firm-to-DCW และย้าย SKU นี้ไปอยู่ Firm catalog ให้อัตโนมัติ</div>
+            <div class="pool-note">สินค้าใน Firm catalog จะเปิดโหมดนี้อัตโนมัติ ส่วนสินค้าในหมวดปกติ ถ้าต้นทุนไม่เกิน 30% ของราคาสมาชิก จะสามารถเปิดให้ไปแสดงใน Firm catalog ได้และใช้ Firm แลกที่ 100% ของราคาสมาชิก</div>
             <div class="product-firm-warning" id="productFirmGuardNotice">
                 ตรวจสอบ 30% cost guard จากต้นทุนและราคาสมาชิกเพื่อเปิดขายใน Firm catalog
             </div>
+        </div>
+
+        <div class="pool-field" id="productFirmOverrideField" @if ((string) ($product['is_firm_category'] ?? '0') === '1') style="display:none" @endif>
+            <label for="product_firm_override_cost_guard">Override 30% cost guard</label>
+            <select id="product_firm_override_cost_guard" name="product[firm_override_cost_guard]">
+                <option value="0" @selected((string) ($product['firm_override_cost_guard'] ?? '0') === '0')>ปิด</option>
+                <option value="1" @selected((string) ($product['firm_override_cost_guard'] ?? '0') === '1')>เปิด</option>
+            </select>
+            <div class="pool-note">ถ้าต้นทุนเกิน 30% admin ยังสามารถอนุญาตให้สินค้าไปแสดงใน Firm catalog ได้ แต่ระบบจะแสดงคำเตือนชัดเจน</div>
         </div>
 
         <div class="pool-field" id="productFirmAmountPaidField" @if ((string) ($product['firm_enabled'] ?? '0') !== '1') style="display:none" @endif>
@@ -529,6 +538,24 @@
                 <div class="pool-field-error">{{ $message }}</div>
             @enderror
             <div class="pool-note">กำหนดจำนวน DCW ที่จะเครดิตเมื่อสมาชิกใช้ยอด Firm ซื้อสินค้านี้</div>
+        </div>
+
+        <div class="pool-field" id="productFirmRedeemLimitField" @if ((string) ($product['firm_enabled'] ?? '0') !== '1') style="display:none" @endif>
+            <label for="product_firm_redeem_stock_limit">จำนวนที่ใช้ Firm ได้สูงสุด</label>
+            <input id="product_firm_redeem_stock_limit" name="product[firm_redeem_stock_limit]" type="number" min="1" step="1" value="{{ old('product.firm_redeem_stock_limit', $product['firm_redeem_stock_limit'] ?? '') }}" class="@if($fieldHasError('product.firm_redeem_stock_limit')) pool-input-error @endif">
+            @error('product.firm_redeem_stock_limit')
+                <div class="pool-field-error">{{ $message }}</div>
+            @enderror
+            <div class="pool-note">ถ้าไม่กำหนด ระบบจะไม่จำกัดจำนวนจากกติกา Firm เพิ่มเติม และจะอิง stock ของสินค้าแทน ถ้ามีการตั้ง stock ไว้</div>
+        </div>
+
+        <div class="pool-field">
+            <label for="product_stock_quantity">Stock quantity</label>
+            <input id="product_stock_quantity" name="product[stock_quantity]" type="number" min="0" step="1" value="{{ old('product.stock_quantity', $product['stock_quantity'] ?? '') }}" class="@if($fieldHasError('product.stock_quantity')) pool-input-error @endif">
+            @error('product.stock_quantity')
+                <div class="pool-field-error">{{ $message }}</div>
+            @enderror
+            <div class="pool-note">กำหนด stock ของ SKU นี้โดยตรง ถ้าเว้นว่าง ระบบจะไม่จำกัด stock และจะขายได้ต่อเนื่องจนกว่าจะมีการตั้ง stock</div>
         </div>
 
         <div class="pool-field" data-firm-hide="1">
@@ -689,9 +716,12 @@
         const dcwWarning = document.getElementById('productDcwWarning');
         const dcwRewardRateInput = document.getElementById('product_dcw_reward_rate');
         const firmEnabledInput = document.getElementById('product_firm_enabled');
+        const firmOverrideInput = document.getElementById('product_firm_override_cost_guard');
         const firmGuardNotice = document.getElementById('productFirmGuardNotice');
+        const firmOverrideField = document.getElementById('productFirmOverrideField');
         const firmAmountPaidField = document.getElementById('productFirmAmountPaidField');
         const firmAmountPaidInput = document.getElementById('product_firm_amount_paid');
+        const firmRedeemLimitField = document.getElementById('productFirmRedeemLimitField');
         const firmModeSummary = document.getElementById('productFirmModeSummary');
         const firmHiddenFields = Array.from(document.querySelectorAll('[data-firm-hide="1"]'));
         const firstErrorInput = document.querySelector('.pool-input-error');
@@ -769,6 +799,10 @@
                 const meta = categoryOptions[String(option.value)] || {};
                 return String(meta.supplier_id || '') === supplierId;
             });
+        }
+
+        function selectedCategoryMeta() {
+            return categoryOptions[String(categorySelect.value)] || {};
         }
 
         function filteredProductOptions() {
@@ -1030,39 +1064,59 @@
                 return;
             }
 
-            const firmEnabled = String(firmEnabledInput.value || '0') === '1';
-            const guardPassed = firmEnabled ? true : passesFirmGuard();
+            const categoryMeta = selectedCategoryMeta();
+            const isFirmCategory = String(categoryMeta.code || '').trim().toLowerCase() === 'firm'
+                || categoryMeta.is_firm_category === true;
+            const guardPassed = passesFirmGuard();
+            let firmEnabled = String(firmEnabledInput.value || '0') === '1';
+            const firmOverride = firmOverrideInput && String(firmOverrideInput.value || '0') === '1';
             const enabledOption = Array.from(firmEnabledInput.options).find(function (option) {
                 return option.value === '1';
             });
+            const disabledOption = Array.from(firmEnabledInput.options).find(function (option) {
+                return option.value === '0';
+            });
 
-            if (enabledOption) {
-                enabledOption.disabled = false;
+            if (isFirmCategory) {
+                firmEnabled = true;
+                firmEnabledInput.value = '1';
+            }
+
+            if (disabledOption) {
+                disabledOption.disabled = false;
+            }
+
+            if (firmOverrideField) {
+                firmOverrideField.style.display = isFirmCategory ? 'none' : '';
             }
 
             firmHiddenFields.forEach(function (field) {
-                field.style.display = firmEnabled ? 'none' : '';
+                field.style.display = isFirmCategory ? 'none' : '';
             });
 
             if (memberPriceLabel) {
-                memberPriceLabel.textContent = firmEnabled ? 'ยอด Firm ที่จ่าย' : 'Member price';
+                memberPriceLabel.textContent = 'Member price';
             }
 
             if (memberPriceNote) {
-                memberPriceNote.textContent = firmEnabled
-                    ? 'จำนวน Firm ที่สมาชิกต้องใช้เพื่อสั่งสินค้านี้'
+                memberPriceNote.textContent = !isFirmCategory && firmEnabled
+                    ? 'ราคาสมาชิกของ SKU นี้ และจะใช้เป็นจำนวน Firm 100% เมื่อลูกค้าแลกผ่าน Firm catalog'
                     : 'ราคาสมาชิกของ SKU นี้';
             }
 
             if (firmAmountPaidField) {
-                firmAmountPaidField.style.display = firmEnabled ? '' : 'none';
+                firmAmountPaidField.style.display = isFirmCategory ? '' : 'none';
+            }
+
+            if (firmRedeemLimitField) {
+                firmRedeemLimitField.style.display = firmEnabled ? '' : 'none';
             }
 
             if (firmModeSummary) {
-                firmModeSummary.style.display = firmEnabled ? '' : 'none';
+                firmModeSummary.style.display = isFirmCategory ? '' : 'none';
             }
 
-            if (firmEnabled) {
+            if (isFirmCategory) {
                 if (firmAmountPaidInput) {
                     memberPriceInput.value = firmAmountPaidInput.value || memberPriceInput.value || '0';
                 }
@@ -1077,11 +1131,27 @@
                 dcwRewardRateInput.value = '0';
             }
 
+            if (isFirmCategory) {
+                firmGuardNotice.textContent = 'สินค้าใน Firm catalog ใช้โหมด Firm-to-DCW อัตโนมัติ และกำหนดเฉพาะยอด Firm ที่จ่ายกับจำนวน DCW ที่ได้รับ';
+                firmGuardNotice.style.background = '#eff6ff';
+                firmGuardNotice.style.borderColor = '#93c5fd';
+                firmGuardNotice.style.color = '#1d4ed8';
+                return;
+            }
+
+            if (firmEnabled && !guardPassed && firmOverride) {
+                firmGuardNotice.textContent = 'คำเตือน: สินค้านี้ต้นทุนเกิน 30% แต่ admin อนุญาตให้แสดงใน Firm catalog แล้ว ระบบจะให้ใช้ Firm แลกได้ตามราคาสมาชิกเต็ม 100%';
+                firmGuardNotice.style.background = '#fff7ed';
+                firmGuardNotice.style.borderColor = '#fdba74';
+                firmGuardNotice.style.color = '#c2410c';
+                return;
+            }
+
             firmGuardNotice.textContent = firmEnabled
-                ? 'Firm-to-DCW mode เปิดอยู่ ระบบจะใช้เฉพาะยอด Firm ที่จ่ายและจำนวน DCW ที่ได้รับ'
+                ? 'สินค้านี้จะแสดงใน Firm catalog และใช้ Firm แลกได้ 100% ของราคาสมาชิก'
                 : guardPassed
-                    ? 'ผ่าน 30% cost guard แล้ว สามารถเปิดขายใน Firm catalog ได้'
-                    : 'ยังไม่ผ่าน 30% cost guard ระบบจะบังคับปิดการขายใน Firm catalog ไว้ก่อน';
+                    ? 'ผ่าน 30% cost guard แล้ว สามารถเปิดให้แสดงใน Firm catalog ได้ และสามารถปิดได้'
+                    : 'ยังไม่ผ่าน 30% cost guard แต่ admin สามารถเปิด override เพื่ออนุญาตได้';
             firmGuardNotice.style.background = guardPassed ? '#eff6ff' : '#fef2f2';
             firmGuardNotice.style.borderColor = guardPassed ? '#93c5fd' : '#fca5a5';
             firmGuardNotice.style.color = guardPassed ? '#1d4ed8' : '#b91c1c';
@@ -1106,6 +1176,7 @@
             applyProductFamilyMetadata();
             syncFamilyInputMode();
             syncDetailCodeSuggestion(false);
+            syncFirmState();
         });
 
         categorySelect.addEventListener('change', function () {
@@ -1113,6 +1184,7 @@
             applyProductFamilyMetadata();
             syncFamilyInputMode();
             syncDetailCodeSuggestion(false);
+            syncFirmState();
         });
 
         productFamilySelect.addEventListener('change', function () {
@@ -1121,6 +1193,7 @@
             applyProductFamilyMetadata();
             syncFamilyInputMode();
             syncDetailCodeSuggestion(false);
+            syncFirmState();
         });
 
         youtubeInput.addEventListener('input', updateYoutubePreview);
@@ -1133,6 +1206,9 @@
         pvManualOverrideInput.addEventListener('change', syncPvState);
         dcwManualOverrideInput.addEventListener('change', syncDcwState);
         firmEnabledInput.addEventListener('change', syncFirmState);
+        if (firmOverrideInput) {
+            firmOverrideInput.addEventListener('change', syncFirmState);
+        }
 
         if (firmAmountPaidInput) {
             firmAmountPaidInput.addEventListener('input', function () {

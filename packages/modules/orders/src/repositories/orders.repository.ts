@@ -61,6 +61,26 @@ function mapFulfillment(order: {
   } as const;
 }
 
+function canCancelOrderStatus(input: {
+  status: string;
+  approvalStatus: string;
+  shippedAt?: Date | null;
+  deliveredAt?: Date | null;
+}) {
+  if (input.deliveredAt || input.shippedAt) {
+    return false;
+  }
+
+  const status = input.status.trim().toUpperCase();
+  const approvalStatus = input.approvalStatus.trim().toUpperCase();
+
+  if (status === "CANCELLED" || status === "VOIDED" || approvalStatus === "VOIDED") {
+    return false;
+  }
+
+  return status === "PENDING" || status === "PAID" || status === "APPROVED";
+}
+
 export interface OrdersRepository {
   listOrders(filters?: {
     userId?: string;
@@ -274,6 +294,16 @@ export interface OrdersRepository {
     matrixSettingsSnapshot: string | null;
   } | null>;
 
+  cancelOrder(input: {
+    orderId: string;
+    reason?: string;
+  }): Promise<{
+    orderId: string;
+    status: string;
+    approvalStatus: string;
+    cancellationReason: string | null;
+  } | null>;
+
   findApprovedOrderById(orderId: string): Promise<{
     orderId: string;
     sourceUserId: string;
@@ -301,6 +331,183 @@ export interface OrdersRepository {
 @Injectable()
 export class PrismaOrdersRepository implements OrdersRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  private async restoreOrderStock(
+    tx: Prisma.TransactionClient,
+    orderId: bigint,
+  ): Promise<void> {
+    const items = await tx.orderItem.findMany({
+      where: {
+        orderId,
+        productId: {
+          not: null,
+        },
+      },
+      select: {
+        productId: true,
+        qty: true,
+      },
+    });
+
+    for (const item of items) {
+      if (!item.productId) {
+        continue;
+      }
+
+      await tx.productDetail.updateMany({
+        where: {
+          id: BigInt(item.productId),
+          stockQuantity: {
+            not: null,
+          },
+        },
+        data: {
+          stockQuantity: {
+            increment: item.qty,
+          },
+        },
+      });
+    }
+  }
+
+  private async reverseOrderWalletEffects(
+    tx: Prisma.TransactionClient,
+    input: {
+      orderId: bigint;
+      userId: bigint;
+      reason?: string;
+    },
+  ): Promise<void> {
+    const walletTransactions = await tx.walletTransaction.findMany({
+      where: {
+        refType: "order",
+        refId: input.orderId,
+        status: "POSTED",
+        txType: {
+          in: [
+            "DCW_PURCHASE_DEBIT",
+            "ORDER_PURCHASE_DEBIT",
+            "FIRM_PRODUCT_DEBIT",
+            "FIRM_DCW_CREDIT",
+          ],
+        },
+      },
+      select: {
+        txType: true,
+        amount: true,
+      },
+    });
+
+    if (walletTransactions.length === 0) {
+      return;
+    }
+
+    const currentWallet = await tx.wallet.upsert({
+      where: { userId: input.userId },
+      update: {},
+      create: { userId: input.userId },
+      select: {
+        shoppingBalance: true,
+        discountBalance: true,
+        firmBalance: true,
+      },
+    });
+
+    let nextShoppingBalance = currentWallet.shoppingBalance.toString();
+    let nextDiscountBalance = currentWallet.discountBalance.toString();
+    let nextFirmBalance = currentWallet.firmBalance.toString();
+    const noteSuffix = input.reason?.trim() ? ` (${input.reason.trim()})` : "";
+
+    for (const entry of walletTransactions) {
+      const amount = entry.amount.toString();
+
+      if (entry.txType === "DCW_PURCHASE_DEBIT") {
+        nextDiscountBalance = addDecimalStrings(nextDiscountBalance, amount);
+        await tx.walletTransaction.create({
+          data: {
+            userId: input.userId,
+            txType: "MANUAL_ADJUSTMENT",
+            direction: "CREDIT",
+            balanceBucket: "DISCOUNT",
+            refType: "order",
+            refId: input.orderId,
+            amount,
+            status: "POSTED",
+            note: `Order cancellation refund: discount wallet restored${noteSuffix}`,
+          },
+        });
+        continue;
+      }
+
+      if (entry.txType === "ORDER_PURCHASE_DEBIT") {
+        nextShoppingBalance = addDecimalStrings(nextShoppingBalance, amount);
+        await tx.walletTransaction.create({
+          data: {
+            userId: input.userId,
+            txType: "MANUAL_ADJUSTMENT",
+            direction: "CREDIT",
+            balanceBucket: "SHOPPING",
+            refType: "order",
+            refId: input.orderId,
+            amount,
+            status: "POSTED",
+            note: `Order cancellation refund: shopping wallet restored${noteSuffix}`,
+          },
+        });
+        continue;
+      }
+
+      if (entry.txType === "FIRM_PRODUCT_DEBIT") {
+        nextFirmBalance = addDecimalStrings(nextFirmBalance, amount);
+        await tx.walletTransaction.create({
+          data: {
+            userId: input.userId,
+            txType: "MANUAL_ADJUSTMENT",
+            direction: "CREDIT",
+            balanceBucket: "FIRM",
+            refType: "order",
+            refId: input.orderId,
+            amount,
+            status: "POSTED",
+            note: `Order cancellation refund: firm wallet restored${noteSuffix}`,
+          },
+        });
+        continue;
+      }
+
+      if (entry.txType === "FIRM_DCW_CREDIT") {
+        if (compareDecimalStrings(nextDiscountBalance, amount) < 0) {
+          throw new Error(
+            "Cannot cancel this order because the DCW credited from firm redemption has already been used.",
+          );
+        }
+
+        nextDiscountBalance = subtractDecimalStrings(nextDiscountBalance, amount);
+        await tx.walletTransaction.create({
+          data: {
+            userId: input.userId,
+            txType: "MANUAL_ADJUSTMENT",
+            direction: "DEBIT",
+            balanceBucket: "DISCOUNT",
+            refType: "order",
+            refId: input.orderId,
+            amount,
+            status: "POSTED",
+            note: `Order cancellation reversal: DCW credit removed${noteSuffix}`,
+          },
+        });
+      }
+    }
+
+    await tx.wallet.update({
+      where: { userId: input.userId },
+      data: {
+        shoppingBalance: nextShoppingBalance,
+        discountBalance: nextDiscountBalance,
+        firmBalance: nextFirmBalance,
+      },
+    });
+  }
 
   async listOrders(filters?: {
     userId?: string;
@@ -728,7 +935,10 @@ export class PrismaOrdersRepository implements OrdersRepository {
             dcwCashRewardRate: true,
             dcwShoppingRewardRate: true,
             firmEnabled: true,
+            firmOverrideCostGuard: true,
             firmDcwRewardAmount: true,
+            firmRedeemStockLimit: true,
+            stockQuantity: true,
             product: {
               select: {
                 category: {
@@ -969,22 +1179,146 @@ export class PrismaOrdersRepository implements OrdersRepository {
         }
 
         const categoryCode = detail.product.category.code.trim().toLowerCase();
+        const isFirmCategory = categoryCode === "firm";
         const costGuardPassed =
           Number(detail.costPriceUsdt.toString()) <=
           Number(detail.memberPriceUsdt.toString()) * 0.3;
 
-        return categoryCode !== "firm" || !detail.firmEnabled || !costGuardPassed;
+        return (
+          !detail.firmEnabled ||
+          (!isFirmCategory && !detail.firmOverrideCostGuard && !costGuardPassed)
+        );
       });
 
       if (invalidFirmItem) {
         throw new Error(
-          "Firm wallet redemption is only allowed for firm-enabled product details that pass the 30% cost guard.",
+          "Firm wallet redemption is only allowed for firm-enabled product details. Non-firm products must also pass the 30% cost guard.",
         );
       }
 
       if (compareDecimalStrings(requestedFirmAmount, orderSubtotalUsdt) !== 0) {
         throw new Error("Firm wallet redemption amount must equal the order member price.");
       }
+
+      const limitedDetailIds = normalizedItems
+        .filter((item) => item.productDetailId)
+        .map((item) => item.productDetailId as string)
+        .filter((productDetailId, index, array) => array.indexOf(productDetailId) === index)
+        .filter((productDetailId) => {
+          const detail = productDetailMap.get(productDetailId);
+          return Boolean(detail && detail.firmRedeemStockLimit !== null);
+        });
+
+      if (limitedDetailIds.length > 0) {
+        const historicalOrderItems = await this.prisma.orderItem.findMany({
+          where: {
+            productId: { in: limitedDetailIds },
+          },
+          select: {
+            orderId: true,
+            productId: true,
+            qty: true,
+          },
+        });
+
+        const firmOrderIds = Array.from(
+          new Set(historicalOrderItems.map((item) => item.orderId.toString())),
+        );
+
+        const firmDebitRefs = firmOrderIds.length
+          ? await this.prisma.walletTransaction.findMany({
+              where: {
+                refType: "order",
+                txType: "FIRM_PRODUCT_DEBIT",
+                status: "POSTED",
+                refId: { in: firmOrderIds.map((value) => BigInt(value)) },
+              },
+              select: {
+                refId: true,
+              },
+            })
+          : [];
+
+        const validFirmOrderIds = new Set(
+          firmDebitRefs.map((entry) => entry.refId.toString()),
+        );
+        const usedByProductDetail = new Map<string, number>();
+
+        historicalOrderItems.forEach((item) => {
+          if (!validFirmOrderIds.has(item.orderId.toString()) || !item.productId) {
+            return;
+          }
+
+          usedByProductDetail.set(
+            item.productId,
+            (usedByProductDetail.get(item.productId) ?? 0) + item.qty,
+          );
+        });
+
+        const requestedByProductDetail = new Map<string, number>();
+        normalizedItems.forEach((item) => {
+          if (!item.productDetailId) {
+            return;
+          }
+
+          requestedByProductDetail.set(
+            item.productDetailId,
+            (requestedByProductDetail.get(item.productDetailId) ?? 0) + item.quantity,
+          );
+        });
+
+        const limitedItem = limitedDetailIds.find((productDetailId) => {
+          const detail = productDetailMap.get(productDetailId);
+          if (!detail || detail.firmRedeemStockLimit === null) {
+            return false;
+          }
+
+          const usedQty = usedByProductDetail.get(productDetailId) ?? 0;
+          const requestedQty = requestedByProductDetail.get(productDetailId) ?? 0;
+
+          return usedQty + requestedQty > detail.firmRedeemStockLimit;
+        });
+
+        if (limitedItem) {
+          const detail = productDetailMap.get(limitedItem);
+          throw new Error(
+            `Firm redemption quantity exceeds the allowed limit for product detail ${limitedItem}. Limit: ${detail?.firmRedeemStockLimit ?? 0}.`,
+          );
+        }
+      }
+    }
+
+    const requestedByStockTrackedDetail = new Map<string, number>();
+    normalizedItems.forEach((item) => {
+      if (!item.productDetailId) {
+        return;
+      }
+
+      const detail = productDetailMap.get(item.productDetailId);
+      if (!detail || detail.stockQuantity === null) {
+        return;
+      }
+
+      requestedByStockTrackedDetail.set(
+        item.productDetailId,
+        (requestedByStockTrackedDetail.get(item.productDetailId) ?? 0) + item.quantity,
+      );
+    });
+
+    const outOfStockDetailId = Array.from(requestedByStockTrackedDetail.entries()).find(
+      ([productDetailId, requestedQty]) => {
+        const detail = productDetailMap.get(productDetailId);
+        return !detail || detail.stockQuantity === null
+          ? false
+          : requestedQty > detail.stockQuantity;
+      },
+    )?.[0];
+
+    if (outOfStockDetailId) {
+      const detail = productDetailMap.get(outOfStockDetailId);
+      throw new Error(
+        `Insufficient stock for product detail ${outOfStockDetailId}. Available: ${detail?.stockQuantity ?? 0}.`,
+      );
     }
 
     const remainingAfterDiscount = subtractDecimalStrings(
@@ -1021,6 +1355,29 @@ export class PrismaOrdersRepository implements OrdersRepository {
     }
 
     const order = await this.prisma.$transaction(async (tx) => {
+      for (const [productDetailId, requestedQty] of requestedByStockTrackedDetail.entries()) {
+        const updated = await tx.productDetail.updateMany({
+          where: {
+            id: BigInt(productDetailId),
+            stockQuantity: {
+              not: null,
+              gte: requestedQty,
+            },
+          },
+          data: {
+            stockQuantity: {
+              decrement: requestedQty,
+            },
+          },
+        });
+
+        if (updated.count !== 1) {
+          throw new Error(
+            `Insufficient stock for product detail ${productDetailId}. Another order may have reserved the remaining stock.`,
+          );
+        }
+      }
+
       const createdOrder = await tx.order.create({
         data: {
           orderNo: `ORD-${Date.now()}`,
@@ -1389,6 +1746,71 @@ export class PrismaOrdersRepository implements OrdersRepository {
           totalPv: order.totalPv.toString(),
           commissionSettingsSnapshot: order.commissionSettingsSnapshot,
           matrixSettingsSnapshot: order.matrixSettingsSnapshot,
+        }
+      : null;
+  }
+
+  async cancelOrder(input: { orderId: string; reason?: string }) {
+    const cancelledAt = new Date();
+
+    const order = await this.prisma.$transaction(async (tx) => {
+      const existingOrder = await tx.order.findUnique({
+        where: { id: BigInt(input.orderId) },
+        select: {
+          id: true,
+          userId: true,
+          status: true,
+          approvalStatus: true,
+          shippedAt: true,
+          deliveredAt: true,
+        },
+      });
+
+      if (!existingOrder) {
+        return null;
+      }
+
+      if (
+        !canCancelOrderStatus({
+          status: existingOrder.status,
+          approvalStatus: existingOrder.approvalStatus,
+          shippedAt: existingOrder.shippedAt,
+          deliveredAt: existingOrder.deliveredAt,
+        })
+      ) {
+        throw new Error("Only unshipped orders can be cancelled.");
+      }
+
+      await this.restoreOrderStock(tx, existingOrder.id);
+      await this.reverseOrderWalletEffects(tx, {
+        orderId: existingOrder.id,
+        userId: existingOrder.userId,
+        reason: input.reason,
+      });
+
+      return tx.order.update({
+        where: { id: existingOrder.id },
+        data: {
+          status: "CANCELLED",
+          approvalStatus: "VOIDED",
+          shipmentNote: input.reason?.trim() || undefined,
+          updatedAt: cancelledAt,
+        },
+        select: {
+          id: true,
+          status: true,
+          approvalStatus: true,
+          shipmentNote: true,
+        },
+      });
+    });
+
+    return order
+      ? {
+          orderId: order.id.toString(),
+          status: order.status.toLowerCase(),
+          approvalStatus: order.approvalStatus.toLowerCase(),
+          cancellationReason: order.shipmentNote ?? null,
         }
       : null;
   }

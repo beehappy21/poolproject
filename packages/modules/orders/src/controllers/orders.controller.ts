@@ -228,6 +228,27 @@ export class OrdersController {
     }
   }
 
+  @Post(":orderId/cancel")
+  async cancelOrder(
+    @Param("orderId") orderId: string,
+    @Body() body: { reason?: string },
+  ) {
+    try {
+      const order = await this.ordersService.cancelOrder({
+        orderId: requirePositiveIntegerString(orderId, "orderId"),
+        reason: optionalString(body.reason),
+      });
+
+      if (!order) {
+        throw new NotFoundException("Order not found.");
+      }
+
+      return order;
+    } catch (error) {
+      rethrowHttpError(error);
+    }
+  }
+
   @Post(":orderId/deliver")
   async markOrderDelivered(
     @Param("orderId") orderId: string,

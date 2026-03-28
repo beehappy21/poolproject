@@ -14,6 +14,7 @@ export type ProductType = {
   dcwSpendEnabled?: boolean;
   dcwUsageAmount?: number;
   dcwRewardRate?: number;
+  firmRedemptionEligible?: boolean;
   activeDays?: number;
   status?: string;
   itemCount?: number;

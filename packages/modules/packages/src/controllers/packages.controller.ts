@@ -104,7 +104,10 @@ export class PackagesController {
       activeDays?: number | string;
       earningCapAmount?: string;
       firmEnabled?: boolean | string;
+      firmOverrideCostGuard?: boolean | string;
       firmDcwRewardAmount?: string;
+      firmRedeemStockLimit?: number | string;
+      stockQuantity?: number | string;
     },
   ) {
     try {
@@ -173,9 +176,28 @@ export class PackagesController {
           body.firmEnabled === true ||
           body.firmEnabled === "true" ||
           body.firmEnabled === "1",
+        firmOverrideCostGuard:
+          body.firmOverrideCostGuard === true ||
+          body.firmOverrideCostGuard === "true" ||
+          body.firmOverrideCostGuard === "1",
         firmDcwRewardAmount: optionalString(body.firmDcwRewardAmount)
           ? requireDecimalString(body.firmDcwRewardAmount, "firmDcwRewardAmount")
           : "0",
+        firmRedeemStockLimit:
+          body.firmRedeemStockLimit === undefined ||
+          body.firmRedeemStockLimit === null ||
+          body.firmRedeemStockLimit === ""
+            ? undefined
+            : requirePositiveInteger(
+                body.firmRedeemStockLimit,
+                "firmRedeemStockLimit",
+              ),
+        stockQuantity:
+          body.stockQuantity === undefined ||
+          body.stockQuantity === null ||
+          body.stockQuantity === ""
+            ? undefined
+            : requirePositiveInteger(body.stockQuantity, "stockQuantity"),
       });
     } catch (error) {
       rethrowHttpError(error);
