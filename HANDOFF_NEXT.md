@@ -2,13 +2,52 @@
 
 Updated: 2026-03-28
 
+## Restore First Next Time
+
+For the next session, restore the latest full local snapshot before doing any new work.
+
+Primary backup to restore:
+
+- [backups/stephub-full-20260328-130523](/Users/macbook/poolproject/backups/stephub-full-20260328-130523)
+
+Restore command:
+
+```bash
+ALLOW_DESTRUCTIVE_LOCAL_RESET=1 bash scripts/restore_local_backup.sh backups/stephub-full-20260328-130523 --yes
+```
+
+Then restart and verify:
+
+```bash
+bash scripts/dev-restart.sh
+npm run dev:check
+```
+
+What this backup contains:
+
+- Postgres dump: [poolproject.sql](/Users/macbook/poolproject/backups/stephub-full-20260328-130523/poolproject.sql)
+- BAO sqlite snapshot: [bao-database.sqlite](/Users/macbook/poolproject/backups/stephub-full-20260328-130523/bao-database.sqlite)
+- Runtime snapshot: [runtime](/Users/macbook/poolproject/backups/stephub-full-20260328-130523/runtime)
+- Checklist snapshot: [CHECKLIST_LIVE_OPERATIONS.md](/Users/macbook/poolproject/backups/stephub-full-20260328-130523/CHECKLIST_LIVE_OPERATIONS.md)
+
+Important:
+
+- Do not run any destructive smoke/reset scripts unless explicitly intended.
+- Do not use `DEV_RESET_BASELINE=1` unless a full reset is intended.
+- The demo Stephub `10x5` catalog restore is disabled and should stay disabled.
+
 ## Current State
 
 - Current branch: `main`
 - Local `main` is synced with `origin/main`
-- Latest merged PR: `#58`
-- Latest merged commit on `main`: `d6e7507`
-- Current local work may include uncommitted follow-up fixes around commission visibility gating, BAO commission settings form save behavior, and app login password visibility
+- Latest merged PRs:
+  - `#62` `feat(bao): redesign create member sale flow`
+  - `#63` `feat(ui): show THB across app and admin`
+- Latest local commit on `main`: `a38cadb7`
+- Latest merged commit on `main`: `19eb5036`
+- Current local uncommitted files may include:
+  - [CHECKLIST_LIVE_OPERATIONS.md](/Users/macbook/poolproject/CHECKLIST_LIVE_OPERATIONS.md)
+  - [backups](/Users/macbook/poolproject/backups)
 
 Main local URLs:
 
