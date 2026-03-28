@@ -4,19 +4,15 @@ namespace App\Orchid\Screens\Order;
 
 use App\Models\Member;
 use App\Models\MemberShippingAddressRecord;
+use App\Models\OrderLine;
 use App\Models\ProductDetailRecord;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Orchid\Screen\Actions\Button;
-use Orchid\Screen\Fields\CheckBox;
-use Orchid\Screen\Fields\Group;
-use Orchid\Screen\Fields\Input;
-use Orchid\Screen\Fields\Matrix;
-use Orchid\Screen\Fields\RadioButtons;
-use Orchid\Screen\Fields\Select;
-use Orchid\Screen\Fields\TextArea;
 use Orchid\Screen\Screen;
 use Orchid\Support\Facades\Alert;
 use Orchid\Support\Facades\Layout;
@@ -41,6 +37,12 @@ class OrderCreateScreen extends Screen
             ->orderBy('memberCode')
             ->get(['id', 'memberCode', 'name', 'email', 'phone']);
 
+        $defaultAddresses = MemberShippingAddressRecord::query()
+            ->whereIn('userId', $members->pluck('id'))
+            ->where('isDefault', true)
+            ->orderByDesc('id')
+            ->get();
+
         $productDetails = ProductDetailRecord::query()
             ->where('status', 'ACTIVE')
             ->orderBy('name')
@@ -48,9 +50,16 @@ class OrderCreateScreen extends Screen
                 'id',
                 'code',
                 'name',
+                'primaryImageUrl',
                 'memberPriceUsdt',
                 'pv',
             ]);
+
+        $topSellingQty = OrderLine::query()
+            ->selectRaw('product_id, SUM(quantity) as sold_qty')
+            ->whereNotNull('product_id')
+            ->groupBy('product_id')
+            ->pluck('sold_qty', 'product_id');
 
         $this->memberOptions = $members
             ->mapWithKeys(fn (Member $member) => [
@@ -61,6 +70,52 @@ class OrderCreateScreen extends Screen
                 ),
             ])
             ->all();
+
+        $memberDirectory = $members
+            ->map(function (Member $member) use ($defaultAddresses): array {
+                $defaultAddress = $defaultAddresses->firstWhere('userId', (int) $member->id);
+
+                return [
+                    'id' => (int) $member->id,
+                    'memberCode' => (string) $member->memberCode,
+                    'name' => (string) $member->full_name,
+                    'email' => (string) ($member->email ?? ''),
+                    'phone' => (string) ($member->phone ?? ''),
+                    'defaultAddress' => $defaultAddress ? [
+                        'id' => (int) $defaultAddress->id,
+                        'label' => (string) ($defaultAddress->label ?? ''),
+                        'recipientName' => (string) ($defaultAddress->recipientName ?? ''),
+                        'phone' => (string) ($defaultAddress->phone ?? ''),
+                        'email' => (string) ($defaultAddress->email ?? ''),
+                        'countryName' => (string) ($defaultAddress->countryName ?? ''),
+                        'countryCode' => (string) ($defaultAddress->countryCode ?? ''),
+                        'provinceName' => (string) ($defaultAddress->provinceName ?? ''),
+                        'districtName' => (string) ($defaultAddress->districtName ?? ''),
+                        'subdistrictName' => (string) ($defaultAddress->subdistrictName ?? ''),
+                        'postalCode' => (string) ($defaultAddress->postalCode ?? ''),
+                        'addressLine' => (string) ($defaultAddress->addressLine ?? ''),
+                        'note' => (string) ($defaultAddress->note ?? ''),
+                    ] : null,
+                ];
+            })
+            ->values();
+
+        $productCatalog = $productDetails
+            ->map(function (ProductDetailRecord $detail) use ($topSellingQty): array {
+                return [
+                    'id' => (int) $detail->id,
+                    'code' => (string) $detail->code,
+                    'name' => (string) $detail->name,
+                    'memberPrice' => number_format((float) $detail->memberPriceUsdt, 2),
+                    'pv' => number_format((float) $detail->pv, 2),
+                    'imageUrl' => $this->publicImageUrl($detail->primaryImageUrl),
+                    'soldQty' => (int) ($topSellingQty[(string) $detail->id] ?? 0),
+                ];
+            })
+            ->sortByDesc('soldQty')
+            ->values();
+
+        $topProducts = $productCatalog->take(5)->values();
 
         $this->productOptions = $productDetails
             ->mapWithKeys(fn (ProductDetailRecord $detail) => [
@@ -77,7 +132,10 @@ class OrderCreateScreen extends Screen
         $sale = old('sale', [
             'workflow_mode' => 'approve_and_process',
             'member_id' => '',
-            'fulfillment_method' => 'delivery',
+            'payment_channel' => 'cash',
+            'fulfillment_method' => 'branch_pickup',
+            'existing_shipping_address_id' => '',
+            'change_shipping_address' => false,
             'recipient_name' => '',
             'phone' => '',
             'email' => '',
@@ -110,6 +168,11 @@ class OrderCreateScreen extends Screen
 
         return [
             'sale' => $sale,
+            'memberDirectory' => $memberDirectory,
+            'productCatalog' => $productCatalog,
+            'topProducts' => $topProducts,
+            'todayLabel' => now()->format('d/m/Y H:i'),
+            'orderPreviewNo' => 'AUTO-' . now()->format('Ymd-His'),
         ];
     }
 
@@ -135,176 +198,7 @@ class OrderCreateScreen extends Screen
     public function layout(): iterable
     {
         return [
-            Layout::rows([
-                Group::make([
-                    Select::make('sale.member_id')
-                        ->title('Single-member mode: member')
-                        ->options($this->memberOptions)
-                        ->empty('Select member for one order'),
-                    Select::make('sale.workflow_mode')
-                        ->title('Workflow')
-                        ->options([
-                            'approve_and_process' => 'Create + approve + process commissions',
-                            'create_only' => 'Create only',
-                        ])
-                        ->required(),
-                ]),
-                Group::make([
-                    RadioButtons::make('sale.fulfillment_method')
-                        ->title('Fulfillment')
-                        ->options([
-                            'delivery' => 'Delivery',
-                            'branch_pickup' => 'Branch pickup',
-                        ])
-                        ->help('Delivery supports one member per submit. Use Branch pickup for multi-member batch runs.')
-                        ->required(),
-                ]),
-            ])->title('Order Mode'),
-
-            Layout::rows([
-                Group::make([
-                    Input::make('sale.recipient_name')
-                        ->title('Recipient name')
-                        ->placeholder('Member or customer name'),
-                    Input::make('sale.phone')
-                        ->title('Recipient phone')
-                        ->placeholder('0800000000'),
-                    Input::make('sale.email')
-                        ->title('Recipient email')
-                        ->placeholder('optional@example.com'),
-                ]),
-                Group::make([
-                    Input::make('sale.label')
-                        ->title('Address label')
-                        ->placeholder('บ้าน / ที่ทำงาน'),
-                    Input::make('sale.country_name')
-                        ->title('Country')
-                        ->placeholder('Thailand'),
-                    Input::make('sale.country_code')
-                        ->title('Country code')
-                        ->placeholder('TH'),
-                ]),
-                Group::make([
-                    Input::make('sale.province_name')
-                        ->title('Province'),
-                    Input::make('sale.district_name')
-                        ->title('District'),
-                    Input::make('sale.subdistrict_name')
-                        ->title('Subdistrict'),
-                    Input::make('sale.postal_code')
-                        ->title('Postal code'),
-                ]),
-                TextArea::make('sale.address_line')
-                    ->title('Address line')
-                    ->rows(3)
-                    ->placeholder('House no., village, road, building')
-                    ->help('Used only for delivery mode.'),
-                TextArea::make('sale.note')
-                    ->title('Delivery note')
-                    ->rows(2)
-                    ->placeholder('Optional note for this sale'),
-                CheckBox::make('sale.save_as_default')
-                    ->sendTrueOrFalse()
-                    ->title('Save this address as the member default address'),
-            ])->title('Delivery Address For Single-member Mode'),
-
-            Layout::rows([
-                Group::make([
-                    Input::make('sale.pickup_branch_name')
-                        ->title('Pickup branch name')
-                        ->placeholder('Head Office / Counter A')
-                        ->help('Required for all branch pickup runs, including batch mode.'),
-                    Input::make('sale.pickup_recipient_name')
-                        ->title('Pickup recipient name')
-                        ->placeholder('Recipient for branch pickup'),
-                ]),
-                Group::make([
-                    Input::make('sale.pickup_phone')
-                        ->title('Pickup phone')
-                        ->placeholder('0800000000'),
-                    Input::make('sale.pickup_email')
-                        ->title('Pickup email')
-                        ->placeholder('optional@example.com'),
-                ]),
-                TextArea::make('sale.pickup_branch_note')
-                    ->title('Pickup note')
-                    ->rows(2)
-                    ->placeholder('Optional note for branch pickup'),
-            ])->title('Branch Pickup Details'),
-
-            Layout::rows([
-                Matrix::make('sale.items')
-                    ->title('Single-member items')
-                    ->columns([
-                        'product_detail_id' => 'Product detail',
-                        'quantity' => 'Quantity',
-                    ])
-                    ->fields([
-                        'product_detail_id' => Select::make()
-                            ->options($this->productOptions)
-                            ->empty('Select product detail')
-                            ->required(),
-                        'quantity' => Input::make()
-                            ->type('number')
-                            ->min(1)
-                            ->value('1')
-                            ->required(),
-                    ])
-                    ->help('Use this section when you want one order for one member. Leave Batch orders empty in this mode.'),
-            ])->title('Single-member Order'),
-
-            Layout::rows([
-                Matrix::make('sale.batch_lines')
-                    ->title('Batch rows: one member-product line per row')
-                    ->columns([
-                        'member_id' => 'Member',
-                        'product_detail_id' => 'Product detail',
-                        'quantity' => 'Quantity',
-                    ])
-                    ->fields([
-                        'member_id' => Select::make()
-                            ->options($this->memberOptions)
-                            ->empty('Select member'),
-                        'product_detail_id' => Select::make()
-                            ->options($this->productOptions)
-                            ->empty('Select product detail'),
-                        'quantity' => Input::make()
-                            ->type('number')
-                            ->min(1)
-                            ->value('1')
-                            ->required(),
-                    ])
-                    ->help('If you add rows here, batch mode takes priority. The screen groups rows by member and creates one order per member. Single-member item rows above are ignored for this submit.'),
-            ])->title('Batch Orders'),
-
-            Layout::rows([
-                Group::make([
-                    Input::make('sale.discount_wallet_amount')
-                        ->title('Discount wallet amount')
-                        ->type('number')
-                        ->step('0.01')
-                        ->value('0'),
-                    Input::make('sale.shopping_wallet_amount')
-                        ->title('Shopping wallet amount')
-                        ->type('number')
-                        ->step('0.01')
-                        ->value('0'),
-                    Input::make('sale.firm_wallet_amount')
-                        ->title('Firm wallet amount')
-                        ->type('number')
-                        ->step('0.01')
-                        ->value('0'),
-                    Select::make('sale.cash_payment_method')
-                        ->title('Cash payment method')
-                        ->options([
-                            'cash' => 'Cash',
-                            'bank_transfer' => 'Bank transfer',
-                            'promptpay_qr' => 'PromptPay QR',
-                        ])
-                        ->empty('Select cash payment method')
-                        ->help('Applied to every order created in this submit.'),
-                ]),
-            ])->title('Payment And Wallets'),
+            Layout::view('order.create-member-sale'),
         ];
     }
 
@@ -313,7 +207,10 @@ class OrderCreateScreen extends Screen
         $payload = $request->validate([
             'sale.member_id' => ['nullable', 'integer'],
             'sale.workflow_mode' => ['required', 'in:create_only,approve_and_process'],
+            'sale.payment_channel' => ['required', 'in:cash,bank_transfer,shopping_wallet,firm_wallet,other'],
             'sale.fulfillment_method' => ['required', 'in:delivery,branch_pickup'],
+            'sale.existing_shipping_address_id' => ['nullable', 'integer'],
+            'sale.change_shipping_address' => ['nullable', 'boolean'],
             'sale.cash_payment_method' => ['nullable', 'string', 'max:100'],
             'sale.recipient_name' => ['nullable', 'string', 'max:255'],
             'sale.phone' => ['nullable', 'string', 'max:50'],
@@ -367,14 +264,31 @@ class OrderCreateScreen extends Screen
         }
 
         if ($fulfillmentMethod === 'delivery') {
-            $recipientName = trim((string) ($payload['recipient_name'] ?? ''));
-            $phone = trim((string) ($payload['phone'] ?? ''));
-            $addressLine = trim((string) ($payload['address_line'] ?? ''));
+            $existingShippingAddressId = (int) ($payload['existing_shipping_address_id'] ?? 0);
+            $changeShippingAddress = (bool) ($payload['change_shipping_address'] ?? false);
 
-            if ($recipientName === '' || $phone === '' || $addressLine === '') {
-                return back()->withErrors([
-                    'sale.address_line' => 'Recipient name, phone, and address line are required for delivery.',
-                ])->withInput();
+            if (!$changeShippingAddress && $existingShippingAddressId > 0) {
+                $selectedMemberId = (int) ($payload['member_id'] ?? 0);
+                $existingAddress = MemberShippingAddressRecord::query()
+                    ->whereKey($existingShippingAddressId)
+                    ->where('userId', $selectedMemberId)
+                    ->first();
+
+                if (!$existingAddress instanceof MemberShippingAddressRecord) {
+                    return back()->withErrors([
+                        'sale.existing_shipping_address_id' => 'Selected default shipping address was not found for this member.',
+                    ])->withInput();
+                }
+            } else {
+                $recipientName = trim((string) ($payload['recipient_name'] ?? ''));
+                $phone = trim((string) ($payload['phone'] ?? ''));
+                $addressLine = trim((string) ($payload['address_line'] ?? ''));
+
+                if ($recipientName === '' || $phone === '' || $addressLine === '') {
+                    return back()->withErrors([
+                        'sale.address_line' => 'Recipient name, phone, and address line are required for delivery.',
+                    ])->withInput();
+                }
             }
         } else {
             $pickupBranchName = trim((string) ($payload['pickup_branch_name'] ?? ''));
@@ -398,8 +312,20 @@ class OrderCreateScreen extends Screen
 
                 $shippingAddressId = null;
                 if ($fulfillmentMethod === 'delivery') {
-                    $shippingAddressId = $this->createShippingAddressForMember($member, $payload);
+                    $existingShippingAddressId = (int) ($payload['existing_shipping_address_id'] ?? 0);
+                    $changeShippingAddress = (bool) ($payload['change_shipping_address'] ?? false);
+
+                    if (!$changeShippingAddress && $existingShippingAddressId > 0) {
+                        $shippingAddressId = $existingShippingAddressId;
+                    } else {
+                        $shippingAddressId = $this->createShippingAddressForMember($member, $payload);
+                    }
                 }
+
+                $paymentSelection = $this->buildPaymentSelection(
+                    (string) ($payload['payment_channel'] ?? 'cash'),
+                    $group['items']
+                );
 
                 $createPayload = [
                     'userId' => (string) $member->id,
@@ -421,10 +347,10 @@ class OrderCreateScreen extends Screen
                     'pickupEmail' => $fulfillmentMethod === 'branch_pickup'
                         ? $this->nullableString($payload['pickup_email'] ?? null)
                         : null,
-                    'discountWalletAmount' => $this->decimalString($payload['discount_wallet_amount'] ?? null),
-                    'shoppingWalletAmount' => $this->decimalString($payload['shopping_wallet_amount'] ?? null),
-                    'firmWalletAmount' => $this->decimalString($payload['firm_wallet_amount'] ?? null),
-                    'cashPaymentMethod' => $this->nullableString($payload['cash_payment_method'] ?? null) ?? 'cash',
+                    'discountWalletAmount' => $paymentSelection['discountWalletAmount'],
+                    'shoppingWalletAmount' => $paymentSelection['shoppingWalletAmount'],
+                    'firmWalletAmount' => $paymentSelection['firmWalletAmount'],
+                    'cashPaymentMethod' => $paymentSelection['cashPaymentMethod'],
                 ];
 
                 $createdOrder = $this->apiRequest('POST', '/orders', $createPayload);
@@ -573,6 +499,85 @@ class OrderCreateScreen extends Screen
     }
 
     /**
+     * @param  array<int, array{productDetailId:string, quantity:string}>  $items
+     * @return array{
+     *     discountWalletAmount:string,
+     *     shoppingWalletAmount:string,
+     *     firmWalletAmount:string,
+     *     cashPaymentMethod:string
+     * }
+     */
+    private function buildPaymentSelection(string $paymentChannel, array $items): array
+    {
+        $subtotal = $this->groupSubtotal($items);
+
+        return match ($paymentChannel) {
+            'shopping_wallet' => [
+                'discountWalletAmount' => '0',
+                'shoppingWalletAmount' => $subtotal,
+                'firmWalletAmount' => '0',
+                'cashPaymentMethod' => 'cash',
+            ],
+            'firm_wallet' => [
+                'discountWalletAmount' => '0',
+                'shoppingWalletAmount' => '0',
+                'firmWalletAmount' => $subtotal,
+                'cashPaymentMethod' => 'cash',
+            ],
+            'bank_transfer' => [
+                'discountWalletAmount' => '0',
+                'shoppingWalletAmount' => '0',
+                'firmWalletAmount' => '0',
+                'cashPaymentMethod' => 'bank_transfer',
+            ],
+            'other' => [
+                'discountWalletAmount' => '0',
+                'shoppingWalletAmount' => '0',
+                'firmWalletAmount' => '0',
+                'cashPaymentMethod' => 'promptpay_qr',
+            ],
+            default => [
+                'discountWalletAmount' => '0',
+                'shoppingWalletAmount' => '0',
+                'firmWalletAmount' => '0',
+                'cashPaymentMethod' => 'cash',
+            ],
+        };
+    }
+
+    /**
+     * @param  array<int, array{productDetailId:string, quantity:string}>  $items
+     */
+    private function groupSubtotal(array $items): string
+    {
+        $detailIds = collect($items)
+            ->pluck('productDetailId')
+            ->filter()
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($detailIds->isEmpty()) {
+            return '0';
+        }
+
+        $priceMap = ProductDetailRecord::query()
+            ->whereIn('id', $detailIds)
+            ->pluck('memberPriceUsdt', 'id');
+
+        $subtotal = 0.0;
+
+        foreach ($items as $item) {
+            $detailId = (int) ($item['productDetailId'] ?? 0);
+            $quantity = max(1, (int) ($item['quantity'] ?? 1));
+            $price = (float) ($priceMap[$detailId] ?? 0);
+            $subtotal += $price * $quantity;
+        }
+
+        return number_format($subtotal, 2, '.', '');
+    }
+
+    /**
      * @param  array<string, mixed>|null  $payload
      * @return array<string, mixed>
      */
@@ -703,5 +708,18 @@ class OrderCreateScreen extends Screen
         $trimmed = $this->nullableString($value);
 
         return $trimmed ?? '0';
+    }
+
+    private function publicImageUrl(?string $path): ?string
+    {
+        if ($path === null || trim($path) === '') {
+            return null;
+        }
+
+        if (Str::startsWith($path, ['http://', 'https://', 'data:image/'])) {
+            return $path;
+        }
+
+        return Storage::disk('public')->url($path);
     }
 }
