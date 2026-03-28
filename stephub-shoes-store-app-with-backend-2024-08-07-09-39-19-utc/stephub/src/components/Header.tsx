@@ -5,6 +5,7 @@ import {animated, useSpring} from '@react-spring/web';
 import {hooks} from '../hooks';
 import {svg} from '../assets/svg';
 import {theme} from '../constants';
+import {formatTHB} from '../utils/currency';
 import {RootState} from '../store';
 import {components} from '../components';
 import {actions} from '../store/actions';
@@ -213,7 +214,7 @@ export const Header: React.FC<Props> = ({
             backgroundColor: theme.colors.coralRed,
           }}
         >
-          {cart.length > 0 ? `$${total.toFixed(2)}` : '$0'}
+          {cart.length > 0 ? formatTHB(total) : '฿0.00'}
         </div>
       </button>
     );

@@ -56,14 +56,16 @@ class ProductListScreen extends Screen {
           ->sort()
           ->cantHide()
           ->render(function (Product $product) {
-            return '$' . $product->price;
+            return number_format((float) $product->price, 2) . ' บาท';
           }),
 
         TD::make('old_price', 'Old Price')
           ->sort()
           ->cantHide()
           ->render(function (Product $product) {
-            return $product->old_price ? '<del>$' . $product->old_price . '</del>' : '-';
+            return $product->old_price
+              ? '<del>' . number_format((float) $product->old_price, 2) . ' บาท</del>'
+              : '-';
           }),
 
         TD::make('code', 'SKU')

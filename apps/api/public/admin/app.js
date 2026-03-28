@@ -3,6 +3,11 @@ const state = {
   currentUserId: "",
 };
 
+function formatThb(value) {
+  const amount = Number(value) || 0;
+  return `${amount.toFixed(2)} บาท`;
+}
+
 const adminView = document.body.dataset.adminView || "dashboard";
 const sessionCard = document.getElementById("sessionCard");
 const loginForm = document.getElementById("loginForm");
@@ -831,26 +836,26 @@ function renderProductPreview() {
 
   previewTitle.textContent = packageNameInput?.value.trim() || "Untitled Product";
   previewCode.textContent = packageCodeInput?.value.trim() || "NO-CODE";
-  previewCost.textContent = `${totals.cost} USDT`;
-  previewMemberPrice.textContent = `${totals.member} USDT`;
-  previewRetailPrice.textContent = `${totals.retail} USDT`;
+  previewCost.textContent = formatThb(totals.cost);
+  previewMemberPrice.textContent = formatThb(totals.member);
+  previewRetailPrice.textContent = formatThb(totals.retail);
   previewPv.textContent = `${totals.pv} PV`;
   previewPoolRate.textContent = `${packagePoolRateInput?.value.trim() || "0"}%`;
   const defaultDcwUsage = computeDcwDefaultUsage(totals.cost, totals.member);
   const overrideDcwUsage = packageDcwUsageAmountInput?.value.trim() || "";
   if (previewDcwDefault) {
-    previewDcwDefault.textContent = `${defaultDcwUsage} USDT`;
+    previewDcwDefault.textContent = formatThb(defaultDcwUsage);
   }
   if (previewDcwUsage) {
     previewDcwUsage.textContent = overrideDcwUsage
-      ? `${overrideDcwUsage} USDT`
-      : `Auto ${defaultDcwUsage} USDT`;
+      ? formatThb(overrideDcwUsage)
+      : `Auto ${formatThb(defaultDcwUsage)}`;
   }
   if (previewDcwReward) {
     previewDcwReward.textContent = `${packageDcwRewardInput?.value.trim() || "0"}% on cash + SW`;
   }
   if (packageDcwDefaultHint) {
-    packageDcwDefaultHint.textContent = `Auto = ${totals.member} - (${totals.cost} x 70%) = ${defaultDcwUsage} USDT, rounded down to whole number`;
+    packageDcwDefaultHint.textContent = `Auto = ${totals.member} - (${totals.cost} x 70%) = ${formatThb(defaultDcwUsage)} ปัดลงเป็นจำนวนเต็มเสมอ`;
   }
   if (packageDcwWarningLabel) {
     packageDcwWarningLabel.textContent = overrideDcwUsage
@@ -944,7 +949,7 @@ function renderCatalogSelectors() {
     '<option value="">Pick product detail</option>',
     ...state.productDetails.map(
       (detail) =>
-        `<option value="${detail.productDetailId}">${detail.code} · ${detail.name} · Member ${detail.memberPriceUsdt}</option>`,
+        `<option value="${detail.productDetailId}">${detail.code} · ${detail.name} · สมาชิก ${formatThb(detail.memberPriceUsdt)}</option>`,
     ),
   ].join("");
 
@@ -982,7 +987,7 @@ function renderPackageItemRows() {
       return `<div class="package-item-row">
         <div class="package-item-meta">
           <strong>${detail.code} · ${detail.name}</strong>
-          <span>${detail.productCode} · Cost ${detail.costPriceUsdt} · Member ${detail.memberPriceUsdt} · PV ${detail.pv}</span>
+          <span>${detail.productCode} · ต้นทุน ${formatThb(detail.costPriceUsdt)} · สมาชิก ${formatThb(detail.memberPriceUsdt)} · PV ${detail.pv}</span>
         </div>
         <input type="number" min="1" value="${item.qty}" data-package-item-qty="${item.productDetailId}" />
         <button type="button" class="ghost" data-action="remove-package-item" data-product-detail-id="${item.productDetailId}">Remove</button>
@@ -1837,9 +1842,9 @@ async function loadDashboard() {
         <td>${detail.productCode}<br /><span class="muted">${detail.productName}</span></td>
         <td>${detail.code}<br /><span class="muted">${detail.name}</span></td>
         <td><div class="product-detail-media-stack">${youtubeCell}${imageCell}</div></td>
-        <td>${detail.costPriceUsdt}</td>
-        <td>${detail.memberPriceUsdt}</td>
-        <td>${detail.retailPriceUsdt}</td>
+        <td>${formatThb(detail.costPriceUsdt)}</td>
+        <td>${formatThb(detail.memberPriceUsdt)}</td>
+        <td>${formatThb(detail.retailPriceUsdt)}</td>
         <td>${detail.pv}</td>
         <td>${decimalToPercentString(detail.poolRate)}</td>
         <td>${detail.firmEnabled ? `enabled · DCW ${detail.firmDcwRewardAmount}<br /><span class="muted">${detail.firmRedemptionEligible ? "eligible" : detail.firmCostGuardPassed ? "needs firm category" : "cost guard failed"}</span>` : '<span class="muted">disabled</span>'}</td>
@@ -1852,7 +1857,7 @@ async function loadDashboard() {
   renderTableRows(
     "packagesTable",
     packageItems,
-    (pkg) => `<tr><td>${pkg.packageId}</td><td>${pkg.code}</td><td>${pkg.name}</td><td>${pkg.costPriceUsdt}</td><td>${pkg.memberPriceUsdt}</td><td>${pkg.retailPriceUsdt}</td><td>${pkg.pv}</td><td>${decimalToPercentString(pkg.poolRate)}</td><td>${pkg.dcwSpendEnabled ? `${pkg.dcwUsageAmount}${pkg.dcwUsageAmountOverridden ? " (custom)" : " (auto)"}` : "disabled"}</td><td>${decimalToPercentString(pkg.dcwRewardRate || pkg.dcwCashRewardRate || pkg.dcwShoppingRewardRate || "0")}</td><td>${pkg.activeDays}</td><td>${pkg.earningCapAmount}</td><td>${pkg.itemCount ?? 0}</td><td>${pkg.status}</td><td><div class="table-actions"><button type="button" class="secondary" data-action="clone-package-to-studio" data-package-id="${pkg.packageId}">Clone to Studio</button><button type="button" class="secondary" data-action="prefill-order-package" data-package-id="${pkg.packageId}">Use In Order</button><button type="button" class="secondary" data-action="toggle-package-status" data-package-id="${pkg.packageId}" data-package-status="${pkg.status}">${pkg.status === "active" ? "Deactivate" : "Activate"}</button></div></td></tr>`,
+    (pkg) => `<tr><td>${pkg.packageId}</td><td>${pkg.code}</td><td>${pkg.name}</td><td>${formatThb(pkg.costPriceUsdt)}</td><td>${formatThb(pkg.memberPriceUsdt)}</td><td>${formatThb(pkg.retailPriceUsdt)}</td><td>${pkg.pv}</td><td>${decimalToPercentString(pkg.poolRate)}</td><td>${pkg.dcwSpendEnabled ? `${pkg.dcwUsageAmount}${pkg.dcwUsageAmountOverridden ? " (custom)" : " (auto)"}` : "disabled"}</td><td>${decimalToPercentString(pkg.dcwRewardRate || pkg.dcwCashRewardRate || pkg.dcwShoppingRewardRate || "0")}</td><td>${pkg.activeDays}</td><td>${pkg.earningCapAmount}</td><td>${pkg.itemCount ?? 0}</td><td>${pkg.status}</td><td><div class="table-actions"><button type="button" class="secondary" data-action="clone-package-to-studio" data-package-id="${pkg.packageId}">Clone to Studio</button><button type="button" class="secondary" data-action="prefill-order-package" data-package-id="${pkg.packageId}">Use In Order</button><button type="button" class="secondary" data-action="toggle-package-status" data-package-id="${pkg.packageId}" data-package-status="${pkg.status}">${pkg.status === "active" ? "Deactivate" : "Activate"}</button></div></td></tr>`,
   );
   renderCatalogEntityMetrics();
   renderCatalogSelectors();

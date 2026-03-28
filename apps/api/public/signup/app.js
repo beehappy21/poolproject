@@ -75,7 +75,7 @@ async function loadPackages() {
     packages.length > 0
       ? packages
           .map(
-            (pkg) => `<tr><td>${pkg.code}</td><td>${pkg.name}</td><td>${pkg.pv}</td><td>${pkg.priceUsdt}</td><td>${pkg.status}</td></tr>`,
+            (pkg) => `<tr><td>${pkg.code}</td><td>${pkg.name}</td><td>${pkg.pv}</td><td>${Number(pkg.priceUsdt || 0).toFixed(2)} บาท</td><td>${pkg.status}</td></tr>`,
           )
           .join("")
       : '<tr><td colspan="5" class="muted">No packages</td></tr>';

@@ -5,6 +5,7 @@ import {useLocation} from 'react-router-dom';
 import {hooks} from '../hooks';
 import {URLS} from '../config';
 import {theme} from '../constants';
+import {formatTHBText} from '../utils/currency';
 import {components} from '../components';
 import {RootState} from '../store';
 import {actions} from '../store/actions';
@@ -139,8 +140,8 @@ export const OrderSuccessful: React.FC = () => {
                 color: '#FF4343',
               }}
             >
-              ยอดที่ต้องโอน: $
-              {Number(order?.cashDueUsdt || order?.totalUsdt || 0).toFixed(2)}
+              ยอดที่ต้องโอน: {' '}
+              {formatTHBText(order?.cashDueUsdt || order?.totalUsdt || 0)}
             </span>
             <span
               style={{
@@ -292,7 +293,7 @@ export const OrderSuccessful: React.FC = () => {
                       }}
                     >
                       x{item.quantity || 1}
-                      {item.price ? ` · $${item.price}` : ''}
+                      {item.price ? ` · ${formatTHBText(item.price)}` : ''}
                     </p>
                   </div>
                 ),

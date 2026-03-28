@@ -16,7 +16,7 @@
   <div class="col-md-4">
     <div class="rounded border bg-white p-3 h-100">
       <div class="text-muted small mb-1">ยอดขายรวม</div>
-      <div class="h3 mb-0">${{ number_format((float) ($summary['totalAmount'] ?? 0), 2) }}</div>
+      <div class="h3 mb-0">{{ number_format((float) ($summary['totalAmount'] ?? 0), 2) }} บาท</div>
     </div>
   </div>
   <div class="col-md-4">

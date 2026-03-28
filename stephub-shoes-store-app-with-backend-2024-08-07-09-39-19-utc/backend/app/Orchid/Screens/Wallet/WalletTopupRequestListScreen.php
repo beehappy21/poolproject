@@ -88,7 +88,7 @@ class WalletTopupRequestListScreen extends Screen
                         return '<a href="'.e($url).'">'.e($label).'</a><br><small>'.e($memberCode).'</small>';
                     }),
                 TD::make('amount', 'ยอดเติม')
-                    ->render(fn (WalletTopupRequest $request) => number_format((float) $request->amount, 2)),
+                    ->render(fn (WalletTopupRequest $request) => number_format((float) $request->amount, 2) . ' บาท'),
                 TD::make('paymentMethod', 'ช่องทาง')
                     ->render(fn (WalletTopupRequest $request) => e((string) $request->paymentMethod)),
                 TD::make('transferSlipUrl', 'สลิป')

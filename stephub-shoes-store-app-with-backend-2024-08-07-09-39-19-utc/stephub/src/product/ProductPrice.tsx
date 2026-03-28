@@ -2,6 +2,7 @@ import React, {CSSProperties} from 'react';
 
 import {theme} from '../constants';
 import {ProductType} from '../types';
+import {formatTHB} from '../utils/currency';
 
 type Props = {
   item: ProductType;
@@ -28,7 +29,7 @@ export const ProductPrice: React.FC<Props> = ({containerStyle, item}) => {
             fontSize: 12,
           }}
         >
-          ${item.oldPrice}
+          {formatTHB(item.oldPrice)}
         </span>
       )}
       <span
@@ -38,7 +39,7 @@ export const ProductPrice: React.FC<Props> = ({containerStyle, item}) => {
           color: item.oldPrice ? theme.colors.coralRed : theme.colors.mainColor,
         }}
       >
-        ${item.price}
+        {formatTHB(item.price)}
       </span>
     </div>
   );

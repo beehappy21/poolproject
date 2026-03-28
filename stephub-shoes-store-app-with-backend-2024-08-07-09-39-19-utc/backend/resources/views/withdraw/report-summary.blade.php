@@ -20,7 +20,7 @@
         <div class="card">
             <div class="card-body">
                 <div class="text-muted small">ยอดถอนรวม</div>
-                <div class="fs-4 fw-bold">{{ number_format((float) ($summary['totalAmount'] ?? 0), 2) }}</div>
+                <div class="fs-4 fw-bold">{{ number_format((float) ($summary['totalAmount'] ?? 0), 2) }} บาท</div>
             </div>
         </div>
     </div>
@@ -28,7 +28,7 @@
         <div class="card">
             <div class="card-body">
                 <div class="text-muted small">ยอดเข้าธนาคารรวม</div>
-                <div class="fs-4 fw-bold">{{ number_format((float) ($summary['totalNetAmount'] ?? 0), 2) }}</div>
+                <div class="fs-4 fw-bold">{{ number_format((float) ($summary['totalNetAmount'] ?? 0), 2) }} บาท</div>
             </div>
         </div>
     </div>

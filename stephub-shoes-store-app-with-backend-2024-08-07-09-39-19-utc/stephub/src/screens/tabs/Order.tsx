@@ -4,6 +4,7 @@ import React, {useEffect, useMemo, useState} from 'react';
 import {items} from '../../items';
 import {URLS} from '../../config';
 import {theme} from '../../constants';
+import {formatTHB} from '../../utils/currency';
 import {components} from '../../components';
 import {actions} from '../../store/actions';
 import {hooks, RootState} from '../../hooks';
@@ -334,7 +335,7 @@ export const Order: React.FC = () => {
               lineHeight: 1.5,
             }}
           >
-            ${subtotal.toFixed(2).replace('.', ',')}
+            {formatTHB(subtotal)}
           </span>
         </div>
         {discountAmount > 0 && (
@@ -366,7 +367,7 @@ export const Order: React.FC = () => {
                 lineHeight: 1.5,
               }}
             >
-              - ${discountAmount.toFixed(2).replace('.', ',')}
+              - {formatTHB(discountAmount)}
             </span>
           </div>
         )}
@@ -397,7 +398,7 @@ export const Order: React.FC = () => {
               lineHeight: 1.5,
             }}
           >
-            {delivery === 0 ? 'ฟรี' : `$${delivery.toFixed(2)}`}
+            {delivery === 0 ? 'ฟรี' : formatTHB(delivery)}
           </span>
         </div>
         <div
@@ -427,7 +428,7 @@ export const Order: React.FC = () => {
               lineHeight: 1.5,
             }}
           >
-            ${total.toFixed(2).replace('.', ',')}
+            {formatTHB(total)}
           </span>
         </div>
       </div>
