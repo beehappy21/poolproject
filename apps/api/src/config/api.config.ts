@@ -10,6 +10,9 @@ const DEFAULT_CORS_ORIGINS = [
   "http://localhost:3002",
   "http://127.0.0.1:3000",
   "http://localhost:3000",
+  "https://wap.blifehealthy.com",
+  "https://api.blifehealthy.com",
+  "https://bao.blifehealthy.com",
 ];
 
 function parseCorsOrigins(value?: string): string[] {

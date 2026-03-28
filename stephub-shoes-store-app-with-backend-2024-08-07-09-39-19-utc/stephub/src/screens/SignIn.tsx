@@ -76,7 +76,7 @@ export const SignIn: React.FC = () => {
     } catch (error: any) {
       setErrorMessage(
         error?.response?.data?.message ||
-          'Sign in failed. Check that the API is running and CORS allows http://127.0.0.1:3001.',
+          `Sign in failed. Check that the API is reachable at ${URLS.API_BASE_URL}.`,
       );
     } finally {
       setLoading(false);

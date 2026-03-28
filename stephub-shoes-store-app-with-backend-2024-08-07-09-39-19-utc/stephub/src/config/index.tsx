@@ -1,10 +1,39 @@
 const MAIN_URL = 'https://george-fx.github.io/stephub/';
+
+const getRuntimeHostname = (): string => {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+
+  return window.location.hostname.toLowerCase();
+};
+
+const getDefaultApiBaseUrl = (): string => {
+  const hostname = getRuntimeHostname();
+
+  if (hostname === 'wap.blifehealthy.com') {
+    return 'https://api.blifehealthy.com';
+  }
+
+  return 'http://127.0.0.1:3000';
+};
+
+const getDefaultBaoBaseUrl = (): string => {
+  const hostname = getRuntimeHostname();
+
+  if (hostname === 'wap.blifehealthy.com') {
+    return 'https://bao.blifehealthy.com';
+  }
+
+  return 'http://127.0.0.1:8001';
+};
+
 const API_BASE_URL =
   process.env.REACT_APP_API_BASE_URL?.replace(/\/+$/, '') ||
-  'http://127.0.0.1:3000';
+  getDefaultApiBaseUrl();
 const BAO_BASE_URL =
   process.env.REACT_APP_BAO_BASE_URL?.replace(/\/+$/, '') ||
-  'http://127.0.0.1:8001';
+  getDefaultBaoBaseUrl();
 
 export const GET_TAGS = `${MAIN_URL}api/tags.json`;
 export const GET_ORDERS = `${MAIN_URL}api/orders.json`;
