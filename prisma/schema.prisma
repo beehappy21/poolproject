@@ -506,6 +506,7 @@ model ProductDetail {
   description      String?       @db.Text
   youtubeUrl       String?       @db.VarChar(500)
   primaryImageUrl  String?       @db.VarChar(500)
+  homeCardImageUrl String?       @db.VarChar(500)
   imageUrls        String[]      @default([])
   costPriceUsdt    Decimal       @default(0) @db.Decimal(18, 8)
   memberPriceUsdt  Decimal       @default(0) @db.Decimal(18, 8)

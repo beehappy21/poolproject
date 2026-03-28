@@ -458,6 +458,8 @@ export const Home: FC = () => {
   };
 
   const renderProductCard = (item: ProductType): JSX.Element => {
+    const homeImage = item.homeImage || item.image;
+
     return (
       <button
         key={`${item.productDetailId || item.id}`}
@@ -474,14 +476,14 @@ export const Home: FC = () => {
         }}
       >
         <custom.ImageBackground
-          imageUrl={item.image}
+          imageUrl={homeImage}
           style={{
             width: '100%',
             aspectRatio: '1 / 1',
             borderRadius: 0,
             marginBottom: 10,
             position: 'relative',
-            backgroundSize: 'cover',
+            backgroundSize: 'contain',
             backgroundPosition: 'center',
             backgroundColor: theme.colors.imageBackground,
             overflow: 'hidden',

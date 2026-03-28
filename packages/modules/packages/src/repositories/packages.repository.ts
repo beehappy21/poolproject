@@ -21,6 +21,7 @@ type ProductDetailRecord = {
   shortDescription: string | null;
   description: string | null;
   primaryImageUrl: string | null;
+  homeCardImageUrl: string | null;
   youtubeUrl: string | null;
   imageUrls: string[];
   ratingAvg: { toString(): string };
@@ -308,6 +309,7 @@ export interface PackagesRepository {
       shortDescription: string | null;
       description: string | null;
       primaryImageUrl: string | null;
+      homeCardImageUrl: string | null;
       youtubeUrl: string | null;
       imageUrls: string[];
       memberPriceUsdt: string;
@@ -811,6 +813,7 @@ export class PrismaPackagesRepository implements PackagesRepository {
         shortDescription: detail.shortDescription,
         description: detail.description,
         primaryImageUrl: detail.primaryImageUrl,
+        homeCardImageUrl: detail.homeCardImageUrl,
         youtubeUrl: detail.youtubeUrl,
         imageUrls: [
           detail.primaryImageUrl,
@@ -1048,10 +1051,11 @@ export class PrismaPackagesRepository implements PackagesRepository {
                 code: true,
                 name: true,
                 shortDescription: true,
-                description: true,
-                primaryImageUrl: true,
-                youtubeUrl: true,
-                imageUrls: true,
+        description: true,
+        primaryImageUrl: true,
+        homeCardImageUrl: true,
+        youtubeUrl: true,
+        imageUrls: true,
                 ratingAvg: true,
                 ratingCount: true,
                 sortOrder: true,

@@ -22,6 +22,7 @@ export type ProductType = {
   rating: number;
   ratingCount?: number;
   image: string;
+  homeImage?: string;
   images: string[];
   sizes: string[];
   size: string;

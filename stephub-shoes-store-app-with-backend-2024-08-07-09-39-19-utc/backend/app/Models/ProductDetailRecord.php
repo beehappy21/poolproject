@@ -31,6 +31,7 @@ class ProductDetailRecord extends Model
         'description',
         'youtubeUrl',
         'primaryImageUrl',
+        'homeCardImageUrl',
         'imageUrls',
         'costPriceUsdt',
         'memberPriceUsdt',

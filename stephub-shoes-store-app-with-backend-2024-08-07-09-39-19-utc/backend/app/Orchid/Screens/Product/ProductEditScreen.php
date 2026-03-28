@@ -140,6 +140,7 @@ class ProductEditScreen extends Screen
             'description' => old('product.description', $this->productDetailRecord->description ?? ''),
             'youtube_url' => old('product.youtube_url', $this->productDetailRecord->youtubeUrl ?? ($this->product->youtube_url ?? '')),
             'image_urls' => $this->productDetailRecord->imageUrls ?? [],
+            'home_card_image_url' => old('product.home_card_image_url', $this->productDetailRecord->homeCardImageUrl ?? ''),
             'cost_price' => old('product.cost_price', (string) ($this->productDetailRecord->costPriceUsdt ?? '0')),
             'member_price' => old('product.member_price', (string) ($this->productDetailRecord->memberPriceUsdt ?? ($this->product->price ?? '0'))),
             'retail_price' => old('product.retail_price', (string) ($this->productDetailRecord->retailPriceUsdt ?? ($this->product->old_price ?? '0'))),
@@ -221,6 +222,7 @@ class ProductEditScreen extends Screen
             'categoryOptions' => $categoryMetadata,
             'youtubeEmbedUrl' => $this->youtubeEmbedUrl($formProduct['youtube_url']),
             'imagePreviewUrl' => $this->publicImageUrl($this->productDetailRecord->primaryImageUrl ?? ($this->product->image ?? null)),
+            'homeCardImagePreviewUrl' => $this->publicImageUrl($this->productDetailRecord->homeCardImageUrl ?? null),
         ];
     }
 
@@ -314,6 +316,7 @@ class ProductEditScreen extends Screen
             'product.youtube_url' => ['nullable', 'string', 'max:2048'],
             'product.gallery_files' => ['nullable', 'array', 'max:10'],
             'product.gallery_files.*' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp'],
+            'product.home_card_file' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp'],
             'product.cost_price' => ['nullable', 'numeric', 'min:0'],
             'product.member_price' => ['nullable', 'numeric', 'min:0'],
             'product.retail_price' => ['nullable', 'numeric', 'min:0'],
@@ -388,6 +391,10 @@ class ProductEditScreen extends Screen
             $this->productDetailRecord?->imageUrls ?? []
         );
         $primaryImageUrl = $imageUrls[0] ?? null;
+        $homeCardImageUrl = $this->resolveHomeCardImageUrl(
+            $request,
+            $this->productDetailRecord?->homeCardImageUrl
+        );
 
         return [
             'productId' => $productId,
@@ -398,6 +405,7 @@ class ProductEditScreen extends Screen
             'description' => $product['description'] ?? null,
             'youtubeUrl' => $normalizedYoutubeUrl,
             'primaryImageUrl' => $primaryImageUrl,
+            'homeCardImageUrl' => $homeCardImageUrl,
             'imageUrls' => $imageUrls,
             'costPriceUsdt' => $this->decimalString($product['cost_price'] ?? 0),
             'memberPriceUsdt' => $this->decimalString($product['member_price'] ?? 0),
@@ -595,6 +603,20 @@ class ProductEditScreen extends Screen
         $urls = array_values(array_unique(array_filter($urls)));
 
         return array_slice($urls, 0, 10);
+    }
+
+    private function resolveHomeCardImageUrl(Request $request, ?string $existingImageUrl): ?string
+    {
+        $file = $request->file('product.home_card_file');
+
+        if (!$file instanceof UploadedFile) {
+            return $existingImageUrl ? $this->normalizeStoredImageReference($existingImageUrl) : null;
+        }
+
+        return $this->storeBinaryImage(
+            $this->prepareUploadedImageBinary($file),
+            $file->getMimeType() ?: 'application/octet-stream'
+        );
     }
 
     private function storeDataUrlImage(string $dataUrl): ?string

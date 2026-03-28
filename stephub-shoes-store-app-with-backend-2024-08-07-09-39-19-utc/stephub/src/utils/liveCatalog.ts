@@ -17,6 +17,7 @@ type StorefrontProduct = {
   shortDescription?: string | null;
   description?: string | null;
   primaryImageUrl?: string | null;
+  homeCardImageUrl?: string | null;
   youtubeUrl?: string | null;
   imageUrls?: string[];
   memberPriceUsdt: string;
@@ -79,6 +80,7 @@ export const mapStorefrontProductToProduct = (
     return Boolean(value) && array.indexOf(value) === imageIndex;
   });
   const image = gallery[0] || fallbackImage;
+  const homeImage = resolveCatalogImageUrl(item.homeCardImageUrl) || image;
 
   return {
     id: Number(item.productDetailId),
@@ -103,6 +105,7 @@ export const mapStorefrontProductToProduct = (
     ratingCount: Number(item.ratingCount || 0),
     status: item.status,
     image,
+    homeImage,
     images: gallery.length ? gallery : [image],
     sizes: ['standard'],
     size: 'standard',
