@@ -332,6 +332,13 @@ export const Profile: React.FC = () => {
           }
         />
         <items.ProfileItem
+          title='เปลี่ยนรหัสผ่าน / Change password'
+          icon={<svg.InputCheckSvg />}
+          onClick={() => {
+            navigate('/ChangePassword');
+          }}
+        />
+        <items.ProfileItem
           title='Sign out'
           icon={<svg.LogOutSvg />}
           onClick={() => {
