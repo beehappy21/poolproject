@@ -12,8 +12,10 @@ use Orchid\Screen\Actions\Link;
 use Orchid\Screen\Fields\Input;
 use Orchid\Screen\Fields\Select;
 use Orchid\Screen\Screen;
+use Orchid\Support\Color;
 use Orchid\Support\Facades\Alert;
 use Orchid\Support\Facades\Layout;
+use App\Support\BaoAdminApiClient;
 
 class MemberEditScreen extends Screen
 {
@@ -53,6 +55,9 @@ class MemberEditScreen extends Screen
 
     public function commandBar(): iterable
     {
+        $memberId = (int) $this->member->id;
+        $isActive = strtoupper((string) $this->member->status) === 'ACTIVE';
+
         return [
             Link::make('Back to Members')
                 ->icon('bs.arrow-left')
@@ -60,6 +65,23 @@ class MemberEditScreen extends Screen
             Button::make('Update Member')
                 ->icon('bs.check2-circle')
                 ->method('update'),
+            Button::make('ล็อคบัญชี')
+                ->icon('bs.lock-fill')
+                ->type(Color::DANGER)
+                ->confirm('ยืนยันการล็อคบัญชีสมาชิกนี้? หลังจากล็อคแล้ว สมาชิกจะเข้า app ไม่ได้')
+                ->method('lockAccount', ['member' => $memberId])
+                ->canSee($isActive),
+            Button::make('ใช้งาน')
+                ->icon('bs.unlock-fill')
+                ->type(Color::SUCCESS)
+                ->confirm('ยืนยันการเปิดใช้งานบัญชีสมาชิกนี้อีกครั้ง?')
+                ->method('activateAccount', ['member' => $memberId])
+                ->canSee(! $isActive),
+            Button::make('รีเซ็ตรหัสผ่าน')
+                ->icon('bs.key-fill')
+                ->type(Color::WARNING)
+                ->confirm('ยืนยันการรีเซ็ตรหัสผ่านเป็นเลขบัตรประชาชน 6 ตัวท้าย?')
+                ->method('resetPassword', ['member' => $memberId]),
         ];
     }
 
@@ -140,6 +162,55 @@ class MemberEditScreen extends Screen
         Alert::info('You have successfully updated the member profile.');
 
         return redirect()->route('platform.member.edit', $memberId);
+    }
+
+    public function lockAccount(): \Illuminate\Http\RedirectResponse
+    {
+        MemberUserRecord::query()
+            ->whereKey((int) $this->member->id)
+            ->update(['status' => 'LOCKED']);
+
+        Alert::warning('ล็อคบัญชีสมาชิกแล้ว');
+
+        return redirect()->route('platform.member.edit', (int) $this->member->id);
+    }
+
+    public function activateAccount(): \Illuminate\Http\RedirectResponse
+    {
+        MemberUserRecord::query()
+            ->whereKey((int) $this->member->id)
+            ->update(['status' => 'ACTIVE']);
+
+        Alert::info('เปิดใช้งานบัญชีสมาชิกแล้ว');
+
+        return redirect()->route('platform.member.edit', (int) $this->member->id);
+    }
+
+    public function resetPassword(BaoAdminApiClient $apiClient): \Illuminate\Http\RedirectResponse
+    {
+        $nationalId = preg_replace('/\D+/', '', (string) ($this->member->national_id ?? ''));
+
+        if ($nationalId === null || strlen($nationalId) < 6) {
+            Alert::error('ไม่พบเลขบัตรประชาชนอย่างน้อย 6 หลักสำหรับสมาชิกคนนี้');
+
+            return redirect()->route('platform.member.edit', (int) $this->member->id);
+        }
+
+        $newPassword = substr($nationalId, -6);
+
+        try {
+            $apiClient->request('POST', sprintf('/members/%d/reset-password', (int) $this->member->id), [
+                'newPassword' => $newPassword,
+            ]);
+        } catch (\Throwable $exception) {
+            Alert::error($exception->getMessage());
+
+            return redirect()->route('platform.member.edit', (int) $this->member->id);
+        }
+
+        Alert::info(sprintf('รีเซ็ตรหัสผ่านแล้วเป็น %s', $newPassword));
+
+        return redirect()->route('platform.member.edit', (int) $this->member->id);
     }
 
     private function validatedData(Request $request, int $memberId): array

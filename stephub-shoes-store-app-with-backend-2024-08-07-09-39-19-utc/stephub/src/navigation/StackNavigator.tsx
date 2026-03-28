@@ -47,6 +47,7 @@ const stack = createBrowserRouter([
         element: <screens.ForgotPasswordSentEmail />,
       },
       {path: 'DeleteAccount', element: <screens.DeleteAccount />},
+      {path: 'ChangePassword', element: <screens.ChangePassword />},
       {
         path: 'ShippingAndPaymentInfo',
         element: <screens.ShippingAndPaymentInfo />,

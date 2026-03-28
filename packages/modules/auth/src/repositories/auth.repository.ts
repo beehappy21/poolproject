@@ -34,6 +34,7 @@ export class PrismaAuthRepository implements AuthRepository {
     const normalizedIdentifier = identifier.trim();
     const user = await this.prisma.user.findFirst({
       where: {
+        status: "ACTIVE",
         OR: [
           {
             memberCode: {
@@ -72,6 +73,7 @@ export class PrismaAuthRepository implements AuthRepository {
     const normalizedIdentifier = input.identifier.trim();
     const user = await this.prisma.user.findFirst({
       where: {
+        status: "ACTIVE",
         OR: [
           {
             memberCode: {
@@ -116,8 +118,8 @@ export class PrismaAuthRepository implements AuthRepository {
   }
 
   async findUserById(userId: string): Promise<AuthUserSummary | null> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: BigInt(userId) },
+    const user = await this.prisma.user.findFirst({
+      where: { id: BigInt(userId), status: "ACTIVE" },
       select: {
         id: true,
         memberCode: true,

@@ -29,6 +29,7 @@ import {OrderHistory} from './OrderHistory';
 import {LeaveAReview} from './LeaveAReview';
 import {Categories} from './tabs/Categories';
 import {DeleteAccount} from './DeleteAccount';
+import {ChangePassword} from './ChangePassword';
 import {ForgotPassword} from './ForgotPassword';
 import {OrderSuccessful} from './OrderSuccessful';
 import {WishlistEmpty} from './tabs/WishlistEmpty';
@@ -80,6 +81,7 @@ export const screens = {
   SendPhoneOtp,
   LeaveAReview,
   DeleteAccount,
+  ChangePassword,
   PhoneVerified,
   WishlistEmpty,
   EmailVerified,
