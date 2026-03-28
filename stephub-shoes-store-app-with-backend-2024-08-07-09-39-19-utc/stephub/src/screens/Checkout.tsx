@@ -4,6 +4,7 @@ import React, {useEffect, useState} from 'react';
 import {hooks} from '../hooks';
 import {URLS} from '../config';
 import {theme} from '../constants';
+import {formatTHB} from '../utils/currency';
 import {actions} from '../store/actions';
 import {components} from '../components';
 import {RootState} from '../hooks';
@@ -87,7 +88,7 @@ export const Checkout: React.FC = () => {
               fontSize: 18,
             }}
           >
-            ${subtotal.toFixed(2).replace('.', ',')}
+            {formatTHB(subtotal)}
           </h4>
         </div>
         <div
@@ -140,7 +141,7 @@ export const Checkout: React.FC = () => {
                     lineHeight: 1.5,
                   }}
                 >
-                  {item.quantity} x ${item.price}
+                  {item.quantity} x {formatTHB(item.price)}
                 </span>
               </div>
             );
@@ -156,7 +157,7 @@ export const Checkout: React.FC = () => {
             >
               <div style={{textTransform: 'capitalize'}}>ส่วนลด DCW</div>
               <div style={{textTransform: 'capitalize'}}>
-                - ${discountAmount.toFixed(2).replace('.', ',')}
+                - {formatTHB(discountAmount)}
               </div>
             </div>
           )}
@@ -169,7 +170,7 @@ export const Checkout: React.FC = () => {
           >
             <div style={{textTransform: 'capitalize'}}>ยอดจ่ายจริง</div>
             <div style={{textTransform: 'capitalize'}}>
-              ${total.toFixed(2).replace('.', ',')}
+              {formatTHB(total)}
             </div>
           </div>
           {/* DELIVERY */}
@@ -198,7 +199,7 @@ export const Checkout: React.FC = () => {
                 lineHeight: 1.5,
               }}
             >
-              {`${delivery === 0 ? 'Free' : `$${delivery.toFixed(2)}`}`}
+              {delivery === 0 ? 'ฟรี' : formatTHB(delivery)}
             </span>
           </div>
         </div>

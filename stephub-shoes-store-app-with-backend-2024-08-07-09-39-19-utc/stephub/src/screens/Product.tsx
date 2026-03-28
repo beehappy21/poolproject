@@ -8,6 +8,7 @@ import {URLS} from '../config';
 import {hooks} from '../hooks';
 import {svg} from '../assets/svg';
 import {theme} from '../constants';
+import {formatTHB} from '../utils/currency';
 import {product} from '../product';
 import {actions} from '../store/actions';
 import {components} from '../components';
@@ -420,7 +421,7 @@ export const Product: React.FC = () => {
               lineHeight: 1,
             }}
           >
-            ${item.price}
+            {formatTHB(item.price)}
           </div>
           <product.ProductCounterInner item={modifiedItem} />
         </div>

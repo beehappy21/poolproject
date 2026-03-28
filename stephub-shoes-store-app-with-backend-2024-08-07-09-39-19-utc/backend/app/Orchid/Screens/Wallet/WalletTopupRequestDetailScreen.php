@@ -76,7 +76,7 @@ class WalletTopupRequestDetailScreen extends Screen
                 Input::make('request.member_name')->title('Member name')->readonly(),
                 Input::make('request.status')->title('Status')->readonly(),
                 Input::make('request.requested_at')->title('Requested at')->readonly(),
-                Input::make('request.amount')->title('Amount')->readonly(),
+                Input::make('request.amount')->title('Amount (บาท)')->readonly(),
                 Input::make('request.payment_method')->title('Payment method')->readonly(),
                 Input::make('request.approved_at')->title('Approved at')->readonly(),
                 Input::make('request.approved_by')->title('Approved by')->readonly(),

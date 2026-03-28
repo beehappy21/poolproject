@@ -202,7 +202,7 @@ class OrderDetailScreen extends Screen {
         TD::make('price', 'Price')
           ->cantHide()
           ->render(function (OrderLine $product) {
-            return '$' . $product->price;
+            return number_format((float) $product->price, 2) . ' บาท';
           }),
 
         TD::make('pv', 'PV')
@@ -214,7 +214,7 @@ class OrderDetailScreen extends Screen {
         TD::make('line_total', 'Line Total')
           ->cantHide()
           ->render(function (OrderLine $product) {
-            return '$' . $product->line_total;
+            return number_format((float) $product->line_total, 2) . ' บาท';
           }),
 
         TD::make('quantity', 'Quantity')
@@ -227,7 +227,7 @@ class OrderDetailScreen extends Screen {
 
     $totalsLayout = Layout::legend('order', [
         Sight::make('subtotal', 'Subtotal:')->render(function () {
-          return '$' . $this->order->subtotal;
+          return number_format((float) $this->order->subtotal, 2) . ' บาท';
         }),
         Sight::make('total', 'Total:')->render(function () {
           return '$' . $this->order->total;

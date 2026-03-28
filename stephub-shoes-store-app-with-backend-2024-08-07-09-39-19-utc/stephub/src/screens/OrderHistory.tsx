@@ -6,6 +6,7 @@ import * as Accordion from '@radix-ui/react-accordion';
 import {URLS} from '../config';
 import {svg} from '../assets/svg';
 import {theme} from '../constants';
+import {formatTHBText} from '../utils/currency';
 import {components} from '../components';
 import {hooks, RootState} from '../hooks';
 
@@ -582,7 +583,7 @@ export const OrderHistory: FC = () => {
                         lineHeight: 1.5,
                       }}
                     >
-                      ${Number(order.totalUsdt || 0).toFixed(2)}
+                      {formatTHBText(order.totalUsdt || 0)}
                     </span>
                   </div>
                 </Accordion.Trigger>
@@ -842,7 +843,7 @@ export const OrderHistory: FC = () => {
                           }}
                         >
                           จำนวน: {productItem.quantity} • ราคา: $
-                          {Number(productItem.unitPriceUsdt || 0).toFixed(2)} • PV:{' '}
+                          {formatTHBText(productItem.unitPriceUsdt || 0)} • PV:{' '}
                           {productItem.unitPv}
                         </span>
                         <span
@@ -854,7 +855,7 @@ export const OrderHistory: FC = () => {
                           }}
                         >
                           รวมรายการ: $
-                          {Number(productItem.lineTotalUsdt || 0).toFixed(2)}
+                          {formatTHBText(productItem.lineTotalUsdt || 0)}
                         </span>
                       </div>
                     ))}
@@ -889,10 +890,8 @@ export const OrderHistory: FC = () => {
                           color: '#FF4343',
                         }}
                       >
-                        ยอดที่ต้องโอน: $
-                        {Number(
-                          order.cashDueUsdt || order.totalUsdt || 0,
-                        ).toFixed(2)}
+                        ยอดที่ต้องโอน:{' '}
+                        {formatTHBText(order.cashDueUsdt || order.totalUsdt || 0)}
                       </span>
                       <span
                         style={{

@@ -121,16 +121,16 @@ class WithdrawRequestListScreen extends Screen
                     }),
                 TD::make('amount', 'จำนวน')
                     ->align(TD::ALIGN_RIGHT)
-                    ->render(fn (WithdrawRequest $request) => number_format((float) $request->amount, 2)),
+                    ->render(fn (WithdrawRequest $request) => number_format((float) $request->amount, 2) . ' บาท'),
                 TD::make('taxAmount', 'ภาษี')
                     ->align(TD::ALIGN_RIGHT)
-                    ->render(fn (WithdrawRequest $request) => number_format((float) $request->taxAmount, 2)),
+                    ->render(fn (WithdrawRequest $request) => number_format((float) $request->taxAmount, 2) . ' บาท'),
                 TD::make('feeAmount', 'ค่าธรรมเนียม')
                     ->align(TD::ALIGN_RIGHT)
-                    ->render(fn (WithdrawRequest $request) => number_format((float) $request->feeAmount, 2)),
+                    ->render(fn (WithdrawRequest $request) => number_format((float) $request->feeAmount, 2) . ' บาท'),
                 TD::make('netBankAmount', 'ยอดเข้าธนาคาร')
                     ->align(TD::ALIGN_RIGHT)
-                    ->render(fn (WithdrawRequest $request) => number_format((float) $request->netBankAmount, 2)),
+                    ->render(fn (WithdrawRequest $request) => number_format((float) $request->netBankAmount, 2) . ' บาท'),
                 TD::make('status', 'สถานะ')
                     ->render(fn (WithdrawRequest $request) => e(strtolower((string) $request->status))),
             ]),
