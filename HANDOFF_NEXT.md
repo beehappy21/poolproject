@@ -43,11 +43,34 @@ Important:
 - Latest merged PRs:
   - `#62` `feat(bao): redesign create member sale flow`
   - `#63` `feat(ui): show THB across app and admin`
-- Latest local commit on `main`: `a38cadb7`
+- Latest local commit on `main`: `85598941`
 - Latest merged commit on `main`: `19eb5036`
 - Current local uncommitted files may include:
   - [CHECKLIST_LIVE_OPERATIONS.md](/Users/macbook/poolproject/CHECKLIST_LIVE_OPERATIONS.md)
   - [backups](/Users/macbook/poolproject/backups)
+
+## Real Domain UAT Setup
+
+The Mac local stack is now reachable through real subdomains on `blifehealthy.com` using Cloudflare Tunnel:
+
+- `https://wap.blifehealthy.com`
+- `https://api.blifehealthy.com/health`
+- `https://bao.blifehealthy.com/admin/login`
+
+Relevant files:
+
+- [run_blifehealthy_tunnel.sh](/Users/macbook/poolproject/scripts/run_blifehealthy_tunnel.sh)
+- [CLOUDFLARE_TUNNEL_BLIFEHEALTHY_SETUP.md](/Users/macbook/poolproject/docs/uat/CLOUDFLARE_TUNNEL_BLIFEHEALTHY_SETUP.md)
+- [REAL_DOMAIN_TEST_CHECKLIST.md](/Users/macbook/poolproject/docs/uat/REAL_DOMAIN_TEST_CHECKLIST.md)
+
+Important notes:
+
+- app auto-switches to `https://api.blifehealthy.com` and `https://bao.blifehealthy.com` when opened on `wap.blifehealthy.com`
+- API CORS allowlist includes the three real subdomains above
+- a custom macOS launch agent is configured locally to auto-run the tunnel at login
+- BAO local admin passwords were reset for this setup:
+  - `superadmin@blifehealthy.com` -> `472121`
+  - `admin@stephub.local` -> `472121`
 
 Main local URLs:
 
