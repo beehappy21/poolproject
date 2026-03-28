@@ -8,6 +8,7 @@ Use this checklist before starting real data entry and real day-to-day usage on 
 
 - [ ] Run `npm run dev:restart`
 - [ ] Run `npm run dev:check`
+- [ ] If using macOS auto-start, run `npm run dev:launchd:status`
 - [ ] Confirm you are not using `DEV_RESET_BASELINE=1`
 - [ ] Confirm you are not running smoke/reset scripts
 - [ ] Create a fresh DB backup before starting

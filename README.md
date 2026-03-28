@@ -16,6 +16,10 @@ Current status:
 - Design documents live under [`docs/web3-ecommerce-design/`](/Users/macbook/poolproject/docs/web3-ecommerce-design/README.md)
 
 Local Stephub stack:
+- `./Start_Local_Stack.command`: one-click macOS launcher that checks Docker, installs launch agents if needed, restarts the stack, and verifies readiness
 - `npm run dev:up`: start local Postgres, apply Prisma schema, seed dev data, and launch API, BAO, and Stephub app on the standard local ports
 - `npm run dev:restart`: stop any listeners on the standard local ports and then rerun the standard local boot flow
 - `npm run dev:check`: verify `5432`, `3000`, `8001`, and `3002` plus the key storefront endpoints used by the current Home screen
+- `npm run dev:launchd:install`: install macOS launch agents for API, BAO, and Stephub app so the stack can auto-start at login
+- `npm run dev:launchd:status`: show plist/load/listening status for the launchd-managed local stack
+- `npm run dev:launchd:uninstall`: remove the macOS launch agents for the local stack

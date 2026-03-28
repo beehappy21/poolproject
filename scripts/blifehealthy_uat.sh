@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MODE="${1:-restart}"
 
+source "$ROOT_DIR/scripts/local_stack_launchd.sh"
+
 TUNNEL_LABEL="com.cloudflare.blifehealthy-tunnel"
 TUNNEL_PLIST="$HOME/Library/LaunchAgents/${TUNNEL_LABEL}.plist"
 
@@ -46,6 +48,11 @@ ensure_tunnel_agent() {
 
 start_stack() {
   print_section "Local Stack"
+
+  if ! stack_launch_agents_installed; then
+    echo "[info] installing local stack launch agents"
+    bash "$ROOT_DIR/scripts/install_local_stack_launch_agents.sh"
+  fi
 
   case "$MODE" in
     start)

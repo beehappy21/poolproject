@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT_DIR/scripts/local_stack_launchd.sh"
 
 stop_port() {
   local port="$1"
@@ -25,6 +26,10 @@ stop_port 3002
 stop_port 8001
 
 echo "Restarting standard local stack..."
+if stack_launch_agents_installed; then
+  echo "Restarting launchd-managed local stack services..."
+  stack_bootout_agents || true
+fi
 (
   cd "$ROOT_DIR"
   bash scripts/dev-up.sh
