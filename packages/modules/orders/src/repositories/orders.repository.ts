@@ -28,6 +28,8 @@ import {
 import { readWalletSettings } from "../../../../shared/utils/src/wallet-settings.util";
 
 const BRANCH_PICKUP_LABEL = "branch_pickup";
+const ORDER_NUMBER_WIDTH = 7;
+const ORDER_NUMBER_PATTERN = "^[0-9]{7}$";
 
 function computeDefaultDcwUsageAmount(input: {
   costPriceUsdt: string;
@@ -79,6 +81,10 @@ function canCancelOrderStatus(input: {
   }
 
   return status === "PENDING" || status === "PAID" || status === "APPROVED";
+}
+
+function formatSequentialOrderNo(sequence: number) {
+  return String(sequence).padStart(ORDER_NUMBER_WIDTH, "0");
 }
 
 export interface OrdersRepository {
@@ -331,6 +337,24 @@ export interface OrdersRepository {
 @Injectable()
 export class PrismaOrdersRepository implements OrdersRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  private async generateNextOrderNo(tx: Prisma.TransactionClient) {
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(24032801)`;
+
+    const rows = await tx.$queryRaw<Array<{ next_order_no: number | string | bigint }>>(
+      Prisma.sql`
+        SELECT COALESCE(MAX(CAST("orderNo" AS INTEGER)), 0) + 1 AS next_order_no
+        FROM "Order"
+        WHERE "orderNo" ~ ${ORDER_NUMBER_PATTERN}
+      `,
+    );
+
+    const rawValue = rows[0]?.next_order_no ?? 1;
+    const nextValue =
+      typeof rawValue === "bigint" ? Number(rawValue) : Number.parseInt(String(rawValue), 10);
+
+    return formatSequentialOrderNo(Number.isFinite(nextValue) && nextValue > 0 ? nextValue : 1);
+  }
 
   private async restoreOrderStock(
     tx: Prisma.TransactionClient,
@@ -1380,7 +1404,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
 
       const createdOrder = await tx.order.create({
         data: {
-          orderNo: `ORD-${Date.now()}`,
+          orderNo: await this.generateNextOrderNo(tx),
           userId,
           shippingAddressId: isBranchPickup ? null : shippingAddress?.id ?? null,
           shippingLabel: isBranchPickup

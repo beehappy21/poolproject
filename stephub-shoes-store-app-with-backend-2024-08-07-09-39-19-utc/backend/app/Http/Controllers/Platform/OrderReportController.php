@@ -24,6 +24,7 @@ class OrderReportController extends Controller
         $headers = [
             'ID',
             'Order No',
+            'Member Code',
             'Name',
             'Phone',
             'Order Status',
@@ -33,7 +34,8 @@ class OrderReportController extends Controller
             'Total',
             'PV',
             'Items',
-            'Created',
+            'Created Date',
+            'Created Time',
             'Approved',
             'Shipped',
         ];
@@ -137,6 +139,7 @@ class OrderReportController extends Controller
         return [
             $order->id,
             $order->order_no,
+            $order->member_code ?: '',
             $order->name,
             $order->phone_number ?: '',
             $order->order_status,
@@ -146,7 +149,8 @@ class OrderReportController extends Controller
             number_format((float) $order->total, 2, '.', ''),
             number_format((float) $order->total_pv, 2, '.', ''),
             $order->item_count,
-            optional($order->created_at)->format('Y-m-d H:i:s'),
+            optional($order->created_at)->format('Y-m-d'),
+            optional($order->created_at)->format('H:i:s'),
             optional($order->approved_at)->format('Y-m-d H:i:s'),
             optional($order->shipped_at)->format('Y-m-d H:i:s'),
         ];

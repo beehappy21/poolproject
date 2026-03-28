@@ -50,6 +50,7 @@ class Order extends Model
 
     protected $allowedSorts = [
         'name',
+        'member_code',
         'total',
         'created_at',
         'phone_number',
@@ -59,6 +60,7 @@ class Order extends Model
 
     protected $allowedFilters = [
         'name' => Like::class,
+        'member_code' => Like::class,
         'created_at' => Like::class,
         'phone_number' => Like::class,
         'order_status' => Like::class,

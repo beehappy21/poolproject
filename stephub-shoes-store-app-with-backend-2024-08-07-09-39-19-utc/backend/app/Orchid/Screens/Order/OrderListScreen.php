@@ -101,6 +101,14 @@ class OrderListScreen extends Screen {
             return Link::make($order->name)->route('platform.order.detail', $order->id);
           }),
 
+        TD::make('member_code', 'Member Code')
+          ->sort()
+          ->cantHide()
+          ->filter(Input::make())
+          ->render(function (Order $order) {
+            return $order->member_code ?: '-';
+          }),
+
         TD::make('phone_number', 'Phone')
           ->sort()
           ->cantHide()
@@ -134,11 +142,16 @@ class OrderListScreen extends Screen {
             return e($order->shipment_status) . $tracking . $method;
           }),
 
-        TD::make('created_at', 'Created')
+        TD::make('created_at', 'Created Date')
           ->sort()
           ->cantHide()
           ->render(function (Order $order) {
             return optional($order->created_at)->format('d M, Y');
+          }),
+        TD::make('created_time', 'Created Time')
+          ->cantHide()
+          ->render(function (Order $order) {
+            return optional($order->created_at)->format('H:i:s') ?: '-';
           }),
         TD::make('shipped_at', 'Shipped')
           ->cantHide()
