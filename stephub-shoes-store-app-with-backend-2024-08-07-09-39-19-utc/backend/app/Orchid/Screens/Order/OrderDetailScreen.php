@@ -5,6 +5,7 @@ namespace App\Orchid\Screens\Order;
 use App\Models\Order;
 use App\Models\OrderLine;
 use App\Models\OrderSource;
+use App\Support\BaoAdminApiClient;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Orchid\Screen\Actions\Button;
@@ -20,6 +21,10 @@ class OrderDetailScreen extends Screen {
   public $products;
   public $order;
   public $sourceOrder;
+
+  public function __construct(private readonly BaoAdminApiClient $apiClient)
+  {
+  }
 
   public function query(Order $order): iterable {
     $sourceOrder = null;
@@ -62,6 +67,11 @@ class OrderDetailScreen extends Screen {
         ->confirm($this->isBranchPickup() ? 'ยืนยันว่าลูกค้ามารับสินค้าที่สาขาเรียบร้อยแล้ว?' : 'ยืนยันว่าคำสั่งซื้อนี้ส่งถึงลูกค้าแล้ว?')
         ->method('markDelivered')
         ->canSee($this->canMarkDelivered()),
+      Button::make('ยกเลิกคำสั่งซื้อ')
+        ->icon('bs.x-circle')
+        ->confirm('ยืนยันการยกเลิกคำสั่งซื้อนี้? ระบบจะคืน stock และยอด wallet ที่ตัดจากออเดอร์กลับให้สมาชิกถ้ายังคืนได้')
+        ->method('cancelOrder')
+        ->canSee($this->canCancelOrder()),
     ];
   }
 
@@ -118,6 +128,37 @@ class OrderDetailScreen extends Screen {
     ])->save();
 
     Alert::info('Delivery has been recorded.');
+
+    return redirect()->route('platform.order.detail', $this->order->id);
+  }
+
+  public function cancelOrder(Request $request): RedirectResponse
+  {
+    if (!$this->order instanceof Order) {
+      abort(404);
+    }
+
+    $reason = trim((string) ($request->input('order.cancel_reason') ?? 'Cancelled by admin'));
+
+    try {
+      $this->apiClient->request('POST', '/orders/' . $this->order->source_order_id . '/cancel', [
+        'reason' => $reason,
+      ]);
+    } catch (\Throwable $exception) {
+      return back()->withErrors([
+        'order.cancel_reason' => $exception->getMessage(),
+      ]);
+    }
+
+    if ($this->sourceOrder instanceof OrderSource) {
+      $this->sourceOrder->forceFill([
+        'status' => 'CANCELLED',
+        'approvalStatus' => 'VOIDED',
+        'shipmentNote' => $reason,
+      ])->save();
+    }
+
+    Alert::info('Order has been cancelled and stock was restored.');
 
     return redirect()->route('platform.order.detail', $this->order->id);
   }
@@ -342,5 +383,25 @@ class OrderDetailScreen extends Screen {
 
     return !empty($this->sourceOrder->shippedAt)
       && empty($this->sourceOrder->deliveredAt);
+  }
+
+  private function canCancelOrder(): bool
+  {
+    if (!$this->sourceOrder instanceof OrderSource) {
+      return false;
+    }
+
+    $status = strtoupper((string) ($this->sourceOrder->status ?? ''));
+    $approvalStatus = strtoupper((string) ($this->sourceOrder->approvalStatus ?? ''));
+
+    if (!empty($this->sourceOrder->deliveredAt) || !empty($this->sourceOrder->shippedAt)) {
+      return false;
+    }
+
+    if ($status === 'CANCELLED' || $status === 'VOIDED' || $approvalStatus === 'VOIDED') {
+      return false;
+    }
+
+    return in_array($status, ['PENDING', 'PAID', 'APPROVED'], true);
   }
 }

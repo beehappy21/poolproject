@@ -41,7 +41,10 @@ type ProductDetailRecord = {
   commissionCapScope: { toString(): string };
   commissionCapMultiple: { toString(): string };
   firmEnabled: boolean;
+  firmOverrideCostGuard: boolean;
   firmDcwRewardAmount: { toString(): string };
+  firmRedeemStockLimit: number | null;
+  stockQuantity: number | null;
   status: { toLowerCase(): string };
 };
 
@@ -80,16 +83,23 @@ function computeFirmCostGuardPassed(input: {
 function computeFirmRedemptionEligible(input: {
   categoryCode?: string | null;
   firmEnabled: boolean;
+  firmOverrideCostGuard?: boolean;
   costPriceUsdt: string;
   memberPriceUsdt: string;
 }) {
+  const categoryCode = String(input.categoryCode || "").trim().toLowerCase();
+  const isFirmCategory = categoryCode === "firm";
+
   return (
-    String(input.categoryCode || "").trim().toLowerCase() === "firm" &&
     input.firmEnabled &&
-    computeFirmCostGuardPassed({
-      costPriceUsdt: input.costPriceUsdt,
-      memberPriceUsdt: input.memberPriceUsdt,
-    })
+    (
+      isFirmCategory ||
+      input.firmOverrideCostGuard === true ||
+      computeFirmCostGuardPassed({
+        costPriceUsdt: input.costPriceUsdt,
+        memberPriceUsdt: input.memberPriceUsdt,
+      })
+    )
   );
 }
 
@@ -233,7 +243,10 @@ export interface PackagesRepository {
     pv: string;
     poolRate: string;
     firmEnabled: boolean;
+    firmOverrideCostGuard?: boolean;
     firmDcwRewardAmount: string;
+    firmRedeemStockLimit?: number | null;
+    stockQuantity?: number | null;
     activeDays?: number;
     earningCapAmount?: string;
   }): Promise<{
@@ -253,7 +266,10 @@ export interface PackagesRepository {
     commissionCapScope: string;
     commissionCapMultiple: string;
     firmEnabled: boolean;
+    firmOverrideCostGuard: boolean;
     firmDcwRewardAmount: string;
+    firmRedeemStockLimit: number | null;
+    stockQuantity: number | null;
     firmCostGuardPassed: boolean;
     firmRedemptionEligible: boolean;
     status: string;
@@ -281,7 +297,10 @@ export interface PackagesRepository {
       commissionCapScope: string;
       commissionCapMultiple: string;
       firmEnabled: boolean;
+      firmOverrideCostGuard: boolean;
       firmDcwRewardAmount: string;
+      firmRedeemStockLimit: number | null;
+      stockQuantity: number | null;
       firmCostGuardPassed: boolean;
       firmRedemptionEligible: boolean;
       status: string;
@@ -299,7 +318,10 @@ export interface PackagesRepository {
       categoryCode: string;
       categoryName: string;
       firmEnabled: boolean;
+      firmOverrideCostGuard: boolean;
       firmDcwRewardAmount: string;
+      firmRedeemStockLimit: number | null;
+      stockQuantity: number | null;
       firmCostGuardPassed: boolean;
       firmRedemptionEligible: boolean;
       supplierCode: string;
@@ -557,7 +579,10 @@ export class PrismaPackagesRepository implements PackagesRepository {
     activeDays?: number;
     earningCapAmount?: string;
     firmEnabled: boolean;
+    firmOverrideCostGuard?: boolean;
     firmDcwRewardAmount: string;
+    firmRedeemStockLimit?: number | null;
+    stockQuantity?: number | null;
   }) {
     const product = await this.prisma.product.findUnique({
       where: { id: BigInt(input.productId) },
@@ -580,11 +605,14 @@ export class PrismaPackagesRepository implements PackagesRepository {
       memberPriceUsdt: input.memberPriceUsdt,
     });
 
-    if (input.firmEnabled && String(product.category.code).trim().toLowerCase() !== "firm") {
-      throw new Error("Firm-enabled product detail must belong to the firm category.");
-    }
+    const isFirmCategory = String(product.category.code).trim().toLowerCase() === "firm";
 
-    if (input.firmEnabled && !firmCostGuardPassed) {
+    if (
+      input.firmEnabled &&
+      !isFirmCategory &&
+      !input.firmOverrideCostGuard &&
+      !firmCostGuardPassed
+    ) {
       throw new Error(
         "Firm-enabled product detail must pass the 30% cost guard against member price.",
       );
@@ -617,7 +645,10 @@ export class PrismaPackagesRepository implements PackagesRepository {
         activeDays: input.activeDays ?? 30,
         earningCapAmount: input.earningCapAmount ?? input.memberPriceUsdt,
         firmEnabled: input.firmEnabled,
+        firmOverrideCostGuard: input.firmOverrideCostGuard ?? false,
         firmDcwRewardAmount: input.firmDcwRewardAmount,
+        firmRedeemStockLimit: input.firmRedeemStockLimit ?? null,
+        stockQuantity: input.stockQuantity ?? null,
         status: "ACTIVE",
       },
     })) as ProductDetailRecord;
@@ -639,11 +670,15 @@ export class PrismaPackagesRepository implements PackagesRepository {
       commissionCapScope: detail.commissionCapScope.toString().toLowerCase(),
       commissionCapMultiple: detail.commissionCapMultiple.toString(),
       firmEnabled: detail.firmEnabled,
+      firmOverrideCostGuard: detail.firmOverrideCostGuard,
       firmDcwRewardAmount: detail.firmDcwRewardAmount.toString(),
+      firmRedeemStockLimit: detail.firmRedeemStockLimit,
+      stockQuantity: detail.stockQuantity,
       firmCostGuardPassed,
       firmRedemptionEligible: computeFirmRedemptionEligible({
         categoryCode: product.category.code,
         firmEnabled: detail.firmEnabled,
+        firmOverrideCostGuard: detail.firmOverrideCostGuard,
         costPriceUsdt: detail.costPriceUsdt.toString(),
         memberPriceUsdt: detail.memberPriceUsdt.toString(),
       }),
@@ -708,7 +743,10 @@ export class PrismaPackagesRepository implements PackagesRepository {
       commissionCapScope: detail.commissionCapScope.toString().toLowerCase(),
       commissionCapMultiple: detail.commissionCapMultiple.toString(),
       firmEnabled: detail.firmEnabled,
+      firmOverrideCostGuard: detail.firmOverrideCostGuard,
       firmDcwRewardAmount: detail.firmDcwRewardAmount.toString(),
+      firmRedeemStockLimit: detail.firmRedeemStockLimit,
+      stockQuantity: detail.stockQuantity,
       firmCostGuardPassed: computeFirmCostGuardPassed({
         costPriceUsdt: detail.costPriceUsdt.toString(),
         memberPriceUsdt: detail.memberPriceUsdt.toString(),
@@ -716,6 +754,7 @@ export class PrismaPackagesRepository implements PackagesRepository {
       firmRedemptionEligible: computeFirmRedemptionEligible({
         categoryCode: detail.product.category.code,
         firmEnabled: detail.firmEnabled,
+        firmOverrideCostGuard: detail.firmOverrideCostGuard,
         costPriceUsdt: detail.costPriceUsdt.toString(),
         memberPriceUsdt: detail.memberPriceUsdt.toString(),
       }),
@@ -795,7 +834,10 @@ export class PrismaPackagesRepository implements PackagesRepository {
         categoryCode: detail.product.category.code,
         categoryName: detail.product.category.name,
         firmEnabled: detail.firmEnabled,
+        firmOverrideCostGuard: detail.firmOverrideCostGuard,
         firmDcwRewardAmount: detail.firmDcwRewardAmount.toString(),
+        firmRedeemStockLimit: detail.firmRedeemStockLimit,
+        stockQuantity: detail.stockQuantity,
         firmCostGuardPassed: computeFirmCostGuardPassed({
           costPriceUsdt: detail.costPriceUsdt.toString(),
           memberPriceUsdt: detail.memberPriceUsdt.toString(),
@@ -803,6 +845,7 @@ export class PrismaPackagesRepository implements PackagesRepository {
         firmRedemptionEligible: computeFirmRedemptionEligible({
           categoryCode: detail.product.category.code,
           firmEnabled: detail.firmEnabled,
+          firmOverrideCostGuard: detail.firmOverrideCostGuard,
           costPriceUsdt: detail.costPriceUsdt.toString(),
           memberPriceUsdt: detail.memberPriceUsdt.toString(),
         }),
