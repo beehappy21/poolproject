@@ -1,4 +1,4 @@
-import {FC} from 'react';
+import {FC, useState} from 'react';
 
 import {theme} from '../constants';
 
@@ -31,6 +31,14 @@ export const InputField: FC<Props> = ({
   disabled,
   onChange,
 }) => {
+  const [passwordVisible, setPasswordVisible] = useState<boolean>(false);
+  const isPasswordField = type === 'password';
+  const resolvedType = isPasswordField
+    ? passwordVisible
+      ? 'text'
+      : 'password'
+    : type;
+
   return (
     <div
       style={{
@@ -76,7 +84,7 @@ export const InputField: FC<Props> = ({
         onChange={onChange}
         placeholder={placeholder}
         maxLength={50}
-        type={type}
+        type={resolvedType}
         value={value}
         style={{
           width: '100%',
@@ -90,7 +98,37 @@ export const InputField: FC<Props> = ({
           color: theme.colors.mainColor,
         }}
       />
-      {icon && !clickable && <div>{icon}</div>}
+      {isPasswordField ? (
+        <button
+          type='button'
+          onClick={() => setPasswordVisible(current => !current)}
+          aria-label={passwordVisible ? 'Hide password' : 'Show password'}
+          style={{
+            border: 'none',
+            background: 'transparent',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: 0,
+            cursor: 'pointer',
+            color: theme.colors.textColor,
+            flexShrink: 0,
+          }}
+        >
+          {icon ? icon : null}
+          <span
+            style={{
+              fontSize: 12,
+              lineHeight: 1,
+              fontFamily: 'Mulish-SemiBold',
+              color: theme.colors.textColor,
+            }}
+          >
+            {passwordVisible ? 'Hide' : 'Show'}
+          </span>
+        </button>
+      ) : null}
+      {icon && !clickable && !isPasswordField && <div>{icon}</div>}
       {icon && clickable && <button>{icon}</button>}
     </div>
   );

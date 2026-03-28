@@ -4,6 +4,7 @@ import {
   optionalPositiveInteger,
   requirePositiveIntegerString,
 } from "../../../../../apps/api/src/http/request.util";
+import { readCommissionSettings } from "../../../../shared/utils/src/commission-settings.util";
 import { MembersService } from "../../../members/src/services/members.service";
 import { MatrixService } from "../services/matrix.service";
 
@@ -21,6 +22,13 @@ export class MatrixController {
 
     if (!member) {
       throw new NotFoundException("Member not found.");
+    }
+
+    if (readCommissionSettings().appVisibility.matrix === false) {
+      return {
+        member,
+        cycles: [],
+      };
     }
 
     const cycles = await this.matrixService.getMemberMatrixCycles(validatedMemberId);
@@ -43,6 +51,15 @@ export class MatrixController {
     @Query("page") page?: string,
     @Query("pageSize") pageSize?: string,
   ) {
+    if (readCommissionSettings().appVisibility.matrix === false) {
+      return {
+        items: [],
+        total: 0,
+        page: optionalPositiveInteger(page, "page") ?? 1,
+        pageSize: optionalPositiveInteger(pageSize, "pageSize") ?? 20,
+      };
+    }
+
     return this.matrixService.listMatrixPayouts({
       beneficiaryUserId: beneficiaryUserId
         ? requirePositiveIntegerString(beneficiaryUserId, "beneficiaryUserId")

@@ -5,6 +5,7 @@ import { spawnSync } from "node:child_process";
 const fixturePath = resolve(process.argv[2] ?? "scripts/member003-members.json");
 const apply = process.argv.includes("--apply");
 const sqlOnly = process.argv.includes("--sql-only");
+const allowDestructiveReset = process.env.ALLOW_DESTRUCTIVE_LOCAL_RESET === "1";
 const databaseUrl =
   process.env.DATABASE_URL ||
   "postgresql://postgres:postgres@127.0.0.1:5432/poolproject";
@@ -116,6 +117,11 @@ if (sqlOnly) {
 }
 
 if (apply) {
+  if (!allowDestructiveReset) {
+    throw new Error(
+      "Refusing to apply destructive baseline reset. Set ALLOW_DESTRUCTIVE_LOCAL_RESET=1 to continue.",
+    );
+  }
   applySql(sql);
   process.stdout.write("apply=ok\n");
   process.exit(0);

@@ -1,4 +1,5 @@
 import { Inject, Injectable, forwardRef } from "@nestjs/common";
+import { parseCommissionSettingsSnapshot } from "../../../../shared/utils/src/commission-settings.util";
 import { compareDecimalStrings } from "../../../../shared/utils/src/money.util";
 
 export interface OrdersServiceContract {
@@ -221,6 +222,7 @@ export interface OrdersServiceContract {
       sourceUserId: string;
       approvedAt: string;
       totalPv: string;
+      commissionSettingsSnapshot: string | null;
       items: Array<{
         lineTotalPv: string;
         poolRateMode?: "default_50_percent" | "custom_rate" | "disabled";
@@ -361,6 +363,7 @@ export class OrdersService implements OrdersServiceContract {
       sourceUserId: string;
       approvedAt: string;
       totalPv: string;
+      commissionSettingsSnapshot: string | null;
       items: Array<{
         lineTotalPv: string;
         poolRateMode?: "default_50_percent" | "custom_rate" | "disabled";
@@ -368,7 +371,12 @@ export class OrdersService implements OrdersServiceContract {
       }>;
     }>
   > {
-    return this.ordersRepository.findApprovedOrdersForPoolDate(poolDate);
+    const orders = await this.ordersRepository.findApprovedOrdersForPoolDate(poolDate);
+    return orders.filter(
+      (order) =>
+        parseCommissionSettingsSnapshot(order.commissionSettingsSnapshot).appVisibility
+          .pool !== false,
+    );
   }
 
   async handleApprovedOrderEvent(orderId: string): Promise<{
@@ -400,18 +408,24 @@ export class OrdersService implements OrdersServiceContract {
     orderId: string,
   ): Promise<ApprovedOrderOrchestrationResult> {
     const approvedOrder = await this.handleApprovedOrderEvent(orderId);
+    const commissionSettings = parseCommissionSettingsSnapshot(
+      approvedOrder.commissionSettingsSnapshot,
+    );
     const existingCommissionEntries = this.asCommissionEntryArray(
       await this.commissionsService.listCommissions({ orderId }),
     );
 
     if (existingCommissionEntries.length > 0) {
-      const matrixFlow = await this.matrixService.handleApprovedOrderMatrixSource({
-        orderId: approvedOrder.orderId,
-        sourceUserId: approvedOrder.sourceUserId,
-        approvedAt: approvedOrder.approvedAt,
-        totalPv: approvedOrder.totalPv,
-        matrixSettingsSnapshot: approvedOrder.matrixSettingsSnapshot,
-      });
+      const matrixFlow =
+        commissionSettings.appVisibility.matrix === false
+          ? this.buildSkippedMatrixFlow(approvedOrder)
+          : await this.matrixService.handleApprovedOrderMatrixSource({
+              orderId: approvedOrder.orderId,
+              sourceUserId: approvedOrder.sourceUserId,
+              approvedAt: approvedOrder.approvedAt,
+              totalPv: approvedOrder.totalPv,
+              matrixSettingsSnapshot: approvedOrder.matrixSettingsSnapshot,
+            });
       const walletPostingInputs = await this.postCommissionWalletEntries(orderId);
       await this.walletsService.creditDiscountWalletFromApprovedOrder({ orderId });
 
@@ -431,17 +445,22 @@ export class OrdersService implements OrdersServiceContract {
 
     const commissionFlow =
       await this.commissionsService.handleApprovedOrderCommissionSource(orderId);
-    const matrixFlow = await this.matrixService.handleApprovedOrderMatrixSource({
-      orderId: approvedOrder.orderId,
-      sourceUserId: approvedOrder.sourceUserId,
-      approvedAt: approvedOrder.approvedAt,
-      totalPv: approvedOrder.totalPv,
-      matrixSettingsSnapshot: approvedOrder.matrixSettingsSnapshot,
-    });
+    const matrixFlow =
+      commissionSettings.appVisibility.matrix === false
+        ? this.buildSkippedMatrixFlow(approvedOrder)
+        : await this.matrixService.handleApprovedOrderMatrixSource({
+            orderId: approvedOrder.orderId,
+            sourceUserId: approvedOrder.sourceUserId,
+            approvedAt: approvedOrder.approvedAt,
+            totalPv: approvedOrder.totalPv,
+            matrixSettingsSnapshot: approvedOrder.matrixSettingsSnapshot,
+          });
 
-    await this.poolService.loadApprovedOrderFunding(
-      approvedOrder.approvedAt.slice(0, 10),
-    );
+    if (commissionSettings.appVisibility.pool !== false) {
+      await this.poolService.loadApprovedOrderFunding(
+        approvedOrder.approvedAt.slice(0, 10),
+      );
+    }
 
     const walletPostingInputs = await this.postCommissionWalletEntries(orderId);
     await this.walletsService.creditDiscountWalletFromApprovedOrder({ orderId });
@@ -454,6 +473,20 @@ export class OrdersService implements OrdersServiceContract {
       walletPostingInputs,
       matrixFlow,
     );
+  }
+
+  private buildSkippedMatrixFlow(approvedOrder: {
+    orderId: string;
+    sourceUserId: string;
+  }) {
+    return {
+      orderId: approvedOrder.orderId,
+      sourceUserId: approvedOrder.sourceUserId,
+      affectedMemberCount: 0,
+      payoutCount: 0,
+      completedCycleCount: 0,
+      skipped: true,
+    };
   }
 
   private buildApprovedOrderResultFromEntries(

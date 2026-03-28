@@ -148,45 +148,60 @@ export class CommissionsService implements CommissionsServiceContract {
       sourceOrder.sourceUserId,
       sourceOrder.approvedAt,
     );
-    const cashbackDrafts = await this.buildCashbackDrafts(
-      sourceOrder.orderId,
-      sourceOrder.sourceUserId,
-      sourceOrder.approvedAt,
-      sourceOrder.totalPv,
-      commissionSettings,
-    );
+    const cashbackDrafts =
+      commissionSettings.appVisibility.cashback === false
+        ? []
+        : await this.buildCashbackDrafts(
+            sourceOrder.orderId,
+            sourceOrder.sourceUserId,
+            sourceOrder.approvedAt,
+            sourceOrder.totalPv,
+            commissionSettings,
+          );
 
-    const directCandidateUserIds = await this.resolveDirectBonusCandidatePath({
-      sourceUserId: sourceOrder.sourceUserId,
-      evaluationAt: sourceOrder.approvedAt,
-      candidateUserIds,
-      directLevelCount: commissionSettings.directLevelRates.length,
-    });
+    const directCandidateUserIds =
+      commissionSettings.appVisibility.direct === false
+        ? []
+        : await this.resolveDirectBonusCandidatePath({
+            sourceUserId: sourceOrder.sourceUserId,
+            evaluationAt: sourceOrder.approvedAt,
+            candidateUserIds,
+            directLevelCount: commissionSettings.directLevelRates.length,
+          });
 
-    const directDrafts = await this.buildDirectDrafts(
-      sourceOrder.orderId,
-      sourceOrder.sourceUserId,
-      sourceOrder.approvedAt,
-      sourceOrder.totalPv,
-      candidateUserIds,
-      directCandidateUserIds,
-      commissionSettings,
-    );
-    const uniCandidateUserIds = await this.resolveUniBonusCandidatePath({
-      sourceUserId: sourceOrder.sourceUserId,
-      evaluationAt: sourceOrder.approvedAt,
-      candidateUserIds,
-      uniLevelCount: commissionSettings.uniLevelRates.length,
-    });
-    const uniDrafts = await this.buildUniDrafts(
-      sourceOrder.orderId,
-      sourceOrder.sourceUserId,
-      sourceOrder.approvedAt,
-      sourceOrder.totalPv,
-      candidateUserIds,
-      uniCandidateUserIds,
-      commissionSettings,
-    );
+    const directDrafts =
+      commissionSettings.appVisibility.direct === false
+        ? []
+        : await this.buildDirectDrafts(
+            sourceOrder.orderId,
+            sourceOrder.sourceUserId,
+            sourceOrder.approvedAt,
+            sourceOrder.totalPv,
+            candidateUserIds,
+            directCandidateUserIds,
+            commissionSettings,
+          );
+    const uniCandidateUserIds =
+      commissionSettings.appVisibility.unilevel === false
+        ? []
+        : await this.resolveUniBonusCandidatePath({
+            sourceUserId: sourceOrder.sourceUserId,
+            evaluationAt: sourceOrder.approvedAt,
+            candidateUserIds,
+            uniLevelCount: commissionSettings.uniLevelRates.length,
+          });
+    const uniDrafts =
+      commissionSettings.appVisibility.unilevel === false
+        ? []
+        : await this.buildUniDrafts(
+            sourceOrder.orderId,
+            sourceOrder.sourceUserId,
+            sourceOrder.approvedAt,
+            sourceOrder.totalPv,
+            candidateUserIds,
+            uniCandidateUserIds,
+            commissionSettings,
+          );
 
     return {
       sourceOrderId: sourceOrder.orderId,

@@ -5,8 +5,14 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 API_BASE_URL="${API_BASE_URL:-http://127.0.0.1:3000}"
 DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/poolproject?schema=public}"
 CALC_SCENARIOS_REPORT_PATH="${CALC_SCENARIOS_REPORT_PATH:-$ROOT_DIR/runtime/calc-scenarios-report.json}"
+ALLOW_DESTRUCTIVE_LOCAL_RESET="${ALLOW_DESTRUCTIVE_LOCAL_RESET:-0}"
 
 cd "$ROOT_DIR"
+
+if [[ "$ALLOW_DESTRUCTIVE_LOCAL_RESET" != "1" ]]; then
+  echo "Refusing to run destructive calc-scenarios reset. Set ALLOW_DESTRUCTIVE_LOCAL_RESET=1 to continue." >&2
+  exit 1
+fi
 
 cleanup() {
   if [[ -n "${API_PID:-}" ]]; then

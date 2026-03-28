@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 API_BASE_URL="${API_BASE_URL:-http://127.0.0.1:3000}"
 DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/poolproject?schema=public}"
+ALLOW_DESTRUCTIVE_LOCAL_RESET="${ALLOW_DESTRUCTIVE_LOCAL_RESET:-0}"
 RUN_SUFFIX="$(date +%s)"
 DATE_COMM="${DATE_COMM:-$(date -u -v+7d +%F 2>/dev/null || python3 - <<'PY'
 from datetime import datetime, timedelta, timezone
@@ -19,6 +20,11 @@ ORIGINAL_COMMISSION_SETTINGS_JSON=""
 AUTH_HEADER=""
 
 cd "$ROOT_DIR"
+
+if [[ "$ALLOW_DESTRUCTIVE_LOCAL_RESET" != "1" ]]; then
+  echo "Refusing to run destructive pool all-commissions smoke reset. Set ALLOW_DESTRUCTIVE_LOCAL_RESET=1 to continue." >&2
+  exit 1
+fi
 
 cleanup() {
   if [[ -n "${ORIGINAL_COMMISSION_SETTINGS_JSON:-}" && -n "${AUTH_HEADER:-}" ]]; then
