@@ -19,31 +19,31 @@ use App\Support\BaoAdminApiClient;
 
 class MemberEditScreen extends Screen
 {
-    public $member;
+    public ?Member $memberRecord = null;
 
     public function query(Member $member): iterable
     {
-        $this->member = Member::member003()
+        $this->memberRecord = Member::member003()
             ->with(['memberProfile', 'sponsor'])
             ->findOrFail($member->id);
 
         return [
             'member' => [
-                'member_id' => $this->member->id,
-                'member_code' => $this->member->member_code,
-                'referral_code' => $this->member->referral_code,
-                'full_name' => $this->member->full_name,
-                'email' => $this->member->email,
-                'phone' => $this->member->phone,
-                'joined_date' => optional($this->member->joined_date)->format('Y-m-d'),
-                'sponsor_code' => $this->member->sponsor_code,
-                'upline_code' => $this->member->upline_code,
-                'national_id' => $this->member->national_id,
-                'side' => strtoupper((string) ($this->member->side ?? '')),
-                'rank_code' => $this->member->rank_code,
-                'honor_title' => $this->member->honor_title,
-                'mobile_center' => $this->member->mobile_center,
-                'status' => $this->member->status,
+                'member_id' => $this->memberRecord->id,
+                'member_code' => $this->memberRecord->member_code,
+                'referral_code' => $this->memberRecord->referral_code,
+                'full_name' => $this->memberRecord->full_name,
+                'email' => $this->memberRecord->email,
+                'phone' => $this->memberRecord->phone,
+                'joined_date' => optional($this->memberRecord->joined_date)->format('Y-m-d'),
+                'sponsor_code' => $this->memberRecord->sponsor_code,
+                'upline_code' => $this->memberRecord->upline_code,
+                'national_id' => $this->memberRecord->national_id,
+                'side' => strtoupper((string) ($this->memberRecord->side ?? '')),
+                'rank_code' => $this->memberRecord->rank_code,
+                'honor_title' => $this->memberRecord->honor_title,
+                'mobile_center' => $this->memberRecord->mobile_center,
+                'status' => $this->memberRecord->status,
             ],
         ];
     }
@@ -55,8 +55,9 @@ class MemberEditScreen extends Screen
 
     public function commandBar(): iterable
     {
-        $memberId = (int) $this->member->id;
-        $isActive = strtoupper((string) $this->member->status) === 'ACTIVE';
+        $member = $this->requireMemberRecord();
+        $memberId = (int) $member->id;
+        $isActive = strtoupper((string) $member->status) === 'ACTIVE';
 
         return [
             Link::make('Back to Members')
@@ -135,7 +136,7 @@ class MemberEditScreen extends Screen
 
     public function update(Request $request)
     {
-        $memberId = (int) $this->member->id;
+        $memberId = (int) $this->requireMemberRecord()->id;
         $validated = $this->validatedData($request, $memberId);
 
         $user = MemberUserRecord::query()->findOrFail($memberId);
@@ -166,51 +167,77 @@ class MemberEditScreen extends Screen
 
     public function lockAccount(): \Illuminate\Http\RedirectResponse
     {
+        $memberId = (int) $this->requireMemberRecord()->id;
+
         MemberUserRecord::query()
-            ->whereKey((int) $this->member->id)
+            ->whereKey($memberId)
             ->update(['status' => 'LOCKED']);
 
         Alert::warning('ล็อคบัญชีสมาชิกแล้ว');
 
-        return redirect()->route('platform.member.edit', (int) $this->member->id);
+        return redirect()->route('platform.member.edit', $memberId);
     }
 
     public function activateAccount(): \Illuminate\Http\RedirectResponse
     {
+        $memberId = (int) $this->requireMemberRecord()->id;
+
         MemberUserRecord::query()
-            ->whereKey((int) $this->member->id)
+            ->whereKey($memberId)
             ->update(['status' => 'ACTIVE']);
 
         Alert::info('เปิดใช้งานบัญชีสมาชิกแล้ว');
 
-        return redirect()->route('platform.member.edit', (int) $this->member->id);
+        return redirect()->route('platform.member.edit', $memberId);
     }
 
     public function resetPassword(BaoAdminApiClient $apiClient): \Illuminate\Http\RedirectResponse
     {
-        $nationalId = preg_replace('/\D+/', '', (string) ($this->member->national_id ?? ''));
+        $member = $this->requireMemberRecord();
+        $memberId = (int) $member->id;
+        $nationalId = preg_replace('/\D+/', '', (string) ($member->national_id ?? ''));
 
         if ($nationalId === null || strlen($nationalId) < 6) {
             Alert::error('ไม่พบเลขบัตรประชาชนอย่างน้อย 6 หลักสำหรับสมาชิกคนนี้');
 
-            return redirect()->route('platform.member.edit', (int) $this->member->id);
+            return redirect()->route('platform.member.edit', $memberId);
         }
 
         $newPassword = substr($nationalId, -6);
 
         try {
-            $apiClient->request('POST', sprintf('/members/%d/reset-password', (int) $this->member->id), [
+            $apiClient->request('POST', sprintf('/members/%d/reset-password', $memberId), [
                 'newPassword' => $newPassword,
             ]);
         } catch (\Throwable $exception) {
             Alert::error($exception->getMessage());
 
-            return redirect()->route('platform.member.edit', (int) $this->member->id);
+            return redirect()->route('platform.member.edit', $memberId);
         }
 
         Alert::info(sprintf('รีเซ็ตรหัสผ่านแล้วเป็น %s', $newPassword));
 
-        return redirect()->route('platform.member.edit', (int) $this->member->id);
+        return redirect()->route('platform.member.edit', $memberId);
+    }
+
+    private function requireMemberRecord(): Member
+    {
+        if ($this->memberRecord instanceof Member) {
+            return $this->memberRecord;
+        }
+
+        $routeMember = request()->route('member');
+        $memberId = $routeMember instanceof Member ? (int) $routeMember->id : (int) $routeMember;
+
+        if ($memberId <= 0) {
+            abort(404, 'Member not found.');
+        }
+
+        $this->memberRecord = Member::member003()
+            ->with(['memberProfile', 'sponsor'])
+            ->findOrFail($memberId);
+
+        return $this->memberRecord;
     }
 
     private function validatedData(Request $request, int $memberId): array
