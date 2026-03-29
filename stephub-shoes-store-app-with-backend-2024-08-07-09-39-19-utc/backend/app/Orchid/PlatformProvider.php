@@ -35,9 +35,13 @@ class PlatformProvider extends OrchidServiceProvider {
    */
   public function menu(): array {
     return [
+      Menu::make('Dashboard')
+        ->title('Navigation')
+        ->icon('bs.speedometer2')
+        ->route('platform.main')
+        ->permission(AdminPermissions::PLATFORM_INDEX),
 
       Menu::make('Catalog Management')
-        ->title('Navigation')
         ->icon('bs-box-seam')
         ->permission(AdminPermissions::CATALOG_MANAGE)
         ->list([

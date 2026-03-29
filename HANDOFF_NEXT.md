@@ -4,11 +4,17 @@ Updated: 2026-03-28
 
 ## Restore First Next Time
 
-For the next session, restore the latest full local snapshot before doing any new work.
+For the next session, do not restore immediately by default.
+
+The local stack is currently in a clean post-test state and ready for the next round of BAO/app order-flow testing.
+
+Restore only if you explicitly need to go back to the earlier full snapshot.
 
 Primary backup to restore:
 
 - [backups/stephub-full-20260328-130523](/Users/macbook/poolproject/backups/stephub-full-20260328-130523)
+- Cleanup backup created before deleting experimental orders:
+  - [poolproject-before-order-cleanup-20260328-225202.dump](/Users/macbook/poolproject/backups/order-cleanup/poolproject-before-order-cleanup-20260328-225202.dump)
 
 Restore command:
 
@@ -35,19 +41,42 @@ Important:
 - Do not run any destructive smoke/reset scripts unless explicitly intended.
 - Do not use `DEV_RESET_BASELINE=1` unless a full reset is intended.
 - The demo Stephub `10x5` catalog restore is disabled and should stay disabled.
+- Experimental orders `6`, `7`, and `8` were deleted intentionally after backup because they were test data only.
 
 ## Current State
 
 - Current branch: `main`
 - Local `main` is synced with `origin/main`
-- Latest merged PRs:
-  - `#62` `feat(bao): redesign create member sale flow`
-  - `#63` `feat(ui): show THB across app and admin`
-- Latest local commit on `main`: `85598941`
-- Latest merged commit on `main`: `19eb5036`
+- Latest pushed commits on `main`:
+  - `19d608f7` `Add launchd local stack management`
+  - `9f4e4bf6` `Use sequential order numbers in BAO reports`
+- Local stack was restarted and `npm run dev:check` passed after cleanup
+- Next generated 7-digit order number is confirmed as `0000001`
+- BAO order list/report now includes:
+  - `Member Code`
+  - `Created Date`
+  - `Created Time`
 - Current local uncommitted files may include:
-  - [CHECKLIST_LIVE_OPERATIONS.md](/Users/macbook/poolproject/CHECKLIST_LIVE_OPERATIONS.md)
   - [backups](/Users/macbook/poolproject/backups)
+  - [MemberEditScreen.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Member/MemberEditScreen.php)
+
+## Next Test Focus
+
+On the next session, continue with end-to-end order-flow validation:
+
+1. Start the local stack with [Start_Local_Stack.command](/Users/macbook/poolproject/Start_Local_Stack.command) or run:
+
+```bash
+npm run dev:restart
+npm run dev:check
+```
+
+2. In BAO, create a fresh test order and confirm:
+   - first new sequential order number is `0000001`
+   - order list shows `Member Code`
+   - order list shows split `Created Date` and `Created Time`
+3. Approve/process the new test order and verify commission flow still behaves normally
+4. Export BAO order report and confirm `Member Code`, `Created Date`, and `Created Time` are present
 
 ## Real Domain UAT Setup
 
@@ -80,9 +109,10 @@ Main local URLs:
 
 Default local-start flow:
 
-1. Run `npm run dev:up`
-2. If ports/watchers look stale, run `npm run dev:restart`
+1. Prefer `./Start_Local_Stack.command` on macOS
+2. Or run `npm run dev:restart`
 3. Run `npm run dev:check`
+4. Optional: run `npm run dev:launchd:status`
 
 Use this flow before reviewing UI regressions. It now preserves current DB/runtime state by default and does not reset member/order/wallet/commission data unless explicitly requested.
 
