@@ -12,16 +12,28 @@ class CommissionSettingsController extends Controller
 {
     public function saveCommission(Request $request): RedirectResponse
     {
+        $current = PoolprojectSettingsStore::readCommissionSettings();
+
         $request->merge([
             'directLevelRates' => $request->input('directLevelRates', $request->input('direct_level_rates')),
             'uniLevelRates' => $request->input('uniLevelRates', $request->input('uni_level_rates')),
             'poolRate' => $request->input('poolRate', $request->input('pool_rate')),
             'cashbackRate' => $request->input('cashbackRate', $request->input('cashback_rate')),
-            'cashbackVisible' => $request->boolean('cashbackVisible'),
-            'directVisible' => $request->boolean('directVisible'),
-            'unilevelVisible' => $request->boolean('unilevelVisible'),
-            'matrixVisible' => $request->boolean('matrixVisible'),
-            'poolVisible' => $request->boolean('poolVisible'),
+            'cashbackVisible' => $request->has('cashbackVisible')
+                ? $request->boolean('cashbackVisible')
+                : ($current['appVisibility']['cashback'] ?? true),
+            'directVisible' => $request->has('directVisible')
+                ? $request->boolean('directVisible')
+                : ($current['appVisibility']['direct'] ?? true),
+            'unilevelVisible' => $request->has('unilevelVisible')
+                ? $request->boolean('unilevelVisible')
+                : ($current['appVisibility']['unilevel'] ?? true),
+            'matrixVisible' => $request->has('matrixVisible')
+                ? $request->boolean('matrixVisible')
+                : ($current['appVisibility']['matrix'] ?? true),
+            'poolVisible' => $request->has('poolVisible')
+                ? $request->boolean('poolVisible')
+                : ($current['appVisibility']['pool'] ?? true),
             'redirectSection' => $request->input('redirectSection', $request->input('redirect_section')),
         ]);
 
@@ -39,8 +51,6 @@ class CommissionSettingsController extends Controller
             'poolVisible' => ['nullable', 'boolean'],
             'redirectSection' => ['nullable', 'string'],
         ]);
-
-        $current = PoolprojectSettingsStore::readCommissionSettings();
 
         $next = [
             'directLevelRates' => $this->cleanRates($payload['directLevelRates'] ?? $current['directLevelRates']),
