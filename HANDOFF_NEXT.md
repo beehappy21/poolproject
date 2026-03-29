@@ -1,6 +1,6 @@
 # Project Handoff
 
-Updated: 2026-03-28
+Updated: 2026-03-29
 
 ## Restore First Next Time
 
@@ -13,6 +13,8 @@ Restore only if you explicitly need to go back to the earlier full snapshot.
 Primary backup to restore:
 
 - [backups/stephub-full-20260328-130523](/Users/macbook/poolproject/backups/stephub-full-20260328-130523)
+- Latest fresh backup created after dashboard/member-edit merges:
+  - [backups/stephub-full-20260329-180406](/Users/macbook/poolproject/backups/stephub-full-20260329-180406)
 - Cleanup backup created before deleting experimental orders:
   - [poolproject-before-order-cleanup-20260328-225202.dump](/Users/macbook/poolproject/backups/order-cleanup/poolproject-before-order-cleanup-20260328-225202.dump)
 
@@ -27,6 +29,12 @@ Then restart and verify:
 ```bash
 bash scripts/dev-restart.sh
 npm run dev:check
+```
+
+Create a fresh backup next time with:
+
+```bash
+npm run dev:backup
 ```
 
 What this backup contains:
@@ -48,21 +56,29 @@ Important:
 - Current branch: `main`
 - Local `main` is synced with `origin/main`
 - Latest pushed commits on `main`:
-  - `19d608f7` `Add launchd local stack management`
-  - `9f4e4bf6` `Use sequential order numbers in BAO reports`
+  - `4f386f0e` `Add BAO admin dashboard home (#65)`
+  - `63ea398a` `Harden BAO member edit screen loading (#66)`
 - Local stack was restarted and `npm run dev:check` passed after cleanup
 - Next generated 7-digit order number is confirmed as `0000001`
 - BAO order list/report now includes:
   - `Member Code`
   - `Created Date`
   - `Created Time`
-- Current local uncommitted files may include:
-  - [backups](/Users/macbook/poolproject/backups)
-  - [MemberEditScreen.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Member/MemberEditScreen.php)
+- BAO now opens to dashboard after login by default
+- BAO dashboard is live on:
+  - local: `http://127.0.0.1:8001/admin/main`
+  - UAT: `https://bao.blifehealthy.com/admin/main`
+- Member edit screen safety hardening is merged:
+  - renamed loaded model property to `memberRecord`
+  - added fallback loading guard for Orchid lifecycle edge cases
+- Local worktree is currently clean
+- `backups/` is hidden from `git status` locally via `.git/info/exclude`
+- A fresh restore-compatible backup was created at:
+  - [backups/stephub-full-20260329-180406](/Users/macbook/poolproject/backups/stephub-full-20260329-180406)
 
 ## Next Test Focus
 
-On the next session, continue with end-to-end order-flow validation:
+On the next session, continue with end-to-end order-flow validation and BAO admin sanity checks:
 
 1. Start the local stack with [Start_Local_Stack.command](/Users/macbook/poolproject/Start_Local_Stack.command) or run:
 
@@ -71,12 +87,51 @@ npm run dev:restart
 npm run dev:check
 ```
 
-2. In BAO, create a fresh test order and confirm:
+2. Confirm BAO admin login lands on dashboard first:
+   - local BAO login: `http://127.0.0.1:8001/admin/login`
+   - expected first page after login: `/admin/main`
+   - confirm dashboard shows:
+     - KPI cards
+     - queue summary
+     - recent orders
+     - recent wallet top-ups
+     - recent withdrawals
+3. In BAO member edit, open one real member and sanity-check:
+   - page loads without error
+   - `Update Member` still works
+   - `ล็อคบัญชี` / `ใช้งาน` still works
+   - `รีเซ็ตรหัสผ่าน` still works
+4. In BAO, create a fresh test order and confirm:
    - first new sequential order number is `0000001`
    - order list shows `Member Code`
    - order list shows split `Created Date` and `Created Time`
-3. Approve/process the new test order and verify commission flow still behaves normally
-4. Export BAO order report and confirm `Member Code`, `Created Date`, and `Created Time` are present
+5. Approve/process the new test order and verify commission flow still behaves normally
+6. Export BAO order report and confirm `Member Code`, `Created Date`, and `Created Time` are present
+
+## Suggested Next Test Plan
+
+Recommended next-session order:
+
+1. `local smoke`
+   - `npm run dev:restart`
+   - `npm run dev:check`
+   - confirm `http://127.0.0.1:8001/admin/login` is reachable
+2. `BAO dashboard smoke`
+   - login as `superadmin@blifehealthy.com / 472121`
+   - confirm redirect to `/admin/main`
+   - confirm dashboard widgets render without 500/error page
+3. `member edit smoke`
+   - open one member from member list
+   - test update, lock/unlock, password reset
+4. `order-flow smoke`
+   - create one BAO order
+   - approve/process it
+   - verify order number/report columns/commission behavior
+5. `UAT smoke`
+   - open `https://bao.blifehealthy.com/admin/login`
+   - confirm login also lands on dashboard
+   - open `https://wap.blifehealthy.com`
+   - confirm app/API/BAO public routes still respond
 
 ## Real Domain UAT Setup
 
@@ -170,6 +225,35 @@ Protected data that should be preserved by default:
 - PR #28: `feat: align signup sponsor flow and popup onboarding with BAO`
   - https://github.com/beehappy21/poolproject/pull/28
   - merged into `main` as `a07a5e5`
+- PR #65: `Add BAO admin dashboard home`
+  - https://github.com/beehappy21/poolproject/pull/65
+  - merged into `main` as `4f386f0e`
+- PR #66: `Harden BAO member edit screen loading`
+  - https://github.com/beehappy21/poolproject/pull/66
+  - merged into `main` as `63ea398a`
+
+## What PR #65 Added
+
+BAO dashboard:
+
+- added a real BAO dashboard home screen
+- added dashboard sidebar entry in Orchid admin
+- dashboard now shows:
+  - KPI cards
+  - queue summary
+  - quick actions
+  - recent orders
+  - recent wallet top-ups
+  - recent withdrawals
+- BAO now redirects to dashboard after login by default
+
+## What PR #66 Added
+
+Member edit hardening:
+
+- `MemberEditScreen` now uses `memberRecord` naming for clarity
+- screen no longer assumes `query()` always hydrated the member before every method call
+- added fallback member loading from route context for safer Orchid lifecycle handling
 
 ## What PR #28 Added
 

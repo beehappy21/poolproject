@@ -6,6 +6,8 @@ Placeholder scripts directory for:
 - reconciliation
 
 Smoke helpers:
+- `npm run dev:backup`
+  Creates a restore-compatible local snapshot under `backups/stephub-full-<timestamp>` including the current Postgres dump, BAO sqlite database, runtime directory, base commit, and git status.
 - `npm run smoke:cashback`
   Runs a focused cashback end-to-end smoke against the local API and Postgres, including `reprocess` idempotency checks for cashback-only ledger and wallet-credit rows.
 - `npm run smoke:firm`
