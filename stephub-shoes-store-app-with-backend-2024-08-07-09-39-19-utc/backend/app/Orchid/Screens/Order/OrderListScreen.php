@@ -93,6 +93,28 @@ class OrderListScreen extends Screen {
             return '#' . $order->id;
           }),
 
+        TD::make('order_no', 'Order No')
+          ->cantHide()
+          ->render(function (Order $order) {
+            return e($order->order_no);
+          }),
+
+        TD::make('order_status', 'Status')
+          ->sort()
+          ->cantHide()
+          ->filter(Input::make())
+          ->render(function (Order $order) {
+            return $order->status_badge_html;
+          }),
+
+        TD::make('total', 'Total')
+          ->sort()
+          ->cantHide()
+          ->filter(Input::make())
+          ->render(function (Order $order) {
+            return '$' . $order->total;
+          }),
+
         TD::make('name', 'Name')
           ->sort()
           ->cantHide()
@@ -115,22 +137,6 @@ class OrderListScreen extends Screen {
           ->filter(Input::make())
           ->render(function (Order $order) {
             return $order->phone_number ?: '-';
-          }),
-
-        TD::make('total', 'Total')
-          ->sort()
-          ->cantHide()
-          ->filter(Input::make())
-          ->render(function (Order $order) {
-            return '$' . $order->total;
-          }),
-
-        TD::make('order_status', 'Status')
-          ->sort()
-          ->cantHide()
-          ->filter(Input::make())
-          ->render(function (Order $order) {
-            return $order->status_badge_html;
           }),
 
         TD::make('shipment_status', 'Shipment')
@@ -163,11 +169,6 @@ class OrderListScreen extends Screen {
           ->align(TD::ALIGN_CENTER)
           ->render(function (Order $order) {
             return (string) $order->item_count;
-          }),
-        TD::make('order_no', 'Order No')
-          ->cantHide()
-          ->render(function (Order $order) {
-            return e($order->order_no);
           }),
 
       ])
