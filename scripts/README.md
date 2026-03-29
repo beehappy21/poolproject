@@ -8,6 +8,10 @@ Placeholder scripts directory for:
 Smoke helpers:
 - `npm run dev:backup`
   Creates a restore-compatible local snapshot under `backups/stephub-full-<timestamp>` including the current Postgres dump, BAO sqlite database, runtime directory, base commit, and git status.
+- `npm run uat:backup`
+  Creates a UAT-oriented snapshot under `backups/uat-full-<timestamp>` including the Postgres dump, BAO sqlite database, runtime directory, and `manual-payments/` when present. The script supports either `DATABASE_URL` or Docker-based Postgres access.
+- `npm run uat:restore -- <backup-dir> --yes`
+  Destructively restores a UAT backup created by `uat:backup`. Requires `ALLOW_DESTRUCTIVE_UAT_RESTORE=1` and supports either `DATABASE_URL` or Docker-based Postgres access.
 - `npm run smoke:cashback`
   Runs a focused cashback end-to-end smoke against the local API and Postgres, including `reprocess` idempotency checks for cashback-only ledger and wallet-credit rows.
 - `npm run smoke:firm`
