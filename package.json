@@ -11,6 +11,7 @@
     "dev:up": "bash scripts/dev-up.sh",
     "dev:restart": "bash scripts/dev-restart.sh",
     "dev:check": "bash scripts/dev-check.sh",
+    "dev:backup": "bash scripts/create_local_backup.sh",
     "dev:launchd:install": "bash scripts/install_local_stack_launch_agents.sh",
     "dev:launchd:status": "bash scripts/local_stack_launch_agents_status.sh",
     "dev:launchd:uninstall": "bash scripts/uninstall_local_stack_launch_agents.sh",
