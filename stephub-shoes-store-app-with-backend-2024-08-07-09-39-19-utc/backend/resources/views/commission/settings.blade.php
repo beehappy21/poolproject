@@ -253,6 +253,7 @@
                         <button
                             type="submit"
                             class="commission-save"
+                            data-turbo="false"
                         >
                             บันทึกการแสดงผลเมนูบนแอป
                         </button>
@@ -334,6 +335,7 @@
                 <button
                     type="submit"
                     class="commission-save"
+                    data-turbo="false"
                 >
                     Save Commission Settings
                 </button>
@@ -394,6 +396,7 @@
                 <button
                     type="submit"
                     class="commission-save"
+                    data-turbo="false"
                 >
                     Save Manual Payment
                 </button>
@@ -424,6 +427,7 @@
                 <button
                     type="submit"
                     class="commission-save"
+                    data-turbo="false"
                 >
                     Save Signup Share Message
                 </button>
@@ -493,7 +497,7 @@
                         <div class="commission-board-rate-card" data-board-item>
                             <div class="commission-board-rate-header">
                                 <h3 class="commission-board-rate-title">บอร์ด {{ $boardIndex + 1 }}</h3>
-                                <div class="commission-toolbar" style="margin-top:0;">
+                                <div class="commission-toolbar">
                                     <button
                                         type="button"
                                         class="commission-action"
@@ -529,6 +533,7 @@
                 <button
                     type="submit"
                     class="commission-save"
+                    data-turbo="false"
                 >
                     Save Matrix Settings
                 </button>
@@ -580,6 +585,7 @@
                 <button
                     type="submit"
                     class="commission-save"
+                    data-turbo="false"
                 >
                     Save Reentry Settings
                 </button>

@@ -41,6 +41,7 @@ export class AdminSettingsController {
   @Put("commissions")
   updateCommissionSettings(@Body() body: Record<string, unknown>) {
     const payload = body ?? {};
+    const current = readCommissionSettings();
 
     if (!Array.isArray(payload.directLevelRates) || payload.directLevelRates.length === 0) {
       throw new BadRequestException("directLevelRates must contain at least one level.");
@@ -71,25 +72,35 @@ export class AdminSettingsController {
       cashbackRate: requireDecimalRateString(payload.cashbackRate, "cashbackRate"),
       appVisibility: {
         cashback:
-          payload.cashbackVisible === true ||
-          payload.cashbackVisible === "true" ||
-          payload.cashbackVisible === "1",
+          payload.cashbackVisible === undefined
+            ? current.appVisibility.cashback
+            : payload.cashbackVisible === true ||
+              payload.cashbackVisible === "true" ||
+              payload.cashbackVisible === "1",
         direct:
-          payload.directVisible === true ||
-          payload.directVisible === "true" ||
-          payload.directVisible === "1",
+          payload.directVisible === undefined
+            ? current.appVisibility.direct
+            : payload.directVisible === true ||
+              payload.directVisible === "true" ||
+              payload.directVisible === "1",
         unilevel:
-          payload.unilevelVisible === true ||
-          payload.unilevelVisible === "true" ||
-          payload.unilevelVisible === "1",
+          payload.unilevelVisible === undefined
+            ? current.appVisibility.unilevel
+            : payload.unilevelVisible === true ||
+              payload.unilevelVisible === "true" ||
+              payload.unilevelVisible === "1",
         matrix:
-          payload.matrixVisible === true ||
-          payload.matrixVisible === "true" ||
-          payload.matrixVisible === "1",
+          payload.matrixVisible === undefined
+            ? current.appVisibility.matrix
+            : payload.matrixVisible === true ||
+              payload.matrixVisible === "true" ||
+              payload.matrixVisible === "1",
         pool:
-          payload.poolVisible === true ||
-          payload.poolVisible === "true" ||
-          payload.poolVisible === "1",
+          payload.poolVisible === undefined
+            ? current.appVisibility.pool
+            : payload.poolVisible === true ||
+              payload.poolVisible === "true" ||
+              payload.poolVisible === "1",
       },
     });
 

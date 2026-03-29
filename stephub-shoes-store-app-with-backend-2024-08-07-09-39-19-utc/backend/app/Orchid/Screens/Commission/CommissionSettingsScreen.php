@@ -162,6 +162,11 @@ class CommissionSettingsScreen extends Screen
 
     private array $sectionConfig = self::SECTIONS['settings'];
 
+    public function screenBaseView(): string
+    {
+        return 'orchid.no-form-screen';
+    }
+
     public static function commissionNav(string $activeKey): array
     {
         $nav = collect(self::SECTIONS)->map(
@@ -194,56 +199,56 @@ class CommissionSettingsScreen extends Screen
         return $this->buildPayload($section);
     }
 
-    public function settings(Request $request): iterable
+    public function settings()
     {
-        return $this->resolveSectionPayload('settings');
+        return $this->renderSectionScreen('settings');
     }
 
-    public function direct(Request $request): iterable
+    public function direct()
     {
-        return $this->resolveSectionPayload('direct');
+        return $this->renderSectionScreen('direct');
     }
 
-    public function unilevel(Request $request): iterable
+    public function unilevel()
     {
-        return $this->resolveSectionPayload('unilevel');
+        return $this->renderSectionScreen('unilevel');
     }
 
-    public function matrix(Request $request): iterable
+    public function matrix()
     {
-        return $this->resolveSectionPayload('matrix');
+        return $this->renderSectionScreen('matrix');
     }
 
-    public function pool(Request $request): iterable
+    public function pool()
     {
-        return $this->resolveSectionPayload('pool');
+        return $this->renderSectionScreen('pool');
     }
 
-    public function reentry(Request $request): iterable
+    public function reentry()
     {
-        return $this->resolveSectionPayload('reentry');
+        return $this->renderSectionScreen('reentry');
     }
 
-    public function cashback(Request $request): iterable
+    public function cashback()
     {
-        return $this->resolveSectionPayload('cashback');
+        return $this->renderSectionScreen('cashback');
     }
 
-    public function manualPayment(Request $request): iterable
+    public function manualPayment()
     {
-        return $this->resolveSectionPayload('manual-payment');
+        return $this->renderSectionScreen('manual-payment');
     }
 
-    public function signupShare(Request $request): iterable
+    public function signupShare()
     {
-        return $this->resolveSectionPayload('signup-share');
+        return $this->renderSectionScreen('signup-share');
     }
 
-    private function resolveSectionPayload(string $section): iterable
+    private function renderSectionScreen(string $section)
     {
         $this->sectionConfig = self::SECTIONS[$section] ?? self::SECTIONS['settings'];
 
-        return $this->buildPayload($section);
+        return $this->view($this->buildPayload($section));
     }
 
     private function buildPayload(string $section): iterable
