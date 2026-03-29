@@ -58,6 +58,7 @@ fi
 
 run_step "Restart local stack" npm run dev:restart
 run_step "Verify local stack" npm run dev:check
+run_step "Verify public auth bridge" bash scripts/check_public_auth_bridge.sh
 
 print_step "Ready"
 echo "App: http://127.0.0.1:3002"
