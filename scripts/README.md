@@ -8,6 +8,8 @@ Placeholder scripts directory for:
 Smoke helpers:
 - `npm run dev:backup`
   Creates a restore-compatible local snapshot under `backups/stephub-full-<timestamp>` including the current Postgres dump, BAO sqlite database, runtime directory, base commit, and git status.
+- `npm run dev:check:public-auth`
+  Verifies the public `wap.blifehealthy.com -> api.blifehealthy.com/auth/login` bridge end to end, including CORS preflight headers and a real member login request.
 - `npm run uat:backup`
   Creates a UAT-oriented snapshot under `backups/uat-full-<timestamp>` including the Postgres dump, BAO sqlite database, runtime directory, and `manual-payments/` when present. The script supports either `DATABASE_URL` or Docker-based Postgres access.
 - `npm run uat:restore -- <backup-dir> --yes`

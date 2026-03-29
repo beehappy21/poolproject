@@ -4,6 +4,12 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT_DIR/scripts/local_stack_launchd.sh"
 
+echo "Rebuilding API runtime dist..."
+(
+  cd "$ROOT_DIR"
+  npx nest build api
+)
+
 stop_port() {
   local port="$1"
   local pids
