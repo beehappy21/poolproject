@@ -27,6 +27,7 @@
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",
     "prisma:format": "prisma format --schema prisma/schema.prisma",
     "prisma:push": "prisma db push --schema prisma/schema.prisma",
+    "line:bindings:migrate-runtime": "node scripts/migrate_line_bindings_runtime_to_db.mjs",
     "db:seed": "node scripts/seed-dev.js",
     "smoke:local": "bash scripts/local-smoke.sh",
     "smoke:cashback": "node scripts/cashback-smoke.js",

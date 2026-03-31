@@ -97,6 +97,7 @@
           </div>
           <div class="ecommerce-subnav" id="lineSubnav">
             <button type="button" class="ecommerce-subnav__button" data-line-target="connections">Connections</button>
+            <button type="button" class="ecommerce-subnav__button" data-line-target="settings">Settings</button>
             <button type="button" class="ecommerce-subnav__button" data-line-target="playbook">Playbook</button>
           </div>
         </section>
@@ -240,6 +241,49 @@
           </article>
         </section>
 
+        <section class="grid two-up" data-menu-section="line" data-line-section="settings">
+          <article class="panel">
+            <div class="section-head">
+              <h3>LINE Signup Share</h3>
+              <span class="muted">ข้อความที่ใช้ตอนแชร์ลิงก์ชวนสมัคร</span>
+            </div>
+            <form id="lineSignupShareForm" class="settings-form">
+              <label>
+                <span>Share Message</span>
+                <textarea
+                  id="lineShareMessageInput"
+                  rows="5"
+                  placeholder="สมัครผ่านลิงก์แนะนำนี้ได้เลย"
+                ></textarea>
+              </label>
+              <div class="table-actions">
+                <button type="submit">Save LINE Settings</button>
+              </div>
+            </form>
+            <pre id="lineSettingsOutput" class="output-card">LINE settings output will appear here.</pre>
+          </article>
+          <article class="panel">
+            <div class="section-head">
+              <h3>LINE Flow Summary</h3>
+              <span class="muted">สถานะ flow ที่ใช้งานในระบบตอนนี้</span>
+            </div>
+            <div class="stack-list">
+              <div class="stack-item">
+                <strong>Legacy member login</strong>
+                <p class="muted">สมาชิกเก่าที่เคย bind LINE แล้ว สามารถกลับเข้าระบบผ่าน LINE login ได้</p>
+              </div>
+              <div class="stack-item">
+                <strong>New member signup</strong>
+                <p class="muted">ลิงก์แนะนำจะพาเข้า Sign in/LINE entry แล้วต่อไปหน้า Sign up พร้อม sponsor code</p>
+              </div>
+              <div class="stack-item">
+                <strong>Post-login binding</strong>
+                <p class="muted">ถ้ายังไม่ผูก LINE ให้เข้าระบบก่อน แล้วกด Connect LINE จากหน้า Profile</p>
+              </div>
+            </div>
+          </article>
+        </section>
+
         <section class="grid two-up" data-menu-section="line" data-line-section="playbook">
           <article class="panel">
             <div class="section-head">
@@ -253,7 +297,7 @@
               </div>
               <div class="stack-item">
                 <strong>Legacy members</strong>
-                <p class="muted">Ask them to sign in first, then use the Connect LINE button from Profile.</p>
+                <p class="muted">ให้สมาชิกเก่าผูก LINE ครั้งแรกจาก Profile หลังจากนั้นสามารถกลับเข้าระบบผ่าน LINE login ได้</p>
               </div>
               <div class="stack-item">
                 <strong>Source tracking</strong>
@@ -273,7 +317,7 @@
               </div>
               <div class="stack-item">
                 <strong>Legacy members</strong>
-                <p class="muted">Ask old members to sign in first and connect LINE from Profile before joining campaigns.</p>
+                <p class="muted">ถ้ายังไม่เคย bind ให้ sign in แบบปกติก่อนหนึ่งครั้ง แล้วค่อย connect LINE จาก Profile</p>
               </div>
               <div class="stack-item">
                 <strong>Tracking</strong>

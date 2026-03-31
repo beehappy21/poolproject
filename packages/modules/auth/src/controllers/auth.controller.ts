@@ -28,13 +28,6 @@ import { OrdersService } from "../../../orders";
 import { PoolService } from "../../../pool";
 import { WalletsService } from "../../../wallets";
 import { AuthService } from "../services/auth.service";
-import {
-  forceRebindLineBindingByUserId,
-  getLineBindingByUserId,
-  listLineBindings,
-  removeLineBindingByUserId,
-  upsertLineBinding,
-} from "../../../../../apps/api/src/runtime/line-binding.util";
 
 @Controller("auth")
 export class AuthController {
@@ -66,6 +59,37 @@ export class AuthController {
     return session;
   }
 
+  @Post("line-login")
+  async lineLogin(
+    @Body()
+    body: {
+      lineUserId?: string;
+      lineIdToken?: string;
+    },
+    @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void },
+  ) {
+    await this.authService.verifyLineIdentity({
+      lineUserId: requireNonEmptyString(body?.lineUserId, "lineUserId"),
+      lineIdToken: optionalString(body?.lineIdToken),
+    });
+
+    const binding = await this.authService.getLineBindingByLineUserId(
+      requireNonEmptyString(body?.lineUserId, "lineUserId"),
+    );
+
+    if (!binding) {
+      throw new UnauthorizedException("LINE account is not connected to any member.");
+    }
+
+    const session = await this.authService.createSessionForUserId(binding.userId);
+    response.setHeader("Set-Cookie", this.buildSessionCookie(session.accessToken));
+
+    return {
+      ...session,
+      lineBinding: binding,
+    };
+  }
+
   @Get("me")
   async me(
     @Headers("authorization") authorization?: string,
@@ -74,7 +98,7 @@ export class AuthController {
     const user = await this.requireSessionUser(authorization, cookieHeader);
     return {
       user,
-      lineBinding: getLineBindingByUserId(user.userId),
+      lineBinding: await this.authService.getLineBindingByUserId(user.userId),
     };
   }
 
@@ -101,7 +125,7 @@ export class AuthController {
       wallet,
       cycles,
       referral,
-      lineBinding: getLineBindingByUserId(user.userId),
+      lineBinding: await this.authService.getLineBindingByUserId(user.userId),
     };
   }
 
@@ -115,7 +139,7 @@ export class AuthController {
     return {
       userId: user.userId,
       memberCode: user.memberCode,
-      lineBinding: getLineBindingByUserId(user.userId),
+      lineBinding: await this.authService.getLineBindingByUserId(user.userId),
     };
   }
 
@@ -130,7 +154,7 @@ export class AuthController {
       throw new UnauthorizedException("Admin access required.");
     }
 
-    const items = listLineBindings();
+    const items = await this.authService.listLineBindings();
 
     return {
       items,
@@ -145,6 +169,7 @@ export class AuthController {
     @Body()
     body?: {
       lineUserId?: string;
+      lineIdToken?: string;
       displayName?: string;
       pictureUrl?: string;
       statusMessage?: string;
@@ -153,10 +178,11 @@ export class AuthController {
   ) {
     const user = await this.requireSessionUser(authorization, cookieHeader);
 
-    return upsertLineBinding({
+    return this.authService.upsertLineBinding({
       userId: user.userId,
       memberCode: user.memberCode,
       lineUserId: requireNonEmptyString(body?.lineUserId, "lineUserId"),
+      lineIdToken: optionalString(body?.lineIdToken),
       displayName: optionalString(body?.displayName) ?? null,
       pictureUrl: optionalUrlString(body?.pictureUrl, "pictureUrl") ?? null,
       statusMessage: optionalString(body?.statusMessage) ?? null,
@@ -176,7 +202,7 @@ export class AuthController {
       throw new UnauthorizedException("Admin access required.");
     }
 
-    const removed = removeLineBindingByUserId(
+    const removed = await this.authService.removeLineBindingByUserId(
       requireNonEmptyString(userId, "userId"),
     );
 
@@ -186,7 +212,7 @@ export class AuthController {
 
     return {
       removed,
-      total: listLineBindings().length,
+      total: (await this.authService.listLineBindings()).length,
     };
   }
 
@@ -202,7 +228,7 @@ export class AuthController {
       throw new UnauthorizedException("Admin access required.");
     }
 
-    const result = forceRebindLineBindingByUserId(
+    const result = await this.authService.forceRebindLineBindingByUserId(
       requireNonEmptyString(userId, "userId"),
     );
 
@@ -212,7 +238,7 @@ export class AuthController {
 
     return {
       ...result,
-      total: listLineBindings().length,
+      total: (await this.authService.listLineBindings()).length,
     };
   }
 

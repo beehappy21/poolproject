@@ -10,6 +10,18 @@ export interface AuthUserSummary {
   phone: string | null;
 }
 
+export interface LineBindingSummary {
+  userId: string;
+  memberCode: string;
+  lineUserId: string;
+  displayName: string | null;
+  pictureUrl: string | null;
+  statusMessage: string | null;
+  source: string | null;
+  boundAt: string;
+  lastSyncedAt: string;
+}
+
 export interface AuthSessionResult {
   accessToken: string;
   user: AuthUserSummary;

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import {FC, useMemo, useState} from 'react';
+import {FC, useEffect, useMemo, useState} from 'react';
 import {useLocation} from 'react-router-dom';
 
 import {URLS} from '../config';
@@ -8,6 +8,11 @@ import {custom} from '../custom';
 import {theme} from '../constants';
 import {components} from '../components';
 import {actions} from '../store/actions';
+import {
+  extractSponsorCodeFromSearch,
+  initializeLineLiff,
+  normalizeSponsorCode,
+} from '../utils/line';
 
 type CreatedMemberResponse = {
   memberId: string;
@@ -34,14 +39,13 @@ type LocationState = {
 type SignupShareSettingsResponse = {
   shareMessage?: string;
 };
+type MemberSummaryResponse = {
+  memberCode?: string;
+  name?: string;
+};
 
 const DEFAULT_SHARE_MESSAGE =
   'ส่งข้อมูลนี้เก็บไว้สำหรับเข้าใช้งานครั้งแรก และเปลี่ยนรหัสผ่านหลังเข้าสู่ระบบทันที';
-
-const normalizeSponsorCode = (rawValue?: string | null) => {
-  const normalized = rawValue?.trim().toUpperCase() || '';
-  return normalized || '';
-};
 
 const renderHeader = (): JSX.Element => {
   return <components.Header goBack={true} />;
@@ -63,18 +67,92 @@ export const SignUp: FC = (): JSX.Element => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
+  const [sponsorName, setSponsorName] = useState('');
+  const [lineUserId, setLineUserId] = useState('');
+  const [lineIdToken, setLineIdToken] = useState('');
+  const [lineDisplayName, setLineDisplayName] = useState('');
+  const [linePictureUrl, setLinePictureUrl] = useState('');
+  const [lineStatus, setLineStatus] = useState('');
 
   const sponsorCode = useMemo(() => {
-    const query = new URLSearchParams(location.search);
     const state = (location.state || {}) as LocationState;
 
     return normalizeSponsorCode(
-      query.get('sponsorCode') ||
-        query.get('sponsor_code') ||
-        state.sponsorCode ||
-        '',
+      extractSponsorCodeFromSearch(location.search) || state.sponsorCode || '',
     );
   }, [location.search, location.state]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadSponsor = async () => {
+      if (!sponsorCode) {
+        setSponsorName('');
+        return;
+      }
+
+      try {
+        const response = await axios.get<MemberSummaryResponse>(
+          URLS.buildMemberByCodeUrl(sponsorCode),
+          {
+            withCredentials: true,
+          },
+        );
+
+        if (mounted) {
+          setSponsorName(response.data.name?.trim() || '');
+        }
+      } catch (error) {
+        if (mounted) {
+          setSponsorName('');
+        }
+        console.error(error);
+      }
+    };
+
+    loadSponsor().catch(console.error);
+
+    return () => {
+      mounted = false;
+    };
+  }, [sponsorCode]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const bootstrapLine = async () => {
+      const result = await initializeLineLiff();
+
+      if (!mounted) {
+        return;
+      }
+
+      if (result.profile?.displayName) {
+        setLineUserId(result.profile.userId);
+        setLineIdToken(result.profile.idToken || '');
+        setLineDisplayName(result.profile.displayName);
+        setLinePictureUrl(result.profile.pictureUrl || '');
+        setLineStatus(`ดึงชื่อจาก LINE ได้แล้ว: ${result.profile.displayName}`);
+        return;
+      }
+
+      if (result.errorMessage) {
+        setLineStatus(result.errorMessage);
+      }
+    };
+
+    bootstrapLine().catch(error => {
+      if (mounted) {
+        setLineStatus(
+          error instanceof Error ? error.message : 'LIFF bootstrap failed.',
+        );
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const shareText = useMemo(() => {
     if (!createdAccount) {
@@ -104,6 +182,7 @@ export const SignUp: FC = (): JSX.Element => {
         `${URLS.API_BASE_URL}/members`,
         {
           sponsorCode,
+          name: lineDisplayName || undefined,
         },
         {
           withCredentials: true,
@@ -128,11 +207,32 @@ export const SignUp: FC = (): JSX.Element => {
         },
       );
 
+      if (lineUserId) {
+        await axios.post(
+          URLS.AUTH_LINE_BINDING,
+            {
+              lineUserId,
+              lineIdToken: lineIdToken || undefined,
+              displayName: lineDisplayName || undefined,
+            pictureUrl: linePictureUrl || undefined,
+            source: 'line_invite_signup',
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${loginResponse.data.accessToken}`,
+            },
+          },
+        );
+      }
+
       dispatch(
         actions.setUser({
           userId: loginResponse.data.user?.userId,
           memberCode: loginResponse.data.user?.memberCode || createdMemberCode,
-          name: loginResponse.data.user?.name || createdMemberCode,
+          name: loginResponse.data.user?.name || lineDisplayName || createdMemberCode,
+          lineUserId: lineUserId || undefined,
+          lineDisplayName: lineDisplayName || undefined,
+          linePictureUrl: linePictureUrl || undefined,
           email: loginResponse.data.user?.email ?? '',
           phone: loginResponse.data.user?.phone ?? '',
           accessToken: loginResponse.data.accessToken,
@@ -460,9 +560,45 @@ export const SignUp: FC = (): JSX.Element => {
         >
           สมัครสมาชิกผ่านรหัสผู้แนะนำจากลิงก์นี้ ระบบจะสร้างรหัสสมาชิกและพาสเวิร์ดให้โดยอัตโนมัติ
         </p>
+        {sponsorName ? (
+          <div
+            style={{
+              marginBottom: 16,
+              borderRadius: 14,
+              backgroundColor: '#F8FAFC',
+              border: '1px solid #E2E8F0',
+              padding: '14px 16px',
+              color: theme.colors.textColor,
+              lineHeight: 1.6,
+            }}
+          >
+            ผู้แนะนำ: <strong>{sponsorName}</strong> ({sponsorCode})
+          </div>
+        ) : null}
+        {lineStatus ? (
+          <div
+            style={{
+              marginBottom: 16,
+              borderRadius: 14,
+              backgroundColor: '#F0FDF4',
+              border: '1px solid #C7E8CF',
+              padding: '14px 16px',
+              color: '#166534',
+              lineHeight: 1.6,
+            }}
+          >
+            {lineStatus}
+          </div>
+        ) : null}
         <custom.InputField
           label='รหัสผู้แนะนำ'
           value={sponsorCode}
+          disabled={true}
+          containerStyle={{marginBottom: 20, backgroundColor: '#F8FAFC'}}
+        />
+        <custom.InputField
+          label='ชื่อจาก LINE'
+          value={lineDisplayName || 'ยังไม่ได้เชื่อม LINE profile'}
           disabled={true}
           containerStyle={{marginBottom: 20, backgroundColor: '#F8FAFC'}}
         />

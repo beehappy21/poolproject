@@ -149,6 +149,7 @@ export interface MembersServiceContract {
     sponsorCode: string;
     referralCode: string;
     referralLink: string;
+    lineReferralLink: string;
   }>;
 
   createMember(input: {
@@ -353,6 +354,7 @@ export class MembersService implements MembersServiceContract {
       sponsorCode: member.memberCode,
       referralCode: member.referralCode,
       referralLink: `${normalizedBaseUrl}/SignUp?sponsorCode=${encodeURIComponent(member.memberCode)}`,
+      lineReferralLink: `${normalizedBaseUrl}/SignIn?sponsorCode=${encodeURIComponent(member.memberCode)}`,
     };
   }
 

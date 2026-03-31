@@ -1,9 +1,13 @@
-import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, Injectable, UnauthorizedException } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { AuthSessionResult, AuthUserSummary } from "../domain/auth.types";
+import {
+  AuthSessionResult,
+  AuthUserSummary,
+  LineBindingSummary,
+} from "../domain/auth.types";
 import { PrismaAuthRepository } from "../repositories/auth.repository";
 
 export interface AuthServiceContract {
@@ -70,6 +74,79 @@ export class AuthService implements AuthServiceContract {
     };
   }
 
+  async createSessionForUserId(userId: string): Promise<AuthSessionResult> {
+    const user = await this.authRepository.findUserById(userId);
+
+    if (!user) {
+      throw new UnauthorizedException("Invalid session user.");
+    }
+
+    const accessToken = randomUUID();
+    this.sessions.set(accessToken, user.userId);
+    this.persistSessionsToDisk();
+
+    return {
+      accessToken,
+      user,
+    };
+  }
+
+  async verifyLineIdentity(input: {
+    lineUserId: string;
+    lineIdToken?: string | null;
+  }): Promise<void> {
+    const normalizedUserId = input.lineUserId.trim();
+    const normalizedToken = input.lineIdToken?.trim() || "";
+    const lineChannelId =
+      process.env.LINE_CHANNEL_ID?.trim() ||
+      process.env.LINE_LOGIN_CHANNEL_ID?.trim() ||
+      "";
+    const strictMode =
+      process.env.LINE_STRICT_VERIFY === "true" || process.env.NODE_ENV === "production";
+
+    if (!normalizedToken || !lineChannelId) {
+      if (strictMode) {
+        throw new BadRequestException(
+          "LINE identity verification is not configured correctly.",
+        );
+      }
+
+      return;
+    }
+
+    const response = await fetch("https://api.line.me/oauth2/v2.1/verify", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        id_token: normalizedToken,
+        client_id: lineChannelId,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new UnauthorizedException("LINE identity verification failed.");
+    }
+
+    const payload = (await response.json()) as {
+      sub?: string;
+      exp?: number;
+    };
+
+    if (!payload?.sub || payload.sub !== normalizedUserId) {
+      throw new UnauthorizedException("LINE identity does not match the requested account.");
+    }
+
+    if (
+      typeof payload.exp === "number" &&
+      payload.exp > 0 &&
+      payload.exp * 1000 < Date.now()
+    ) {
+      throw new UnauthorizedException("LINE identity token has expired.");
+    }
+  }
+
   async getSessionUser(token: string): Promise<AuthUserSummary | null> {
     const userId = this.sessions.get(token);
 
@@ -108,6 +185,59 @@ export class AuthService implements AuthServiceContract {
     }
 
     return this.adminMemberCodes.has(user.memberCode.trim().toUpperCase());
+  }
+
+  async getLineBindingByUserId(userId: string): Promise<LineBindingSummary | null> {
+    return this.authRepository.findLineBindingByUserId(userId);
+  }
+
+  async getLineBindingByLineUserId(
+    lineUserId: string,
+  ): Promise<LineBindingSummary | null> {
+    return this.authRepository.findLineBindingByLineUserId(lineUserId);
+  }
+
+  async listLineBindings(): Promise<LineBindingSummary[]> {
+    return this.authRepository.listLineBindings();
+  }
+
+  async upsertLineBinding(input: {
+    userId: string;
+    memberCode: string;
+    lineUserId: string;
+    lineIdToken?: string | null;
+    displayName: string | null;
+    pictureUrl: string | null;
+    statusMessage: string | null;
+    source: string | null;
+  }): Promise<LineBindingSummary> {
+    await this.verifyLineIdentity({
+      lineUserId: input.lineUserId,
+      lineIdToken: input.lineIdToken,
+    });
+
+    return this.authRepository.upsertLineBinding({
+      userId: input.userId,
+      memberCode: input.memberCode,
+      lineUserId: input.lineUserId,
+      displayName: input.displayName,
+      pictureUrl: input.pictureUrl,
+      statusMessage: input.statusMessage,
+      source: input.source,
+    });
+  }
+
+  async removeLineBindingByUserId(
+    userId: string,
+  ): Promise<LineBindingSummary | null> {
+    return this.authRepository.removeLineBindingByUserId(userId);
+  }
+
+  async forceRebindLineBindingByUserId(userId: string): Promise<{
+    record: LineBindingSummary | null;
+    removedDuplicates: LineBindingSummary[];
+  }> {
+    return this.authRepository.forceRebindLineBindingByUserId(userId);
   }
 
   private loadSessionsFromDisk(): void {

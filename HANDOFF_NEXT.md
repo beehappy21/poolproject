@@ -1,117 +1,68 @@
 # Handoff Next
 
-Updated: 2026-03-29
+Updated: 2026-03-31
 
-## Purpose
+## Current Status
 
-Use this file for the next working session only.
-
-- `DEV_HANDOFF.md` = current system state, merged work, startup/backup/ops reference
-- `HANDOFF_NEXT.md` = what to do next, what to verify first, and which backup to restore only if needed
-
-## Start Here
-
-Preferred startup:
-
-```bash
-./Start_Local_Stack.command
-```
-
-Equivalent manual flow:
-
-```bash
-npm run dev:restart
-npm run dev:check
-npm run dev:check:public-auth
-```
-
-Expected result:
-
-- local app responds on `http://127.0.0.1:3002`
-- local BAO responds on `http://127.0.0.1:8001/admin/login`
-- public auth bridge check passes for:
+- Public BlifeHealthy WAP stability work is complete and merged to `main`.
+- PR merged: `#77`
+- Final merge commit on `main`: `9bc4ac17f4031cfdaea4c5a6793dd60990c30d66`
+- Post-merge smoke passed for:
+  - `https://wap.blifehealthy.com`
   - `https://api.blifehealthy.com/health`
-  - CORS preflight from `https://wap.blifehealthy.com`
-  - login `TH0000001 / a1a1a1`
+  - `https://bao.blifehealthy.com/admin/login`
+- Manual device verification also passed after the final fix.
 
-## Restore Guidance
+## Root Cause Closed This Session
 
-Do not restore by default.
+The final iOS blocker was a repeated `auth/me` verification loop in WAP auth guarding.
 
-Current local state is usable and recent work is already merged into `main`.
+- `RequireAuth` was retriggering `auth/me` after `setUser`, which caused repeated `me` requests.
+- On iOS this left a hanging `me` request after entering Home and the app appeared to freeze.
+- Public WAP state persistence was also reduced to avoid stale browser state leaking between sessions.
 
-Restore only if:
+## What Was Done
 
-- local data becomes corrupted
-- you need to replay a bug from an older snapshot
-- a destructive smoke/reset is about to happen
+- merged the public WAP stabilization PR into `main`
+- created a fresh local backup before merge
+- synced local `main` with `origin/main`
+- stashed unrelated local work so the repo is now clean and ready for the next task
 
-Current primary restore point:
+## Backup / Recovery
 
-- [backups/stephub-full-20260329-212850](/Users/macbook/poolproject/backups/stephub-full-20260329-212850)
+Backup created before merge:
 
-Restore command:
+- [backups/stephub-full-20260331-151119](/Users/macbook/poolproject/backups/stephub-full-20260331-151119)
 
-```bash
-ALLOW_DESTRUCTIVE_LOCAL_RESET=1 bash scripts/restore_local_backup.sh backups/stephub-full-20260329-212850 --yes
-./Start_Local_Stack.command
-```
+Current local stash for unrelated work:
 
-## First Checks Next Session
+- `stash@{0}: post-merge-local-work-2026-03-31`
 
-1. Confirm startup completes without failure.
-2. Confirm `wap.blifehealthy.com` login works with `TH0000001 / a1a1a1`.
-3. Confirm BAO login works with `superadmin@blifehealthy.com / 472121`.
-4. Confirm BAO `Commission Setting > Direct Bonus` save still persists.
-5. Confirm BAO `Commission Setting > Matrix Bonus` still allows add/remove levels per board.
-6. Confirm BAO order list still starts with:
-   - `ID`
-   - `Order No`
-   - `Status`
-   - `Total`
+Do not restore or pop by default. Only use them if a later task specifically needs that older local state.
 
-## Next Work Candidates
+## Repo State
 
-Pick from these depending on priority:
+- current branch: `main`
+- working tree: clean
+- safe to start the next task from `main`
 
-1. Regression pass on real-domain UAT flows
-   - BAO login
-   - BAO commission save
-   - public WAP login
-   - BAO order list/detail
+## Start Here Next Session
 
-2. Commission verification pass
-   - approve one fresh order
-   - confirm direct/unilevel still calculate from approved order PV
-   - confirm matrix and pool flows still react to approved orders as expected
+1. Read `/Users/macbook/poolproject/linenext.md`
+2. Use that file to decide which task to do next
+3. Start a new branch from `main` for the selected task
 
-3. BAO UX cleanup
-   - tighten order list readability
-   - improve commission settings affordances/validation
-   - reduce chances of Orchid form regressions in other screens
+If `linenext.md` has been updated since this handoff, follow `linenext.md` first.
 
-4. Backup/ops hardening
-   - optionally add CI or a repeatable check that runs `npm run dev:check:public-auth`
-   - optionally add restore docs/examples for UAT server operators
+## What To Do Next
 
-## Things To Avoid Accidentally
+Next work should be chosen from:
 
-Avoid these unless intentionally resetting state:
+- `/Users/macbook/poolproject/linenext.md`
 
-- `DEV_RESET_BASELINE=1 npm run dev:up`
-- `DEV_RESET_BASELINE=1 npm run dev:restart`
-- destructive smoke scripts
-- manual overwrites of `runtime/` without a fresh backup first
+Do not continue guessing on the old iOS/Home issue unless a new regression is reported. That fix is already merged.
 
-Before risky work:
-
-```bash
-npm run dev:backup
-```
-
-## Current References
-
-Use these two files together:
+## References
 
 - [DEV_HANDOFF.md](/Users/macbook/poolproject/DEV_HANDOFF.md)
 - [HANDOFF_NEXT.md](/Users/macbook/poolproject/HANDOFF_NEXT.md)

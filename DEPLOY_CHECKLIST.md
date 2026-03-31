@@ -41,20 +41,40 @@ Notes:
 1. Set environment
 - copy [.env.staging.example](/Users/macbook/poolproject/.env.staging.example) to the real environment
 - set the real `DATABASE_URL`
+- set real `LINE_CHANNEL_ID` or `LINE_LOGIN_CHANNEL_ID`
+- set `LINE_STRICT_VERIFY=true` for UAT/production
 
-2. Apply schema
+2. LINE data migration
+- if an older environment still has `runtime/line-bindings.json`, run:
+- `npm run line:bindings:migrate-runtime`
+- this imports legacy runtime LINE bindings into the new `LineBinding` database table
+
+3. Apply schema
 - run `npm run prisma:generate`
 - run `npm run prisma:push`
 
-3. Build and start
+4. Build and start
 - run `npm run build`
 - run `npm run start:api`
 
-4. Verify
+5. Verify
 - `GET /health`
+- `POST /auth/line-login` accepts LIFF payload
+- `GET /auth/line-bindings` shows DB-backed rows
 - `POST /orders/:id/deliver` exists
 - delivered bucket works:
   - `GET /orders?bucket=delivered`
+
+6. LINE flow verification
+- legacy member:
+  - sign in once and connect LINE from Profile
+  - sign out
+  - re-enter via LINE and confirm `LINE login` opens member session
+- referral flow:
+  - open member referral card
+  - share via LINE
+  - confirm invite opens `SignIn?sponsorCode=...`
+  - continue to signup and verify sponsor attribution remains correct
 
 ## BAO Deploy
 
