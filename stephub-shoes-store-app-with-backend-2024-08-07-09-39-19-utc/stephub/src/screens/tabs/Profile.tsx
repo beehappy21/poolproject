@@ -12,9 +12,9 @@ import {RootState} from '../../store';
 import {actions} from '../../store/actions';
 import {
   LineProfile,
+  buildLineLiffEntryUrl,
   buildLineShareUrl,
   initializeLineLiff,
-  startLineLogin,
 } from '../../utils/line';
 
 type DashboardResponse = {
@@ -146,6 +146,10 @@ export const Profile: React.FC = () => {
       (user as RootState['userSlice']['user'] & {photoUrl?: string; avatarUrl?: string})?.avatarUrl ||
       COMPANY_LOGO_FALLBACK) as string,
   );
+  const showLineStatus = (message: string) => {
+    setLineStatusMessage(message);
+    window.setTimeout(() => setLineStatusMessage(''), 6000);
+  };
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -321,16 +325,17 @@ export const Profile: React.FC = () => {
 
   const handleConnectLine = async () => {
     if (!user?.accessToken) {
-      setLineStatusMessage('กรุณาเข้าสู่ระบบก่อนเชื่อม LINE');
-      window.setTimeout(() => setLineStatusMessage(''), 2000);
+      showLineStatus('กรุณาเข้าสู่ระบบก่อนเชื่อม LINE แล้วกลับมาหน้านี้อีกครั้ง');
       return;
     }
 
     if (!lineProfile?.userId) {
-      if (!startLineLogin(window.location.href)) {
-        setLineStatusMessage('ยังไม่ได้ตั้งค่า LINE LIFF/OA');
-        window.setTimeout(() => setLineStatusMessage(''), 2000);
-      }
+      window.location.assign(
+        buildLineLiffEntryUrl({
+          mode: 'connect',
+          returnTo: '/TabNavigator',
+        }),
+      );
       return;
     }
 
@@ -354,7 +359,7 @@ export const Profile: React.FC = () => {
       );
 
       setLineBinding(response.data);
-      setLineStatusMessage(
+      showLineStatus(
         lineBinding ? 'อัปเดตบัญชี LINE ที่เชื่อมแล้ว' : 'เชื่อมต่อ LINE สำเร็จ',
       );
 
@@ -369,10 +374,11 @@ export const Profile: React.FC = () => {
       );
     } catch (error) {
       console.error(error);
-      setLineStatusMessage('เชื่อมต่อ LINE ไม่สำเร็จ');
+      showLineStatus(
+        'เชื่อมต่อ LINE ไม่สำเร็จ กรุณาตรวจสอบว่าเปิดผ่าน LINE/LIFF ถูกต้อง แล้วลองกดเชื่อมอีกครั้ง หากยังไม่ได้ให้ sign in ปกติก่อนแล้วค่อย reconnect',
+      );
     } finally {
       setLineLoading(false);
-      window.setTimeout(() => setLineStatusMessage(''), 2000);
     }
   };
 
@@ -676,6 +682,11 @@ export const Profile: React.FC = () => {
       : lineProfile?.displayName
         ? 'ตรวจพบ LINE profile แล้ว กดยืนยันการเชื่อมเพื่อผูกกับบัญชีสมาชิกนี้'
         : 'ถ้ายังไม่เคยผูก LINE ให้กดเชื่อมต่อ LINE ระบบจะพากลับไป LINE แล้วเชื่อมให้';
+    const recoveryMessage = isConnected
+      ? 'ถ้าเชื่อมใหม่ไม่สำเร็จ ให้ปิดหน้า LINE แล้วลองกดอีกครั้งจาก Profile'
+      : lineProfile?.displayName
+        ? 'ขั้นตอนถัดไป: 1. กดยืนยันการเชื่อม 2. รอข้อความสำเร็จ 3. ครั้งหน้าจะใช้ LINE login ได้ทันที'
+        : 'ขั้นตอนถัดไป: 1. กดเชื่อมต่อ LINE 2. login LINE ถ้าระบบถาม 3. กลับมาที่ Profile แล้วกดยืนยันอีกครั้งถ้ายังไม่ผูกอัตโนมัติ';
 
     return (
       <div
@@ -725,6 +736,17 @@ export const Profile: React.FC = () => {
               }}
             >
               {helperMessage}
+            </div>
+            <div
+              style={{
+                marginTop: 4,
+                color: '#94A3B8',
+                fontSize: 12,
+                lineHeight: 1.6,
+                ...theme.fonts.Mulish_400Regular,
+              }}
+            >
+              {recoveryMessage}
             </div>
           </div>
           <button

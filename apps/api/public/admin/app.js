@@ -238,10 +238,13 @@ const lineBindingDuplicateTable = document.getElementById("lineBindingDuplicateT
 const lineSignupShareForm = document.getElementById("lineSignupShareForm");
 const lineShareMessageInput = document.getElementById("lineShareMessageInput");
 const lineSettingsOutput = document.getElementById("lineSettingsOutput");
+const lineRuntimeStatusList = document.getElementById("lineRuntimeStatusList");
+const lineRuntimeStatusOutput = document.getElementById("lineRuntimeStatusOutput");
 state.lineBindings = [];
 state.lineSignupShareSettings = {
   shareMessage: "",
 };
+state.lineRuntimeSettings = null;
 state.lineBindingSearch = "";
 state.lineBindingSource = "";
 state.selectedLineBindingUserId = "";
@@ -646,6 +649,144 @@ function renderLineSettings() {
   if (lineShareMessageInput) {
     lineShareMessageInput.value = state.lineSignupShareSettings?.shareMessage || "";
   }
+}
+
+function getLineRuntimeToneLabel(tone) {
+  if (tone === "success") {
+    return "Ready";
+  }
+  if (tone === "danger") {
+    return "Missing";
+  }
+  return "Review";
+}
+
+function getLineRuntimeToneClass(tone) {
+  if (tone === "success") {
+    return "status-badge status-badge--success";
+  }
+  if (tone === "danger") {
+    return "status-badge status-badge--danger";
+  }
+  return "status-badge status-badge--warning";
+}
+
+function renderLineRuntimeStatus() {
+  if (!lineRuntimeStatusList) {
+    return;
+  }
+
+  const runtime = state.lineRuntimeSettings;
+
+  if (!runtime) {
+    lineRuntimeStatusList.innerHTML = `<div class="stack-item">
+      <strong>Waiting for dashboard</strong>
+      <p class="muted">Sign in and refresh the LINE workspace to load system readiness checks.</p>
+    </div>`;
+    return;
+  }
+
+  const rows = [
+    {
+      title: "LIFF ID configured",
+      tone: runtime.lineLiffIdConfigured ? "success" : "danger",
+      detail: runtime.lineLiffIdConfigured
+        ? `Configured as ${runtime.lineLiffId}`
+        : "Missing LINE_LIFF_ID / REACT_APP_LINE_LIFF_ID alignment",
+    },
+    {
+      title: "Callback URL configured",
+      tone: runtime.lineLoginCallbackConfigured ? "success" : "danger",
+      detail: runtime.lineLoginCallbackConfigured
+        ? runtime.lineLoginCallbackUrl
+        : "Missing LINE_LOGIN_CALLBACK_URL",
+    },
+    {
+      title: "LIFF sign-in URL configured",
+      tone: runtime.lineLiffSignInConfigured ? "success" : "danger",
+      detail: runtime.lineLiffSignInConfigured
+        ? runtime.lineLiffSignInUrl
+        : "Missing LINE_LIFF_SIGNIN_URL / REACT_APP_LINE_LIFF_SIGNIN_URL",
+    },
+    {
+      title: "LINE channel secret",
+      tone: runtime.lineLoginChannelSecretConfigured ? "success" : "danger",
+      detail: runtime.lineLoginChannelSecretConfigured
+        ? "Configured server-side only"
+        : "Missing LINE_LOGIN_CHANNEL_SECRET on backend runtime",
+    },
+    {
+      title: "Strict verification",
+      tone: runtime.strictVerificationEnabled ? "success" : "warning",
+      detail: runtime.strictVerificationEnabled
+        ? "Enabled"
+        : "Disabled. Production should keep LINE_STRICT_VERIFY=true",
+    },
+    {
+      title: "Environment / API base",
+      tone: "warning",
+      detail: `${runtime.environment || "unknown"} · ${runtime.apiBaseUrl || "api base not declared"}`,
+    },
+    {
+      title: "line-login API reachable",
+      tone: runtime.lineLoginRouteReachable ? "success" : "danger",
+      detail: runtime.lineLoginRouteDetail || "Unable to confirm /auth/line-login",
+    },
+  ];
+
+  lineRuntimeStatusList.innerHTML = rows
+    .map(
+      (item) => `<div class="stack-item">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <strong>${escapeHtml(item.title)}</strong>
+          <span class="${getLineRuntimeToneClass(item.tone)}">${getLineRuntimeToneLabel(item.tone)}</span>
+        </div>
+        <p class="muted">${escapeHtml(item.detail)}</p>
+      </div>`,
+    )
+    .join("");
+
+  if (lineRuntimeStatusOutput) {
+    lineRuntimeStatusOutput.textContent = JSON.stringify(runtime, null, 2);
+  }
+}
+
+async function loadLineRuntimeSettings() {
+  const runtime = await request("/settings/line-runtime");
+  const nextRuntime = {
+    ...runtime,
+    lineLoginRouteReachable: false,
+    lineLoginRouteDetail: "Checking /auth/line-login...",
+  };
+
+  try {
+    const response = await fetch("/auth/line-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lineUserId: "__admin_probe__" }),
+    });
+    const text = await response.text();
+    let payload = null;
+
+    try {
+      payload = text ? JSON.parse(text) : null;
+    } catch (error) {
+      payload = null;
+    }
+
+    nextRuntime.lineLoginRouteReachable =
+      response.status === 400 || response.status === 401;
+    nextRuntime.lineLoginRouteDetail = nextRuntime.lineLoginRouteReachable
+      ? `Route responded with HTTP ${response.status}${payload?.message ? `: ${payload.message}` : ""}`
+      : `Unexpected response HTTP ${response.status}${payload?.message ? `: ${payload.message}` : ""}`;
+  } catch (error) {
+    nextRuntime.lineLoginRouteReachable = false;
+    nextRuntime.lineLoginRouteDetail =
+      error instanceof Error ? error.message : "Unable to probe /auth/line-login";
+  }
+
+  state.lineRuntimeSettings = nextRuntime;
+  renderLineRuntimeStatus();
 }
 
 function getLineBindingDuplicates(lineUserId, excludedUserId = "") {
@@ -2037,6 +2178,7 @@ async function loadDashboard() {
     request("/shipping/jobs"),
     request("/auth/line-bindings"),
     loadLineSignupShareSettings(),
+    loadLineRuntimeSettings(),
     loadCommissionSettings(),
     loadWalletSettings(),
     loadManualPaymentSettings(),

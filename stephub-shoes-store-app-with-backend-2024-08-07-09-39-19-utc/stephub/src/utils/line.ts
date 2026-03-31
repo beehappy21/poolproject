@@ -20,6 +20,8 @@ type LineConfig = {
   liffId: string;
   oaId: string;
   oaUrl: string;
+  callbackUrl: string;
+  liffSignInUrl: string;
   isConfigured: boolean;
 };
 
@@ -79,13 +81,138 @@ export const getLineConfig = (): LineConfig => {
   const liffId = URLS.LINE_LIFF_ID?.trim() || '';
   const oaId = URLS.LINE_OA_ID?.trim() || '';
   const oaUrl = URLS.LINE_OA_URL?.trim() || '';
+  const callbackUrl = URLS.LINE_LOGIN_CALLBACK_URL?.trim() || '';
+  const liffSignInUrl = URLS.LINE_LIFF_SIGNIN_URL?.trim() || '';
 
   return {
     liffId,
     oaId,
     oaUrl,
-    isConfigured: Boolean(liffId || oaUrl || oaId),
+    callbackUrl,
+    liffSignInUrl,
+    isConfigured: Boolean(liffId || oaUrl || oaId || callbackUrl || liffSignInUrl),
   };
+};
+
+export type LineEntryMode = 'signin' | 'signup' | 'connect';
+
+export const resolveSafeReturnTo = (
+  rawValue?: string | null,
+  fallbackPath = '/TabNavigator',
+): string => {
+  const normalized = rawValue?.trim() || '';
+
+  if (!normalized) {
+    return fallbackPath;
+  }
+
+  if (normalized.startsWith('/')) {
+    return normalized;
+  }
+
+  if (typeof window === 'undefined') {
+    return fallbackPath;
+  }
+
+  try {
+    const parsed = new URL(normalized, window.location.origin);
+
+    if (parsed.origin === window.location.origin) {
+      return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    }
+  } catch (error) {
+    console.error(error);
+  }
+
+  return fallbackPath;
+};
+
+export const buildLineLiffEntryPath = (input?: {
+  sponsorCode?: string | null;
+  mode?: LineEntryMode;
+  returnTo?: string | null;
+}): string => {
+  const query = new URLSearchParams();
+  const sponsorCode = normalizeSponsorCode(input?.sponsorCode);
+  const mode = input?.mode || 'signin';
+  const returnTo = resolveSafeReturnTo(
+    input?.returnTo || undefined,
+    sponsorCode ? buildSignUpPath(sponsorCode) : '/TabNavigator',
+  );
+
+  query.set('mode', mode);
+
+  if (sponsorCode) {
+    query.set('sponsorCode', sponsorCode);
+  }
+
+  if (returnTo) {
+    query.set('returnTo', returnTo);
+  }
+
+  return `/line/liff/signin?${query.toString()}`;
+};
+
+export const buildLineLiffEntryUrl = (input?: {
+  sponsorCode?: string | null;
+  mode?: LineEntryMode;
+  returnTo?: string | null;
+}): string => {
+  const config = getLineConfig();
+  const entryPath = buildLineLiffEntryPath(input);
+
+  if (typeof window === 'undefined') {
+    return config.liffSignInUrl || entryPath;
+  }
+
+  if (!config.liffSignInUrl) {
+    return `${window.location.origin}${entryPath}`;
+  }
+
+  try {
+    const parsed = new URL(config.liffSignInUrl);
+    parsed.search = entryPath.includes('?') ? entryPath.split('?')[1] : '';
+    return parsed.toString();
+  } catch (error) {
+    console.error(error);
+    return config.liffSignInUrl;
+  }
+};
+
+export const buildLineLoginCallbackUrl = (input?: {
+  sponsorCode?: string | null;
+  mode?: LineEntryMode;
+  returnTo?: string | null;
+}): string => {
+  const config = getLineConfig();
+  const sponsorCode = normalizeSponsorCode(input?.sponsorCode);
+  const returnTo = resolveSafeReturnTo(
+    input?.returnTo || undefined,
+    sponsorCode ? buildSignUpPath(sponsorCode) : '/TabNavigator',
+  );
+
+  if (!config.callbackUrl) {
+    return buildLineLiffEntryUrl({
+      sponsorCode,
+      mode: input?.mode,
+      returnTo,
+    });
+  }
+
+  try {
+    const parsed = new URL(config.callbackUrl);
+    parsed.searchParams.set('mode', input?.mode || 'signin');
+    if (sponsorCode) {
+      parsed.searchParams.set('sponsorCode', sponsorCode);
+    }
+    if (returnTo) {
+      parsed.searchParams.set('returnTo', returnTo);
+    }
+    return parsed.toString();
+  } catch (error) {
+    console.error(error);
+    return config.callbackUrl;
+  }
 };
 
 export const initializeLineLiff = async (): Promise<LineBootstrapResult> => {

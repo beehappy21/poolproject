@@ -9,6 +9,8 @@ import {theme} from '../constants';
 import {components} from '../components';
 import {actions} from '../store/actions';
 import {
+  buildSignUpPath,
+  buildLineLiffEntryUrl,
   extractSponsorCodeFromSearch,
   initializeLineLiff,
   normalizeSponsorCode,
@@ -580,16 +582,18 @@ export const SignUp: FC = (): JSX.Element => {
             style={{
               marginBottom: 16,
               borderRadius: 14,
-              backgroundColor: '#F0FDF4',
-              border: '1px solid #C7E8CF',
+              backgroundColor: lineUserId ? '#F0FDF4' : '#FFF7ED',
+              border: lineUserId ? '1px solid #C7E8CF' : '1px solid #FED7AA',
               padding: '14px 16px',
-              color: '#166534',
+              color: lineUserId ? '#166534' : '#9A3412',
               lineHeight: 1.6,
             }}
           >
             {lineStatus}
             <div style={{marginTop: 6, fontSize: 12, opacity: 0.9}}>
-              ระบบจะใช้ชื่อจาก LINE มาช่วยกรอกตอนสร้างสมาชิก และจะเชื่อม LINE ให้หลังสมัครสำเร็จ
+              {lineUserId
+                ? 'ระบบจะใช้ชื่อจาก LINE มาช่วยกรอกตอนสร้างสมาชิก และจะเชื่อม LINE ให้หลังสมัครสำเร็จ'
+                : 'ถ้า LIFF ยังไม่พร้อม ให้กลับไปเปิดลิงก์สมัครจาก LINE อีกครั้ง หรือใช้ลิงก์ invite เดิมซ้ำเพื่อให้ระบบดึง LINE profile ใหม่'}
             </div>
           </div>
         ) : null}
@@ -618,6 +622,29 @@ export const SignUp: FC = (): JSX.Element => {
             }}
           >
             ถ้ายังไม่เห็นชื่อจาก LINE ให้กลับไปเปิดลิงก์สมัครผ่าน LINE อีกครั้ง เพื่อให้ระบบเชื่อมบัญชีก่อนสมัคร
+            <div style={{marginTop: 10}}>
+              <button
+                onClick={() =>
+                  window.location.assign(
+                    buildLineLiffEntryUrl({
+                      sponsorCode,
+                      mode: 'signup',
+                      returnTo: buildSignUpPath(sponsorCode),
+                    }),
+                  )
+                }
+                style={{
+                  border: 'none',
+                  borderRadius: 10,
+                  backgroundColor: '#EA580C',
+                  color: '#FFFFFF',
+                  padding: '10px 14px',
+                  cursor: 'pointer',
+                }}
+              >
+                เปิดผ่าน LINE อีกครั้ง
+              </button>
+            </div>
           </div>
         ) : null}
         {errorMessage ? (
