@@ -46,10 +46,17 @@ const readLineRuntimeSettings = () => {
   const callbackUrl = normalizeEnvValue(process.env.LINE_LOGIN_CALLBACK_URL);
   const liffId = normalizeEnvValue(process.env.LINE_LIFF_ID);
   const liffSignInUrl = normalizeEnvValue(process.env.LINE_LIFF_SIGNIN_URL);
+  const wapBaseUrl = normalizeEnvValue(process.env.APP_WAP_URL);
   const strictVerificationEnabled =
     process.env.LINE_STRICT_VERIFY === "true" || process.env.NODE_ENV === "production";
   const callbackHost = extractHost(callbackUrl);
   const liffSigninHost = extractHost(liffSignInUrl);
+  const wapBaseHost = extractHost(wapBaseUrl);
+  const publicLineHostAligned =
+    Boolean(callbackHost) &&
+    Boolean(liffSigninHost) &&
+    callbackHost === "www.blifehealthy.com" &&
+    liffSigninHost === "www.blifehealthy.com";
 
   return {
     environment: process.env.NODE_ENV || "development",
@@ -67,6 +74,10 @@ const readLineRuntimeSettings = () => {
     lineLiffSignInUrl: liffSignInUrl,
     lineLiffSignInConfigured: Boolean(liffSignInUrl),
     lineLiffSignInHost: liffSigninHost,
+    wapBaseUrl,
+    wapBaseConfigured: Boolean(wapBaseUrl),
+    wapBaseHost,
+    publicLineHostAligned,
     strictVerificationEnabled,
     apiBaseUrl:
       normalizeEnvValue(process.env.APP_PUBLIC_BASE_URL) ||
