@@ -285,11 +285,43 @@ class CommissionSettingsScreen extends Screen
                 ?: 'http://127.0.0.1:3000'),
             '/'
         );
+        $lineLiffId = trim((string) env('LINE_LIFF_ID', ''));
+        $lineCallbackUrl = trim((string) env('LINE_LOGIN_CALLBACK_URL', ''));
+        $lineLiffSignInUrl = trim((string) env('LINE_LIFF_SIGNIN_URL', ''));
+        $strictVerificationEnabled =
+            env('LINE_STRICT_VERIFY') === 'true' || app()->environment('production');
 
         $status = [
             'checkedAt' => now()->toIso8601String(),
             'apiBaseUrl' => $apiBaseUrl,
             'items' => [
+                [
+                    'key' => 'liff-id',
+                    'title' => 'LIFF ID configured',
+                    'tone' => $lineLiffId !== '' ? 'success' : 'danger',
+                    'detail' => $lineLiffId !== ''
+                        ? 'Configured as '.$lineLiffId
+                        : 'Missing LINE_LIFF_ID in BAO/runtime env',
+                    'meta' => null,
+                ],
+                [
+                    'key' => 'callback-url',
+                    'title' => 'LINE callback configured',
+                    'tone' => $lineCallbackUrl !== '' ? 'success' : 'danger',
+                    'detail' => $lineCallbackUrl !== ''
+                        ? $lineCallbackUrl
+                        : 'Missing LINE_LOGIN_CALLBACK_URL',
+                    'meta' => null,
+                ],
+                [
+                    'key' => 'liff-signin-url',
+                    'title' => 'LIFF sign-in URL configured',
+                    'tone' => $lineLiffSignInUrl !== '' ? 'success' : 'danger',
+                    'detail' => $lineLiffSignInUrl !== ''
+                        ? $lineLiffSignInUrl
+                        : 'Missing LINE_LIFF_SIGNIN_URL',
+                    'meta' => null,
+                ],
                 [
                     'key' => 'line-login-route',
                     'title' => 'LINE login route',
@@ -316,6 +348,15 @@ class CommissionSettingsScreen extends Screen
                     'title' => 'Latest source mix',
                     'tone' => 'warning',
                     'detail' => 'Waiting for binding source summary...',
+                    'meta' => null,
+                ],
+                [
+                    'key' => 'strict-verify',
+                    'title' => 'Strict verification',
+                    'tone' => $strictVerificationEnabled ? 'success' : 'warning',
+                    'detail' => $strictVerificationEnabled
+                        ? 'Enabled'
+                        : 'Disabled. UAT/production should keep LINE_STRICT_VERIFY=true',
                     'meta' => null,
                 ],
             ],

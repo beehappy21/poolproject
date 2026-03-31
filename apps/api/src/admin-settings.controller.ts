@@ -25,6 +25,56 @@ import {
 const MAX_DIRECT_LEVELS = 10;
 const MAX_UNI_LEVELS = 20;
 
+const normalizeEnvValue = (value?: string | null): string => value?.trim() || "";
+
+const extractHost = (value: string): string => {
+  if (!value) {
+    return "";
+  }
+
+  try {
+    return new URL(value).host;
+  } catch {
+    return "";
+  }
+};
+
+const readLineRuntimeSettings = () => {
+  const lineLoginChannelId =
+    normalizeEnvValue(process.env.LINE_LOGIN_CHANNEL_ID) ||
+    normalizeEnvValue(process.env.LINE_CHANNEL_ID);
+  const callbackUrl = normalizeEnvValue(process.env.LINE_LOGIN_CALLBACK_URL);
+  const liffId = normalizeEnvValue(process.env.LINE_LIFF_ID);
+  const liffSignInUrl = normalizeEnvValue(process.env.LINE_LIFF_SIGNIN_URL);
+  const strictVerificationEnabled =
+    process.env.LINE_STRICT_VERIFY === "true" || process.env.NODE_ENV === "production";
+  const callbackHost = extractHost(callbackUrl);
+  const liffSigninHost = extractHost(liffSignInUrl);
+
+  return {
+    environment: process.env.NODE_ENV || "development",
+    lineLoginChannelId,
+    lineLoginChannelIdConfigured: Boolean(lineLoginChannelId),
+    lineLoginChannelSecretConfigured: Boolean(
+      normalizeEnvValue(process.env.LINE_LOGIN_CHANNEL_SECRET) ||
+        normalizeEnvValue(process.env.LINE_CHANNEL_SECRET),
+    ),
+    lineLoginCallbackUrl: callbackUrl,
+    lineLoginCallbackConfigured: Boolean(callbackUrl),
+    lineLoginCallbackHost: callbackHost,
+    lineLiffId: liffId,
+    lineLiffIdConfigured: Boolean(liffId),
+    lineLiffSignInUrl: liffSignInUrl,
+    lineLiffSignInConfigured: Boolean(liffSignInUrl),
+    lineLiffSignInHost: liffSigninHost,
+    strictVerificationEnabled,
+    apiBaseUrl:
+      normalizeEnvValue(process.env.APP_PUBLIC_BASE_URL) ||
+      normalizeEnvValue(process.env.APP_BASE_URL) ||
+      "",
+  };
+};
+
 @Controller("settings")
 export class AdminSettingsController {
   @Get("commissions")
@@ -185,6 +235,11 @@ export class AdminSettingsController {
   @Get("signup-share")
   getSignupShareSettings() {
     return readSignupShareSettings();
+  }
+
+  @Get("line-runtime")
+  getLineRuntimeSettings() {
+    return readLineRuntimeSettings();
   }
 
   @Put("signup-share")

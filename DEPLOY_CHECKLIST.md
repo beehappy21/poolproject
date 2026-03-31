@@ -42,6 +42,10 @@ Notes:
 - copy [.env.staging.example](/Users/macbook/poolproject/.env.staging.example) to the real environment
 - set the real `DATABASE_URL`
 - set real `LINE_CHANNEL_ID` or `LINE_LOGIN_CHANNEL_ID`
+- set real `LINE_LOGIN_CHANNEL_SECRET` in the backend/API env only
+- set `LINE_LOGIN_CALLBACK_URL=https://www.blifehealthy.com/auth/line/callback`
+- set `LINE_LIFF_ID=2009662380-OAbgN6VR`
+- set `LINE_LIFF_SIGNIN_URL=https://www.blifehealthy.com/line/liff/signin`
 - set `LINE_STRICT_VERIFY=true` for UAT/production
 
 2. LINE data migration
@@ -81,8 +85,20 @@ Notes:
 1. Set environment
 - copy [backend/.env.staging.example](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/.env.staging.example) to the real environment
 - set real `APP_URL`
+- set real `APP_WAP_URL`
+- set real `APP_API_URL`
 - set real `POOL_DB_*`
 - set real mail settings if email is needed
+- keep `LINE_LOGIN_CALLBACK_URL` and `LINE_LIFF_SIGNIN_URL` aligned with the LINE Developers console
+
+## WAP Build Env
+
+1. Frontend public env
+- copy [stephub/.env.example](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/.env.example) into the real build env
+- set `REACT_APP_LINE_LIFF_ID=2009662380-OAbgN6VR`
+- set `REACT_APP_LINE_LIFF_SIGNIN_URL=https://www.blifehealthy.com/line/liff/signin`
+- set `REACT_APP_LINE_LOGIN_CALLBACK_URL=https://www.blifehealthy.com/auth/line/callback`
+- do not expose `LINE_LOGIN_CHANNEL_SECRET` to the frontend
 
 2. Public files
 - if using local disk, run `php artisan storage:link`

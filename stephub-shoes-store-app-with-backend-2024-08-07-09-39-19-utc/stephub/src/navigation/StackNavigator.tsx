@@ -179,6 +179,7 @@ const stack = createBrowserRouter([
       {path: 'EmailVerified', element: <screens.EmailVerified />},
       {path: 'PhoneVerified', element: <screens.PhoneVerified />},
       {path: 'SignUp', element: <screens.SignUp />},
+      {path: 'line/liff/signin', element: <screens.LineLiffSignIn />},
       {path: 'CompleteRegistration', element: <screens.CompleteRegistration />},
       {path: 'SignUpAccountCreated', element: <screens.SignUpAccountCreated />},
       {path: 'ForgotPassword', element: <screens.ForgotPassword />},

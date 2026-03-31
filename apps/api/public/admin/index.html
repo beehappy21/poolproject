@@ -264,6 +264,22 @@
           </article>
           <article class="panel">
             <div class="section-head">
+              <h3>LINE System Status</h3>
+              <span class="muted">Runtime readiness for operators</span>
+            </div>
+            <div class="stack-list" id="lineRuntimeStatusList">
+              <div class="stack-item">
+                <strong>Waiting for dashboard</strong>
+                <p class="muted">Sign in and refresh the LINE workspace to load system readiness checks.</p>
+              </div>
+            </div>
+            <pre id="lineRuntimeStatusOutput" class="output-card">LINE runtime status will appear here.</pre>
+          </article>
+        </section>
+
+        <section class="grid two-up" data-menu-section="line" data-line-section="settings">
+          <article class="panel">
+            <div class="section-head">
               <h3>LINE Flow Summary</h3>
               <span class="muted">สถานะ flow ที่ใช้งานในระบบตอนนี้</span>
             </div>
@@ -279,6 +295,26 @@
               <div class="stack-item">
                 <strong>Post-login binding</strong>
                 <p class="muted">ถ้ายังไม่ผูก LINE ให้เข้าระบบก่อน แล้วกด Connect LINE จากหน้า Profile</p>
+              </div>
+            </div>
+          </article>
+          <article class="panel">
+            <div class="section-head">
+              <h3>Operator Notes</h3>
+              <span class="muted">How to read this panel</span>
+            </div>
+            <div class="stack-list">
+              <div class="stack-item">
+                <strong>Config checks</strong>
+                <p class="muted">LIFF ID, callback URL, and LIFF sign-in URL come from runtime env. Missing values should stay yellow or red until set.</p>
+              </div>
+              <div class="stack-item">
+                <strong>API reachability</strong>
+                <p class="muted">`line-login API reachable` should only show ready when `/auth/line-login` responds from the live stack.</p>
+              </div>
+              <div class="stack-item">
+                <strong>Verification mode</strong>
+                <p class="muted">Strict verification should stay enabled on UAT/production so LINE token checks remain server-side.</p>
               </div>
             </div>
           </article>

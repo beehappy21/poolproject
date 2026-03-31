@@ -4,6 +4,7 @@ import {TopupWallet} from './TopupWallet';
 import {SignIn} from './SignIn';
 import {Filter} from './Filter';
 import {SignUp} from './SignUp';
+import {LineLiffSignIn} from './LineLiffSignIn';
 import {CompleteRegistration} from './CompleteRegistration';
 import {Commission} from './Commission';
 import {Firm} from './Firm';
@@ -53,6 +54,7 @@ export const screens = {
   Order,
   TeamMember,
   SignUp,
+  LineLiffSignIn,
   CompleteRegistration,
   SignIn,
   Commission,

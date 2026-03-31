@@ -10,12 +10,12 @@ import {URLS} from '../config';
 import {actions} from '../store/actions';
 import {hooks} from '../hooks';
 import {
+  buildLineLiffEntryUrl,
   buildSignUpPath,
   extractSponsorCodeFromSearch,
   getLineConfig,
   initializeLineLiff,
   isLineUserAgent,
-  startLineLogin,
 } from '../utils/line';
 
 const LOCAL_AUTH_BYPASS = false;
@@ -135,6 +135,9 @@ export const SignIn: React.FC = () => {
   const lineEntryHint = sponsorCode
     ? 'สำหรับสมาชิกใหม่จากลิงก์แนะนำ ระบบจะพาไปสมัครต่อพร้อมรหัสผู้แนะนำ'
     : 'สำหรับสมาชิกเก่าที่เคยเชื่อม LINE แล้ว สามารถเข้าสู่ระบบได้ทันที';
+  const lineRecoveryHint = sponsorCode
+    ? 'ถ้า LINE ใช้งานไม่ได้ชั่วคราว ให้กด Sign up ตามลิงก์เดิมต่อได้ และตรวจสอบว่ารหัสผู้แนะนำยังแสดงถูกต้อง'
+    : 'ถ้ายังไม่เคยผูก LINE ให้เข้าสู่ระบบปกติก่อน แล้วค่อยไปเชื่อม LINE ในหน้า Profile';
 
   const submitSignIn = async (
     normalizedIdentifier: string,
@@ -319,74 +322,21 @@ export const SignIn: React.FC = () => {
     }
   };
 
-  const handleLineMemberLogin = async (): Promise<void> => {
-    if (!lineUserId) {
-      handleLineEntry();
-      return;
-    }
-
-    setLoading(true);
-    setErrorMessage('');
-
-    try {
-      const response = await axios.post(
-        URLS.AUTH_LINE_LOGIN,
-        {
-          lineUserId,
-          lineIdToken: lineIdToken || undefined,
-        },
-        {
-          withCredentials: true,
-        },
-      );
-
-      applySignedInSession({
-        payload: response.data,
-        dispatch,
-        rememberMe: true,
-        navigate,
-        lineUserId,
-        lineIdToken,
-        lineDisplayName,
-        linePictureUrl,
-      });
-    } catch (error: unknown) {
-      if (axios.isAxiosError(error)) {
-        const serverMessage = error.response?.data?.message;
-        setErrorMessage(
-          serverMessage ||
-            'LINE account นี้ยังไม่ได้ผูกกับสมาชิก กรุณาเข้าสู่ระบบด้วยรหัสสมาชิกก่อนแล้วค่อยเชื่อม LINE ในหน้า Profile',
-        );
-      } else {
-        setErrorMessage('LINE sign-in failed. Please try again.');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleLineEntry = (): void => {
-    if (lineLoggedIn && sponsorCode) {
-      navigate(buildSignUpPath(sponsorCode));
+    const entryUrl = buildLineLiffEntryUrl({
+      sponsorCode,
+      mode: sponsorCode ? 'signup' : 'signin',
+      returnTo: sponsorCode ? buildSignUpPath(sponsorCode) : '/TabNavigator',
+    });
+
+    if (!entryUrl) {
+      setErrorMessage(
+        'ยังไม่ได้ตั้งค่า LINE LIFF sign-in URL กรุณาตรวจสอบ REACT_APP_LINE_LIFF_ID และ REACT_APP_LINE_LIFF_SIGNIN_URL',
+      );
       return;
     }
 
-    if (lineLoggedIn && !sponsorCode) {
-      handleLineMemberLogin().catch(console.error);
-      return;
-    }
-
-    const redirectPath = sponsorCode
-      ? `${window.location.origin}${buildSignUpPath(sponsorCode)}`
-      : window.location.href;
-
-    if (startLineLogin(redirectPath)) {
-      return;
-    }
-
-    setErrorMessage(
-      'ยังไม่ได้ตั้งค่า LINE OA / LIFF กรุณากำหนด REACT_APP_LINE_LIFF_ID หรือ REACT_APP_LINE_OA_URL',
-    );
+    window.location.assign(entryUrl);
   };
 
   const renderHeader = () => <components.Header title='Sign in' />;
@@ -495,6 +445,9 @@ export const SignIn: React.FC = () => {
           ) : null}
           <div style={{marginTop: 6, fontSize: 12, opacity: 0.9}}>
             {lineEntryHint}
+          </div>
+          <div style={{marginTop: 6, fontSize: 12, opacity: 0.75}}>
+            {lineRecoveryHint}
           </div>
         </div>
       ) : null}
@@ -618,6 +571,17 @@ export const SignIn: React.FC = () => {
           {lineEntryButtonLabel}
         </button>
       )}
+      <div
+        style={{
+          marginBottom: 20,
+          color: '#64748B',
+          fontSize: 12,
+          lineHeight: 1.7,
+          ...theme.fonts.Mulish_400Regular,
+        }}
+      >
+        สมาชิกเก่าที่ยังไม่เคยผูก LINE ให้ใช้ Sign in ปกติก่อนหนึ่งครั้ง จากนั้นไปที่ Profile เพื่อกดเชื่อม LINE
+      </div>
       <div
         style={{display: 'flex', alignItems: 'center', flexDirection: 'row'}}
       >

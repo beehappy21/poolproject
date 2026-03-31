@@ -144,7 +144,8 @@ function resolveRouteAccess(
     (
       path === "/settings/commissions" ||
       path === "/settings/matrix" ||
-      path === "/settings/signup-share"
+      path === "/settings/signup-share" ||
+      path === "/settings/line-runtime"
     )
   ) {
     return "public";

@@ -37,6 +37,10 @@ const BAO_BASE_URL =
 const LINE_LIFF_ID = process.env.REACT_APP_LINE_LIFF_ID?.trim() || '';
 const LINE_OA_ID = process.env.REACT_APP_LINE_OA_ID?.trim() || '';
 const LINE_OA_URL = process.env.REACT_APP_LINE_OA_URL?.trim() || '';
+const LINE_LOGIN_CALLBACK_URL =
+  process.env.REACT_APP_LINE_LOGIN_CALLBACK_URL?.trim() || '';
+const LINE_LIFF_SIGNIN_URL =
+  process.env.REACT_APP_LINE_LIFF_SIGNIN_URL?.trim() || '';
 
 export const GET_TAGS = `${MAIN_URL}api/tags.json`;
 export const GET_ORDERS = `${MAIN_URL}api/orders.json`;
@@ -95,6 +99,8 @@ export const URLS = {
   LINE_LIFF_ID,
   LINE_OA_ID,
   LINE_OA_URL,
+  LINE_LOGIN_CALLBACK_URL,
+  LINE_LIFF_SIGNIN_URL,
   GET_TAGS,
   GET_ORDERS,
   GET_BANNERS,
