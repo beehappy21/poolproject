@@ -671,6 +671,11 @@ export const Profile: React.FC = () => {
       : isConnected
         ? 'เชื่อมใหม่'
         : 'ยืนยันการเชื่อม';
+    const helperMessage = isConnected
+      ? 'ถ้าเปลี่ยนบัญชี LINE หรืออยากอัปเดตโปรไฟล์ ให้กดเชื่อมใหม่'
+      : lineProfile?.displayName
+        ? 'ตรวจพบ LINE profile แล้ว กดยืนยันการเชื่อมเพื่อผูกกับบัญชีสมาชิกนี้'
+        : 'ถ้ายังไม่เคยผูก LINE ให้กดเชื่อมต่อ LINE ระบบจะพากลับไป LINE แล้วเชื่อมให้';
 
     return (
       <div
@@ -709,6 +714,17 @@ export const Profile: React.FC = () => {
                 : lineProfile?.displayName
                   ? `พบ LINE profile: ${lineProfile.displayName}`
                   : 'ยังไม่ได้เชื่อม LINE กับบัญชีนี้'}
+            </div>
+            <div
+              style={{
+                marginTop: 4,
+                color: '#64748B',
+                fontSize: 12,
+                lineHeight: 1.6,
+                ...theme.fonts.Mulish_400Regular,
+              }}
+            >
+              {helperMessage}
             </div>
           </div>
           <button
