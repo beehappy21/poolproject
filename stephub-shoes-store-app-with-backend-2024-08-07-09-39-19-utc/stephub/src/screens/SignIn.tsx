@@ -1,6 +1,6 @@
 import axios from 'axios';
-import React, {useState} from 'react';
-import {useNavigate} from 'react-router-dom';
+import React, {useEffect, useMemo, useState} from 'react';
+import {useLocation, useNavigate} from 'react-router-dom';
 
 import {custom} from '../custom';
 import {svg} from '../assets/svg';
@@ -9,6 +9,14 @@ import {components} from '../components';
 import {URLS} from '../config';
 import {actions} from '../store/actions';
 import {hooks} from '../hooks';
+import {
+  buildSignUpPath,
+  extractSponsorCodeFromSearch,
+  getLineConfig,
+  initializeLineLiff,
+  isLineUserAgent,
+  startLineLogin,
+} from '../utils/line';
 
 const LOCAL_AUTH_BYPASS = false;
 const DEV_IMPERSONATION_PASSWORD = 'a1a1a1';
@@ -52,8 +60,50 @@ const normalizeIdentifier = (value: string): string => {
   return trimmed;
 };
 
+const applySignedInSession = ({
+  payload,
+  dispatch,
+  rememberMe,
+  navigate,
+  memberCodeFallback,
+  nameFallback,
+  lineUserId,
+  lineDisplayName,
+  linePictureUrl,
+}: {
+  payload: any;
+  dispatch: ReturnType<typeof hooks.useAppDispatch>;
+  rememberMe: boolean;
+  navigate: ReturnType<typeof useNavigate>;
+  memberCodeFallback?: string;
+  nameFallback?: string;
+  lineUserId?: string;
+  lineIdToken?: string;
+  lineDisplayName?: string;
+  linePictureUrl?: string;
+}) => {
+  dispatch(
+    actions.setUser({
+      userId: payload.user?.userId,
+      memberCode: payload.user?.memberCode ?? memberCodeFallback,
+      name: payload.user?.name ?? nameFallback,
+      lineUserId: lineUserId || payload.lineBinding?.lineUserId || undefined,
+      lineDisplayName:
+        lineDisplayName || payload.lineBinding?.displayName || undefined,
+      linePictureUrl:
+        linePictureUrl || payload.lineBinding?.pictureUrl || undefined,
+      email: payload.user?.email ?? '',
+      phone: payload.user?.phone ?? '',
+      accessToken: payload.accessToken,
+    }),
+  );
+  dispatch(actions.setRememberMe(rememberMe));
+  navigate('/TabNavigator');
+};
+
 export const SignIn: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const dispatch = hooks.useAppDispatch();
 
   const [rememberMe, setRememberMe] = useState<boolean>(false);
@@ -61,7 +111,20 @@ export const SignIn: React.FC = () => {
   const [password, setPassword] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [lineReady, setLineReady] = useState<boolean>(false);
+  const [lineLoggedIn, setLineLoggedIn] = useState<boolean>(false);
+  const [lineInClient, setLineInClient] = useState<boolean>(false);
+  const [lineUserId, setLineUserId] = useState<string>('');
+  const [lineIdToken, setLineIdToken] = useState<string>('');
+  const [lineDisplayName, setLineDisplayName] = useState<string>('');
+  const [linePictureUrl, setLinePictureUrl] = useState<string>('');
+  const [lineStatus, setLineStatus] = useState<string>('');
   const showDevImpersonationHint = isLocalRuntime();
+  const sponsorCode = useMemo(
+    () => extractSponsorCodeFromSearch(location.search),
+    [location.search],
+  );
+  const lineConfig = useMemo(() => getLineConfig(), []);
 
   const submitSignIn = async (
     normalizedIdentifier: string,
@@ -93,6 +156,60 @@ export const SignIn: React.FC = () => {
 
     throw new Error('Sign-in request exhausted retries.');
   };
+  useEffect(() => {
+    let mounted = true;
+
+    const bootstrapLine = async () => {
+      const result = await initializeLineLiff();
+
+      if (!mounted) {
+        return;
+      }
+
+      setLineReady(result.isReady);
+      setLineLoggedIn(result.isLoggedIn);
+      setLineInClient(result.isInClient);
+      setLineUserId(result.profile?.userId || '');
+      setLineIdToken(result.profile?.idToken || '');
+      setLineDisplayName(result.profile?.displayName || '');
+      setLinePictureUrl(result.profile?.pictureUrl || '');
+
+      if (result.errorMessage) {
+        setLineStatus(result.errorMessage);
+        return;
+      }
+
+      if (result.profile?.displayName) {
+        setLineStatus(`LINE พร้อมใช้งานในชื่อ ${result.profile.displayName}`);
+        return;
+      }
+
+      if (lineConfig.isConfigured) {
+        setLineStatus(
+          result.isInClient
+            ? 'เปิดผ่าน LINE แล้ว พร้อมเชื่อม LIFF'
+            : 'LIFF พร้อมใช้งาน สามารถพา user กลับเข้า LINE ได้',
+        );
+        return;
+      }
+
+      if (isLineUserAgent()) {
+        setLineStatus('ตรวจพบ LINE browser แต่ยังไม่ได้ตั้งค่า LIFF ID');
+      }
+    };
+
+    bootstrapLine().catch(error => {
+      if (mounted) {
+        setLineStatus(
+          error instanceof Error ? error.message : 'LIFF bootstrap failed.',
+        );
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, [lineConfig.isConfigured]);
 
   const handleSignIn = async (): Promise<void> => {
     const normalizedIdentifier = normalizeIdentifier(identifier);
@@ -127,18 +244,36 @@ export const SignIn: React.FC = () => {
       const payload = response.data;
 
       try {
-        dispatch(
-          actions.setUser({
-            userId: payload.user?.userId,
-            memberCode: payload.user?.memberCode ?? normalizedIdentifier,
-            name: payload.user?.name ?? normalizedIdentifier,
-            email: payload.user?.email ?? '',
-            phone: payload.user?.phone ?? '',
-            accessToken: payload.accessToken,
-          }),
-        );
-        dispatch(actions.setRememberMe(rememberMe));
-        navigate('/TabNavigator');
+        if (lineLoggedIn && lineUserId) {
+          await axios.post(
+            URLS.AUTH_LINE_BINDING,
+            {
+              lineUserId,
+              lineIdToken: lineIdToken || undefined,
+              displayName: lineDisplayName || undefined,
+              pictureUrl: linePictureUrl || undefined,
+              source: sponsorCode ? 'line_invite_signin' : 'line_signin',
+            },
+            {
+              headers: {
+                Authorization: `Bearer ${payload.accessToken}`,
+              },
+            },
+          );
+        }
+
+        applySignedInSession({
+          payload,
+          dispatch,
+          rememberMe,
+          navigate,
+          memberCodeFallback: normalizedIdentifier,
+          nameFallback: normalizedIdentifier,
+          lineUserId: lineLoggedIn ? lineUserId || undefined : undefined,
+          lineIdToken: lineLoggedIn ? lineIdToken || undefined : undefined,
+          lineDisplayName: lineDisplayName || undefined,
+          linePictureUrl: linePictureUrl || undefined,
+        });
       } catch (clientError) {
         console.error('Sign in succeeded but client navigation failed.', clientError);
         setErrorMessage(
@@ -174,6 +309,76 @@ export const SignIn: React.FC = () => {
     }
   };
 
+  const handleLineMemberLogin = async (): Promise<void> => {
+    if (!lineUserId) {
+      handleLineEntry();
+      return;
+    }
+
+    setLoading(true);
+    setErrorMessage('');
+
+    try {
+      const response = await axios.post(
+        URLS.AUTH_LINE_LOGIN,
+        {
+          lineUserId,
+          lineIdToken: lineIdToken || undefined,
+        },
+        {
+          withCredentials: true,
+        },
+      );
+
+      applySignedInSession({
+        payload: response.data,
+        dispatch,
+        rememberMe: true,
+        navigate,
+        lineUserId,
+        lineIdToken,
+        lineDisplayName,
+        linePictureUrl,
+      });
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error)) {
+        const serverMessage = error.response?.data?.message;
+        setErrorMessage(
+          serverMessage ||
+            'LINE account นี้ยังไม่ได้ผูกกับสมาชิก กรุณาเข้าสู่ระบบด้วยรหัสสมาชิกก่อนแล้วค่อยเชื่อม LINE ในหน้า Profile',
+        );
+      } else {
+        setErrorMessage('LINE sign-in failed. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLineEntry = (): void => {
+    if (lineLoggedIn && sponsorCode) {
+      navigate(buildSignUpPath(sponsorCode));
+      return;
+    }
+
+    if (lineLoggedIn && !sponsorCode) {
+      handleLineMemberLogin().catch(console.error);
+      return;
+    }
+
+    const redirectPath = sponsorCode
+      ? `${window.location.origin}${buildSignUpPath(sponsorCode)}`
+      : window.location.href;
+
+    if (startLineLogin(redirectPath)) {
+      return;
+    }
+
+    setErrorMessage(
+      'ยังไม่ได้ตั้งค่า LINE OA / LIFF กรุณากำหนด REACT_APP_LINE_LIFF_ID หรือ REACT_APP_LINE_OA_URL',
+    );
+  };
+
   const renderHeader = () => <components.Header title='Sign in' />;
 
   const renderContent = (): JSX.Element => (
@@ -207,6 +412,23 @@ export const SignIn: React.FC = () => {
       >
         Sign in to continue
       </p>
+      {sponsorCode ? (
+        <div
+          style={{
+            marginBottom: 20,
+            padding: '12px 14px',
+            borderRadius: 12,
+            backgroundColor: '#F0FDF4',
+            color: '#166534',
+            fontSize: 14,
+            lineHeight: 1.6,
+            ...theme.fonts.Mulish_400Regular,
+          }}
+        >
+          ลิงก์นี้ผูกกับผู้แนะนำ <strong>{sponsorCode}</strong> แล้ว
+          หากยังไม่มีบัญชี ให้กด Sign up เพื่อสมัครจาก invite นี้ได้เลย
+        </div>
+      ) : null}
       {LOCAL_AUTH_BYPASS ? (
         <div
           style={{
@@ -240,6 +462,27 @@ export const SignIn: React.FC = () => {
           <strong>{DEV_IMPERSONATION_PASSWORD}</strong> to sign in as that member
           on local/dev. Use a `member003` member such as `TH0000001`, or use
           the member&apos;s real password as usual.
+        </div>
+      ) : null}
+      {lineStatus ? (
+        <div
+          style={{
+            marginBottom: 20,
+            padding: '12px 14px',
+            borderRadius: 12,
+            backgroundColor: lineLoggedIn ? '#ECFDF3' : '#F5F3FF',
+            color: lineLoggedIn ? '#065F46' : '#4338CA',
+            fontSize: 14,
+            lineHeight: 1.6,
+            ...theme.fonts.Mulish_400Regular,
+          }}
+        >
+          {lineStatus}
+          {lineConfig.liffId ? (
+            <div style={{marginTop: 4, fontSize: 12, opacity: 0.85}}>
+              LIFF ID: {lineConfig.liffId}
+            </div>
+          ) : null}
         </div>
       ) : null}
       <div>
@@ -344,6 +587,28 @@ export const SignIn: React.FC = () => {
         style={{marginBottom: 20}}
         onClick={handleSignIn}
       />
+      {(lineConfig.liffId || lineConfig.oaUrl || isLineUserAgent()) && (
+        <button
+          onClick={handleLineEntry}
+          style={{
+            width: '100%',
+            padding: '14px 18px',
+            borderRadius: 14,
+            border: '1px solid #C7E8CF',
+            backgroundColor: '#06C755',
+            color: '#FFFFFF',
+            fontSize: 16,
+            marginBottom: 16,
+            boxShadow: lineInClient || lineReady ? '0 14px 30px rgba(6, 199, 85, 0.22)' : 'none',
+          }}
+        >
+          {lineLoggedIn
+            ? sponsorCode
+              ? 'สมัครจาก LINE invite'
+              : 'เปิดต่อใน LINE'
+            : 'ดำเนินการผ่าน LINE'}
+        </button>
+      )}
       <div
         style={{display: 'flex', alignItems: 'center', flexDirection: 'row'}}
       >
@@ -362,11 +627,11 @@ export const SignIn: React.FC = () => {
           style={{
             ...theme.fonts.Mulish_400Regular,
             fontSize: 16,
-            lineHeight: 1.3,
+          lineHeight: 1.3,
             cursor: 'pointer',
             color: theme.colors.mainColor,
           }}
-          onClick={() => navigate('/SignUp')}
+          onClick={() => navigate(buildSignUpPath(sponsorCode))}
         >
           Sign up.
         </span>

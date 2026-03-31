@@ -34,6 +34,9 @@ const API_BASE_URL =
 const BAO_BASE_URL =
   process.env.REACT_APP_BAO_BASE_URL?.replace(/\/+$/, '') ||
   getDefaultBaoBaseUrl();
+const LINE_LIFF_ID = process.env.REACT_APP_LINE_LIFF_ID?.trim() || '';
+const LINE_OA_ID = process.env.REACT_APP_LINE_OA_ID?.trim() || '';
+const LINE_OA_URL = process.env.REACT_APP_LINE_OA_URL?.trim() || '';
 
 export const GET_TAGS = `${MAIN_URL}api/tags.json`;
 export const GET_ORDERS = `${MAIN_URL}api/orders.json`;
@@ -48,6 +51,7 @@ export const GET_PRODUCT_CATEGORIES = `${API_BASE_URL}/products/categories`;
 export const GET_STOREFRONT_PRODUCTS = `${API_BASE_URL}/products/storefront`;
 export const AUTH_LOGIN = `${API_BASE_URL}/auth/login`;
 export const AUTH_ME = `${API_BASE_URL}/auth/me`;
+export const AUTH_LINE_BINDING = `${API_BASE_URL}/auth/line-binding`;
 export const AUTH_DASHBOARD = `${API_BASE_URL}/auth/dashboard`;
 export const AUTH_PROFILE = `${API_BASE_URL}/auth/profile`;
 export const AUTH_CHANGE_PASSWORD = `${API_BASE_URL}/auth/change-password`;
@@ -87,6 +91,9 @@ export const buildSetDefaultShippingAddressUrl = (
 export const URLS = {
   API_BASE_URL,
   BAO_BASE_URL,
+  LINE_LIFF_ID,
+  LINE_OA_ID,
+  LINE_OA_URL,
   GET_TAGS,
   GET_ORDERS,
   GET_BANNERS,
@@ -100,6 +107,7 @@ export const URLS = {
   GET_STOREFRONT_PRODUCTS,
   AUTH_LOGIN,
   AUTH_ME,
+  AUTH_LINE_BINDING,
   AUTH_DASHBOARD,
   AUTH_PROFILE,
   AUTH_CHANGE_PASSWORD,
