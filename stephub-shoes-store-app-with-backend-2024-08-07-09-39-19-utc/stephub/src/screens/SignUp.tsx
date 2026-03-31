@@ -69,6 +69,7 @@ export const SignUp: FC = (): JSX.Element => {
   const [changingPassword, setChangingPassword] = useState(false);
   const [sponsorName, setSponsorName] = useState('');
   const [lineUserId, setLineUserId] = useState('');
+  const [lineIdToken, setLineIdToken] = useState('');
   const [lineDisplayName, setLineDisplayName] = useState('');
   const [linePictureUrl, setLinePictureUrl] = useState('');
   const [lineStatus, setLineStatus] = useState('');
@@ -128,6 +129,7 @@ export const SignUp: FC = (): JSX.Element => {
 
       if (result.profile?.displayName) {
         setLineUserId(result.profile.userId);
+        setLineIdToken(result.profile.idToken || '');
         setLineDisplayName(result.profile.displayName);
         setLinePictureUrl(result.profile.pictureUrl || '');
         setLineStatus(`ดึงชื่อจาก LINE ได้แล้ว: ${result.profile.displayName}`);
@@ -208,9 +210,10 @@ export const SignUp: FC = (): JSX.Element => {
       if (lineUserId) {
         await axios.post(
           URLS.AUTH_LINE_BINDING,
-          {
-            lineUserId,
-            displayName: lineDisplayName || undefined,
+            {
+              lineUserId,
+              lineIdToken: lineIdToken || undefined,
+              displayName: lineDisplayName || undefined,
             pictureUrl: linePictureUrl || undefined,
             source: 'line_invite_signup',
           },

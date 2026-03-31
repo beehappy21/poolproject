@@ -107,6 +107,7 @@ function resolveRouteAccess(
     path === "/signup/styles.css" ||
     path === "/signup/app.js" ||
     path === "/auth/login" ||
+    path === "/auth/line-login" ||
     path === "/admin" ||
     path === "/admin/index.html" ||
     path === "/admin/styles.css" ||
@@ -138,11 +139,23 @@ function resolveRouteAccess(
     return "public";
   }
 
+  if (
+    method === "GET" &&
+    (
+      path === "/settings/commissions" ||
+      path === "/settings/matrix" ||
+      path === "/settings/signup-share"
+    )
+  ) {
+    return "public";
+  }
+
   if (path === "/auth/me" || path === "/auth/logout") {
     return "member";
   }
 
   if (
+    path === "/auth/line-binding" ||
     path === "/auth/dashboard" ||
     path === "/auth/orders" ||
     path === "/auth/transactions" ||
@@ -157,12 +170,20 @@ function resolveRouteAccess(
   }
 
   if (
+    path === "/auth/line-bindings" ||
+    path.startsWith("/auth/line-bindings/")
+  ) {
+    return "admin";
+  }
+
+  if (
     path.startsWith("/packages") ||
     path.startsWith("/orders") ||
     path.startsWith("/pool") ||
     path.startsWith("/wallets") ||
     path.startsWith("/commissions") ||
     path.startsWith("/members") ||
+    path.startsWith("/settings") ||
     path.startsWith("/content") ||
     path.startsWith("/notifications") ||
     path.startsWith("/shipping")

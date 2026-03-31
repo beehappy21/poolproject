@@ -6,7 +6,7 @@ import {
   isHashedPassword,
   verifyPassword,
 } from "../../../../shared/utils/src/password.util";
-import { AuthUserSummary } from "../domain/auth.types";
+import { AuthUserSummary, LineBindingSummary } from "../domain/auth.types";
 
 export interface AuthRepository {
   findUserForLogin(input: {
@@ -24,11 +24,64 @@ export interface AuthRepository {
     userId: string,
     newPassword: string,
   ): Promise<{ userId: string; passwordUpdated: true }>;
+
+  findLineBindingByUserId(userId: string): Promise<LineBindingSummary | null>;
+
+  findLineBindingByLineUserId(
+    lineUserId: string,
+  ): Promise<LineBindingSummary | null>;
+
+  listLineBindings(): Promise<LineBindingSummary[]>;
+
+  upsertLineBinding(input: {
+    userId: string;
+    memberCode: string;
+    lineUserId: string;
+    displayName: string | null;
+    pictureUrl: string | null;
+    statusMessage: string | null;
+    source: string | null;
+  }): Promise<LineBindingSummary>;
+
+  removeLineBindingByUserId(userId: string): Promise<LineBindingSummary | null>;
+
+  forceRebindLineBindingByUserId(userId: string): Promise<{
+    record: LineBindingSummary | null;
+    removedDuplicates: LineBindingSummary[];
+  }>;
 }
 
 @Injectable()
 export class PrismaAuthRepository implements AuthRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  private mapLineBinding(
+    binding: {
+      userId: bigint;
+      lineUserId: string;
+      displayName: string | null;
+      pictureUrl: string | null;
+      statusMessage: string | null;
+      source: string | null;
+      boundAt: Date;
+      lastSyncedAt: Date;
+      user: {
+        memberCode: string;
+      };
+    },
+  ): LineBindingSummary {
+    return {
+      userId: binding.userId.toString(),
+      memberCode: binding.user.memberCode,
+      lineUserId: binding.lineUserId,
+      displayName: binding.displayName,
+      pictureUrl: binding.pictureUrl,
+      statusMessage: binding.statusMessage,
+      source: binding.source,
+      boundAt: binding.boundAt.toISOString(),
+      lastSyncedAt: binding.lastSyncedAt.toISOString(),
+    };
+  }
 
   async findUserByIdentifier(identifier: string): Promise<AuthUserSummary | null> {
     const normalizedIdentifier = identifier.trim();
@@ -175,6 +228,229 @@ export class PrismaAuthRepository implements AuthRepository {
     return {
       userId,
       passwordUpdated: true,
+    };
+  }
+
+  async findLineBindingByUserId(
+    userId: string,
+  ): Promise<LineBindingSummary | null> {
+    const binding = await this.prisma.lineBinding.findUnique({
+      where: { userId: BigInt(userId) },
+      select: {
+        userId: true,
+        lineUserId: true,
+        displayName: true,
+        pictureUrl: true,
+        statusMessage: true,
+        source: true,
+        boundAt: true,
+        lastSyncedAt: true,
+        user: {
+          select: {
+            memberCode: true,
+          },
+        },
+      },
+    });
+
+    return binding ? this.mapLineBinding(binding) : null;
+  }
+
+  async findLineBindingByLineUserId(
+    lineUserId: string,
+  ): Promise<LineBindingSummary | null> {
+    const binding = await this.prisma.lineBinding.findUnique({
+      where: { lineUserId },
+      select: {
+        userId: true,
+        lineUserId: true,
+        displayName: true,
+        pictureUrl: true,
+        statusMessage: true,
+        source: true,
+        boundAt: true,
+        lastSyncedAt: true,
+        user: {
+          select: {
+            memberCode: true,
+          },
+        },
+      },
+    });
+
+    return binding ? this.mapLineBinding(binding) : null;
+  }
+
+  async listLineBindings(): Promise<LineBindingSummary[]> {
+    const items = await this.prisma.lineBinding.findMany({
+      orderBy: [{ lastSyncedAt: "desc" }],
+      select: {
+        userId: true,
+        lineUserId: true,
+        displayName: true,
+        pictureUrl: true,
+        statusMessage: true,
+        source: true,
+        boundAt: true,
+        lastSyncedAt: true,
+        user: {
+          select: {
+            memberCode: true,
+          },
+        },
+      },
+    });
+
+    return items.map((item) => this.mapLineBinding(item));
+  }
+
+  async upsertLineBinding(input: {
+    userId: string;
+    memberCode: string;
+    lineUserId: string;
+    displayName: string | null;
+    pictureUrl: string | null;
+    statusMessage: string | null;
+    source: string | null;
+  }): Promise<LineBindingSummary> {
+    const existingByLine = await this.prisma.lineBinding.findUnique({
+      where: { lineUserId: input.lineUserId },
+      select: { userId: true },
+    });
+
+    if (existingByLine && existingByLine.userId.toString() !== input.userId) {
+      throw new Error("LINE account is already connected to another member.");
+    }
+
+    const record = await this.prisma.lineBinding.upsert({
+      where: { userId: BigInt(input.userId) },
+      create: {
+        userId: BigInt(input.userId),
+        lineUserId: input.lineUserId,
+        displayName: input.displayName,
+        pictureUrl: input.pictureUrl,
+        statusMessage: input.statusMessage,
+        source: input.source,
+        boundAt: new Date(),
+      },
+      update: {
+        lineUserId: input.lineUserId,
+        displayName: input.displayName,
+        pictureUrl: input.pictureUrl,
+        statusMessage: input.statusMessage,
+        source: input.source,
+        lastSyncedAt: new Date(),
+      },
+      select: {
+        userId: true,
+        lineUserId: true,
+        displayName: true,
+        pictureUrl: true,
+        statusMessage: true,
+        source: true,
+        boundAt: true,
+        lastSyncedAt: true,
+        user: {
+          select: {
+            memberCode: true,
+          },
+        },
+      },
+    });
+
+    return this.mapLineBinding(record);
+  }
+
+  async removeLineBindingByUserId(
+    userId: string,
+  ): Promise<LineBindingSummary | null> {
+    const existing = await this.findLineBindingByUserId(userId);
+
+    if (!existing) {
+      return null;
+    }
+
+    await this.prisma.lineBinding.delete({
+      where: { userId: BigInt(userId) },
+    });
+
+    return existing;
+  }
+
+  async forceRebindLineBindingByUserId(userId: string): Promise<{
+    record: LineBindingSummary | null;
+    removedDuplicates: LineBindingSummary[];
+  }> {
+    const record = await this.findLineBindingByUserId(userId);
+
+    if (!record) {
+      return {
+        record: null,
+        removedDuplicates: [],
+      };
+    }
+
+    const duplicateRows = await this.prisma.lineBinding.findMany({
+      where: {
+        lineUserId: record.lineUserId,
+        NOT: {
+          userId: BigInt(userId),
+        },
+      },
+      select: {
+        userId: true,
+        lineUserId: true,
+        displayName: true,
+        pictureUrl: true,
+        statusMessage: true,
+        source: true,
+        boundAt: true,
+        lastSyncedAt: true,
+        user: {
+          select: {
+            memberCode: true,
+          },
+        },
+      },
+    });
+
+    if (duplicateRows.length > 0) {
+      await this.prisma.lineBinding.deleteMany({
+        where: {
+          lineUserId: record.lineUserId,
+          NOT: {
+            userId: BigInt(userId),
+          },
+        },
+      });
+    }
+
+    const updated = await this.prisma.lineBinding.update({
+      where: { userId: BigInt(userId) },
+      data: {
+        source: "admin_force_rebind",
+        lastSyncedAt: new Date(),
+      },
+      select: {
+        userId: true,
+        lineUserId: true,
+        displayName: true,
+        pictureUrl: true,
+        statusMessage: true,
+        source: true,
+        boundAt: true,
+        lastSyncedAt: true,
+        user: {
+          select: {
+            memberCode: true,
+          },
+        },
+      },
+    });
+
+    return {
+      record: this.mapLineBinding(updated),
+      removedDuplicates: duplicateRows.map((item) => this.mapLineBinding(item)),
     };
   }
 }

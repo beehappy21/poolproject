@@ -9,6 +9,7 @@ import {URLS} from '../../config';
 import {theme} from '../../constants';
 import {components} from '../../components';
 import {RootState} from '../../store';
+import {actions} from '../../store/actions';
 import {
   LineProfile,
   buildLineShareUrl,
@@ -339,6 +340,7 @@ export const Profile: React.FC = () => {
         URLS.AUTH_LINE_BINDING,
         {
           lineUserId: lineProfile.userId,
+          lineIdToken: lineProfile.idToken || undefined,
           displayName: lineProfile.displayName,
           pictureUrl: lineProfile.pictureUrl,
           statusMessage: lineProfile.statusMessage,
@@ -361,7 +363,8 @@ export const Profile: React.FC = () => {
           ...(user || {}),
           lineUserId: response.data.lineUserId,
           lineDisplayName: response.data.displayName || lineProfile.displayName,
-          linePictureUrl: response.data.pictureUrl || lineProfile.pictureUrl,
+          linePictureUrl:
+            response.data.pictureUrl || lineProfile.pictureUrl || undefined,
         }),
       );
     } catch (error) {

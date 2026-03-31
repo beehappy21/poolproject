@@ -235,7 +235,13 @@ const resetLineBindingFiltersButton = document.getElementById("resetLineBindingF
 const exportLineBindingsButton = document.getElementById("exportLineBindingsButton");
 const lineBindingDetailPanel = document.getElementById("lineBindingDetailPanel");
 const lineBindingDuplicateTable = document.getElementById("lineBindingDuplicateTable");
+const lineSignupShareForm = document.getElementById("lineSignupShareForm");
+const lineShareMessageInput = document.getElementById("lineShareMessageInput");
+const lineSettingsOutput = document.getElementById("lineSettingsOutput");
 state.lineBindings = [];
+state.lineSignupShareSettings = {
+  shareMessage: "",
+};
 state.lineBindingSearch = "";
 state.lineBindingSource = "";
 state.selectedLineBindingUserId = "";
@@ -367,6 +373,7 @@ const ecommerceMenuConfig = {
 
 const lineMenuConfig = {
   connections: "ดูสถานะการเชื่อม LINE, source, และรายละเอียดการ bind ของสมาชิก",
+  settings: "ตั้งค่าข้อความแชร์และสรุปการใช้งาน LINE invite / login flow",
   playbook: "คู่มือปฏิบัติการ LINE OA, referral sharing, และ campaign readiness",
 };
 
@@ -633,6 +640,12 @@ function renderLineBindingsWorkspace() {
       <td>${row.items.length}</td>
     </tr>`,
   );
+}
+
+function renderLineSettings() {
+  if (lineShareMessageInput) {
+    lineShareMessageInput.value = state.lineSignupShareSettings?.shareMessage || "";
+  }
 }
 
 function getLineBindingDuplicates(lineUserId, excludedUserId = "") {
@@ -1519,6 +1532,14 @@ async function loadWalletSettings() {
   renderWalletSettings();
 }
 
+async function loadLineSignupShareSettings() {
+  const settings = await request("/settings/signup-share");
+  state.lineSignupShareSettings = {
+    shareMessage: settings.shareMessage || "",
+  };
+  renderLineSettings();
+}
+
 async function loadManualPaymentSettings() {
   const settings = await request("/settings/manual-payment");
   state.manualPaymentSettings = {
@@ -1568,6 +1589,25 @@ async function saveWalletSettings() {
     "Wallet Settings",
     `Saved cash methods ${state.walletSettings.orderCashPaymentMethods.join(", ")} and top-up methods ${state.walletSettings.walletTopupPaymentMethods.join(", ")}`,
   );
+}
+
+async function saveLineSignupShareSettings() {
+  const result = await request("/settings/signup-share", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      shareMessage: lineShareMessageInput?.value || "",
+    }),
+  });
+
+  state.lineSignupShareSettings = {
+    shareMessage: result.shareMessage || "",
+  };
+  renderLineSettings();
+
+  if (lineSettingsOutput) {
+    lineSettingsOutput.textContent = `LINE settings saved\n\n${JSON.stringify(result, null, 2)}`;
+  }
 }
 
 async function saveManualPaymentSettings() {
@@ -1996,6 +2036,7 @@ async function loadDashboard() {
     request("/notifications"),
     request("/shipping/jobs"),
     request("/auth/line-bindings"),
+    loadLineSignupShareSettings(),
     loadCommissionSettings(),
     loadWalletSettings(),
     loadManualPaymentSettings(),
@@ -2633,6 +2674,22 @@ if (resetLineBindingFiltersButton) {
     }
 
     renderLineBindingsWorkspace();
+  });
+}
+
+if (lineSignupShareForm) {
+  lineSignupShareForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    try {
+      setStatus("Saving LINE settings");
+      await saveLineSignupShareSettings();
+      setStatus("Saved LINE settings");
+    } catch (error) {
+      setStatus(error.message);
+      if (lineSettingsOutput) {
+        lineSettingsOutput.textContent = `LINE settings save failed\n\n${JSON.stringify({ message: error.message }, null, 2)}`;
+      }
+    }
   });
 }
 
