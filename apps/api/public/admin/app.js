@@ -224,6 +224,21 @@ const reportCatalogValueLabel = document.getElementById("reportCatalogValueLabel
 const reportOpsInsight1 = document.getElementById("reportOpsInsight1");
 const reportOpsInsight2 = document.getElementById("reportOpsInsight2");
 const reportOpsInsight3 = document.getElementById("reportOpsInsight3");
+const lineBindingsCount = document.getElementById("lineBindingsCount");
+const lineBindingsLatestSource = document.getElementById("lineBindingsLatestSource");
+const lineBindingsProfileConnectCount = document.getElementById("lineBindingsProfileConnectCount");
+const lineBindingsInviteSignupCount = document.getElementById("lineBindingsInviteSignupCount");
+const lineBindingsDuplicateCount = document.getElementById("lineBindingsDuplicateCount");
+const lineBindingSearchInput = document.getElementById("lineBindingSearchInput");
+const lineBindingSourceFilter = document.getElementById("lineBindingSourceFilter");
+const resetLineBindingFiltersButton = document.getElementById("resetLineBindingFiltersButton");
+const exportLineBindingsButton = document.getElementById("exportLineBindingsButton");
+const lineBindingDetailPanel = document.getElementById("lineBindingDetailPanel");
+const lineBindingDuplicateTable = document.getElementById("lineBindingDuplicateTable");
+state.lineBindings = [];
+state.lineBindingSearch = "";
+state.lineBindingSource = "";
+state.selectedLineBindingUserId = "";
 state.memberSearch = "";
 state.orderUserId = "";
 state.commissionOrderId = "";
@@ -297,6 +312,8 @@ state.activeAdminMenu =
   localStorage.getItem("adminActiveMenu") || "overview";
 state.activeEcommerceMenu =
   localStorage.getItem("adminActiveEcommerceMenu") || "catalog";
+state.activeLineMenu =
+  localStorage.getItem("adminActiveLineMenu") || "connections";
 state.contentDrafts = [];
 state.notificationDrafts = [];
 state.shippingJobs = [];
@@ -324,6 +341,11 @@ const adminMenuConfig = {
     description:
       "Member records, commission activity, profile lookup, and network-related operations.",
   },
+  line: {
+    title: "จัดการ LINE",
+    description:
+      "LINE connection monitoring, referral distribution flow, and campaign operations workspace.",
+  },
   content: {
     title: "Member Content",
     description:
@@ -341,6 +363,11 @@ const ecommerceMenuConfig = {
   sales: "ดูคำสั่งซื้อ, ใช้งาน quick actions, และจัดการ flow งานขายรายวัน",
   shipping: "พื้นที่สำหรับคิวจัดส่ง, tracking, packing, และสถานะขนส่ง",
   reports: "สรุปยอดขาย, operational KPI, pool/fallback snapshots, และประวัติการทำงาน",
+};
+
+const lineMenuConfig = {
+  connections: "ดูสถานะการเชื่อม LINE, source, และรายละเอียดการ bind ของสมาชิก",
+  playbook: "คู่มือปฏิบัติการ LINE OA, referral sharing, และ campaign readiness",
 };
 
 function parseLineSeparatedUrls(value) {
@@ -511,6 +538,246 @@ function renderNotificationQueue() {
       <td>${escapeHtml(item.status)}</td>
     </tr>`,
   );
+}
+
+function renderLineBindingsWorkspace() {
+  const allItems = state.lineBindings || [];
+  const duplicateBuckets = new Map();
+  allItems.forEach((item) => {
+    const key = String(item.lineUserId || "").trim();
+    if (!key) {
+      return;
+    }
+    const nextItems = duplicateBuckets.get(key) || [];
+    nextItems.push(item);
+    duplicateBuckets.set(key, nextItems);
+  });
+  const duplicateRows = Array.from(duplicateBuckets.entries())
+    .filter(([, items]) => items.length > 1)
+    .map(([lineUserId, items]) => ({ lineUserId, items }));
+  const searchNeedle = String(state.lineBindingSearch || "").trim().toLowerCase();
+  const filteredItems = allItems.filter((item) => {
+    if (
+      state.lineBindingSource &&
+      String(item.source || "").toLowerCase() !== state.lineBindingSource
+    ) {
+      return false;
+    }
+
+    if (!searchNeedle) {
+      return true;
+    }
+
+    return [
+      item.memberCode,
+      item.userId,
+      item.lineUserId,
+      item.displayName,
+      item.source,
+    ]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(searchNeedle));
+  });
+
+  if (lineBindingsCount) {
+    lineBindingsCount.textContent = String(filteredItems.length);
+  }
+
+  if (lineBindingsLatestSource) {
+    lineBindingsLatestSource.textContent = filteredItems[0]?.source || "-";
+  }
+
+  if (lineBindingsProfileConnectCount) {
+    lineBindingsProfileConnectCount.textContent = String(
+      filteredItems.filter((item) =>
+        ["line_profile_connect", "line_profile_rebind"].includes(item.source),
+      ).length,
+    );
+  }
+
+  if (lineBindingsInviteSignupCount) {
+    lineBindingsInviteSignupCount.textContent = String(
+      filteredItems.filter((item) => item.source === "line_invite_signup").length,
+    );
+  }
+
+  if (lineBindingsDuplicateCount) {
+    lineBindingsDuplicateCount.textContent = String(duplicateRows.length);
+  }
+
+  renderTableRows(
+    "lineBindingsTable",
+    filteredItems.slice(0, 12),
+    (item) => `<tr>
+      <td>${escapeHtml(item.memberCode || item.userId)}</td>
+      <td>${escapeHtml(item.displayName || "-")}</td>
+      <td>${escapeHtml(item.source || "-")}</td>
+      <td>${escapeHtml(item.lastSyncedAt || item.boundAt || "-")}</td>
+      <td><button type="button" class="secondary" data-action="line-binding-detail" data-user-id="${escapeHtml(item.userId)}">Detail</button></td>
+    </tr>`,
+  );
+
+  const selected =
+    filteredItems.find((item) => item.userId === state.selectedLineBindingUserId) ||
+    filteredItems[0] ||
+    null;
+
+  renderLineBindingDetail(selected);
+
+  renderTableRows(
+    "lineBindingDuplicateTable",
+    duplicateRows,
+    (row) => `<tr>
+      <td>${escapeHtml(row.lineUserId)}</td>
+      <td>${escapeHtml(row.items.map((item) => item.memberCode || item.userId).join(", "))}</td>
+      <td>${row.items.length}</td>
+    </tr>`,
+  );
+}
+
+function getLineBindingDuplicates(lineUserId, excludedUserId = "") {
+  if (!lineUserId) {
+    return [];
+  }
+
+  return (state.lineBindings || []).filter(
+    (item) => item.lineUserId === lineUserId && item.userId !== excludedUserId,
+  );
+}
+
+function renderLineBindingDetail(item) {
+  if (!lineBindingDetailPanel) {
+    return;
+  }
+
+  if (!item) {
+    lineBindingDetailPanel.innerHTML = `<div class="stack-item">
+      <strong>No connection selected</strong>
+      <p class="muted">Choose a row from the LINE Connections table to inspect binding details.</p>
+    </div>`;
+    return;
+  }
+
+  state.selectedLineBindingUserId = item.userId;
+  const duplicateItems = getLineBindingDuplicates(item.lineUserId, item.userId);
+  lineBindingDetailPanel.innerHTML = `
+    <div class="stack-item">
+      <strong>${escapeHtml(item.displayName || item.memberCode || item.userId)}</strong>
+      <p class="muted">Member ${escapeHtml(item.memberCode || "-")} · User ID ${escapeHtml(item.userId || "-")}</p>
+    </div>
+    <div class="stack-item">
+      <strong>LINE User ID</strong>
+      <p class="muted">${escapeHtml(item.lineUserId || "-")}</p>
+    </div>
+    <div class="stack-item">
+      <strong>Source</strong>
+      <p class="muted">${escapeHtml(item.source || "-")}</p>
+    </div>
+    <div class="stack-item">
+      <strong>Bound At</strong>
+      <p class="muted">${escapeHtml(item.boundAt || "-")}</p>
+    </div>
+    <div class="stack-item">
+      <strong>Last Synced</strong>
+      <p class="muted">${escapeHtml(item.lastSyncedAt || "-")}</p>
+    </div>
+    <div class="stack-item">
+      <strong>Status Message</strong>
+      <p class="muted">${escapeHtml(item.statusMessage || "-")}</p>
+    </div>
+    <div class="stack-item${duplicateItems.length ? " stack-item--warning" : ""}">
+      <strong>Ops Actions</strong>
+      <p class="muted">${
+        duplicateItems.length
+          ? `Duplicate detected on ${duplicateItems.length} other member(s): ${escapeHtml(duplicateItems.map((entry) => entry.memberCode || entry.userId).join(", "))}`
+          : "No duplicate owner detected for this LINE account."
+      }</p>
+      <div class="table-actions">
+        <button type="button" class="secondary" data-action="line-binding-force-rebind" data-user-id="${escapeHtml(item.userId)}">Force Rebind</button>
+        <button type="button" class="danger" data-action="line-binding-unbind" data-user-id="${escapeHtml(item.userId)}">Unbind</button>
+      </div>
+    </div>
+  `;
+}
+
+async function adminUnbindLineBinding(userId) {
+  const item = (state.lineBindings || []).find((entry) => entry.userId === userId);
+
+  if (!item) {
+    throw new Error("LINE binding not found.");
+  }
+
+  if (
+    !confirmAction(
+      `Unbind LINE account ${item.displayName || item.lineUserId} from member ${item.memberCode || item.userId}?`,
+    )
+  ) {
+    return;
+  }
+
+  setStatus(`Unbinding LINE for member ${item.memberCode || item.userId}`);
+  const result = await request(
+    `/auth/line-bindings/${encodeURIComponent(userId)}/unbind`,
+    { method: "POST" },
+  );
+  state.selectedLineBindingUserId = "";
+  setActionOutput("LINE binding removed", result);
+  await loadDashboard();
+  setStatus(`Removed LINE binding for member ${item.memberCode || item.userId}`);
+}
+
+async function adminForceRebindLineBinding(userId) {
+  const item = (state.lineBindings || []).find((entry) => entry.userId === userId);
+
+  if (!item) {
+    throw new Error("LINE binding not found.");
+  }
+
+  const duplicateItems = getLineBindingDuplicates(item.lineUserId, item.userId);
+  const impactLabel = duplicateItems.length
+    ? ` This will remove duplicate bindings from: ${duplicateItems
+        .map((entry) => entry.memberCode || entry.userId)
+        .join(", ")}.`
+    : " No duplicate owner is currently detected, but this will mark the selected record as the canonical owner.";
+
+  if (
+    !confirmAction(
+      `Force rebind LINE account ${item.displayName || item.lineUserId} to member ${item.memberCode || item.userId}?${impactLabel}`,
+    )
+  ) {
+    return;
+  }
+
+  setStatus(`Force rebind LINE for member ${item.memberCode || item.userId}`);
+  const result = await request(
+    `/auth/line-bindings/${encodeURIComponent(userId)}/force-rebind`,
+    { method: "POST" },
+  );
+  state.selectedLineBindingUserId = userId;
+  setActionOutput("LINE binding force rebind", result);
+  await loadDashboard();
+  setStatus(
+    `Force rebound LINE for member ${item.memberCode || item.userId} and removed ${result.removedDuplicates?.length || 0} duplicate binding(s).`,
+  );
+}
+
+function downloadCsv(filename, rows) {
+  const csv = rows
+    .map((row) =>
+      row
+        .map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`)
+        .join(","),
+    )
+    .join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function renderShippingPreview() {
@@ -719,6 +986,12 @@ function renderAdminWorkspaceHeader() {
     ecommerceSectionDescription.textContent =
       ecommerceMenuConfig[state.activeEcommerceMenu] || ecommerceMenuConfig.catalog;
   }
+
+  const lineSectionDescription = document.getElementById("lineSectionDescription");
+  if (lineSectionDescription) {
+    lineSectionDescription.textContent =
+      lineMenuConfig[state.activeLineMenu] || lineMenuConfig.connections;
+  }
 }
 
 function applyAdminMenuVisibility() {
@@ -753,6 +1026,22 @@ function applyAdminMenuVisibility() {
       activeMenu === "ecommerce" && button.dataset.ecommerceTarget === state.activeEcommerceMenu,
     );
   });
+
+  document.querySelectorAll("[data-line-section]").forEach((element) => {
+    const sections = String(element.dataset.lineSection || "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    element.hidden = activeMenu !== "line" || !sections.includes(state.activeLineMenu);
+  });
+
+  document.querySelectorAll("[data-line-target]").forEach((button) => {
+    button.classList.toggle(
+      "is-active",
+      activeMenu === "line" && button.dataset.lineTarget === state.activeLineMenu,
+    );
+  });
 }
 
 function setActiveAdminMenu(menu) {
@@ -773,6 +1062,17 @@ function setActiveEcommerceMenu(menu) {
 
   state.activeEcommerceMenu = menu;
   localStorage.setItem("adminActiveEcommerceMenu", menu);
+  renderAdminWorkspaceHeader();
+  applyAdminMenuVisibility();
+}
+
+function setActiveLineMenu(menu) {
+  if (!lineMenuConfig[menu]) {
+    return;
+  }
+
+  state.activeLineMenu = menu;
+  localStorage.setItem("adminActiveLineMenu", menu);
   renderAdminWorkspaceHeader();
   applyAdminMenuVisibility();
 }
@@ -1676,7 +1976,7 @@ async function loadDashboard() {
     orderQuery.set("userId", state.orderUserId);
   }
 
-  const [members, orders, poolCycles, fallbacks, packages, suppliers, categories, products, productDetails, contentItems, notificationItems, shippingJobs] = await Promise.all([
+  const [members, orders, poolCycles, fallbacks, packages, suppliers, categories, products, productDetails, contentItems, notificationItems, shippingJobs, lineBindings] = await Promise.all([
     request(
       `/members?page=${state.pages.members}&pageSize=${state.pageSize}${state.memberSearch ? `&query=${encodeURIComponent(state.memberSearch)}` : ""}`,
     ),
@@ -1695,6 +1995,7 @@ async function loadDashboard() {
     request("/content"),
     request("/notifications"),
     request("/shipping/jobs"),
+    request("/auth/line-bindings"),
     loadCommissionSettings(),
     loadWalletSettings(),
     loadManualPaymentSettings(),
@@ -1726,6 +2027,7 @@ async function loadDashboard() {
   state.contentDrafts = getListItems(contentItems);
   state.notificationDrafts = getListItems(notificationItems);
   state.shippingJobs = getListItems(shippingJobs);
+  state.lineBindings = getListItems(lineBindings);
   const commissionItems = getListItems(commissions);
 
   memberItems.sort((left, right) => {
@@ -1771,7 +2073,7 @@ async function loadDashboard() {
       <td>${member.memberId}</td>
       <td>${member.memberCode}</td>
       <td>${member.referralCode ?? "-"}</td>
-      <td>${member.name}</td>
+      <td>${member.name}${(state.lineBindings || []).some((item) => item.memberCode === member.memberCode) ? ' <span class="status-badge status-badge--success">LINE</span>' : ''}</td>
       <td>${member.sponsorId ?? "-"}</td>
       <td>
         <button type="button" class="secondary" data-action="wallet-detail" data-member-id="${member.memberId}">Wallet</button>
@@ -1789,6 +2091,7 @@ async function loadDashboard() {
       </td>
     </tr>`,
   );
+  renderLineBindingsWorkspace();
 
   renderTableRows(
     "ordersTable",
@@ -2134,6 +2437,12 @@ document.querySelectorAll("[data-ecommerce-target]").forEach((button) => {
   });
 });
 
+document.querySelectorAll("[data-line-target]").forEach((button) => {
+  button.addEventListener("click", () => {
+    setActiveLineMenu(button.dataset.lineTarget || "connections");
+  });
+});
+
 if (clearHistoryButton) {
   clearHistoryButton.addEventListener("click", () => {
     if (!confirmAction("Clear local action history?")) {
@@ -2295,6 +2604,57 @@ if (fallbackTypeFilter) {
   });
 }
 
+if (lineBindingSearchInput) {
+  lineBindingSearchInput.addEventListener("change", (event) => {
+    state.lineBindingSearch = String(event.target.value || "").trim();
+    renderLineBindingsWorkspace();
+  });
+}
+
+if (lineBindingSourceFilter) {
+  lineBindingSourceFilter.addEventListener("change", (event) => {
+    state.lineBindingSource = String(event.target.value || "").trim().toLowerCase();
+    renderLineBindingsWorkspace();
+  });
+}
+
+if (resetLineBindingFiltersButton) {
+  resetLineBindingFiltersButton.addEventListener("click", () => {
+    state.lineBindingSearch = "";
+    state.lineBindingSource = "";
+    state.selectedLineBindingUserId = "";
+
+    if (lineBindingSearchInput) {
+      lineBindingSearchInput.value = "";
+    }
+
+    if (lineBindingSourceFilter) {
+      lineBindingSourceFilter.value = "";
+    }
+
+    renderLineBindingsWorkspace();
+  });
+}
+
+if (exportLineBindingsButton) {
+  exportLineBindingsButton.addEventListener("click", () => {
+    const rows = [
+      ["memberCode", "userId", "lineUserId", "displayName", "source", "boundAt", "lastSyncedAt"],
+      ...(state.lineBindings || []).map((item) => [
+        item.memberCode || "",
+        item.userId || "",
+        item.lineUserId || "",
+        item.displayName || "",
+        item.source || "",
+        item.boundAt || "",
+        item.lastSyncedAt || "",
+      ]),
+    ];
+    downloadCsv("line-bindings.csv", rows);
+    setStatus("Exported LINE bindings CSV.");
+  });
+}
+
 [
   ["membersPrevButton", "members", -1],
   ["membersNextButton", "members", 1],
@@ -2325,6 +2685,35 @@ document.addEventListener("click", (event) => {
     loadMemberDetail(button.dataset.memberId).catch((error) => {
       memberDetailOutput.textContent = error.message;
       setStatus(error.message);
+    });
+    return;
+  }
+
+  if (button.dataset.action === "line-binding-detail") {
+    const item = (state.lineBindings || []).find(
+      (entry) => entry.userId === (button.dataset.userId || ""),
+    );
+    renderLineBindingDetail(item || null);
+    setStatus(
+      item
+        ? `Loaded LINE binding for member ${item.memberCode || item.userId}`
+        : "LINE binding not found.",
+    );
+    return;
+  }
+
+  if (button.dataset.action === "line-binding-force-rebind") {
+    adminForceRebindLineBinding(button.dataset.userId || "").catch((error) => {
+      setStatus(error.message);
+      setActionOutput("LINE force rebind failed", { message: error.message });
+    });
+    return;
+  }
+
+  if (button.dataset.action === "line-binding-unbind") {
+    adminUnbindLineBinding(button.dataset.userId || "").catch((error) => {
+      setStatus(error.message);
+      setActionOutput("LINE unbind failed", { message: error.message });
     });
     return;
   }

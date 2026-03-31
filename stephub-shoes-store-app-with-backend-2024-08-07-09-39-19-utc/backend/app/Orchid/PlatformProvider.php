@@ -88,6 +88,16 @@ class PlatformProvider extends OrchidServiceProvider {
           Menu::make('Manual Payment')
             ->icon('bs-bank')
             ->route('platform.commission.manualPayment'),
+        ]),
+
+      Menu::make('จัดการ LINE')
+        ->title('LINE')
+        ->icon('bs-chat-dots')
+        ->permission(AdminPermissions::COMMISSIONS_MANAGE)
+        ->list([
+          Menu::make('LINE Workspace')
+            ->icon('bs-window')
+            ->url('/admin'),
           Menu::make('Signup Share')
             ->icon('bs-share')
             ->route('platform.commission.signupShare'),

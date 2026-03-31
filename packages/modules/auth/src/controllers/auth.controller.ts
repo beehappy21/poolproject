@@ -1,4 +1,5 @@
 import {
+  NotFoundException,
   BadRequestException,
   Body,
   Controller,
@@ -27,6 +28,13 @@ import { OrdersService } from "../../../orders";
 import { PoolService } from "../../../pool";
 import { WalletsService } from "../../../wallets";
 import { AuthService } from "../services/auth.service";
+import {
+  forceRebindLineBindingByUserId,
+  getLineBindingByUserId,
+  listLineBindings,
+  removeLineBindingByUserId,
+  upsertLineBinding,
+} from "../../../../../apps/api/src/runtime/line-binding.util";
 
 @Controller("auth")
 export class AuthController {
@@ -64,7 +72,10 @@ export class AuthController {
     @Headers("cookie") cookieHeader?: string,
   ) {
     const user = await this.requireSessionUser(authorization, cookieHeader);
-    return { user };
+    return {
+      user,
+      lineBinding: getLineBindingByUserId(user.userId),
+    };
   }
 
   @Get("dashboard")
@@ -90,6 +101,118 @@ export class AuthController {
       wallet,
       cycles,
       referral,
+      lineBinding: getLineBindingByUserId(user.userId),
+    };
+  }
+
+  @Get("line-binding")
+  async getOwnLineBinding(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+
+    return {
+      userId: user.userId,
+      memberCode: user.memberCode,
+      lineBinding: getLineBindingByUserId(user.userId),
+    };
+  }
+
+  @Get("line-bindings")
+  async listAllLineBindings(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+
+    if (!this.authService.isAdminUser(user)) {
+      throw new UnauthorizedException("Admin access required.");
+    }
+
+    const items = listLineBindings();
+
+    return {
+      items,
+      total: items.length,
+    };
+  }
+
+  @Post("line-binding")
+  async bindOwnLineProfile(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+    @Body()
+    body?: {
+      lineUserId?: string;
+      displayName?: string;
+      pictureUrl?: string;
+      statusMessage?: string;
+      source?: string;
+    },
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+
+    return upsertLineBinding({
+      userId: user.userId,
+      memberCode: user.memberCode,
+      lineUserId: requireNonEmptyString(body?.lineUserId, "lineUserId"),
+      displayName: optionalString(body?.displayName) ?? null,
+      pictureUrl: optionalUrlString(body?.pictureUrl, "pictureUrl") ?? null,
+      statusMessage: optionalString(body?.statusMessage) ?? null,
+      source: optionalString(body?.source) ?? "liff",
+    });
+  }
+
+  @Post("line-bindings/:userId/unbind")
+  async adminUnbindLineProfile(
+    @Param("userId") userId: string,
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+
+    if (!this.authService.isAdminUser(user)) {
+      throw new UnauthorizedException("Admin access required.");
+    }
+
+    const removed = removeLineBindingByUserId(
+      requireNonEmptyString(userId, "userId"),
+    );
+
+    if (!removed) {
+      throw new NotFoundException("LINE binding not found.");
+    }
+
+    return {
+      removed,
+      total: listLineBindings().length,
+    };
+  }
+
+  @Post("line-bindings/:userId/force-rebind")
+  async adminForceRebindLineProfile(
+    @Param("userId") userId: string,
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+
+    if (!this.authService.isAdminUser(user)) {
+      throw new UnauthorizedException("Admin access required.");
+    }
+
+    const result = forceRebindLineBindingByUserId(
+      requireNonEmptyString(userId, "userId"),
+    );
+
+    if (!result.record) {
+      throw new NotFoundException("LINE binding not found.");
+    }
+
+    return {
+      ...result,
+      total: listLineBindings().length,
     };
   }
 

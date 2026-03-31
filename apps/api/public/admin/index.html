@@ -50,6 +50,7 @@
             <button type="button" class="admin-nav-button" data-menu-target="marketing">Commission Setting</button>
             <button type="button" class="admin-nav-button" data-menu-target="ecommerce">ระบบ eCommerce</button>
             <button type="button" class="admin-nav-button" data-menu-target="members">ข้อมูลสมาชิก / ค่าคอมมิชชั่น</button>
+            <button type="button" class="admin-nav-button" data-menu-target="line">จัดการ LINE</button>
             <button type="button" class="admin-nav-button" data-menu-target="content">Member Content</button>
             <button type="button" class="admin-nav-button" data-menu-target="notifications">Notification</button>
           </div>
@@ -83,6 +84,20 @@
             <button type="button" class="ecommerce-subnav__button" data-ecommerce-target="sales">งานขาย</button>
             <button type="button" class="ecommerce-subnav__button" data-ecommerce-target="shipping">ขนส่ง</button>
             <button type="button" class="ecommerce-subnav__button" data-ecommerce-target="reports">รายงาน</button>
+          </div>
+        </section>
+
+        <section class="panel ecommerce-subnav-panel" data-menu-section="line">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">LINE Menu</p>
+              <h3>LINE Operations</h3>
+            </div>
+            <span class="muted" id="lineSectionDescription">จัดการการเชื่อม LINE, referral flow, และคู่มือใช้งาน</span>
+          </div>
+          <div class="ecommerce-subnav" id="lineSubnav">
+            <button type="button" class="ecommerce-subnav__button" data-line-target="connections">Connections</button>
+            <button type="button" class="ecommerce-subnav__button" data-line-target="playbook">Playbook</button>
           </div>
         </section>
 
@@ -131,6 +146,139 @@
             </div>
             <div class="filter-row">
               <input id="orderUserFilterInput" type="text" placeholder="Filter by user ID" />
+            </div>
+          </article>
+        </section>
+
+        <section class="grid two-up" data-menu-section="line" data-line-section="connections">
+          <article class="panel">
+            <div class="section-head">
+              <h3>LINE Connections</h3>
+              <div class="section-controls">
+                <span class="muted">Binding status by member</span>
+                <button type="button" class="ghost" id="exportLineBindingsButton">Export CSV</button>
+              </div>
+            </div>
+            <div class="filter-stack line-filter-stack">
+              <input id="lineBindingSearchInput" type="text" placeholder="Search member code, LINE name, or LINE user ID" />
+              <div class="filter-inline">
+                <select id="lineBindingSourceFilter">
+                  <option value="">All sources</option>
+                  <option value="line_invite_signup">line_invite_signup</option>
+                  <option value="line_invite_signin">line_invite_signin</option>
+                  <option value="line_signin">line_signin</option>
+                  <option value="line_profile_connect">line_profile_connect</option>
+                  <option value="line_profile_rebind">line_profile_rebind</option>
+                </select>
+                <button type="button" class="ghost" id="resetLineBindingFiltersButton">Reset</button>
+              </div>
+            </div>
+            <div class="stats-grid compact-stats">
+              <article class="stat-card panel">
+                <span>Connected</span>
+                <strong id="lineBindingsCount">0</strong>
+              </article>
+              <article class="stat-card panel">
+                <span>Latest Source</span>
+                <strong id="lineBindingsLatestSource">-</strong>
+              </article>
+              <article class="stat-card panel">
+                <span>Profile Connect</span>
+                <strong id="lineBindingsProfileConnectCount">0</strong>
+              </article>
+              <article class="stat-card panel">
+                <span>Invite Signup</span>
+                <strong id="lineBindingsInviteSignupCount">0</strong>
+              </article>
+              <article class="stat-card panel">
+                <span>Duplicate LINE IDs</span>
+                <strong id="lineBindingsDuplicateCount">0</strong>
+              </article>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Member</th>
+                    <th>LINE Name</th>
+                    <th>Source</th>
+                    <th>Last Synced</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="lineBindingsTable"></tbody>
+              </table>
+            </div>
+          </article>
+          <article class="panel" data-line-section="connections">
+            <div class="section-head">
+              <h3>LINE Binding Detail</h3>
+              <span class="muted">Selected connection</span>
+            </div>
+            <div class="stack-list line-detail-stack" id="lineBindingDetailPanel">
+              <div class="stack-item">
+                <strong>No connection selected</strong>
+                <p class="muted">Choose a row from the LINE Connections table to inspect binding details.</p>
+              </div>
+            </div>
+            <div class="section-head section-head--subtle">
+              <h3>Duplicate Report</h3>
+              <span class="muted">Potential conflicts</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>LINE User ID</th>
+                    <th>Members</th>
+                    <th>Count</th>
+                  </tr>
+                </thead>
+                <tbody id="lineBindingDuplicateTable"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+
+        <section class="grid two-up" data-menu-section="line" data-line-section="playbook">
+          <article class="panel">
+            <div class="section-head">
+              <h3>LINE Notes</h3>
+              <span class="muted">Operational guidance</span>
+            </div>
+            <div class="stack-list">
+              <div class="stack-item">
+                <strong>Member signup via LINE</strong>
+                <p class="muted">Use each member’s referral link so sponsor attribution stays correct.</p>
+              </div>
+              <div class="stack-item">
+                <strong>Legacy members</strong>
+                <p class="muted">Ask them to sign in first, then use the Connect LINE button from Profile.</p>
+              </div>
+              <div class="stack-item">
+                <strong>Source tracking</strong>
+                <p class="muted">Review `line_invite_signup`, `line_signin`, and `line_profile_connect` to understand the entry path.</p>
+              </div>
+            </div>
+          </article>
+          <article class="panel">
+            <div class="section-head">
+              <h3>LINE Campaign Checklist</h3>
+              <span class="muted">Before go-live</span>
+            </div>
+            <div class="stack-list">
+              <div class="stack-item">
+                <strong>Referral link</strong>
+                <p class="muted">Confirm every member shares a personal referral link, not a generic LINE OA link.</p>
+              </div>
+              <div class="stack-item">
+                <strong>Legacy members</strong>
+                <p class="muted">Ask old members to sign in first and connect LINE from Profile before joining campaigns.</p>
+              </div>
+              <div class="stack-item">
+                <strong>Tracking</strong>
+                <p class="muted">Monitor connections by source and verify recent syncs after each campaign blast.</p>
+              </div>
             </div>
           </article>
         </section>
