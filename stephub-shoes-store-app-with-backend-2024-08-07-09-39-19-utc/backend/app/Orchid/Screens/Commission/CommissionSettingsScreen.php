@@ -304,8 +304,9 @@ class CommissionSettingsScreen extends Screen
         $lineLiffId = trim((string) env('LINE_LIFF_ID', ''));
         $lineCallbackUrl = trim((string) env('LINE_LOGIN_CALLBACK_URL', ''));
         $lineLiffSignInUrl = trim((string) env('LINE_LIFF_SIGNIN_URL', ''));
+        $strictVerificationRaw = env('LINE_STRICT_VERIFY');
         $strictVerificationEnabled =
-            env('LINE_STRICT_VERIFY') === 'true' || app()->environment('production');
+            filter_var($strictVerificationRaw, FILTER_VALIDATE_BOOLEAN) || app()->environment('production');
 
         $status = [
             'checkedAt' => now()->toIso8601String(),
@@ -396,7 +397,7 @@ class CommissionSettingsScreen extends Screen
             );
 
             if (in_array($response->status(), [400, 401], true)) {
-                $status['items'][0] = [
+                $status['items'][3] = [
                     'key' => 'line-login-route',
                     'title' => 'LINE login route',
                     'tone' => 'success',
@@ -404,7 +405,7 @@ class CommissionSettingsScreen extends Screen
                     'meta' => $message !== '' ? 'Current response: '.$message : 'Current response: HTTP '.$response->status(),
                 ];
             } else {
-                $status['items'][0] = [
+                $status['items'][3] = [
                     'key' => 'line-login-route',
                     'title' => 'LINE login route',
                     'tone' => 'danger',
@@ -413,7 +414,7 @@ class CommissionSettingsScreen extends Screen
                 ];
             }
         } catch (\Throwable $exception) {
-            $status['items'][0] = [
+            $status['items'][3] = [
                 'key' => 'line-login-route',
                 'title' => 'LINE login route',
                 'tone' => 'danger',
@@ -423,7 +424,7 @@ class CommissionSettingsScreen extends Screen
         }
 
         $shareMessage = trim((string) ($signupShareSettings['shareMessage'] ?? ''));
-        $status['items'][1] = $shareMessage !== ''
+        $status['items'][4] = $shareMessage !== ''
             ? [
                 'key' => 'signup-share',
                 'title' => 'Signup share message',
@@ -446,7 +447,7 @@ class CommissionSettingsScreen extends Screen
             $items = is_array($payload['items'] ?? null) ? $payload['items'] : [];
             $total = is_numeric($payload['total'] ?? null) ? (int) $payload['total'] : count($items);
 
-            $status['items'][2] = $total > 0
+            $status['items'][5] = $total > 0
                 ? [
                     'key' => 'admin-bindings',
                     'title' => 'Admin binding feed',
@@ -487,7 +488,7 @@ class CommissionSettingsScreen extends Screen
                 ->map(fn (int $count, string $source) => $source.': '.$count)
                 ->implode(', ');
 
-            $status['items'][3] = $sourceSummary !== ''
+            $status['items'][6] = $sourceSummary !== ''
                 ? [
                     'key' => 'source-mix',
                     'title' => 'Latest source mix',
@@ -503,14 +504,14 @@ class CommissionSettingsScreen extends Screen
                     'meta' => null,
                 ];
         } catch (\Throwable $exception) {
-            $status['items'][2] = [
+            $status['items'][5] = [
                 'key' => 'admin-bindings',
                 'title' => 'Admin binding feed',
                 'tone' => 'danger',
                 'detail' => 'Unable to load LINE bindings from the API.',
                 'meta' => $exception->getMessage(),
             ];
-            $status['items'][3] = [
+            $status['items'][6] = [
                 'key' => 'source-mix',
                 'title' => 'Latest source mix',
                 'tone' => 'danger',
