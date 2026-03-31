@@ -58,7 +58,6 @@ type LineBindingStatusResponse = {
   lineBinding: LineBindingResponse | null;
 };
 
-const DEFAULT_REFERRAL_MEMBER_CODE = 'TH0000013';
 const COMPANY_LOGO_FALLBACK = `${URLS.BAO_BASE_URL}/favicon.ico`;
 const DEFAULT_LINE_SHARE_MESSAGE = 'สมัครผ่านลิงก์แนะนำนี้ได้เลย';
 
@@ -67,10 +66,6 @@ const normalizeMemberCode = (code?: string | null) => {
 
   if (!normalizedCode) {
     return '';
-  }
-
-  if (normalizedCode.startsWith('THLOCAL')) {
-    return DEFAULT_REFERRAL_MEMBER_CODE;
   }
 
   return normalizedCode;
@@ -180,10 +175,14 @@ export const Profile: React.FC = () => {
 
   useEffect(() => {
     const loadReferralLink = async () => {
-      const fallbackMemberCode =
-        normalizeMemberCode(user?.memberCode) || DEFAULT_REFERRAL_MEMBER_CODE;
+      const currentMemberCode = normalizeMemberCode(user?.memberCode);
 
-      setReferralLink(buildLocalReferralPreviewLink(fallbackMemberCode));
+      if (!currentMemberCode) {
+        setReferralLink('');
+        return;
+      }
+
+      setReferralLink(buildLocalReferralPreviewLink(currentMemberCode));
 
       try {
         if (user?.accessToken) {
@@ -204,16 +203,16 @@ export const Profile: React.FC = () => {
         }
 
         const fallbackResponse = await axios.get<ReferralResponse>(
-          URLS.buildMemberReferralLinkUrl(fallbackMemberCode),
+          URLS.buildMemberReferralLinkUrl(currentMemberCode),
         );
 
         setReferralLink(
           buildBaoAlignedReferralLink(fallbackResponse.data) ||
-            buildLocalReferralPreviewLink(fallbackMemberCode),
+            buildLocalReferralPreviewLink(currentMemberCode),
         );
       } catch (error) {
         console.error(error);
-        setReferralLink(buildLocalReferralPreviewLink(fallbackMemberCode));
+        setReferralLink(buildLocalReferralPreviewLink(currentMemberCode));
       }
     };
 
