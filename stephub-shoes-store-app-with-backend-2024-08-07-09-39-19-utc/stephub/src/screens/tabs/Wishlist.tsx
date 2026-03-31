@@ -10,10 +10,6 @@ export const Wishlist: React.FC = () => {
     (state: RootState) => state.wishlistSlice.list,
   );
 
-  const renderBottomTabBar = () => {
-    return <components.BottomTabBar />;
-  };
-
   const renderContent = () => {
     return (
       <div style={{paddingTop: 20, paddingBottom: 64 + 20}}>
@@ -33,7 +29,6 @@ export const Wishlist: React.FC = () => {
     <>
       {renderHeader()}
       {renderContent()}
-      {renderBottomTabBar()}
     </>
   );
 };

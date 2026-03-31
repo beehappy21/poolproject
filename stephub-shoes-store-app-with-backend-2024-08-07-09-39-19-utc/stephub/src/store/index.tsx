@@ -9,6 +9,8 @@ import {
   PERSIST,
   REGISTER,
   REHYDRATE,
+  PersistConfig,
+  createTransform,
   persistStore,
   persistReducer,
 } from 'redux-persist';
@@ -34,18 +36,30 @@ const rootReducer = combineReducers({
   firstLaunchSlice: firstLaunchSlice.reducer,
   verificationSlice: verificationSlice.reducer,
 });
+type RootReducerState = ReturnType<typeof rootReducer>;
 
-const persistConfig = {
-  key: 'root',
+const userSliceTransform = createTransform(
+  (inboundState: {user: unknown; rememberMe: boolean}) => {
+    if (inboundState.rememberMe) {
+      return inboundState;
+    }
+
+    return {
+      ...inboundState,
+      user: null,
+    };
+  },
+  outboundState => outboundState,
+  {whitelist: ['userSlice']},
+);
+
+const persistConfig: PersistConfig<RootReducerState> = {
+  key: 'root-v2',
   storage,
+  transforms: [userSliceTransform],
   whitelist: [
-    'tabSlice',
     'userSlice',
-    'cartSlice',
-    'wishlistSlice',
-    'promocodeSlice',
     'firstLaunchSlice',
-    'verificationSlice',
   ],
 };
 

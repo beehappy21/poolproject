@@ -100,15 +100,10 @@ export const WishlistEmpty: FC = () => {
     );
   };
 
-  const renderBottomTabBar = () => {
-    return <components.BottomTabBar />;
-  };
-
   return (
     <>
       {renderHeader()}
       {renderContent()}
-      {renderBottomTabBar()}
     </>
   );
 };

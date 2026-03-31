@@ -3,6 +3,7 @@ import {RouterProvider, createBrowserRouter} from 'react-router-dom';
 
 import {screens} from '../screens';
 import {AppShell} from './AppShell';
+import {RequireAuth} from './RequireAuth';
 import {TabNavigator} from './TabNavigator';
 
 const stack = createBrowserRouter([
@@ -11,30 +12,170 @@ const stack = createBrowserRouter([
     element: <AppShell />,
     children: [
       {index: true, element: <screens.SignIn />},
-      {path: 'TabNavigator', element: <TabNavigator />},
-      {path: 'EditProfile', element: <screens.EditProfile />},
-      {path: 'Product', element: <screens.Product />},
-      {path: 'Shop', element: <screens.Shop />},
-      {path: 'Reviews', element: <screens.Reviews />},
-      {path: 'Description', element: <screens.Description />},
-      {path: 'OrderHistory', element: <screens.OrderHistory />},
-      {path: 'TeamMember', element: <screens.TeamMember />},
-      {path: 'Commission', element: <screens.Commission />},
-      {path: 'Firm', element: <screens.Firm />},
-      {path: 'TransferSW', element: <screens.TransferSW />},
-      {path: 'TopupWallet', element: <screens.TopupWallet />},
-      {path: 'WithdrawSW', element: <screens.WithdrawSW />},
-      {path: 'Kyc', element: <screens.Kyc />},
-      {path: 'Checkout', element: <screens.Checkout />},
-      {path: 'OrderSuccessful', element: <screens.OrderSuccessful />},
-      {path: 'OrderFailed', element: <screens.OrderFailed />},
-      {path: 'MyPromocodes', element: <screens.MyPromocodes />},
-      {path: 'SignOut', element: <screens.SignOut />},
+      {
+        path: 'TabNavigator',
+        element: (
+          <RequireAuth>
+            <TabNavigator />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'EditProfile',
+        element: (
+          <RequireAuth>
+            <screens.EditProfile />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'Product',
+        element: (
+          <RequireAuth>
+            <screens.Product />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'Shop',
+        element: (
+          <RequireAuth>
+            <screens.Shop />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'Reviews',
+        element: (
+          <RequireAuth>
+            <screens.Reviews />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'Description',
+        element: (
+          <RequireAuth>
+            <screens.Description />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'OrderHistory',
+        element: (
+          <RequireAuth>
+            <screens.OrderHistory />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'TeamMember',
+        element: (
+          <RequireAuth>
+            <screens.TeamMember />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'Commission',
+        element: (
+          <RequireAuth>
+            <screens.Commission />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'Firm',
+        element: (
+          <RequireAuth>
+            <screens.Firm />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'TransferSW',
+        element: (
+          <RequireAuth>
+            <screens.TransferSW />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'TopupWallet',
+        element: (
+          <RequireAuth>
+            <screens.TopupWallet />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'WithdrawSW',
+        element: (
+          <RequireAuth>
+            <screens.WithdrawSW />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'Kyc',
+        element: (
+          <RequireAuth>
+            <screens.Kyc />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'Checkout',
+        element: (
+          <RequireAuth>
+            <screens.Checkout />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'OrderSuccessful',
+        element: (
+          <RequireAuth>
+            <screens.OrderSuccessful />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'OrderFailed',
+        element: (
+          <RequireAuth>
+            <screens.OrderFailed />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'MyPromocodes',
+        element: (
+          <RequireAuth>
+            <screens.MyPromocodes />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'SignOut',
+        element: (
+          <RequireAuth>
+            <screens.SignOut />
+          </RequireAuth>
+        ),
+      },
       {path: 'SendPhoneOtp', element: <screens.SendPhoneOtp />},
       {path: 'VerifyEmail', element: <screens.VerifyEmail />},
       {path: 'VerifyPhone', element: <screens.VerifyPhone />},
       {path: 'SendEmailOtp', element: <screens.SendEmailOtp />},
-      {path: 'OrderHistoryEmpty', element: <screens.OrderHistoryEmpty />},
+      {
+        path: 'OrderHistoryEmpty',
+        element: (
+          <RequireAuth>
+            <screens.OrderHistoryEmpty />
+          </RequireAuth>
+        ),
+      },
       {path: 'EmailVerified', element: <screens.EmailVerified />},
       {path: 'PhoneVerified', element: <screens.PhoneVerified />},
       {path: 'SignUp', element: <screens.SignUp />},
@@ -46,16 +187,55 @@ const stack = createBrowserRouter([
         path: 'ForgotPasswordSentEmail',
         element: <screens.ForgotPasswordSentEmail />,
       },
-      {path: 'DeleteAccount', element: <screens.DeleteAccount />},
-      {path: 'ChangePassword', element: <screens.ChangePassword />},
+      {
+        path: 'DeleteAccount',
+        element: (
+          <RequireAuth>
+            <screens.DeleteAccount />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'ChangePassword',
+        element: (
+          <RequireAuth>
+            <screens.ChangePassword />
+          </RequireAuth>
+        ),
+      },
       {
         path: 'ShippingAndPaymentInfo',
-        element: <screens.ShippingAndPaymentInfo />,
+        element: (
+          <RequireAuth>
+            <screens.ShippingAndPaymentInfo />
+          </RequireAuth>
+        ),
       },
-      {path: 'InfoSaved', element: <screens.InfoSaved />},
-      {path: 'LeaveAReview', element: <screens.LeaveAReview />},
+      {
+        path: 'InfoSaved',
+        element: (
+          <RequireAuth>
+            <screens.InfoSaved />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'LeaveAReview',
+        element: (
+          <RequireAuth>
+            <screens.LeaveAReview />
+          </RequireAuth>
+        ),
+      },
       {path: 'MyPromocodesEmpty', element: <screens.MyPromocodesEmpty />},
-      {path: 'Filter', element: <screens.Filter />},
+      {
+        path: 'Filter',
+        element: (
+          <RequireAuth>
+            <screens.Filter />
+          </RequireAuth>
+        ),
+      },
     ],
   },
 ]);

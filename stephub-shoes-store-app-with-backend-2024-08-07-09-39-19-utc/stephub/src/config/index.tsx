@@ -12,7 +12,7 @@ const getDefaultApiBaseUrl = (): string => {
   const hostname = getRuntimeHostname();
 
   if (hostname === 'wap.blifehealthy.com') {
-    return 'https://api.blifehealthy.com';
+    return '/api';
   }
 
   return 'http://127.0.0.1:3000';
@@ -22,7 +22,7 @@ const getDefaultBaoBaseUrl = (): string => {
   const hostname = getRuntimeHostname();
 
   if (hostname === 'wap.blifehealthy.com') {
-    return 'https://bao.blifehealthy.com';
+    return '/bao-api';
   }
 
   return 'http://127.0.0.1:8001';

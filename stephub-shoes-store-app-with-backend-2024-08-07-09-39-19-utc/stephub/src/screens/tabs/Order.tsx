@@ -458,15 +458,10 @@ export const Order: React.FC = () => {
     );
   };
 
-  const renderBottomTabBar = (): JSX.Element | null => {
-    return <components.BottomTabBar />;
-  };
-
   return (
     <>
       {renderHeader()}
       {renderContent()}
-      {renderBottomTabBar()}
     </>
   );
 };

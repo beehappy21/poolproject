@@ -1,7 +1,5 @@
 import axios from 'axios';
-import {Carousel} from 'react-responsive-carousel';
 import {FC, useEffect, useMemo, useState} from 'react';
-import 'react-responsive-carousel/lib/styles/carousel.min.css';
 
 import {URLS} from '../../config';
 import {hooks} from '../../hooks';
@@ -13,7 +11,7 @@ import {components} from '../../components';
 import {ProductType} from '../../types/ProductType';
 import {
   fetchLiveProducts,
-  fetchProductCollections,
+  getProductCollections,
 } from '../../utils/liveCatalog';
 
 type BannerType = {
@@ -29,11 +27,24 @@ type CategoryCollection = {
   products: ProductType[];
 };
 
+type HomeCachePayload = {
+  products: ProductType[];
+  collections: CategoryCollection[];
+};
+
 const PRODUCT_BATCH_SIZE = 20;
 const BANNER_INSERT_INTERVAL = 8;
 const MOBILE_BREAKPOINT = 768;
 const CATEGORY_VISIBLE_COUNT = 5;
 const HOME_HEADER_HEIGHT = 64;
+const HOME_CACHE_KEY = 'stephub-home-cache-v1';
+const HOME_REQUEST_TIMEOUT_MS = 10000;
+const HOME_SLIDE_INTERVAL_MS = 3000;
+const HOME_LOADING_FAILSAFE_MS = 12000;
+const TOUCH_PUBLIC_INITIAL_PRODUCTS = 6;
+const IOS_PUBLIC_INITIAL_PRODUCTS = 4;
+const TOUCH_PUBLIC_LOAD_MORE_COUNT = 4;
+const IOS_PUBLIC_LOAD_MORE_COUNT = 2;
 
 const BANNER_PLACEHOLDERS: BannerType[] = [
   {
@@ -46,6 +57,142 @@ const BANNER_PLACEHOLDERS: BannerType[] = [
   },
 ];
 
+const INLINE_IMAGE_PLACEHOLDER =
+  'data:image/svg+xml;base64,' +
+  btoa(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600"><rect width="100%" height="100%" fill="#F4F6F8"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" fill="#94A3B8">Image unavailable</text></svg>',
+  );
+
+const isBrowser = typeof window !== 'undefined';
+const isPublicWapRuntime = (): boolean =>
+  isBrowser && window.location.hostname.toLowerCase() === 'wap.blifehealthy.com';
+const isTouchDevice = (): boolean =>
+  isBrowser &&
+  ('ontouchstart' in window ||
+    window.matchMedia?.('(pointer: coarse)').matches ||
+    navigator.maxTouchPoints > 0);
+const isIosDevice = (): boolean =>
+  isBrowser &&
+  /iPad|iPhone|iPod/.test(window.navigator.userAgent || '') &&
+  !(window as Window & {MSStream?: unknown}).MSStream;
+
+const resolvePublicStorageUrl = (path: string): string => {
+  const normalizedPath = path.replace(/^\/+/, '').replace(/^storage\//, '');
+
+  if (
+    isBrowser &&
+    window.location.hostname.toLowerCase() === 'wap.blifehealthy.com'
+  ) {
+    return `${window.location.origin}/storage/${normalizedPath}`;
+  }
+
+  return `${URLS.BAO_BASE_URL}/storage/${normalizedPath}`;
+};
+
+const normalizeBaoMediaUrl = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  if (trimmed.startsWith('/storage/')) {
+    return resolvePublicStorageUrl(trimmed);
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+
+    if (
+      parsed.hostname === '127.0.0.1' ||
+      parsed.hostname === 'localhost' ||
+      parsed.hostname === 'bao.blifehealthy.com' ||
+      parsed.hostname === 'wap.blifehealthy.com'
+    ) {
+      return `${resolvePublicStorageUrl(parsed.pathname)}${parsed.search}`;
+    }
+
+    return parsed.toString();
+  } catch (_error) {
+    return trimmed;
+  }
+};
+
+const normalizeBanner = (value: unknown): BannerType | null => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const candidate = value as Record<string, unknown>;
+
+  return {
+    image: normalizeBaoMediaUrl(candidate.image),
+    title: typeof candidate.title === 'string' ? candidate.title : undefined,
+    description:
+      typeof candidate.description === 'string'
+        ? candidate.description
+        : undefined,
+  };
+};
+
+const normalizeCarouselItem = (value: unknown): {image?: string} | null => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const image = normalizeBaoMediaUrl(candidate.image);
+
+  if (!image) {
+    return null;
+  }
+
+  return {image};
+};
+
+const readHomeCache = (): HomeCachePayload | null => {
+  if (!isBrowser) {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(HOME_CACHE_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw) as Partial<HomeCachePayload>;
+    const products = Array.isArray(parsed?.products) ? parsed.products : [];
+    const collections = Array.isArray(parsed?.collections)
+      ? parsed.collections
+      : [];
+
+    if (products.length === 0) {
+      return null;
+    }
+
+    return {products, collections};
+  } catch (error) {
+    console.warn('Unable to read cached Home data.', error);
+    return null;
+  }
+};
+
+const writeHomeCache = (payload: HomeCachePayload) => {
+  if (!isBrowser) {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(HOME_CACHE_KEY, JSON.stringify(payload));
+  } catch (error) {
+    console.warn('Unable to write cached Home data.', error);
+  }
+};
+
 export const Home: FC = () => {
   const dispatch = hooks.useAppDispatch();
   const navigate = hooks.useAppNavigate();
@@ -56,6 +203,7 @@ export const Home: FC = () => {
   const [productsData, setProductsData] = useState<ProductType[]>([]);
   const [bannersData, setBannersData] = useState<BannerType[]>([]);
   const [carouselData, setCarouselData] = useState<any[]>([]);
+  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
   const [categoryCollections, setCategoryCollections] = useState<
     CategoryCollection[]
   >([]);
@@ -66,18 +214,36 @@ export const Home: FC = () => {
 
   const isMobile = windowWidth < MOBILE_BREAKPOINT;
   const gridColumns = isMobile ? 2 : 4;
+  const publicWapRuntime = isPublicWapRuntime();
+  const publicIosMode = publicWapRuntime && isIosDevice();
+  const touchOptimizedPublicMode =
+    publicWapRuntime && (isMobile || isTouchDevice());
+  const lightweightPublicMode = touchOptimizedPublicMode;
+  const initialVisibleProductCount = publicIosMode
+    ? IOS_PUBLIC_INITIAL_PRODUCTS
+    : lightweightPublicMode
+    ? TOUCH_PUBLIC_INITIAL_PRODUCTS
+    : PRODUCT_BATCH_SIZE;
+  const loadMoreProductCount = publicIosMode
+    ? IOS_PUBLIC_LOAD_MORE_COUNT
+    : lightweightPublicMode
+    ? TOUCH_PUBLIC_LOAD_MORE_COUNT
+    : PRODUCT_BATCH_SIZE;
 
   const getData = async () => {
     setLoading(true);
     setLoadError('');
 
     try {
-      const [productsResult, collectionsResult, bannersResult, carouselResult] =
+      const [productsResult, bannersResult, carouselResult] =
         await Promise.allSettled([
           fetchLiveProducts(),
-          fetchProductCollections(),
-          axios.get(URLS.GET_BANNERS),
-          axios.get(URLS.GET_CAROUSEL),
+          axios.get(URLS.GET_BANNERS, {
+            timeout: HOME_REQUEST_TIMEOUT_MS,
+          }),
+          axios.get(URLS.GET_CAROUSEL, {
+            timeout: HOME_REQUEST_TIMEOUT_MS,
+          }),
         ]);
 
       if (productsResult.status !== 'fulfilled') {
@@ -85,8 +251,7 @@ export const Home: FC = () => {
       }
 
       const products = productsResult.value;
-      const collections =
-        collectionsResult.status === 'fulfilled' ? collectionsResult.value : [];
+      const collections = getProductCollections(products);
       const bannersResponse =
         bannersResult.status === 'fulfilled' ? bannersResult.value : null;
       const carouselResponse =
@@ -107,18 +272,47 @@ export const Home: FC = () => {
         : Array.isArray(carouselPayload)
         ? carouselPayload
         : [];
+      const normalizedBanners = banners
+        .map((item: unknown) => normalizeBanner(item))
+        .filter((item: BannerType | null): item is BannerType => Boolean(item));
+      const normalizedSlides = slides
+        .map((item: unknown) => normalizeCarouselItem(item))
+        .filter(
+          (item: {image?: string} | null): item is {image?: string} =>
+            Boolean(item?.image),
+        );
+      const visibleCollections = collections.filter(item => item.id !== 'all');
 
       setProductsData(products);
-      setCategoryCollections(collections.filter(item => item.id !== 'all'));
-      setBannersData(banners.length ? banners : BANNER_PLACEHOLDERS);
-      setCarouselData(slides);
-      setVisibleCount(PRODUCT_BATCH_SIZE);
+      setCategoryCollections(visibleCollections);
+      setBannersData(normalizedBanners.length ? normalizedBanners : BANNER_PLACEHOLDERS);
+      setCarouselData(normalizedSlides);
+      setActiveSlideIndex(0);
+      setVisibleCount(initialVisibleProductCount);
+      writeHomeCache({
+        products,
+        collections: visibleCollections,
+      });
     } catch (error) {
       console.error(error);
+      const cachedHomeData = readHomeCache();
+
+      if (cachedHomeData) {
+        setProductsData(cachedHomeData.products);
+        setCategoryCollections(cachedHomeData.collections);
+        setBannersData(BANNER_PLACEHOLDERS);
+        setCarouselData([]);
+        setActiveSlideIndex(0);
+        setVisibleCount(initialVisibleProductCount);
+        setLoadError('');
+        return;
+      }
+
       setProductsData([]);
       setCategoryCollections([]);
       setBannersData(BANNER_PLACEHOLDERS);
       setCarouselData([]);
+      setActiveSlideIndex(0);
       setLoadError(
         'ไม่สามารถโหลดข้อมูลหน้าหลักได้ในขณะนี้ กรุณาตรวจสอบ API, BAO และลองใหม่อีกครั้ง',
       );
@@ -130,13 +324,48 @@ export const Home: FC = () => {
   useEffect(() => {
     getData();
     window.scrollTo(0, 0);
-  }, []);
+  }, [initialVisibleProductCount]);
+
+  useEffect(() => {
+    if (!loading) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setLoading(false);
+      setLoadError(currentError => {
+        if (currentError) {
+          return currentError;
+        }
+
+        if (productsData.length > 0) {
+          return '';
+        }
+
+        return 'การโหลดหน้าแรกใช้เวลานานกว่าปกติ ระบบจะแสดงข้อมูลเท่าที่มีอยู่ก่อน หากยังไม่ครบสามารถกดโหลดใหม่ได้';
+      });
+    }, HOME_LOADING_FAILSAFE_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [loading, productsData.length]);
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  useEffect(() => {
+    if (publicIosMode || carouselData.length <= 1) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setActiveSlideIndex(current => (current + 1) % carouselData.length);
+    }, HOME_SLIDE_INTERVAL_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [carouselData, publicIosMode]);
 
   const filteredProducts = useMemo(() => {
     const keyword = searchValue.trim().toLowerCase();
@@ -163,8 +392,8 @@ export const Home: FC = () => {
   }, [productsData, searchValue]);
 
   useEffect(() => {
-    setVisibleCount(PRODUCT_BATCH_SIZE);
-  }, [searchValue]);
+    setVisibleCount(initialVisibleProductCount);
+  }, [initialVisibleProductCount, searchValue]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -177,14 +406,17 @@ export const Home: FC = () => {
         visibleCount < filteredProducts.length
       ) {
         setVisibleCount(current =>
-          Math.min(current + PRODUCT_BATCH_SIZE, filteredProducts.length),
+          Math.min(
+            current + loadMoreProductCount,
+            filteredProducts.length,
+          ),
         );
       }
     };
 
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [filteredProducts.length, visibleCount]);
+  }, [filteredProducts.length, loadMoreProductCount, visibleCount]);
 
   const visibleProducts = filteredProducts.slice(0, visibleCount);
 
@@ -241,39 +473,75 @@ export const Home: FC = () => {
       return null;
     }
 
+    const safeActiveSlideIndex =
+      activeSlideIndex >= 0 && activeSlideIndex < carouselData.length
+        ? activeSlideIndex
+        : 0;
+    const activeSlide = carouselData[safeActiveSlideIndex];
+    const imageUrl = activeSlide?.image;
+
+    if (!imageUrl) {
+      return null;
+    }
+
     return (
       <section style={{marginBottom: 22}}>
-        <Carousel
-          autoPlay={true}
-          interval={3000}
-          infiniteLoop={true}
-          stopOnHover={false}
-          showStatus={false}
-          showThumbs={false}
-          showIndicators={false}
-          showArrows={false}
-          swipeable={true}
-          emulateTouch={true}
+        <div
+          style={{
+            position: 'relative',
+            overflow: 'hidden',
+            backgroundColor: theme.colors.imageBackground,
+          }}
         >
-          {carouselData.slice(0, 10).map((item: any, index: number) => {
-            const imageUrl = item?.image;
-            return (
-              <div key={index} style={{backgroundColor: theme.colors.imageBackground}}>
-                <img
-                  src={imageUrl}
-                  alt='Slide'
+          <img
+            src={imageUrl}
+            alt='Slide'
+            onError={event => {
+              if (event.currentTarget.src !== INLINE_IMAGE_PLACEHOLDER) {
+                event.currentTarget.src = INLINE_IMAGE_PLACEHOLDER;
+              }
+            }}
+            style={{
+              width: '100%',
+              display: 'block',
+              objectFit: 'contain',
+              backgroundColor: theme.colors.imageBackground,
+            }}
+          />
+          {carouselData.length > 1 ? (
+            <div
+              style={{
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                bottom: 12,
+                display: 'flex',
+                justifyContent: 'center',
+                gap: 8,
+              }}
+            >
+              {carouselData.slice(0, 10).map((_, index: number) => (
+                <button
+                  key={`slide-dot-${index}`}
+                  onClick={() => setActiveSlideIndex(index)}
+                  aria-label={`Go to slide ${index + 1}`}
                   style={{
-                    width: '100%',
-                    height: 'auto',
-                    display: 'block',
-                    objectFit: 'contain',
-                    backgroundColor: theme.colors.imageBackground,
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    border: 'none',
+                    padding: 0,
+                    cursor: 'pointer',
+                    backgroundColor:
+                      index === safeActiveSlideIndex
+                        ? theme.colors.mainColor
+                        : 'rgba(31, 41, 55, 0.22)',
                   }}
                 />
-              </div>
-            );
-          })}
-        </Carousel>
+              ))}
+            </div>
+          ) : null}
+        </div>
       </section>
     );
   };
@@ -334,6 +602,11 @@ export const Home: FC = () => {
                     <img
                       src={collection.image}
                       alt={collection.name}
+                      onError={event => {
+                        if (event.currentTarget.src !== INLINE_IMAGE_PLACEHOLDER) {
+                          event.currentTarget.src = INLINE_IMAGE_PLACEHOLDER;
+                        }
+                      }}
                       style={{
                         width: '100%',
                         height: '100%',
@@ -404,6 +677,11 @@ export const Home: FC = () => {
           <img
             src={banner.image}
             alt='Banner'
+            onError={event => {
+              if (event.currentTarget.src !== INLINE_IMAGE_PLACEHOLDER) {
+                event.currentTarget.src = INLINE_IMAGE_PLACEHOLDER;
+              }
+            }}
             style={{
               width: '100%',
               display: 'block',
@@ -459,11 +737,20 @@ export const Home: FC = () => {
 
   const renderProductCard = (item: ProductType): JSX.Element => {
     const homeImage = item.homeImage || item.image;
+    const openProduct = () => navigate('/product', {state: {item}});
 
     return (
-      <button
+      <div
         key={`${item.productDetailId || item.id}`}
-        onClick={() => navigate('/product', {state: {item}})}
+        role='button'
+        tabIndex={0}
+        onClick={openProduct}
+        onKeyDown={event => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            openProduct();
+          }
+        }}
         style={{
           padding: 0,
           border: 'none',
@@ -489,32 +776,38 @@ export const Home: FC = () => {
             overflow: 'hidden',
           }}
         >
-          <product.ProductInWishlist
-            item={item}
-            style={{
-              position: 'absolute',
-              top: 0,
-              right: 0,
-              padding: 10,
-            }}
-          />
-          <product.ProductInCart
-            item={item}
-            style={{
-              position: 'absolute',
-              top: 40,
-              right: 0,
-              padding: 10,
-            }}
-          />
+          {!lightweightPublicMode ? (
+            <>
+              <product.ProductInWishlist
+                item={item}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  right: 0,
+                  padding: 10,
+                }}
+              />
+              <product.ProductInCart
+                item={item}
+                style={{
+                  position: 'absolute',
+                  top: 40,
+                  right: 0,
+                  padding: 10,
+                }}
+              />
+            </>
+          ) : null}
         </custom.ImageBackground>
 
-        <div style={{marginBottom: 4}}>
-          <product.ProductRating
-            rating={item.rating}
-            ratingCount={item.ratingCount}
-          />
-        </div>
+        {!lightweightPublicMode ? (
+          <div style={{marginBottom: 4}}>
+            <product.ProductRating
+              rating={item.rating}
+              ratingCount={item.ratingCount}
+            />
+          </div>
+        ) : null}
 
         <div
           style={{
@@ -534,7 +827,7 @@ export const Home: FC = () => {
         </div>
 
         <product.ProductPrice item={item} />
-      </button>
+      </div>
     );
   };
 
@@ -546,7 +839,11 @@ export const Home: FC = () => {
     const blocks: JSX.Element[] = [];
 
     visibleProducts.forEach((item, index) => {
-      if (index > 0 && index % BANNER_INSERT_INTERVAL === 0) {
+      if (
+        !lightweightPublicMode &&
+        index > 0 &&
+        index % BANNER_INSERT_INTERVAL === 0
+      ) {
         blocks.push(
           <div
             key={`banner-${index}`}
@@ -643,15 +940,11 @@ export const Home: FC = () => {
   };
 
   const renderContent = (): JSX.Element => {
-    if (loading) {
-      return <components.TabLoader />;
-    }
-
-    if (loadError) {
+    if (loadError && !productsData.length) {
       return renderLoadErrorState();
     }
 
-    if (!productsData.length) {
+    if (!productsData.length && !loading) {
       return renderEmptyState();
     }
 
@@ -666,9 +959,37 @@ export const Home: FC = () => {
           flexDirection: 'column',
         }}
       >
+        {loading ? (
+          <div
+            style={{
+              marginBottom: 16,
+              padding: '14px 16px',
+              backgroundColor: '#EEF5FF',
+              color: theme.colors.mainColor,
+              lineHeight: 1.6,
+              ...theme.fonts.Mulish_400Regular,
+            }}
+          >
+            กำลังโหลดข้อมูลหน้าแรก...
+          </div>
+        ) : null}
+        {loadError && productsData.length ? (
+          <div
+            style={{
+              marginBottom: 16,
+              padding: '14px 16px',
+              backgroundColor: '#FFF4D6',
+              color: theme.colors.mainColor,
+              lineHeight: 1.6,
+              ...theme.fonts.Mulish_400Regular,
+            }}
+          >
+            {loadError}
+          </div>
+        ) : null}
         {renderCarousel()}
         {renderCategories()}
-        {renderBannerBlock(0)}
+        {!lightweightPublicMode ? renderBannerBlock(0) : null}
         {renderProductGrid()}
       </main>
     );
@@ -678,7 +999,6 @@ export const Home: FC = () => {
     <div style={{backgroundColor: theme.colors.white, minHeight: '100vh'}}>
       {renderHeader()}
       {renderContent()}
-      <components.BottomTabBar />
     </div>
   );
 };
