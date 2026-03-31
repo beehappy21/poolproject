@@ -147,6 +147,10 @@ Route::middleware('admin.access:'.AdminPermissions::COMMISSIONS_MANAGE)->group(f
     ->defaults('section', 'manual-payment')
     ->name('platform.commission.manualPayment');
 
+  Route::screen('line/status', CommissionSettingsScreen::class)
+    ->defaults('section', 'line-status')
+    ->name('platform.line.status');
+
   Route::screen('commission/signup-share', CommissionSettingsScreen::class)
     ->defaults('section', 'signup-share')
     ->name('platform.commission.signupShare');
