@@ -354,7 +354,7 @@ export class MembersService implements MembersServiceContract {
       sponsorCode: member.memberCode,
       referralCode: member.referralCode,
       referralLink: `${normalizedBaseUrl}/SignUp?sponsorCode=${encodeURIComponent(member.memberCode)}`,
-      lineReferralLink: `${normalizedBaseUrl}/SignIn?sponsorCode=${encodeURIComponent(member.memberCode)}`,
+      lineReferralLink: `${normalizedBaseUrl}/line/liff/signin?mode=signup&sponsorCode=${encodeURIComponent(member.memberCode)}`,
     };
   }
 

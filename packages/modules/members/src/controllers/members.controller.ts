@@ -142,6 +142,7 @@ export class MembersController {
       return await this.membersService.getReferralLink(
         requireNonEmptyString(memberCode, "memberCode"),
         optionalString(baseUrl) ||
+          process.env.APP_WAP_URL ||
           process.env.APP_PUBLIC_BASE_URL ||
           process.env.APP_BASE_URL ||
           "http://127.0.0.1:3002",

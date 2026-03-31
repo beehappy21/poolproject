@@ -10,7 +10,7 @@ import {components} from '../components';
 import {actions} from '../store/actions';
 import {
   buildSignUpPath,
-  buildLineLiffEntryUrl,
+  buildLineLiffLaunchUrl,
   extractSponsorCodeFromSearch,
   initializeLineLiff,
   normalizeSponsorCode,
@@ -626,7 +626,7 @@ export const SignUp: FC = (): JSX.Element => {
               <button
                 onClick={() =>
                   window.location.assign(
-                    buildLineLiffEntryUrl({
+                    buildLineLiffLaunchUrl({
                       sponsorCode,
                       mode: 'signup',
                       returnTo: buildSignUpPath(sponsorCode),

@@ -179,6 +179,30 @@ export const buildLineLiffEntryUrl = (input?: {
   }
 };
 
+export const buildLineLiffLaunchUrl = (input?: {
+  sponsorCode?: string | null;
+  mode?: LineEntryMode;
+  returnTo?: string | null;
+}): string => {
+  const config = getLineConfig();
+  const entryPath = buildLineLiffEntryPath(input);
+  const queryString = entryPath.includes('?') ? entryPath.split('?')[1] : '';
+
+  if (!config.liffId) {
+    return buildLineLiffEntryUrl(input);
+  }
+
+  const launchUrl = new URL(
+    `https://liff.line.me/${encodeURIComponent(config.liffId)}`,
+  );
+
+  if (queryString) {
+    launchUrl.search = queryString;
+  }
+
+  return launchUrl.toString();
+};
+
 export const buildLineLoginCallbackUrl = (input?: {
   sponsorCode?: string | null;
   mode?: LineEntryMode;

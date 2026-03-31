@@ -114,7 +114,8 @@ export class AuthController {
       this.membersService.getMemberCycles(user.userId, evaluationAt),
       this.membersService.getReferralLink(
         user.memberCode,
-        process.env.APP_PUBLIC_BASE_URL ||
+        process.env.APP_WAP_URL ||
+          process.env.APP_PUBLIC_BASE_URL ||
           process.env.APP_BASE_URL ||
           "http://127.0.0.1:3002",
       ),
