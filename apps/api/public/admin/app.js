@@ -709,6 +709,20 @@ function renderLineRuntimeStatus() {
         : "Missing LINE_LIFF_SIGNIN_URL / REACT_APP_LINE_LIFF_SIGNIN_URL",
     },
     {
+      title: "Public LINE host alignment",
+      tone: runtime.publicLineHostAligned ? "success" : "warning",
+      detail: runtime.publicLineHostAligned
+        ? `Callback + LIFF sign-in stay on www.blifehealthy.com`
+        : `Expected www.blifehealthy.com for both callback and LIFF sign-in hosts. Current: ${runtime.lineLoginCallbackHost || "-"} / ${runtime.lineLiffSignInHost || "-"}`,
+    },
+    {
+      title: "Bridge target (APP_WAP_URL)",
+      tone: runtime.wapBaseConfigured ? "success" : "warning",
+      detail: runtime.wapBaseConfigured
+        ? runtime.wapBaseUrl
+        : "APP_WAP_URL is not declared on backend runtime",
+    },
+    {
       title: "LINE channel secret",
       tone: runtime.lineLoginChannelSecretConfigured ? "success" : "danger",
       detail: runtime.lineLoginChannelSecretConfigured

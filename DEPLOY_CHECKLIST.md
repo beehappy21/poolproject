@@ -80,6 +80,15 @@ Notes:
   - confirm invite opens `SignIn?sponsorCode=...`
   - continue to signup and verify sponsor attribution remains correct
 
+7. LINE real-domain preflight
+- confirm `https://www.blifehealthy.com/auth/line/callback` does not redirect to an unrelated marketing or install page
+- confirm `https://www.blifehealthy.com/line/liff/signin` does not redirect to an unrelated marketing or install page
+- confirm both public `www` routes eventually land on the WAP LIFF entry path:
+  - `https://wap.blifehealthy.com/line/liff/signin`
+- confirm the query string survives the bridge:
+  - `https://www.blifehealthy.com/line/liff/signin?mode=signup&sponsorCode=TH0000001`
+- if either public `www` route still redirects to `/install`, treat it as a launch blocker for LINE web activation
+
 ## BAO Deploy
 
 1. Set environment
@@ -119,6 +128,18 @@ docker exec -i <postgres-container> psql \
 4. Serve BAO
 - run `bash scripts/start_bao_server.sh`
 
+5. BAO LINE readiness check
+- open the BAO LINE workspace after env injection
+- confirm `LINE System Status` shows:
+  - LIFF ID configured
+  - callback URL configured
+  - LIFF sign-in URL configured
+  - public host alignment on `www.blifehealthy.com`
+  - backend `APP_WAP_URL` declared
+  - LINE channel secret configured server-side
+  - strict verification enabled
+  - `line-login API reachable`
+
 ## Post-Deploy Smoke
 
 1. Product
@@ -143,6 +164,51 @@ docker exec -i <postgres-container> psql \
   - shipped
   - delivered
 - verify `CSV / Excel / PDF` from order reports after login
+
+4. LINE live UAT inside the LINE app
+- returning member LINE sign-in
+  - preconditions:
+    - member already exists
+    - member account is already linked to the tester's LINE account
+    - production env is injected and BAO `LINE System Status` is green for core items
+  - entry URL:
+    - `https://www.blifehealthy.com/line/liff/signin?mode=signin&returnTo=%2FTabNavigator`
+  - expected:
+    - LIFF opens inside LINE
+    - member session is created
+    - app lands on `TabNavigator` without manual sign-in
+- first-time connect from Profile
+  - preconditions:
+    - member can sign in normally with member credentials
+    - tester's LINE account is not yet bound to another member
+  - entry steps:
+    - open `https://wap.blifehealthy.com`
+    - sign in normally
+    - go to `Profile`
+    - tap `เชื่อมต่อ LINE`
+  - expected:
+    - LIFF/auth handoff returns to the app
+    - profile shows connected LINE status
+    - sign out and LINE sign-in works on the next attempt
+- invite / sponsorCode sign-up flow
+  - preconditions:
+    - inviter has a valid sponsor code
+    - tester uses a LINE account not already bound to an existing member
+  - entry URL:
+    - `https://www.blifehealthy.com/line/liff/signin?mode=signup&sponsorCode=<SPONSOR_CODE>`
+  - expected:
+    - LIFF opens inside LINE
+    - sign-up page keeps the sponsor code
+    - new member is created under the expected sponsor
+- BAO readiness confirmation after env injection
+  - preconditions:
+    - API and BAO deploy completed
+  - entry URL:
+    - BAO `LINE > Settings`
+  - expected:
+    - no fake green states
+    - missing env values show as missing
+    - runtime panel helps operators identify config gaps without exposing the channel secret
 
 ## Cleanup
 
