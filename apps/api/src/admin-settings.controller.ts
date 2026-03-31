@@ -55,8 +55,8 @@ const readLineRuntimeSettings = () => {
   const publicLineHostAligned =
     Boolean(callbackHost) &&
     Boolean(liffSigninHost) &&
-    callbackHost === "www.blifehealthy.com" &&
-    liffSigninHost === "www.blifehealthy.com";
+    callbackHost === "wap.blifehealthy.com" &&
+    liffSigninHost === "wap.blifehealthy.com";
 
   return {
     environment: process.env.NODE_ENV || "development",

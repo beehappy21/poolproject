@@ -41,11 +41,13 @@ Notes:
 1. Set environment
 - copy [.env.staging.example](/Users/macbook/poolproject/.env.staging.example) to the real environment
 - set the real `DATABASE_URL`
+- set `APP_WAP_URL=https://wap.blifehealthy.com`
+- set `APP_PUBLIC_BASE_URL=https://api.blifehealthy.com`
 - set real `LINE_CHANNEL_ID` or `LINE_LOGIN_CHANNEL_ID`
 - set real `LINE_LOGIN_CHANNEL_SECRET` in the backend/API env only
-- set `LINE_LOGIN_CALLBACK_URL=https://www.blifehealthy.com/auth/line/callback`
+- set `LINE_LOGIN_CALLBACK_URL=https://wap.blifehealthy.com/line/liff/signin`
 - set `LINE_LIFF_ID=2009662380-OAbgN6VR`
-- set `LINE_LIFF_SIGNIN_URL=https://www.blifehealthy.com/line/liff/signin`
+- set `LINE_LIFF_SIGNIN_URL=https://wap.blifehealthy.com/line/liff/signin`
 - set `LINE_STRICT_VERIFY=true` for UAT/production
 
 2. LINE data migration
@@ -81,13 +83,10 @@ Notes:
   - continue to signup and verify sponsor attribution remains correct
 
 7. LINE real-domain preflight
-- confirm `https://www.blifehealthy.com/auth/line/callback` does not redirect to an unrelated marketing or install page
-- confirm `https://www.blifehealthy.com/line/liff/signin` does not redirect to an unrelated marketing or install page
-- confirm both public `www` routes eventually land on the WAP LIFF entry path:
-  - `https://wap.blifehealthy.com/line/liff/signin`
-- confirm the query string survives the bridge:
-  - `https://www.blifehealthy.com/line/liff/signin?mode=signup&sponsorCode=TH0000001`
-- if either public `www` route still redirects to `/install`, treat it as a launch blocker for LINE web activation
+- confirm `https://wap.blifehealthy.com/line/liff/signin` opens the WAP LIFF entry route directly
+- confirm the query string survives on the WAP entry route:
+  - `https://wap.blifehealthy.com/line/liff/signin?mode=signup&sponsorCode=TH0000001`
+- if `wap.blifehealthy.com/line/liff/signin` fails to open or drops query parameters, treat it as a launch blocker for LINE web activation
 
 ## BAO Deploy
 
@@ -98,15 +97,15 @@ Notes:
 - set real `APP_API_URL`
 - set real `POOL_DB_*`
 - set real mail settings if email is needed
-- keep `LINE_LOGIN_CALLBACK_URL` and `LINE_LIFF_SIGNIN_URL` aligned with the LINE Developers console
+- keep `LINE_LOGIN_CALLBACK_URL` and `LINE_LIFF_SIGNIN_URL` aligned with the LINE Developers console on `wap.blifehealthy.com`
 
 ## WAP Build Env
 
 1. Frontend public env
 - copy [stephub/.env.example](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/.env.example) into the real build env
 - set `REACT_APP_LINE_LIFF_ID=2009662380-OAbgN6VR`
-- set `REACT_APP_LINE_LIFF_SIGNIN_URL=https://www.blifehealthy.com/line/liff/signin`
-- set `REACT_APP_LINE_LOGIN_CALLBACK_URL=https://www.blifehealthy.com/auth/line/callback`
+- set `REACT_APP_LINE_LIFF_SIGNIN_URL=https://wap.blifehealthy.com/line/liff/signin`
+- set `REACT_APP_LINE_LOGIN_CALLBACK_URL=https://wap.blifehealthy.com/line/liff/signin`
 - do not expose `LINE_LOGIN_CHANNEL_SECRET` to the frontend
 
 2. Public files
@@ -134,7 +133,7 @@ docker exec -i <postgres-container> psql \
   - LIFF ID configured
   - callback URL configured
   - LIFF sign-in URL configured
-  - public host alignment on `www.blifehealthy.com`
+  - public host alignment on `wap.blifehealthy.com`
   - backend `APP_WAP_URL` declared
   - LINE channel secret configured server-side
   - strict verification enabled
@@ -172,7 +171,7 @@ docker exec -i <postgres-container> psql \
     - member account is already linked to the tester's LINE account
     - production env is injected and BAO `LINE System Status` is green for core items
   - entry URL:
-    - `https://www.blifehealthy.com/line/liff/signin?mode=signin&returnTo=%2FTabNavigator`
+    - `https://wap.blifehealthy.com/line/liff/signin?mode=signin&returnTo=%2FTabNavigator`
   - expected:
     - LIFF opens inside LINE
     - member session is created
@@ -195,7 +194,7 @@ docker exec -i <postgres-container> psql \
     - inviter has a valid sponsor code
     - tester uses a LINE account not already bound to an existing member
   - entry URL:
-    - `https://www.blifehealthy.com/line/liff/signin?mode=signup&sponsorCode=<SPONSOR_CODE>`
+    - `https://wap.blifehealthy.com/line/liff/signin?mode=signup&sponsorCode=<SPONSOR_CODE>`
   - expected:
     - LIFF opens inside LINE
     - sign-up page keeps the sponsor code

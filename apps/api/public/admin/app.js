@@ -712,8 +712,8 @@ function renderLineRuntimeStatus() {
       title: "Public LINE host alignment",
       tone: runtime.publicLineHostAligned ? "success" : "warning",
       detail: runtime.publicLineHostAligned
-        ? `Callback + LIFF sign-in stay on www.blifehealthy.com`
-        : `Expected www.blifehealthy.com for both callback and LIFF sign-in hosts. Current: ${runtime.lineLoginCallbackHost || "-"} / ${runtime.lineLiffSignInHost || "-"}`,
+        ? `Callback + LIFF sign-in stay on wap.blifehealthy.com`
+        : `Expected wap.blifehealthy.com for both callback and LIFF sign-in hosts. Current: ${runtime.lineLoginCallbackHost || "-"} / ${runtime.lineLiffSignInHost || "-"}`,
     },
     {
       title: "Bridge target (APP_WAP_URL)",
