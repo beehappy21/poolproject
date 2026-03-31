@@ -171,9 +171,10 @@ class PlatformProvider extends OrchidServiceProvider {
         ->icon('bs-chat-dots')
         ->permission(AdminPermissions::MEMBERS_MANAGE)
         ->list([
-          Menu::make('LINE Workspace')
+          Menu::make('LINE Status')
             ->icon('bs-window')
-            ->url('/admin'),
+            ->permission(AdminPermissions::COMMISSIONS_MANAGE)
+            ->route('platform.line.status'),
           Menu::make('Signup Share')
             ->icon('bs-share')
             ->permission(AdminPermissions::COMMISSIONS_MANAGE)

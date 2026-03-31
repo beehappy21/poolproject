@@ -415,7 +415,7 @@
             </div>
         @endif
 
-        @if ($activeKey === 'signup-share')
+        @if ($activeKey === 'line-status')
             @php
                 $lineStatusItems = is_array($lineStatus['items'] ?? null) ? $lineStatus['items'] : [];
             @endphp
@@ -458,7 +458,9 @@
                     @endforeach
                 </div>
             </div>
+        @endif
 
+        @if ($activeKey === 'signup-share')
             <div class="commission-panel">
                 <form action="{{ route('platform.commission.saveSignupShare') }}" method="POST">
                 @csrf

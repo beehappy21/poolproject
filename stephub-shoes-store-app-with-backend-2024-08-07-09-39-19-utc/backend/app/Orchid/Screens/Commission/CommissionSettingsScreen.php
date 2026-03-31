@@ -144,6 +144,22 @@ class CommissionSettingsScreen extends Screen
                 'ข้อมูลที่บันทึกจะถูกอ่านจาก runtime/manual-payment-settings.json และหน้าแอปลูกค้าจะดึงไปแสดงต่อ',
             ],
         ],
+        'line-status' => [
+            'title' => 'LINE Status',
+            'routeName' => 'platform.line.status',
+            'eyebrow' => 'LINE Operations',
+            'description' => 'เช็กความพร้อมของ LINE login, callback, LIFF, และ feed หลังบ้านจาก BAO ตัวจริงโดยตรง ก่อนเปิดให้สมาชิกใช้งาน.',
+            'accent' => '#16a34a',
+            'cards' => [
+                ['label' => 'จุดตรวจหลัก', 'value' => 'Runtime readiness', 'note' => 'ดู env, route, และ verification ว่าพร้อมจริงหรือไม่'],
+                ['label' => 'หลังบ้าน LINE', 'value' => 'Binding feed', 'note' => 'เช็กว่า admin feed อ่านข้อมูล binding ได้หรือยัง'],
+                ['label' => 'ใช้ก่อนปล่อยงาน', 'value' => 'Operator check', 'note' => 'ให้ทีมใช้ตรวจจุดสำคัญก่อนทดสอบกับสมาชิกจริง'],
+            ],
+            'bullets' => [
+                'ใช้หน้านี้เพื่อตรวจสถานะ LINE โดยเฉพาะ ไม่ปนกับการตั้งค่าข้อความแชร์',
+                'ถ้าสถานะยังไม่พร้อม ให้แก้ env หรือ route ก่อนค่อยทดสอบ flow สมาชิก',
+            ],
+        ],
         'signup-share' => [
             'title' => 'Signup Share',
             'routeName' => 'platform.commission.signupShare',
@@ -266,7 +282,7 @@ class CommissionSettingsScreen extends Screen
             'matrixSettings' => PoolprojectSettingsStore::readMatrixSettings(),
             'manualPaymentSettings' => PoolprojectSettingsStore::readManualPaymentSettings(),
             'signupShareSettings' => $signupShareSettings,
-            'lineStatus' => $section === 'signup-share'
+            'lineStatus' => in_array($section, ['signup-share', 'line-status'], true)
                 ? $this->resolveLineStatus($signupShareSettings)
                 : null,
             'commissionNav' => self::commissionNav($section),
