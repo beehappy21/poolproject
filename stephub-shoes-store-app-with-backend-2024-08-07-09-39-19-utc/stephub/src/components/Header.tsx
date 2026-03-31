@@ -23,6 +23,8 @@ type Props = {
 };
 
 export const Header: React.FC<Props> = ({
+  burger,
+  basket,
   line,
   goBack,
   fixed,
@@ -346,8 +348,8 @@ export const Header: React.FC<Props> = ({
 
   return (
     <>
-      {renderOverlay()}
-      {renderModal()}
+      {burger && modal ? renderOverlay() : null}
+      {burger && modal ? renderModal() : null}
       <header
         style={{
           top: 0,
@@ -365,10 +367,10 @@ export const Header: React.FC<Props> = ({
           gap: 8,
         }}
       >
-        {renderBurger()}
+        {burger ? renderBurger() : null}
         {renderGoBack()}
         {renderSearch()}
-        {renderBasket()}
+        {basket ? renderBasket() : null}
       </header>
     </>
   );

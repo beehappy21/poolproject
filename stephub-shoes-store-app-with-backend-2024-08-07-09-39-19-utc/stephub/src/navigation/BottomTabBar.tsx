@@ -70,8 +70,9 @@ export const BottomTabBar: React.FC = () => {
         }}
       >
         {tabs.map(tab => (
-          <div
+          <button
             key={tab.id}
+            type='button'
             onClick={() => {
               dispatch(actions.setScreen(tab.name));
               navigate('/TabNavigator');
@@ -83,6 +84,12 @@ export const BottomTabBar: React.FC = () => {
               gap: 4,
               cursor: 'pointer',
               minWidth: 52,
+              border: 'none',
+              backgroundColor: 'transparent',
+              padding: 0,
+              margin: 0,
+              touchAction: 'manipulation',
+              WebkitTapHighlightColor: 'transparent',
             }}
           >
             <tab.icon
@@ -105,7 +112,7 @@ export const BottomTabBar: React.FC = () => {
             >
               {tab.label}
             </span>
-          </div>
+          </button>
         ))}
       </div>
     </nav>

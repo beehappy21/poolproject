@@ -37,11 +37,40 @@ type StorefrontProduct = {
   status: string;
 };
 
+type BasicProduct = {
+  productId?: string;
+  supplierId?: string;
+  supplierCode?: string;
+  categoryId?: string;
+  categoryCode?: string;
+  code?: string;
+  name?: string;
+  status?: string;
+};
+
 const PRODUCT_PLACEHOLDER_IMAGES = [
   'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=80',
   'https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=900&q=80',
   'https://images.unsplash.com/photo-1600185365483-26d7a4cc7519?auto=format&fit=crop&w=900&q=80',
 ];
+
+const isPublicWapRuntime = (): boolean => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  return window.location.hostname.toLowerCase() === 'wap.blifehealthy.com';
+};
+
+const resolveStorageImageUrl = (path: string): string => {
+  const normalizedPath = path.replace(/^\/+/, '');
+
+  if (isPublicWapRuntime()) {
+    return `${window.location.origin}/storage/${normalizedPath.replace(/^storage\//, '')}`;
+  }
+
+  return `${URLS.BAO_BASE_URL}/storage/${normalizedPath.replace(/^storage\//, '')}`;
+};
 
 const resolveCatalogImageUrl = (value?: string | null): string => {
   const trimmed = String(value || '').trim();
@@ -60,10 +89,31 @@ const resolveCatalogImageUrl = (value?: string | null): string => {
   }
 
   if (trimmed.startsWith('/storage/')) {
-    return `${URLS.BAO_BASE_URL}${trimmed}`;
+    return resolveStorageImageUrl(trimmed);
   }
 
-  return `${URLS.BAO_BASE_URL}/storage/${trimmed.replace(/^\/+/, '')}`;
+  return resolveStorageImageUrl(trimmed);
+};
+
+const safeString = (value: unknown, fallback = ''): string => {
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+
+  if (value === null || value === undefined) {
+    return fallback;
+  }
+
+  return String(value).trim() || fallback;
+};
+
+const safeLower = (value: unknown, fallback: string): string => {
+  return safeString(value, fallback).toLowerCase();
+};
+
+const toProductNumber = (value: unknown): number => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 };
 
 export const mapStorefrontProductToProduct = (
@@ -82,30 +132,35 @@ export const mapStorefrontProductToProduct = (
   });
   const image = gallery[0] || fallbackImage;
   const homeImage = resolveCatalogImageUrl(item.homeCardImageUrl) || image;
+  const categoryCode = safeString(item.categoryCode, 'uncategorized');
+  const supplierCode = safeString(item.supplierCode, 'catalog');
+  const productName = safeString(item.name || item.productName, 'Product');
+  const categoryName = safeString(item.categoryName, 'Products');
+  const supplierName = safeString(item.supplierName, 'Catalog');
 
   return {
-    id: Number(item.productDetailId),
-    productDetailId: item.productDetailId,
-    productCode: item.productCode,
-    categoryCode: item.categoryCode,
-    categoryName: item.categoryName,
-    supplierCode: item.supplierCode,
-    supplierName: item.supplierName,
-    name: item.name,
-    price: Number(item.memberPriceUsdt || 0),
-    pv: Number(item.pv || 0),
+    id: toProductNumber(item.productDetailId || item.productId),
+    productDetailId: safeString(item.productDetailId || item.productId),
+    productCode: safeString(item.productCode || item.code),
+    categoryCode,
+    categoryName,
+    supplierCode,
+    supplierName,
+    name: productName,
+    price: toProductNumber(item.memberPriceUsdt),
+    pv: toProductNumber(item.pv),
     firmRedemptionEligible: Boolean(item.firmRedemptionEligible),
     dcwSpendEnabled: Boolean(item.dcwSpendEnabled),
-    dcwUsageAmount: Number(item.dcwUsageAmount || 0),
+    dcwUsageAmount: toProductNumber(item.dcwUsageAmount),
     dcwRewardRate: Number(
       item.dcwRewardRate ||
         item.dcwCashRewardRate ||
         item.dcwShoppingRewardRate ||
         0,
     ),
-    rating: Number(item.ratingAvg || 0) || 5,
-    ratingCount: Number(item.ratingCount || 0),
-    status: item.status,
+    rating: toProductNumber(item.ratingAvg) || 5,
+    ratingCount: toProductNumber(item.ratingCount),
+    status: safeString(item.status, 'active'),
     image,
     homeImage,
     images: gallery.length ? gallery : [image],
@@ -113,16 +168,16 @@ export const mapStorefrontProductToProduct = (
     size: 'standard',
     colors: [{name: 'default', code: '#1F2937'}],
     color: 'default',
-    shortDescription: item.shortDescription || undefined,
-    youtubeUrl: item.youtubeUrl || undefined,
+    shortDescription: safeString(item.shortDescription) || undefined,
+    youtubeUrl: safeString(item.youtubeUrl) || undefined,
     description:
-      item.description ||
-      item.shortDescription ||
-      `${item.name} by ${item.supplierName}.`,
-    categories: item.categoryName,
+      safeString(item.description) ||
+      safeString(item.shortDescription) ||
+      `${productName} by ${supplierName}.`,
+    categories: categoryName,
     is_bestseller: Boolean(item.isBestSeller),
     is_featured: Boolean(item.isFeatured),
-    is_out_of_stock: item.status !== 'active',
+    is_out_of_stock: safeString(item.status, 'active') !== 'active',
     quantity: 0,
     reviews: [],
     types: ['product'],
@@ -130,20 +185,121 @@ export const mapStorefrontProductToProduct = (
     isTop: Boolean(item.isTop),
     isFeatured: Boolean(item.isFeatured),
     audience: ['all'],
-    promotion: item.categoryName,
-    tags: [item.categoryCode.toLowerCase(), item.supplierCode.toLowerCase()],
+    promotion: categoryName,
+    tags: [safeLower(item.categoryCode, 'uncategorized'), safeLower(item.supplierCode, 'catalog')],
   };
 };
 
-export const fetchLiveProducts = async (): Promise<ProductType[]> => {
-  const response = await axios.get(URLS.GET_STOREFRONT_PRODUCTS);
-  const items = Array.isArray(response.data) ? response.data : [];
+const mapBasicProductToProduct = (
+  item: BasicProduct,
+  index: number,
+): ProductType => {
+  const fallbackImage =
+    PRODUCT_PLACEHOLDER_IMAGES[index % PRODUCT_PLACEHOLDER_IMAGES.length];
+  const id = safeString(item.productId, String(index + 1));
+  const categoryCode = safeString(item.categoryCode, 'catalog');
+  const supplierCode = safeString(item.supplierCode, 'catalog');
+  const name = safeString(item.name, safeString(item.code, 'Product'));
 
-  return items
-    .filter((item: StorefrontProduct) => item.status === 'active')
-    .map((item: StorefrontProduct, index: number) =>
-      mapStorefrontProductToProduct(item, index),
-    );
+  return {
+    id: toProductNumber(id || index + 1),
+    productDetailId: id,
+    productCode: safeString(item.code, id),
+    categoryCode,
+    categoryName: safeString(item.categoryCode, 'Products'),
+    supplierCode,
+    supplierName: safeString(item.supplierCode, 'Catalog'),
+    name,
+    price: 0,
+    pv: 0,
+    rating: 5,
+    ratingCount: 0,
+    status: safeString(item.status, 'active'),
+    image: fallbackImage,
+    homeImage: fallbackImage,
+    images: [fallbackImage],
+    sizes: ['standard'],
+    size: 'standard',
+    colors: [{name: 'default', code: '#1F2937'}],
+    color: 'default',
+    description: `${name} is available in the live catalog.`,
+    categories: safeString(item.categoryCode, 'Products'),
+    is_bestseller: false,
+    is_featured: false,
+    is_out_of_stock: safeString(item.status, 'active') !== 'active',
+    quantity: 0,
+    reviews: [],
+    types: ['product'],
+    isNew: false,
+    isTop: false,
+    isFeatured: false,
+    audience: ['all'],
+    promotion: safeString(item.categoryCode, 'Products'),
+    tags: [safeLower(item.categoryCode, 'catalog'), safeLower(item.supplierCode, 'catalog')],
+  };
+};
+
+const getListPayload = <T,>(value: unknown): T[] => {
+  if (Array.isArray(value)) {
+    return value as T[];
+  }
+
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    if (Array.isArray(record.items)) {
+      return record.items as T[];
+    }
+    if (Array.isArray(record.data)) {
+      return record.data as T[];
+    }
+  }
+
+  return [];
+};
+
+export const fetchLiveProducts = async (): Promise<ProductType[]> => {
+  let storefrontError: unknown;
+
+  try {
+    const response = await axios.get(URLS.GET_STOREFRONT_PRODUCTS, {
+      timeout: 15000,
+    });
+    const items = getListPayload<StorefrontProduct>(response.data);
+    const mapped = items.reduce<ProductType[]>((result, item, index) => {
+      try {
+        if (safeString(item?.status, 'active') !== 'active') {
+          return result;
+        }
+
+        result.push(mapStorefrontProductToProduct(item, index));
+      } catch (error) {
+        console.warn('Skipping malformed storefront product', item, error);
+      }
+
+      return result;
+    }, []);
+
+    if (mapped.length > 0) {
+      return mapped;
+    }
+  } catch (error) {
+    storefrontError = error;
+    console.error('Unable to load storefront products, falling back to basic catalog.', error);
+  }
+
+  const fallbackResponse = await axios.get(`${URLS.API_BASE_URL}/products`, {
+    timeout: 15000,
+  });
+  const fallbackItems = getListPayload<BasicProduct>(fallbackResponse.data);
+  const fallbackMapped = fallbackItems
+    .filter(item => safeString(item?.status, 'active') === 'active')
+    .map((item, index) => mapBasicProductToProduct(item, index));
+
+  if (fallbackMapped.length > 0) {
+    return fallbackMapped;
+  }
+
+  throw storefrontError || new Error('Unable to load products from storefront or fallback catalog.');
 };
 
 export const getProductCollections = (products: ProductType[]) => {

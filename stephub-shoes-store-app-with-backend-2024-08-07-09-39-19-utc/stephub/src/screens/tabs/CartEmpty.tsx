@@ -107,15 +107,10 @@ export const CartEmpty: React.FC = () => {
     );
   };
 
-  const renderBottomTabBar = () => {
-    return <components.BottomTabBar />;
-  };
-
   return (
     <>
       {renderHeader()}
       {renderContent()}
-      {renderBottomTabBar()}
     </>
   );
 };

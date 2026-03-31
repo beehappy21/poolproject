@@ -12,6 +12,45 @@ import {hooks} from '../hooks';
 
 const LOCAL_AUTH_BYPASS = false;
 const DEV_IMPERSONATION_PASSWORD = 'a1a1a1';
+const SIGN_IN_MAX_ATTEMPTS = 3;
+
+const delay = (ms: number): Promise<void> =>
+  new Promise(resolve => window.setTimeout(resolve, ms));
+
+const shouldRetrySignIn = (error: unknown): boolean => {
+  if (!axios.isAxiosError(error)) {
+    return false;
+  }
+
+  if (error.code === 'ERR_NETWORK') {
+    return true;
+  }
+
+  const status = error.response?.status;
+  return status === 502 || status === 503 || status === 504;
+};
+const isLocalRuntime = (): boolean => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  const hostname = window.location.hostname.toLowerCase();
+  return (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname.endsWith('.local')
+  );
+};
+
+const normalizeIdentifier = (value: string): string => {
+  const trimmed = value.trim();
+
+  if (/^[a-z]{2}\d+$/i.test(trimmed)) {
+    return trimmed.toUpperCase();
+  }
+
+  return trimmed;
+};
 
 export const SignIn: React.FC = () => {
   const navigate = useNavigate();
@@ -22,13 +61,47 @@ export const SignIn: React.FC = () => {
   const [password, setPassword] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const showDevImpersonationHint = isLocalRuntime();
+
+  const submitSignIn = async (
+    normalizedIdentifier: string,
+  ) => {
+    let attempt = 0;
+
+    while (attempt < SIGN_IN_MAX_ATTEMPTS) {
+      try {
+        return await axios.post(
+          URLS.AUTH_LOGIN,
+          {
+            identifier: normalizedIdentifier,
+            password,
+          },
+          {
+            withCredentials: true,
+          },
+        );
+      } catch (error) {
+        attempt += 1;
+
+        if (!shouldRetrySignIn(error) || attempt >= SIGN_IN_MAX_ATTEMPTS) {
+          throw error;
+        }
+
+        await delay(500 * attempt);
+      }
+    }
+
+    throw new Error('Sign-in request exhausted retries.');
+  };
 
   const handleSignIn = async (): Promise<void> => {
+    const normalizedIdentifier = normalizeIdentifier(identifier);
+
     if (LOCAL_AUTH_BYPASS) {
       dispatch(
         actions.setUser({
           userId: 'local-bypass-user',
-          memberCode: identifier.trim() || 'THLOCAL001',
+          memberCode: normalizedIdentifier || 'THLOCAL001',
           name: 'Stephub Local User',
           email: 'local-bypass@stephub.test',
           phone: '0999999999',
@@ -40,7 +113,7 @@ export const SignIn: React.FC = () => {
       return;
     }
 
-    if (!identifier.trim() || !password.trim()) {
+    if (!normalizedIdentifier || !password.trim()) {
       setErrorMessage('Please enter your email/member code and password.');
       return;
     }
@@ -49,35 +122,53 @@ export const SignIn: React.FC = () => {
     setErrorMessage('');
 
     try {
-      const response = await axios.post(
-        URLS.AUTH_LOGIN,
-        {
-          identifier: identifier.trim(),
-          password,
-        },
-        {
-          withCredentials: true,
-        },
-      );
+      const response = await submitSignIn(normalizedIdentifier);
 
       const payload = response.data;
-      dispatch(
-        actions.setUser({
-          userId: payload.user?.userId,
-          memberCode: payload.user?.memberCode,
-          name: payload.user?.name,
-          email: payload.user?.email ?? '',
-          phone: payload.user?.phone ?? '',
-          accessToken: payload.accessToken,
-        }),
-      );
-      dispatch(actions.setRememberMe(rememberMe));
-      navigate('/TabNavigator');
-    } catch (error: any) {
-      setErrorMessage(
-        error?.response?.data?.message ||
-          `Sign in failed. Check that the API is reachable at ${URLS.API_BASE_URL}.`,
-      );
+
+      try {
+        dispatch(
+          actions.setUser({
+            userId: payload.user?.userId,
+            memberCode: payload.user?.memberCode ?? normalizedIdentifier,
+            name: payload.user?.name ?? normalizedIdentifier,
+            email: payload.user?.email ?? '',
+            phone: payload.user?.phone ?? '',
+            accessToken: payload.accessToken,
+          }),
+        );
+        dispatch(actions.setRememberMe(rememberMe));
+        navigate('/TabNavigator');
+      } catch (clientError) {
+        console.error('Sign in succeeded but client navigation failed.', clientError);
+        setErrorMessage(
+          'Signed in successfully, but the app could not open the next screen. Please refresh and try again.',
+        );
+      }
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error)) {
+        const serverMessage = error.response?.data?.message;
+
+        if (serverMessage) {
+          setErrorMessage(serverMessage);
+        } else if (error.code === 'ERR_NETWORK') {
+          setErrorMessage(
+            `Unable to reach the sign-in service at ${URLS.API_BASE_URL} after multiple attempts. Please check your connection and try again.`,
+          );
+        } else {
+          setErrorMessage('Sign in failed. Please verify your member code/email and password, then try again.');
+        }
+
+        console.error('Sign in request failed.', {
+          code: error.code,
+          message: error.message,
+          status: error.response?.status,
+          data: error.response?.data,
+        });
+      } else {
+        console.error('Unexpected sign in failure.', error);
+        setErrorMessage('An unexpected sign-in error occurred. Please refresh and try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -132,7 +223,7 @@ export const SignIn: React.FC = () => {
           Local bypass is enabled for UI review. Tap Sign in to continue
           without calling the API.
         </div>
-      ) : (
+      ) : showDevImpersonationHint ? (
         <div
           style={{
             marginBottom: 20,
@@ -150,7 +241,7 @@ export const SignIn: React.FC = () => {
           on local/dev. Use a `member003` member such as `TH0000001`, or use
           the member&apos;s real password as usual.
         </div>
-      )}
+      ) : null}
       <div>
         <custom.InputField
           label='email'

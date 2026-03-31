@@ -7,19 +7,24 @@ import {actions} from '../../store/actions';
 import {components} from '../../components';
 import {fetchProductCollections} from '../../utils/liveCatalog';
 
+const CATEGORIES_LOADING_FAILSAFE_MS = 12000;
+
 export const Categories: FC = () => {
   const dispatch = hooks.useAppDispatch();
   const navigate = hooks.useAppNavigate();
 
   const [loading, setLoading] = useState<boolean>(true);
   const [categoriesData, setCategoriesData] = useState<any>([]);
+  const [loadError, setLoadError] = useState<string>('');
 
   const getData = async () => {
     setLoading(true);
+    setLoadError('');
     try {
       setCategoriesData(await fetchProductCollections());
     } catch (error) {
       console.error(error);
+      setLoadError('โหลดหมวดสินค้าช้ากว่าปกติ สามารถกดโหลดใหม่ได้');
     } finally {
       setLoading(false);
     }
@@ -29,6 +34,19 @@ export const Categories: FC = () => {
     getData();
     window.scrollTo(0, 0);
   }, []);
+
+  useEffect(() => {
+    if (!loading) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setLoading(false);
+      setLoadError(currentError => currentError || 'โหลดหมวดสินค้าช้ากว่าปกติ สามารถกดโหลดใหม่ได้');
+    }, CATEGORIES_LOADING_FAILSAFE_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [loading]);
 
   const renderHeader = (): JSX.Element => {
     return <components.Header burger={true} basket={true} line={true} />;
@@ -109,11 +127,41 @@ export const Categories: FC = () => {
   };
 
   const renderContent = (): JSX.Element => {
-    if (loading) return <components.TabLoader />;
+    if (loading) {
+      return (
+        <div style={{paddingTop: 30, paddingBottom: 64 + 30, paddingLeft: 20, paddingRight: 20}}>
+          <div
+            style={{
+              backgroundColor: '#EEF5FF',
+              borderRadius: 16,
+              padding: 20,
+              color: theme.colors.mainColor,
+              lineHeight: 1.7,
+            }}
+          >
+            กำลังโหลดหมวดสินค้า...
+          </div>
+        </div>
+      );
+    }
 
     if (!categoriesData.length) {
       return (
         <div style={{paddingTop: 30, paddingBottom: 64 + 30, paddingLeft: 20, paddingRight: 20}}>
+          {loadError ? (
+            <div
+              style={{
+                backgroundColor: '#FFF4D6',
+                borderRadius: 16,
+                padding: 16,
+                color: theme.colors.mainColor,
+                lineHeight: 1.7,
+                marginBottom: 12,
+              }}
+            >
+              {loadError}
+            </div>
+          ) : null}
           <div
             style={{
               backgroundColor: theme.colors.ghostWhite,
@@ -131,20 +179,30 @@ export const Categories: FC = () => {
 
     return (
       <div style={{paddingTop: 30, paddingBottom: 64 + 30}}>
+        {loadError ? (
+          <div style={{paddingLeft: 20, paddingRight: 20, marginBottom: 12}}>
+            <div
+              style={{
+                backgroundColor: '#FFF4D6',
+                borderRadius: 16,
+                padding: 16,
+                color: theme.colors.mainColor,
+                lineHeight: 1.7,
+              }}
+            >
+              {loadError}
+            </div>
+          </div>
+        ) : null}
         {renderCategories()}
       </div>
     );
-  };
-
-  const renderBottomTabBar = (): JSX.Element => {
-    return <components.BottomTabBar />;
   };
 
   return (
     <>
       {renderHeader()}
       {renderContent()}
-      {renderBottomTabBar()}
     </>
   );
 };

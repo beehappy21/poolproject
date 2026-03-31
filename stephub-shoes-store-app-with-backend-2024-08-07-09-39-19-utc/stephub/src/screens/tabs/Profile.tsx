@@ -472,15 +472,10 @@ export const Profile: React.FC = () => {
     );
   };
 
-  const renderBottomTabBar = () => {
-    return <components.BottomTabBar />;
-  };
-
   return (
     <>
       {renderHeader()}
       {renderContent()}
-      {renderBottomTabBar()}
     </>
   );
 };
