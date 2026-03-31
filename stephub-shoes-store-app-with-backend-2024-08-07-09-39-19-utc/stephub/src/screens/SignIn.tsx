@@ -125,6 +125,16 @@ export const SignIn: React.FC = () => {
     [location.search],
   );
   const lineConfig = useMemo(() => getLineConfig(), []);
+  const lineEntryButtonLabel = lineLoggedIn
+    ? sponsorCode
+      ? 'สมัครต่อด้วย LINE'
+      : 'เข้าสู่ระบบด้วย LINE'
+    : sponsorCode
+      ? 'เปิด LINE เพื่อสมัคร'
+      : 'เปิด LINE เพื่อเข้าสู่ระบบ';
+  const lineEntryHint = sponsorCode
+    ? 'สำหรับสมาชิกใหม่จากลิงก์แนะนำ ระบบจะพาไปสมัครต่อพร้อมรหัสผู้แนะนำ'
+    : 'สำหรับสมาชิกเก่าที่เคยเชื่อม LINE แล้ว สามารถเข้าสู่ระบบได้ทันที';
 
   const submitSignIn = async (
     normalizedIdentifier: string,
@@ -483,6 +493,9 @@ export const SignIn: React.FC = () => {
               LIFF ID: {lineConfig.liffId}
             </div>
           ) : null}
+          <div style={{marginTop: 6, fontSize: 12, opacity: 0.9}}>
+            {lineEntryHint}
+          </div>
         </div>
       ) : null}
       <div>
@@ -602,11 +615,7 @@ export const SignIn: React.FC = () => {
             boxShadow: lineInClient || lineReady ? '0 14px 30px rgba(6, 199, 85, 0.22)' : 'none',
           }}
         >
-          {lineLoggedIn
-            ? sponsorCode
-              ? 'สมัครจาก LINE invite'
-              : 'เปิดต่อใน LINE'
-            : 'ดำเนินการผ่าน LINE'}
+          {lineEntryButtonLabel}
         </button>
       )}
       <div

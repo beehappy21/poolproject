@@ -588,6 +588,9 @@ export const SignUp: FC = (): JSX.Element => {
             }}
           >
             {lineStatus}
+            <div style={{marginTop: 6, fontSize: 12, opacity: 0.9}}>
+              ระบบจะใช้ชื่อจาก LINE มาช่วยกรอกตอนสร้างสมาชิก และจะเชื่อม LINE ให้หลังสมัครสำเร็จ
+            </div>
           </div>
         ) : null}
         <custom.InputField
@@ -602,6 +605,21 @@ export const SignUp: FC = (): JSX.Element => {
           disabled={true}
           containerStyle={{marginBottom: 20, backgroundColor: '#F8FAFC'}}
         />
+        {!lineUserId ? (
+          <div
+            style={{
+              margin: '0 0 20px 0',
+              borderRadius: 14,
+              backgroundColor: '#FFF7ED',
+              border: '1px solid #FED7AA',
+              padding: '14px 16px',
+              color: '#9A3412',
+              lineHeight: 1.7,
+            }}
+          >
+            ถ้ายังไม่เห็นชื่อจาก LINE ให้กลับไปเปิดลิงก์สมัครผ่าน LINE อีกครั้ง เพื่อให้ระบบเชื่อมบัญชีก่อนสมัคร
+          </div>
+        ) : null}
         {errorMessage ? (
           <p
             style={{

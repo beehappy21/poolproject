@@ -26,6 +26,7 @@
         'note' => 'กรุณาโอนตามยอดที่แสดงในคำสั่งซื้อ และอัปโหลดสลิปเพื่อรอตรวจสอบ',
     ];
     $activeKey = $section['key'] ?? null;
+    $lineStatus = $lineStatus ?? null;
 @endphp
 
 <style>
@@ -79,6 +80,16 @@
     .commission-toggle-grid { display:grid; gap:.85rem; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); margin-top:1rem; }
     .commission-toggle { display:flex; align-items:center; gap:.7rem; padding:.9rem 1rem; border:1px solid #e2e8f0; border-radius:14px; background:#fff; color:#334155; font-weight:700; }
     .commission-toggle input { width:18px; height:18px; }
+    .commission-status-grid { display:grid; gap:1rem; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); margin-top:1rem; }
+    .commission-status-card { border:1px solid #e2e8f0; border-radius:14px; padding:1rem 1.1rem; background:#fff; display:grid; gap:.55rem; }
+    .commission-status-card__header { display:flex; align-items:center; justify-content:space-between; gap:1rem; }
+    .commission-status-card__title { margin:0; font-size:1rem; color:#0f172a; font-weight:700; }
+    .commission-status-card__badge { display:inline-flex; align-items:center; border-radius:999px; padding:.28rem .65rem; font-size:.78rem; font-weight:700; }
+    .commission-status-card__badge--success { background:#dcfce7; color:#166534; }
+    .commission-status-card__badge--warning { background:#fef3c7; color:#92400e; }
+    .commission-status-card__badge--danger { background:#fee2e2; color:#b91c1c; }
+    .commission-status-card__detail { color:#334155; line-height:1.6; }
+    .commission-status-card__meta { color:#64748b; font-size:.9rem; line-height:1.6; }
     @media (max-width:980px) { .commission-shell { grid-template-columns:1fr; } }
     @media (max-width:980px) { .commission-settings-layout { grid-template-columns:1fr; } }
 </style>
@@ -405,6 +416,49 @@
         @endif
 
         @if ($activeKey === 'signup-share')
+            @php
+                $lineStatusItems = is_array($lineStatus['items'] ?? null) ? $lineStatus['items'] : [];
+            @endphp
+            <div class="commission-panel">
+                <div class="commission-eyebrow">LINE Status</div>
+                <p class="commission-description" style="margin-top:.55rem;">
+                    เช็กความพร้อมของ flow LINE จาก BAO ตัวจริงโดยตรง เพื่อให้ทีมดูได้ทันทีว่า route, feed หลังบ้าน,
+                    และข้อความ share พร้อมใช้งานก่อนปล่อยให้สมาชิกใช้
+                </p>
+                <div class="commission-helper">
+                    API base: <strong>{{ $lineStatus['apiBaseUrl'] ?? '-' }}</strong>
+                    <br>Checked at: <strong>{{ $lineStatus['checkedAt'] ?? '-' }}</strong>
+                </div>
+
+                <div class="commission-status-grid">
+                    @foreach ($lineStatusItems as $item)
+                        @php
+                            $tone = $item['tone'] ?? 'warning';
+                            $toneClass = match ($tone) {
+                                'success' => 'commission-status-card__badge commission-status-card__badge--success',
+                                'danger' => 'commission-status-card__badge commission-status-card__badge--danger',
+                                default => 'commission-status-card__badge commission-status-card__badge--warning',
+                            };
+                            $toneLabel = match ($tone) {
+                                'success' => 'Ready',
+                                'danger' => 'Needs Fix',
+                                default => 'Review',
+                            };
+                        @endphp
+                        <article class="commission-status-card">
+                            <div class="commission-status-card__header">
+                                <h3 class="commission-status-card__title">{{ $item['title'] ?? 'Status' }}</h3>
+                                <span class="{{ $toneClass }}">{{ $toneLabel }}</span>
+                            </div>
+                            <div class="commission-status-card__detail">{{ $item['detail'] ?? '-' }}</div>
+                            @if (!empty($item['meta']))
+                                <div class="commission-status-card__meta">{{ $item['meta'] }}</div>
+                            @endif
+                        </article>
+                    @endforeach
+                </div>
+            </div>
+
             <div class="commission-panel">
                 <form action="{{ route('platform.commission.saveSignupShare') }}" method="POST">
                 @csrf
