@@ -90,19 +90,6 @@ class PlatformProvider extends OrchidServiceProvider {
             ->route('platform.commission.manualPayment'),
         ]),
 
-      Menu::make('จัดการ LINE')
-        ->title('LINE')
-        ->icon('bs-chat-dots')
-        ->permission(AdminPermissions::COMMISSIONS_MANAGE)
-        ->list([
-          Menu::make('LINE Workspace')
-            ->icon('bs-window')
-            ->url('/admin'),
-          Menu::make('Signup Share')
-            ->icon('bs-share')
-            ->route('platform.commission.signupShare'),
-        ]),
-
       Menu::make('Commission Report')
         ->icon('bs-table')
         ->permission(AdminPermissions::COMMISSIONS_MANAGE)
@@ -178,6 +165,20 @@ class PlatformProvider extends OrchidServiceProvider {
         ->icon('bs.people')
         ->permission(AdminPermissions::MEMBERS_MANAGE)
         ->route('platform.member.list'),
+
+      Menu::make('จัดการ LINE')
+        ->title('LINE')
+        ->icon('bs-chat-dots')
+        ->permission(AdminPermissions::MEMBERS_MANAGE)
+        ->list([
+          Menu::make('LINE Workspace')
+            ->icon('bs-window')
+            ->url('/admin'),
+          Menu::make('Signup Share')
+            ->icon('bs-share')
+            ->permission(AdminPermissions::COMMISSIONS_MANAGE)
+            ->route('platform.commission.signupShare'),
+        ]),
 
       Menu::make('Wallet')
         ->title('Wallet')
