@@ -3,6 +3,8 @@
 namespace App\Orchid\Screens\Commission;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
+use App\Support\BaoAdminApiClient;
 use App\Support\PoolprojectSettingsStore;
 use Orchid\Screen\Screen;
 use Orchid\Support\Facades\Layout;
@@ -253,6 +255,8 @@ class CommissionSettingsScreen extends Screen
 
     private function buildPayload(string $section): iterable
     {
+        $signupShareSettings = PoolprojectSettingsStore::readSignupShareSettings();
+
         return [
             'commissionSection' => [
                 ...$this->sectionConfig,
@@ -261,9 +265,204 @@ class CommissionSettingsScreen extends Screen
             'commissionSettings' => PoolprojectSettingsStore::readCommissionSettings(),
             'matrixSettings' => PoolprojectSettingsStore::readMatrixSettings(),
             'manualPaymentSettings' => PoolprojectSettingsStore::readManualPaymentSettings(),
-            'signupShareSettings' => PoolprojectSettingsStore::readSignupShareSettings(),
+            'signupShareSettings' => $signupShareSettings,
+            'lineStatus' => $section === 'signup-share'
+                ? $this->resolveLineStatus($signupShareSettings)
+                : null,
             'commissionNav' => self::commissionNav($section),
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $signupShareSettings
+     * @return array<string, mixed>
+     */
+    private function resolveLineStatus(array $signupShareSettings): array
+    {
+        $apiBaseUrl = rtrim(
+            (string) (env('API_BASE_URL')
+                ?: env('APP_API_URL')
+                ?: 'http://127.0.0.1:3000'),
+            '/'
+        );
+
+        $status = [
+            'checkedAt' => now()->toIso8601String(),
+            'apiBaseUrl' => $apiBaseUrl,
+            'items' => [
+                [
+                    'key' => 'line-login-route',
+                    'title' => 'LINE login route',
+                    'tone' => 'warning',
+                    'detail' => 'Checking /auth/line-login...',
+                    'meta' => null,
+                ],
+                [
+                    'key' => 'signup-share',
+                    'title' => 'Signup share message',
+                    'tone' => 'warning',
+                    'detail' => 'Checking signup share copy...',
+                    'meta' => null,
+                ],
+                [
+                    'key' => 'admin-bindings',
+                    'title' => 'Admin binding feed',
+                    'tone' => 'warning',
+                    'detail' => 'Checking /auth/line-bindings...',
+                    'meta' => null,
+                ],
+                [
+                    'key' => 'source-mix',
+                    'title' => 'Latest source mix',
+                    'tone' => 'warning',
+                    'detail' => 'Waiting for binding source summary...',
+                    'meta' => null,
+                ],
+            ],
+        ];
+
+        try {
+            $response = Http::acceptJson()
+                ->timeout(10)
+                ->baseUrl($apiBaseUrl)
+                ->withHeaders([
+                    'X-Requested-By' => 'bao-line-status-probe',
+                ])
+                ->post('/auth/line-login', [
+                    'lineUserId' => '__bao_probe__',
+                ]);
+
+            $message = (string) (
+                $response->json('message')
+                ?? $response->json('error')
+                ?? trim((string) $response->body())
+            );
+
+            if (in_array($response->status(), [400, 401], true)) {
+                $status['items'][0] = [
+                    'key' => 'line-login-route',
+                    'title' => 'LINE login route',
+                    'tone' => 'success',
+                    'detail' => 'Route is live and responding.',
+                    'meta' => $message !== '' ? 'Current response: '.$message : 'Current response: HTTP '.$response->status(),
+                ];
+            } else {
+                $status['items'][0] = [
+                    'key' => 'line-login-route',
+                    'title' => 'LINE login route',
+                    'tone' => 'danger',
+                    'detail' => 'Unexpected response from /auth/line-login.',
+                    'meta' => ($message !== '' ? $message : 'No message returned').' (HTTP '.$response->status().')',
+                ];
+            }
+        } catch (\Throwable $exception) {
+            $status['items'][0] = [
+                'key' => 'line-login-route',
+                'title' => 'LINE login route',
+                'tone' => 'danger',
+                'detail' => 'Unable to probe /auth/line-login.',
+                'meta' => $exception->getMessage(),
+            ];
+        }
+
+        $shareMessage = trim((string) ($signupShareSettings['shareMessage'] ?? ''));
+        $status['items'][1] = $shareMessage !== ''
+            ? [
+                'key' => 'signup-share',
+                'title' => 'Signup share message',
+                'tone' => 'success',
+                'detail' => 'Share message is ready for member popup and LINE share flow.',
+                'meta' => strlen($shareMessage).' characters configured',
+            ]
+            : [
+                'key' => 'signup-share',
+                'title' => 'Signup share message',
+                'tone' => 'warning',
+                'detail' => 'Share message is empty.',
+                'meta' => 'Review this copy before go-live so invite and post-signup guidance do not feel blank.',
+            ];
+
+        try {
+            /** @var BaoAdminApiClient $apiClient */
+            $apiClient = app(BaoAdminApiClient::class);
+            $payload = $apiClient->request('GET', '/auth/line-bindings');
+            $items = is_array($payload['items'] ?? null) ? $payload['items'] : [];
+            $total = is_numeric($payload['total'] ?? null) ? (int) $payload['total'] : count($items);
+
+            $status['items'][2] = $total > 0
+                ? [
+                    'key' => 'admin-bindings',
+                    'title' => 'Admin binding feed',
+                    'tone' => 'success',
+                    'detail' => 'Admin can load LINE binding records from the live API.',
+                    'meta' => $total.' binding record(s) available for review',
+                ]
+                : [
+                    'key' => 'admin-bindings',
+                    'title' => 'Admin binding feed',
+                    'tone' => 'warning',
+                    'detail' => 'Admin feed is live but there are no LINE bindings yet.',
+                    'meta' => 'This can be valid on a fresh environment, but there is nothing to audit right now.',
+                ];
+
+            $sourceCounts = [];
+            $latestSyncedAt = null;
+            foreach ($items as $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+
+                $source = trim((string) ($item['source'] ?? 'unknown'));
+                if ($source === '') {
+                    $source = 'unknown';
+                }
+                $sourceCounts[$source] = ($sourceCounts[$source] ?? 0) + 1;
+
+                $candidateSync = trim((string) ($item['lastSyncedAt'] ?? ''));
+                if ($candidateSync !== '' && ($latestSyncedAt === null || strcmp($candidateSync, $latestSyncedAt) > 0)) {
+                    $latestSyncedAt = $candidateSync;
+                }
+            }
+
+            arsort($sourceCounts);
+            $sourceSummary = collect($sourceCounts)
+                ->take(3)
+                ->map(fn (int $count, string $source) => $source.': '.$count)
+                ->implode(', ');
+
+            $status['items'][3] = $sourceSummary !== ''
+                ? [
+                    'key' => 'source-mix',
+                    'title' => 'Latest source mix',
+                    'tone' => 'success',
+                    'detail' => $sourceSummary,
+                    'meta' => $latestSyncedAt ? 'Latest sync: '.$latestSyncedAt : 'Latest sync timestamp not available',
+                ]
+                : [
+                    'key' => 'source-mix',
+                    'title' => 'Latest source mix',
+                    'tone' => 'warning',
+                    'detail' => 'No source mix available until LINE bindings start syncing.',
+                    'meta' => null,
+                ];
+        } catch (\Throwable $exception) {
+            $status['items'][2] = [
+                'key' => 'admin-bindings',
+                'title' => 'Admin binding feed',
+                'tone' => 'danger',
+                'detail' => 'Unable to load LINE bindings from the API.',
+                'meta' => $exception->getMessage(),
+            ];
+            $status['items'][3] = [
+                'key' => 'source-mix',
+                'title' => 'Latest source mix',
+                'tone' => 'danger',
+                'detail' => 'Source summary is unavailable because binding data could not be loaded.',
+                'meta' => null,
+            ];
+        }
+
+        return $status;
     }
 
     public function name(): ?string
