@@ -12,6 +12,7 @@ type Props = {
 };
 
 const AUTH_VERIFY_TIMEOUT_MS = 8000;
+
 const isPublicIosRuntime = (): boolean => {
   if (typeof window === 'undefined') {
     return false;
@@ -21,6 +22,20 @@ const isPublicIosRuntime = (): boolean => {
     window.location.hostname.toLowerCase() === 'wap.blifehealthy.com' &&
     /iPad|iPhone|iPod/.test(window.navigator.userAgent || '')
   );
+};
+
+const shouldKeepSessionOnVerifyFailure = (error: unknown): boolean => {
+  if (!axios.isAxiosError(error)) {
+    return false;
+  }
+
+  const status = error.response?.status;
+
+  if (status === 401 || status === 403) {
+    return false;
+  }
+
+  return true;
 };
 
 export const RequireAuth: React.FC<Props> = ({children}) => {
@@ -62,7 +77,10 @@ export const RequireAuth: React.FC<Props> = ({children}) => {
           return;
         }
 
-        if (isPublicIosRuntime()) {
+        if (
+          isPublicIosRuntime() &&
+          shouldKeepSessionOnVerifyFailure(error)
+        ) {
           return;
         }
 
