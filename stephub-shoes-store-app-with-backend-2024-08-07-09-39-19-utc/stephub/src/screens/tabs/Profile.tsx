@@ -12,7 +12,7 @@ import {RootState} from '../../store';
 import {actions} from '../../store/actions';
 import {
   LineProfile,
-  buildLineLiffEntryUrl,
+  buildLineLiffLaunchUrl,
   buildLineShareUrl,
   initializeLineLiff,
 } from '../../utils/line';
@@ -330,7 +330,7 @@ export const Profile: React.FC = () => {
 
     if (!lineProfile?.userId) {
       window.location.assign(
-        buildLineLiffEntryUrl({
+        buildLineLiffLaunchUrl({
           mode: 'connect',
           returnTo: '/TabNavigator',
         }),

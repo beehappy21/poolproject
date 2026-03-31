@@ -10,7 +10,7 @@ import {URLS} from '../config';
 import {actions} from '../store/actions';
 import {hooks} from '../hooks';
 import {
-  buildLineLiffEntryUrl,
+  buildLineLiffLaunchUrl,
   buildSignUpPath,
   extractSponsorCodeFromSearch,
   getLineConfig,
@@ -323,7 +323,7 @@ export const SignIn: React.FC = () => {
   };
 
   const handleLineEntry = (): void => {
-    const entryUrl = buildLineLiffEntryUrl({
+    const entryUrl = buildLineLiffLaunchUrl({
       sponsorCode,
       mode: sponsorCode ? 'signup' : 'signin',
       returnTo: sponsorCode ? buildSignUpPath(sponsorCode) : '/TabNavigator',
