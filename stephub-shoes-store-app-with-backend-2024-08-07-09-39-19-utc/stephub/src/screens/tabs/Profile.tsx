@@ -38,6 +38,8 @@ type ReferralResponse = {
 };
 
 type SignupShareSettingsResponse = {
+  shareLinkMessage?: string;
+  signupSuccessMessage?: string;
   shareMessage?: string;
 };
 
@@ -259,7 +261,9 @@ export const Profile: React.FC = () => {
         );
 
         setShareMessage(
-          response.data.shareMessage?.trim() || DEFAULT_LINE_SHARE_MESSAGE,
+          response.data.shareLinkMessage?.trim() ||
+            response.data.shareMessage?.trim() ||
+            DEFAULT_LINE_SHARE_MESSAGE,
         );
       } catch (error) {
         console.error(error);

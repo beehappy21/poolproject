@@ -282,7 +282,8 @@ export class AdminSettingsController {
     const payload = body ?? {};
 
     return writeSignupShareSettings({
-      shareMessage: optionalString(payload.shareMessage) ?? "",
+      shareLinkMessage: optionalString(payload.shareLinkMessage) ?? "",
+      signupSuccessMessage: optionalString(payload.signupSuccessMessage) ?? "",
     });
   }
 }

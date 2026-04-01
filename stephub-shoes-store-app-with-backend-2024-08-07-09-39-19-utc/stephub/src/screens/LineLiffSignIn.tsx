@@ -69,6 +69,8 @@ type ReferralResponse = {
 };
 
 type SignupShareSettingsResponse = {
+  shareLinkMessage?: string;
+  signupSuccessMessage?: string;
   shareMessage?: string;
 };
 
@@ -739,7 +741,9 @@ export const LineRichMenuShare: React.FC = () => {
         ]);
 
         const nextShareMessage =
-          shareSettingsResponse.data.shareMessage?.trim() || DEFAULT_LINE_SHARE_MESSAGE;
+          shareSettingsResponse.data.shareLinkMessage?.trim() ||
+          shareSettingsResponse.data.shareMessage?.trim() ||
+          DEFAULT_LINE_SHARE_MESSAGE;
         const dashboardReferralLink = buildBaoAlignedReferralLink(
           dashboardResponse.data.referral,
         );

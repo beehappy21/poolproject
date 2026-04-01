@@ -40,6 +40,8 @@ type LocationState = {
 };
 
 type SignupShareSettingsResponse = {
+  shareLinkMessage?: string;
+  signupSuccessMessage?: string;
   shareMessage?: string;
 };
 
@@ -58,7 +60,7 @@ type MemberSummaryResponse = {
   name?: string;
 };
 
-const DEFAULT_SHARE_MESSAGE =
+const DEFAULT_SIGNUP_SUCCESS_MESSAGE =
   'ส่งข้อมูลนี้เก็บไว้สำหรับเข้าใช้งานครั้งแรก และเปลี่ยนรหัสผ่านหลังเข้าสู่ระบบทันที';
 const SIGNUP_LINE_LOGIN_ATTEMPT_KEY = 'stephub-signup-line-login-attempted';
 
@@ -76,7 +78,9 @@ export const SignUp: FC = (): JSX.Element => {
     memberCode: string;
     password: string;
   } | null>(null);
-  const [shareMessage, setShareMessage] = useState(DEFAULT_SHARE_MESSAGE);
+  const [signupSuccessMessage, setSignupSuccessMessage] = useState(
+    DEFAULT_SIGNUP_SUCCESS_MESSAGE,
+  );
   const [shareStatus, setShareStatus] = useState('');
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [newPassword, setNewPassword] = useState('');
@@ -203,13 +207,13 @@ export const SignUp: FC = (): JSX.Element => {
     }
 
     return [
-      shareMessage,
+      signupSuccessMessage,
       `รหัสสมาชิก: ${createdAccount.memberCode}`,
       `พาสเวิร์ด: ${createdAccount.password}`,
     ]
       .filter(Boolean)
       .join('\n');
-  }, [createdAccount, shareMessage]);
+  }, [createdAccount, signupSuccessMessage]);
 
   const handleCreateAccount = async (): Promise<void> => {
     if (!sponsorCode) {
@@ -320,12 +324,14 @@ export const SignUp: FC = (): JSX.Element => {
             withCredentials: true,
           },
         );
-        setShareMessage(
-          shareSettingsResponse.data.shareMessage?.trim() || DEFAULT_SHARE_MESSAGE,
+        setSignupSuccessMessage(
+          shareSettingsResponse.data.signupSuccessMessage?.trim() ||
+            shareSettingsResponse.data.shareMessage?.trim() ||
+            DEFAULT_SIGNUP_SUCCESS_MESSAGE,
         );
       } catch (shareSettingsError) {
         console.error(shareSettingsError);
-        setShareMessage(DEFAULT_SHARE_MESSAGE);
+        setSignupSuccessMessage(DEFAULT_SIGNUP_SUCCESS_MESSAGE);
       }
     } catch (error: any) {
       setErrorMessage(
@@ -464,7 +470,7 @@ export const SignUp: FC = (): JSX.Element => {
               color: theme.colors.textColor,
             }}
           >
-            {shareMessage.trim() || DEFAULT_SHARE_MESSAGE}
+            {signupSuccessMessage.trim() || DEFAULT_SIGNUP_SUCCESS_MESSAGE}
           </p>
           <div
             style={{
