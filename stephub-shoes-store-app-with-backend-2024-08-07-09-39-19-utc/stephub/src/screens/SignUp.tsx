@@ -9,11 +9,12 @@ import {theme} from '../constants';
 import {components} from '../components';
 import {actions} from '../store/actions';
 import {
+  buildLineLoginCallbackUrl,
   buildSignUpPath,
-  buildLineLiffLaunchUrl,
   extractSponsorCodeFromSearch,
   initializeLineLiff,
   normalizeSponsorCode,
+  startLineLogin,
 } from '../utils/line';
 
 type CreatedMemberResponse = {
@@ -41,6 +42,17 @@ type LocationState = {
 type SignupShareSettingsResponse = {
   shareMessage?: string;
 };
+
+type LineBindingCheckResponse = {
+  exists?: boolean;
+  binding?: {
+    userId?: string;
+    memberCode?: string;
+    lineUserId?: string;
+    displayName?: string | null;
+  } | null;
+};
+
 type MemberSummaryResponse = {
   memberCode?: string;
   name?: string;
@@ -48,6 +60,7 @@ type MemberSummaryResponse = {
 
 const DEFAULT_SHARE_MESSAGE =
   'ส่งข้อมูลนี้เก็บไว้สำหรับเข้าใช้งานครั้งแรก และเปลี่ยนรหัสผ่านหลังเข้าสู่ระบบทันที';
+const SIGNUP_LINE_LOGIN_ATTEMPT_KEY = 'stephub-signup-line-login-attempted';
 
 const renderHeader = (): JSX.Element => {
   return <components.Header goBack={true} />;
@@ -130,12 +143,40 @@ export const SignUp: FC = (): JSX.Element => {
       }
 
       if (result.profile?.displayName) {
+        if (typeof window !== 'undefined') {
+          window.sessionStorage.removeItem(SIGNUP_LINE_LOGIN_ATTEMPT_KEY);
+        }
         setLineUserId(result.profile.userId);
         setLineIdToken(result.profile.idToken || '');
         setLineDisplayName(result.profile.displayName);
         setLinePictureUrl(result.profile.pictureUrl || '');
         setLineStatus(`ดึงชื่อจาก LINE ได้แล้ว: ${result.profile.displayName}`);
         return;
+      }
+
+      if (
+        result.isReady &&
+        !result.isLoggedIn &&
+        typeof window !== 'undefined'
+      ) {
+        const attempted = window.sessionStorage.getItem(
+          SIGNUP_LINE_LOGIN_ATTEMPT_KEY,
+        );
+
+        if (!attempted) {
+          window.sessionStorage.setItem(
+            SIGNUP_LINE_LOGIN_ATTEMPT_KEY,
+            'true',
+          );
+          startLineLogin(
+            buildLineLoginCallbackUrl({
+              sponsorCode,
+              mode: 'signup',
+              returnTo: buildSignUpPath(sponsorCode),
+            }),
+          );
+          return;
+        }
       }
 
       if (result.errorMessage) {
@@ -180,6 +221,34 @@ export const SignUp: FC = (): JSX.Element => {
     setErrorMessage('');
 
     try {
+      if (lineUserId) {
+        const lineBindingCheckResponse = await axios.post<LineBindingCheckResponse>(
+          URLS.AUTH_LINE_BINDING_CHECK,
+          {
+            lineUserId,
+            lineIdToken: lineIdToken || undefined,
+          },
+          {
+            withCredentials: true,
+          },
+        );
+
+        if (lineBindingCheckResponse.data.exists) {
+          const boundMemberCode =
+            lineBindingCheckResponse.data.binding?.memberCode?.trim() || '';
+          const boundDisplayName =
+            lineBindingCheckResponse.data.binding?.displayName?.trim() || '';
+
+          setErrorMessage(
+            boundMemberCode || boundDisplayName
+              ? `LINE นี้สมัครแล้ว${boundMemberCode ? ` (${boundMemberCode})` : ''} กรุณาใช้บัญชีเดิมเข้าสู่ระบบ`
+              : 'LINE นี้สมัครแล้ว กรุณาใช้บัญชีเดิมเข้าสู่ระบบ',
+          );
+          setLoading(false);
+          return;
+        }
+      }
+
       const createResponse = await axios.post<CreatedMemberResponse>(
         `${URLS.API_BASE_URL}/members`,
         {
@@ -209,22 +278,46 @@ export const SignUp: FC = (): JSX.Element => {
         },
       );
 
+      let nextLineUserId = lineUserId || undefined;
+      let nextLineDisplayName = lineDisplayName || undefined;
+      let nextLinePictureUrl = linePictureUrl || undefined;
+      let postSignupNotice = '';
+
       if (lineUserId) {
-        await axios.post(
-          URLS.AUTH_LINE_BINDING,
+        try {
+          await axios.post(
+            URLS.AUTH_LINE_BINDING,
             {
               lineUserId,
               lineIdToken: lineIdToken || undefined,
               displayName: lineDisplayName || undefined,
-            pictureUrl: linePictureUrl || undefined,
-            source: 'line_invite_signup',
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${loginResponse.data.accessToken}`,
+              pictureUrl: linePictureUrl || undefined,
+              source: 'line_invite_signup',
             },
-          },
-        );
+            {
+              headers: {
+                Authorization: `Bearer ${loginResponse.data.accessToken}`,
+              },
+            },
+          );
+        } catch (lineBindingError) {
+          console.error(lineBindingError);
+
+          nextLineUserId = undefined;
+          nextLineDisplayName = undefined;
+          nextLinePictureUrl = undefined;
+
+          if (
+            axios.isAxiosError(lineBindingError) &&
+            lineBindingError.response?.status === 409
+          ) {
+            postSignupNotice =
+              'สมัครสำเร็จแล้ว แต่ LINE account นี้ถูกเชื่อมกับสมาชิกอื่นอยู่ จึงยังไม่ผูก LINE ให้บัญชีใหม่นี้';
+          } else {
+            postSignupNotice =
+              'สมัครสำเร็จแล้ว แต่ระบบยังผูก LINE ให้บัญชีใหม่นี้ไม่สำเร็จ สามารถเข้าใช้งานก่อนแล้วค่อยเชื่อม LINE ภายหลังได้';
+          }
+        }
       }
 
       dispatch(
@@ -232,9 +325,9 @@ export const SignUp: FC = (): JSX.Element => {
           userId: loginResponse.data.user?.userId,
           memberCode: loginResponse.data.user?.memberCode || createdMemberCode,
           name: loginResponse.data.user?.name || lineDisplayName || createdMemberCode,
-          lineUserId: lineUserId || undefined,
-          lineDisplayName: lineDisplayName || undefined,
-          linePictureUrl: linePictureUrl || undefined,
+          lineUserId: nextLineUserId,
+          lineDisplayName: nextLineDisplayName,
+          linePictureUrl: nextLinePictureUrl,
           email: loginResponse.data.user?.email ?? '',
           phone: loginResponse.data.user?.phone ?? '',
           accessToken: loginResponse.data.accessToken,
@@ -249,6 +342,7 @@ export const SignUp: FC = (): JSX.Element => {
       setShowChangePassword(false);
       setNewPassword('');
       setConfirmPassword('');
+      setShareStatus(postSignupNotice);
 
       try {
         const shareSettingsResponse = await axios.get<SignupShareSettingsResponse>(
@@ -401,7 +495,7 @@ export const SignUp: FC = (): JSX.Element => {
               color: theme.colors.textColor,
             }}
           >
-            กรุณาบันทึกรหัสสมาชิกและพาสเวิร์ดนี้ไว้ก่อนใช้งาน
+            {shareMessage.trim() || DEFAULT_SHARE_MESSAGE}
           </p>
           <div
             style={{
@@ -447,7 +541,11 @@ export const SignUp: FC = (): JSX.Element => {
               style={{
                 margin: '0 0 14px 0',
                 lineHeight: 1.6,
-                color: shareStatus.includes('ไม่') ? theme.colors.coralRed : '#0F766E',
+                color:
+                  shareStatus.includes('ไม่') ||
+                  shareStatus.includes('ถูกเชื่อมกับสมาชิกอื่น')
+                    ? theme.colors.coralRed
+                    : '#0F766E',
               }}
             >
               {shareStatus}
@@ -621,29 +719,9 @@ export const SignUp: FC = (): JSX.Element => {
               lineHeight: 1.7,
             }}
           >
-            ถ้ายังไม่เห็นชื่อจาก LINE ให้กลับไปเปิดลิงก์สมัครผ่าน LINE อีกครั้ง เพื่อให้ระบบเชื่อมบัญชีก่อนสมัคร
-            <div style={{marginTop: 10}}>
-              <button
-                onClick={() =>
-                  window.location.assign(
-                    buildLineLiffLaunchUrl({
-                      sponsorCode,
-                      mode: 'signup',
-                      returnTo: buildSignUpPath(sponsorCode),
-                    }),
-                  )
-                }
-                style={{
-                  border: 'none',
-                  borderRadius: 10,
-                  backgroundColor: '#EA580C',
-                  color: '#FFFFFF',
-                  padding: '10px 14px',
-                  cursor: 'pointer',
-                }}
-              >
-                เปิดผ่าน LINE อีกครั้ง
-              </button>
+            ตอนนี้ยังไม่พบ LINE profile บนอุปกรณ์นี้ แต่ยังสมัครสมาชิกต่อได้ตามปกติ
+            <div style={{marginTop: 8, fontSize: 13, opacity: 0.9}}>
+              หากต้องการเชื่อม LINE ภายหลัง ให้ sign in ก่อน แล้วไปกดเชื่อม LINE ในหน้า Profile อีกครั้งหลังจากทีมงาน publish LINE channel สำหรับผู้ใช้ทั่วไปแล้ว
             </div>
           </div>
         ) : null}
