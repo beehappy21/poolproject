@@ -245,7 +245,7 @@
           <article class="panel">
             <div class="section-head">
               <h3>LINE Signup Share</h3>
-              <span class="muted">ข้อความที่ใช้ตอนแชร์ลิงก์ชวนสมัคร</span>
+              <span class="muted">แยกข้อความแนบลิงก์สมัครออกจากข้อความหลังสมัครสำเร็จ</span>
             </div>
             <div class="stack-list" id="lineShareHints">
               <div class="stack-item">
@@ -255,11 +255,19 @@
             </div>
             <form id="lineSignupShareForm" class="settings-form">
               <label>
-                <span>Share Message</span>
+                <span>Share Link Message</span>
                 <textarea
-                  id="lineShareMessageInput"
+                  id="lineShareLinkMessageInput"
                   rows="5"
                   placeholder="สมัครผ่านลิงก์แนะนำนี้ได้เลย"
+                ></textarea>
+              </label>
+              <label>
+                <span>Signup Success Message</span>
+                <textarea
+                  id="lineSignupSuccessMessageInput"
+                  rows="5"
+                  placeholder="ส่งข้อมูลนี้เก็บไว้สำหรับเข้าใช้งานครั้งแรก และเปลี่ยนรหัสผ่านหลังเข้าสู่ระบบทันที"
                 ></textarea>
               </label>
               <div class="table-actions">

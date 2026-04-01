@@ -46,7 +46,8 @@ class PoolprojectSettingsStore
     ];
 
     private const DEFAULT_SIGNUP_SHARE_SETTINGS = [
-        'shareMessage' => 'ส่งข้อมูลนี้เก็บไว้สำหรับเข้าใช้งานครั้งแรก และเปลี่ยนรหัสผ่านหลังเข้าสู่ระบบทันที',
+        'shareLinkMessage' => 'สมัครผ่านลิงก์แนะนำนี้ได้เลย',
+        'signupSuccessMessage' => 'ส่งข้อมูลนี้เก็บไว้สำหรับเข้าใช้งานครั้งแรก และเปลี่ยนรหัสผ่านหลังเข้าสู่ระบบทันที',
     ];
 
     public static function readCommissionSettings(): array
@@ -267,8 +268,11 @@ class PoolprojectSettingsStore
 
     private static function normalizeSignupShareSettings(array $input): array
     {
+        $legacyMessage = self::normalizeText($input['shareMessage'] ?? null, self::DEFAULT_SIGNUP_SHARE_SETTINGS['signupSuccessMessage']);
+
         return [
-            'shareMessage' => self::normalizeText($input['shareMessage'] ?? null, self::DEFAULT_SIGNUP_SHARE_SETTINGS['shareMessage']),
+            'shareLinkMessage' => self::normalizeText($input['shareLinkMessage'] ?? null, self::DEFAULT_SIGNUP_SHARE_SETTINGS['shareLinkMessage']),
+            'signupSuccessMessage' => self::normalizeText($input['signupSuccessMessage'] ?? null, $legacyMessage),
         ];
     }
 

@@ -423,21 +423,22 @@ class CommissionSettingsScreen extends Screen
             ];
         }
 
-        $shareMessage = trim((string) ($signupShareSettings['shareMessage'] ?? ''));
-        $status['items'][4] = $shareMessage !== ''
+        $shareLinkMessage = trim((string) ($signupShareSettings['shareLinkMessage'] ?? ''));
+        $signupSuccessMessage = trim((string) ($signupShareSettings['signupSuccessMessage'] ?? ''));
+        $status['items'][4] = $shareLinkMessage !== '' && $signupSuccessMessage !== ''
             ? [
                 'key' => 'signup-share',
-                'title' => 'Signup share message',
+                'title' => 'Signup share messages',
                 'tone' => 'success',
-                'detail' => 'Share message is ready for member popup and LINE share flow.',
-                'meta' => strlen($shareMessage).' characters configured',
+                'detail' => 'Share link copy and post-signup copy are both configured.',
+                'meta' => 'share link: '.strlen($shareLinkMessage).' chars, success popup: '.strlen($signupSuccessMessage).' chars',
             ]
             : [
                 'key' => 'signup-share',
-                'title' => 'Signup share message',
+                'title' => 'Signup share messages',
                 'tone' => 'warning',
-                'detail' => 'Share message is empty.',
-                'meta' => 'Review this copy before go-live so invite and post-signup guidance do not feel blank.',
+                'detail' => 'One or both signup share messages are empty.',
+                'meta' => 'Review both the share-link copy and the success-popup copy before go-live.',
             ];
 
         try {

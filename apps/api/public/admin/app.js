@@ -236,14 +236,16 @@ const exportLineBindingsButton = document.getElementById("exportLineBindingsButt
 const lineBindingDetailPanel = document.getElementById("lineBindingDetailPanel");
 const lineBindingDuplicateTable = document.getElementById("lineBindingDuplicateTable");
 const lineSignupShareForm = document.getElementById("lineSignupShareForm");
-const lineShareMessageInput = document.getElementById("lineShareMessageInput");
+const lineShareLinkMessageInput = document.getElementById("lineShareLinkMessageInput");
+const lineSignupSuccessMessageInput = document.getElementById("lineSignupSuccessMessageInput");
 const lineSettingsOutput = document.getElementById("lineSettingsOutput");
 const lineShareHints = document.getElementById("lineShareHints");
 const lineRuntimeStatusList = document.getElementById("lineRuntimeStatusList");
 const lineRuntimeStatusOutput = document.getElementById("lineRuntimeStatusOutput");
 state.lineBindings = [];
 state.lineSignupShareSettings = {
-  shareMessage: "",
+  shareLinkMessage: "",
+  signupSuccessMessage: "",
 };
 state.lineRuntimeSettings = null;
 state.lineBindingSearch = "";
@@ -647,8 +649,14 @@ function renderLineBindingsWorkspace() {
 }
 
 function renderLineSettings() {
-  if (lineShareMessageInput) {
-    lineShareMessageInput.value = state.lineSignupShareSettings?.shareMessage || "";
+  if (lineShareLinkMessageInput) {
+    lineShareLinkMessageInput.value =
+      state.lineSignupShareSettings?.shareLinkMessage || "";
+  }
+
+  if (lineSignupSuccessMessageInput) {
+    lineSignupSuccessMessageInput.value =
+      state.lineSignupShareSettings?.signupSuccessMessage || "";
   }
 
   const runtime = state.lineRuntimeSettings;
@@ -672,7 +680,9 @@ function renderLineSettings() {
   if (lineSettingsOutput && !lineSettingsOutput.dataset.userEdited) {
     lineSettingsOutput.textContent = JSON.stringify(
       {
-        shareMessage: state.lineSignupShareSettings?.shareMessage || "",
+        shareLinkMessage: state.lineSignupShareSettings?.shareLinkMessage || "",
+        signupSuccessMessage:
+          state.lineSignupShareSettings?.signupSuccessMessage || "",
         richMenuShareUrl: richMenuShareUrl || null,
       },
       null,
@@ -1729,7 +1739,9 @@ async function loadWalletSettings() {
 async function loadLineSignupShareSettings() {
   const settings = await request("/settings/signup-share");
   state.lineSignupShareSettings = {
-    shareMessage: settings.shareMessage || "",
+    shareLinkMessage: settings.shareLinkMessage || "",
+    signupSuccessMessage:
+      settings.signupSuccessMessage || settings.shareMessage || "",
   };
   renderLineSettings();
 }
@@ -1790,12 +1802,16 @@ async function saveLineSignupShareSettings() {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      shareMessage: lineShareMessageInput?.value || "",
+      shareLinkMessage: lineShareLinkMessageInput?.value || "",
+      signupSuccessMessage:
+        lineSignupSuccessMessageInput?.value || "",
     }),
   });
 
   state.lineSignupShareSettings = {
-    shareMessage: result.shareMessage || "",
+    shareLinkMessage: result.shareLinkMessage || "",
+    signupSuccessMessage:
+      result.signupSuccessMessage || result.shareMessage || "",
   };
   if (lineSettingsOutput) {
     lineSettingsOutput.dataset.userEdited = "true";
