@@ -31,6 +31,12 @@ type WindowWithLiff = Window & {
     isLoggedIn(): boolean;
     isInClient(): boolean;
     login(input?: {redirectUri?: string}): void;
+    shareTargetPicker?(
+      messages: Array<{
+        type: 'text';
+        text: string;
+      }>,
+    ): Promise<unknown | null>;
     getIDToken?(): string | null;
     getProfile(): Promise<{
       userId: string;
@@ -52,6 +58,32 @@ export const extractSponsorCodeFromSearch = (search: string): string => {
   return normalizeSponsorCode(
     query.get('sponsorCode') || query.get('sponsor_code') || query.get('ref'),
   );
+};
+
+export const parseLineCallbackSearch = (search: string): URLSearchParams => {
+  const directParams = new URLSearchParams(search);
+  const liffState = directParams.get('liff.state')?.trim() || '';
+
+  if (!liffState) {
+    return directParams;
+  }
+
+  try {
+    const decodedState = decodeURIComponent(liffState);
+    const nestedParams = new URLSearchParams(
+      decodedState.startsWith('?') ? decodedState.slice(1) : decodedState,
+    );
+
+    nestedParams.forEach((value, key) => {
+      if (!directParams.has(key)) {
+        directParams.set(key, value);
+      }
+    });
+  } catch (error) {
+    console.error(error);
+  }
+
+  return directParams;
 };
 
 export const buildSignUpPath = (sponsorCode?: string | null): string => {

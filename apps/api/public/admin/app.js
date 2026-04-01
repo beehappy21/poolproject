@@ -238,6 +238,7 @@ const lineBindingDuplicateTable = document.getElementById("lineBindingDuplicateT
 const lineSignupShareForm = document.getElementById("lineSignupShareForm");
 const lineShareMessageInput = document.getElementById("lineShareMessageInput");
 const lineSettingsOutput = document.getElementById("lineSettingsOutput");
+const lineShareHints = document.getElementById("lineShareHints");
 const lineRuntimeStatusList = document.getElementById("lineRuntimeStatusList");
 const lineRuntimeStatusOutput = document.getElementById("lineRuntimeStatusOutput");
 state.lineBindings = [];
@@ -649,6 +650,35 @@ function renderLineSettings() {
   if (lineShareMessageInput) {
     lineShareMessageInput.value = state.lineSignupShareSettings?.shareMessage || "";
   }
+
+  const runtime = state.lineRuntimeSettings;
+  const richMenuShareUrl = runtime?.richMenuShareUrl || "";
+
+  if (lineShareHints) {
+    lineShareHints.innerHTML = `<div class="stack-item">
+      <strong>Rich menu share URL</strong>
+      <p class="muted">${
+        richMenuShareUrl
+          ? `Use this exact URL in LINE OA rich menu: ${escapeHtml(richMenuShareUrl)}`
+          : "Missing APP_WAP_URL or public LINE URL alignment, so the rich menu share URL cannot be generated yet."
+      }</p>
+    </div>
+    <div class="stack-item">
+      <strong>Operator action</strong>
+      <p class="muted">Set the rich menu action to open the URL above. The page will continue LINE login if needed, load the member referral link, then open the LINE share picker automatically.</p>
+    </div>`;
+  }
+
+  if (lineSettingsOutput && !lineSettingsOutput.dataset.userEdited) {
+    lineSettingsOutput.textContent = JSON.stringify(
+      {
+        shareMessage: state.lineSignupShareSettings?.shareMessage || "",
+        richMenuShareUrl: richMenuShareUrl || null,
+      },
+      null,
+      2,
+    );
+  }
 }
 
 function getLineRuntimeToneLabel(tone) {
@@ -723,6 +753,13 @@ function renderLineRuntimeStatus() {
         : "APP_WAP_URL is not declared on backend runtime",
     },
     {
+      title: "Rich menu share URL",
+      tone: runtime.richMenuShareConfigured ? "success" : "warning",
+      detail: runtime.richMenuShareConfigured
+        ? runtime.richMenuShareUrl
+        : "Unable to generate /line/liff/signin/share URL from APP_WAP_URL or LINE public URLs",
+    },
+    {
       title: "LINE channel secret",
       tone: runtime.lineLoginChannelSecretConfigured ? "success" : "danger",
       detail: runtime.lineLoginChannelSecretConfigured
@@ -763,6 +800,8 @@ function renderLineRuntimeStatus() {
   if (lineRuntimeStatusOutput) {
     lineRuntimeStatusOutput.textContent = JSON.stringify(runtime, null, 2);
   }
+
+  renderLineSettings();
 }
 
 async function loadLineRuntimeSettings() {
@@ -1758,6 +1797,9 @@ async function saveLineSignupShareSettings() {
   state.lineSignupShareSettings = {
     shareMessage: result.shareMessage || "",
   };
+  if (lineSettingsOutput) {
+    lineSettingsOutput.dataset.userEdited = "true";
+  }
   renderLineSettings();
 
   if (lineSettingsOutput) {
