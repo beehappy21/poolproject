@@ -1,12 +1,15 @@
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
   Get,
+  Inject,
   NotFoundException,
   Param,
   Post,
   Query,
+  UnauthorizedException,
 } from "@nestjs/common";
 
 import {
@@ -17,6 +20,7 @@ import {
   requirePositiveIntegerString,
   rethrowHttpError,
 } from "../../../../../apps/api/src/http/request.util";
+import { PrismaService } from "../../../../infrastructure/src/prisma/prisma.service";
 import { MembersService } from "../services/members.service";
 import { WalletsService } from "../../../wallets/src/services/wallets.service";
 
@@ -25,6 +29,8 @@ export class MembersController {
   constructor(
     private readonly membersService: MembersService,
     private readonly walletsService: WalletsService,
+    @Inject(PrismaService)
+    private readonly prisma: PrismaService,
   ) {}
 
   @Get()
@@ -164,6 +170,11 @@ export class MembersController {
       sponsorCode?: string | null;
       ref?: string | null;
       password?: string | null;
+      lineUserId?: string | null;
+      lineIdToken?: string | null;
+      lineDisplayName?: string | null;
+      linePictureUrl?: string | null;
+      lineStatusMessage?: string | null;
     },
   ) {
     const name = optionalString(body.name);
@@ -173,6 +184,11 @@ export class MembersController {
     const password = optionalString(body.password);
     const email = optionalString(body.email);
     const phone = optionalString(body.phone);
+    const lineUserId = optionalString(body.lineUserId);
+    const lineIdToken = optionalString(body.lineIdToken);
+    const lineDisplayName = optionalString(body.lineDisplayName);
+    const linePictureUrl = optionalString(body.linePictureUrl);
+    const lineStatusMessage = optionalString(body.lineStatusMessage);
 
     if (password && !/^[A-Za-z0-9]{6,}$/.test(password)) {
       throw new BadRequestException("Password must be at least 6 letters or numbers.");
@@ -186,7 +202,27 @@ export class MembersController {
       throw new BadRequestException("Use sponsorCode or ref, not both.");
     }
 
+    if (!lineUserId) {
+      throw new BadRequestException(
+        "LINE profile is required before signup. Please reopen the invite link in LINE and try again.",
+      );
+    }
+
     try {
+      await this.verifyLineIdentity({
+        lineUserId,
+        lineIdToken,
+      });
+
+      const existingBinding = await this.prisma.lineBinding.findUnique({
+        where: { lineUserId },
+        select: { userId: true },
+      });
+
+      if (existingBinding) {
+        throw new ConflictException("LINE account is already connected to another member.");
+      }
+
       return await this.membersService.createMember({
         memberCode,
         name,
@@ -195,6 +231,13 @@ export class MembersController {
         sponsorCode,
         ref,
         password,
+        lineBinding: {
+          lineUserId,
+          displayName: lineDisplayName,
+          pictureUrl: linePictureUrl,
+          statusMessage: lineStatusMessage,
+          source: "line_invite_signup",
+        },
       });
     } catch (error) {
       rethrowHttpError(error);
@@ -246,6 +289,65 @@ export class MembersController {
       );
     } catch (error) {
       rethrowHttpError(error);
+    }
+  }
+
+  private async verifyLineIdentity(input: {
+    lineUserId: string;
+    lineIdToken?: string | null;
+  }): Promise<void> {
+    const normalizedUserId = input.lineUserId.trim();
+    const normalizedToken = input.lineIdToken?.trim() || "";
+    const lineChannelId =
+      process.env.LINE_CHANNEL_ID?.trim() ||
+      process.env.LINE_LOGIN_CHANNEL_ID?.trim() ||
+      "";
+    const strictMode =
+      process.env.LINE_STRICT_VERIFY === "true" ||
+      process.env.NODE_ENV === "production";
+
+    if (!normalizedToken || !lineChannelId) {
+      if (strictMode) {
+        throw new BadRequestException(
+          "LINE identity verification is not configured correctly.",
+        );
+      }
+
+      return;
+    }
+
+    const response = await fetch("https://api.line.me/oauth2/v2.1/verify", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        id_token: normalizedToken,
+        client_id: lineChannelId,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new UnauthorizedException("LINE identity verification failed.");
+    }
+
+    const payload = (await response.json()) as {
+      sub?: string;
+      exp?: number;
+    };
+
+    if (!payload?.sub || payload.sub !== normalizedUserId) {
+      throw new UnauthorizedException(
+        "LINE identity does not match the requested account.",
+      );
+    }
+
+    if (
+      typeof payload.exp === "number" &&
+      payload.exp > 0 &&
+      payload.exp * 1000 < Date.now()
+    ) {
+      throw new UnauthorizedException("LINE identity token has expired.");
     }
   }
 }

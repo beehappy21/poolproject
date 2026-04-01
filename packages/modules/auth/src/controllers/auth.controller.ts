@@ -90,6 +90,29 @@ export class AuthController {
     };
   }
 
+  @Post("line-binding/check")
+  async checkLineBinding(
+    @Body()
+    body: {
+      lineUserId?: string;
+      lineIdToken?: string;
+    },
+  ) {
+    await this.authService.verifyLineIdentity({
+      lineUserId: requireNonEmptyString(body?.lineUserId, "lineUserId"),
+      lineIdToken: optionalString(body?.lineIdToken),
+    });
+
+    const binding = await this.authService.getLineBindingByLineUserId(
+      requireNonEmptyString(body?.lineUserId, "lineUserId"),
+    );
+
+    return {
+      exists: Boolean(binding),
+      binding,
+    };
+  }
+
   @Get("me")
   async me(
     @Headers("authorization") authorization?: string,

@@ -9,6 +9,7 @@ import {hooks} from '../hooks';
 import {RootState} from '../store';
 import {actions} from '../store/actions';
 import {
+  buildPublicSignUpUrl,
   buildLineShareUrl,
   buildLineLoginCallbackUrl,
   buildSignUpPath,
@@ -117,7 +118,7 @@ const buildLocalReferralPreviewLink = (code: string) => {
     return '';
   }
 
-  return `${window.location.origin}/SignUp?sponsorCode=${encodeURIComponent(normalizedCode)}`;
+  return buildPublicSignUpUrl(normalizedCode);
 };
 
 const buildBaoAlignedReferralLink = (payload?: {
@@ -126,12 +127,6 @@ const buildBaoAlignedReferralLink = (payload?: {
   referralLink?: string;
   lineReferralLink?: string;
 }) => {
-  const lineReferralLink = payload?.lineReferralLink?.trim();
-
-  if (lineReferralLink) {
-    return lineReferralLink;
-  }
-
   const sponsorCode = normalizeMemberCode(payload?.sponsorCode || payload?.memberCode);
 
   if (sponsorCode) {
@@ -165,6 +160,10 @@ const buildBaoAlignedReferralLink = (payload?: {
 
 const buildShareText = (shareMessage: string, referralLink: string) =>
   [shareMessage.trim(), referralLink.trim()].filter(Boolean).join('\n');
+
+const openLineShareFallback = (shareMessage: string, referralLink: string) => {
+  window.location.assign(buildLineShareUrl(shareMessage, referralLink));
+};
 
 export const LineLiffSignIn: React.FC = () => {
   const location = useLocation();
@@ -233,6 +232,14 @@ export const LineLiffSignIn: React.FC = () => {
       }
 
       if (!bootstrap.isLoggedIn) {
+        if (mode === 'signup' && sponsorCode) {
+          navigate(buildSignUpPath(sponsorCode), {
+            replace: true,
+            state: {sponsorCode},
+          });
+          return;
+        }
+
         setStatusTone('neutral');
         setStatusTitle('Redirecting to LINE login');
         setStatusDetail(
@@ -844,12 +851,19 @@ export const LineRichMenuShare: React.FC = () => {
           return;
         }
 
-        window.location.assign(buildLineShareUrl(shareMessage, referralLink));
+        openLineShareFallback(shareMessage, referralLink);
       } catch (error) {
         console.error(error);
 
         if (cancelled) {
           return;
+        }
+
+        try {
+          openLineShareFallback(shareMessage, referralLink);
+          return;
+        } catch (fallbackError) {
+          console.error(fallbackError);
         }
 
         setStatusTone('warning');
@@ -888,7 +902,7 @@ export const LineRichMenuShare: React.FC = () => {
           return;
         }
       } else {
-        window.location.assign(buildLineShareUrl(shareMessage, referralLink));
+        openLineShareFallback(shareMessage, referralLink);
         return;
       }
 
@@ -897,6 +911,14 @@ export const LineRichMenuShare: React.FC = () => {
       setStatusDetail('สามารถกลับไปหน้าแอปหลักหรือแชร์ซ้ำได้ตามต้องการ');
     } catch (error) {
       console.error(error);
+
+      try {
+        openLineShareFallback(shareMessage, referralLink);
+        return;
+      } catch (fallbackError) {
+        console.error(fallbackError);
+      }
+
       setStatusTone('danger');
       setStatusTitle('แชร์ผ่าน LINE ไม่สำเร็จ');
       setStatusDetail('ลองกดอีกครั้ง หรือคัดลอกลิงก์ด้านล่างแทน');

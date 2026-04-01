@@ -1,5 +1,6 @@
-import { Injectable } from "@nestjs/common";
+import { ConflictException, Injectable } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
+import { Prisma } from "@prisma/client";
 
 import { QualificationCycleSnapshot } from "../../../qualification/src/domain/qualification.types";
 import { PrismaService } from "../../../../infrastructure/src/prisma/prisma.service";
@@ -159,6 +160,13 @@ export interface MembersRepository {
     sponsorCode?: string | null;
     ref?: string | null;
     password?: string | null;
+    lineBinding?: {
+      lineUserId: string;
+      displayName?: string | null;
+      pictureUrl?: string | null;
+      statusMessage?: string | null;
+      source?: string | null;
+    };
   }): Promise<{
     memberId: string;
     memberCode: string;
@@ -1005,6 +1013,13 @@ export class PrismaMembersRepository implements MembersRepository {
     sponsorCode?: string | null;
     ref?: string | null;
     password?: string | null;
+    lineBinding?: {
+      lineUserId: string;
+      displayName?: string | null;
+      pictureUrl?: string | null;
+      statusMessage?: string | null;
+      source?: string | null;
+    };
   }) {
     let sponsorId = input.sponsorId ? BigInt(input.sponsorId) : null;
 
@@ -1039,29 +1054,74 @@ export class PrismaMembersRepository implements MembersRepository {
     const referralCode = await this.generateUniqueReferralCode();
     const displayName = input.name?.trim() || memberCode;
 
-    const member = await this.prisma.user.create({
-      data: {
-        memberCode,
-        referralCode,
-        name: displayName,
-        email: input.email ?? null,
-        phone: input.phone ?? null,
-        passwordHash: hashPassword(passwordToHash),
-        sponsorId,
-        status: "ACTIVE",
-        riskLevel: "NORMAL",
-        payoutStatus: "ACTIVE",
-      },
-    });
+    try {
+      const member = await this.prisma.$transaction(async (tx) => {
+        if (input.lineBinding?.lineUserId) {
+          const existingLineBinding = await tx.lineBinding.findUnique({
+            where: { lineUserId: input.lineBinding.lineUserId },
+            select: { userId: true },
+          });
 
-    return {
-      memberId: toIdString(member.id),
-      memberCode: member.memberCode,
-      referralCode,
-      name: member.name,
-      sponsorId: member.sponsorId ? toIdString(member.sponsorId) : null,
-      ...(temporaryPassword ? { temporaryPassword } : {}),
-    };
+          if (existingLineBinding) {
+            throw new ConflictException(
+              "LINE account is already connected to another member.",
+            );
+          }
+        }
+
+        const createdMember = await tx.user.create({
+          data: {
+            memberCode,
+            referralCode,
+            name: displayName,
+            email: input.email ?? null,
+            phone: input.phone ?? null,
+            passwordHash: hashPassword(passwordToHash),
+            sponsorId,
+            status: "ACTIVE",
+            riskLevel: "NORMAL",
+            payoutStatus: "ACTIVE",
+          },
+        });
+
+        if (input.lineBinding?.lineUserId) {
+          await tx.lineBinding.create({
+            data: {
+              userId: createdMember.id,
+              lineUserId: input.lineBinding.lineUserId,
+              displayName: input.lineBinding.displayName ?? null,
+              pictureUrl: input.lineBinding.pictureUrl ?? null,
+              statusMessage: input.lineBinding.statusMessage ?? null,
+              source: input.lineBinding.source ?? null,
+            },
+          });
+        }
+
+        return createdMember;
+      });
+
+      return {
+        memberId: toIdString(member.id),
+        memberCode: member.memberCode,
+        referralCode,
+        name: member.name,
+        sponsorId: member.sponsorId ? toIdString(member.sponsorId) : null,
+        ...(temporaryPassword ? { temporaryPassword } : {}),
+      };
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002" &&
+        Array.isArray(error.meta?.target) &&
+        error.meta.target.includes("lineUserId")
+      ) {
+        throw new ConflictException(
+          "LINE account is already connected to another member.",
+        );
+      }
+
+      throw error;
+    }
   }
 
   async updateMemberProfile(

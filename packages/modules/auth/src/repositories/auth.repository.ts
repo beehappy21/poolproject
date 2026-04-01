@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { ConflictException, Injectable } from "@nestjs/common";
 
 import { PrismaService } from "../../../../infrastructure/src/prisma/prisma.service";
 import {
@@ -319,7 +319,9 @@ export class PrismaAuthRepository implements AuthRepository {
     });
 
     if (existingByLine && existingByLine.userId.toString() !== input.userId) {
-      throw new Error("LINE account is already connected to another member.");
+      throw new ConflictException(
+        "LINE account is already connected to another member.",
+      );
     }
 
     const record = await this.prisma.lineBinding.upsert({

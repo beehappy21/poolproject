@@ -55,6 +55,7 @@ export const GET_PRODUCT_CATEGORIES = `${API_BASE_URL}/products/categories`;
 export const GET_STOREFRONT_PRODUCTS = `${API_BASE_URL}/products/storefront`;
 export const AUTH_LOGIN = `${API_BASE_URL}/auth/login`;
 export const AUTH_LINE_LOGIN = `${API_BASE_URL}/auth/line-login`;
+export const AUTH_LINE_BINDING_CHECK = `${API_BASE_URL}/auth/line-binding/check`;
 export const AUTH_ME = `${API_BASE_URL}/auth/me`;
 export const AUTH_LINE_BINDING = `${API_BASE_URL}/auth/line-binding`;
 export const AUTH_DASHBOARD = `${API_BASE_URL}/auth/dashboard`;
@@ -114,6 +115,7 @@ export const URLS = {
   GET_STOREFRONT_PRODUCTS,
   AUTH_LOGIN,
   AUTH_LINE_LOGIN,
+  AUTH_LINE_BINDING_CHECK,
   AUTH_ME,
   AUTH_LINE_BINDING,
   AUTH_DASHBOARD,
