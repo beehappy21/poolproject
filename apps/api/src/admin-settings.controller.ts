@@ -39,6 +39,22 @@ const extractHost = (value: string): string => {
   }
 };
 
+const buildPublicPathUrl = (baseUrl: string, path: string): string => {
+  if (!baseUrl) {
+    return "";
+  }
+
+  try {
+    const parsed = new URL(baseUrl);
+    parsed.pathname = path;
+    parsed.search = "";
+    parsed.hash = "";
+    return parsed.toString();
+  } catch {
+    return "";
+  }
+};
+
 const readLineRuntimeSettings = () => {
   const lineLoginChannelId =
     normalizeEnvValue(process.env.LINE_LOGIN_CHANNEL_ID) ||
@@ -52,6 +68,11 @@ const readLineRuntimeSettings = () => {
   const callbackHost = extractHost(callbackUrl);
   const liffSigninHost = extractHost(liffSignInUrl);
   const wapBaseHost = extractHost(wapBaseUrl);
+  const richMenuShareUrl = buildPublicPathUrl(
+    wapBaseUrl || liffSignInUrl || callbackUrl,
+    "/line/liff/signin/share",
+  );
+  const richMenuShareHost = extractHost(richMenuShareUrl);
   const publicLineHostAligned =
     Boolean(callbackHost) &&
     Boolean(liffSigninHost) &&
@@ -77,6 +98,9 @@ const readLineRuntimeSettings = () => {
     wapBaseUrl,
     wapBaseConfigured: Boolean(wapBaseUrl),
     wapBaseHost,
+    richMenuShareUrl,
+    richMenuShareConfigured: Boolean(richMenuShareUrl),
+    richMenuShareHost,
     publicLineHostAligned,
     strictVerificationEnabled,
     apiBaseUrl:

@@ -233,25 +233,31 @@ export const Home: FC = () => {
   const getData = async () => {
     setLoading(true);
     setLoadError('');
+    setBannersData(current => (current.length ? current : BANNER_PLACEHOLDERS));
 
     try {
-      const [productsResult, bannersResult, carouselResult] =
-        await Promise.allSettled([
-          fetchLiveProducts(),
-          axios.get(URLS.GET_BANNERS, {
-            timeout: HOME_REQUEST_TIMEOUT_MS,
-          }),
-          axios.get(URLS.GET_CAROUSEL, {
-            timeout: HOME_REQUEST_TIMEOUT_MS,
-          }),
-        ]);
-
-      if (productsResult.status !== 'fulfilled') {
-        throw new Error('Unable to load storefront products.');
-      }
-
-      const products = productsResult.value;
+      const products = await fetchLiveProducts();
       const collections = getProductCollections(products);
+      const visibleCollections = collections.filter(item => item.id !== 'all');
+
+      setProductsData(products);
+      setCategoryCollections(visibleCollections);
+      setVisibleCount(initialVisibleProductCount);
+      writeHomeCache({
+        products,
+        collections: visibleCollections,
+      });
+      setLoading(false);
+
+      const [bannersResult, carouselResult] = await Promise.allSettled([
+        axios.get(URLS.GET_BANNERS, {
+          timeout: HOME_REQUEST_TIMEOUT_MS,
+        }),
+        axios.get(URLS.GET_CAROUSEL, {
+          timeout: HOME_REQUEST_TIMEOUT_MS,
+        }),
+      ]);
+
       const bannersResponse =
         bannersResult.status === 'fulfilled' ? bannersResult.value : null;
       const carouselResponse =
@@ -281,18 +287,10 @@ export const Home: FC = () => {
           (item: {image?: string} | null): item is {image?: string} =>
             Boolean(item?.image),
         );
-      const visibleCollections = collections.filter(item => item.id !== 'all');
 
-      setProductsData(products);
-      setCategoryCollections(visibleCollections);
       setBannersData(normalizedBanners.length ? normalizedBanners : BANNER_PLACEHOLDERS);
       setCarouselData(normalizedSlides);
       setActiveSlideIndex(0);
-      setVisibleCount(initialVisibleProductCount);
-      writeHomeCache({
-        products,
-        collections: visibleCollections,
-      });
     } catch (error) {
       console.error(error);
       const cachedHomeData = readHomeCache();

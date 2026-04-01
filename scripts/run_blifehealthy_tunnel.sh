@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Force HTTP/2 transport because this Mac intermittently loses QUIC/UDP
-# connectivity, which causes public clients to see flaky 1033/ERR_NETWORK.
-exec /usr/local/bin/cloudflared tunnel --protocol http2 run blifehealthy
+# Allow cloudflared to choose the healthiest transport instead of pinning
+# HTTP/2, which has recently produced repeated "http2: stream closed" errors
+# for public WAP requests.
+if [[ -n "${CLOUDFLARED_PROTOCOL:-}" ]]; then
+  exec /usr/local/bin/cloudflared tunnel --protocol "${CLOUDFLARED_PROTOCOL}" run blifehealthy
+fi
+
+exec /usr/local/bin/cloudflared tunnel run blifehealthy
