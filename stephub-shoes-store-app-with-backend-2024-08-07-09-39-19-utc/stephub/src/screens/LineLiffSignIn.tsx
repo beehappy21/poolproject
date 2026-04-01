@@ -166,6 +166,10 @@ const buildBaoAlignedReferralLink = (payload?: {
 const buildShareText = (shareMessage: string, referralLink: string) =>
   [shareMessage.trim(), referralLink.trim()].filter(Boolean).join('\n');
 
+const openLineShareFallback = (shareMessage: string, referralLink: string) => {
+  window.location.assign(buildLineShareUrl(shareMessage, referralLink));
+};
+
 export const LineLiffSignIn: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -844,12 +848,19 @@ export const LineRichMenuShare: React.FC = () => {
           return;
         }
 
-        window.location.assign(buildLineShareUrl(shareMessage, referralLink));
+        openLineShareFallback(shareMessage, referralLink);
       } catch (error) {
         console.error(error);
 
         if (cancelled) {
           return;
+        }
+
+        try {
+          openLineShareFallback(shareMessage, referralLink);
+          return;
+        } catch (fallbackError) {
+          console.error(fallbackError);
         }
 
         setStatusTone('warning');
@@ -888,7 +899,7 @@ export const LineRichMenuShare: React.FC = () => {
           return;
         }
       } else {
-        window.location.assign(buildLineShareUrl(shareMessage, referralLink));
+        openLineShareFallback(shareMessage, referralLink);
         return;
       }
 
@@ -897,6 +908,14 @@ export const LineRichMenuShare: React.FC = () => {
       setStatusDetail('สามารถกลับไปหน้าแอปหลักหรือแชร์ซ้ำได้ตามต้องการ');
     } catch (error) {
       console.error(error);
+
+      try {
+        openLineShareFallback(shareMessage, referralLink);
+        return;
+      } catch (fallbackError) {
+        console.error(fallbackError);
+      }
+
       setStatusTone('danger');
       setStatusTitle('แชร์ผ่าน LINE ไม่สำเร็จ');
       setStatusDetail('ลองกดอีกครั้ง หรือคัดลอกลิงก์ด้านล่างแทน');
