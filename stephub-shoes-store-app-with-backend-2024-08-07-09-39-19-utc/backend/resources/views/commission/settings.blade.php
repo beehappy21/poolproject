@@ -114,9 +114,11 @@
     $manualQrImageUrl = $manualPaymentSettings['qrImageUrl'] ?? '';
     $manualPaymentNote = old('note', $manualPaymentSettings['note'] ?? '');
     $signupShareSettings = $signupShareSettings ?? [
-        'shareMessage' => 'ส่งข้อมูลนี้เก็บไว้สำหรับเข้าใช้งานครั้งแรก และเปลี่ยนรหัสผ่านหลังเข้าสู่ระบบทันที',
+        'shareLinkMessage' => 'สมัครผ่านลิงก์แนะนำนี้ได้เลย',
+        'signupSuccessMessage' => 'ส่งข้อมูลนี้เก็บไว้สำหรับเข้าใช้งานครั้งแรก และเปลี่ยนรหัสผ่านหลังเข้าสู่ระบบทันที',
     ];
-    $signupShareMessage = old('shareMessage', $signupShareSettings['shareMessage'] ?? '');
+    $signupShareLinkMessage = old('shareLinkMessage', $signupShareSettings['shareLinkMessage'] ?? '');
+    $signupSuccessMessage = old('signupSuccessMessage', $signupShareSettings['signupSuccessMessage'] ?? '');
     $appVisibility = $commissionSettings['appVisibility'] ?? [
         'cashback' => true,
         'direct' => true,
@@ -462,19 +464,28 @@
 
         @if ($activeKey === 'signup-share')
             <div class="commission-panel">
-                <form action="{{ route('platform.commission.saveSignupShare') }}" method="POST">
+                <form action="{{ route('platform.commission.saveSignupShare') }}" method="POST" data-turbo="false">
                 @csrf
-                <div class="commission-eyebrow">Signup Share Message</div>
+                <input type="hidden" name="redirectSection" value="signup-share">
+                <div class="commission-eyebrow">Signup Share Messages</div>
                 <p class="commission-description" style="margin-top:.55rem;">
-                    ข้อความนี้จะถูกวางไว้ก่อนข้อมูล <strong>รหัสสมาชิก</strong> และ <strong>พาสเวิร์ด</strong>
-                    ใน popup หลังสมัครสมาชิกสำเร็จ โดยข้อมูลสองส่วนนั้นระบบจะเติมให้อัตโนมัติและแก้จากหน้านี้ไม่ได้
+                    ตั้งค่าแยกสำหรับ <strong>ข้อความแนบไปกับลิงก์สมัคร</strong> และ
+                    <strong>ข้อความก่อนแสดงรหัสสมาชิก/พาสเวิร์ดหลังสมัครสำเร็จ</strong>
                 </p>
 
                 <div class="commission-field" style="margin-top:1rem;">
-                    <label for="shareMessage">ข้อความแชร์</label>
-                    <textarea id="shareMessage" name="shareMessage">{{ $signupShareMessage }}</textarea>
+                    <label for="shareLinkMessage">ข้อความแนบลิงก์สมัคร</label>
+                    <textarea id="shareLinkMessage" name="shareLinkMessage">{{ $signupShareLinkMessage }}</textarea>
                     <div class="commission-helper">
-                        ระบบจะเติมส่วนคงที่ให้อัตโนมัติในลำดับนี้:
+                        ข้อความนี้จะถูกวางก่อนลิงก์สมัคร ตอนสมาชิกกดแชร์ผ่าน LINE หรือคัดลอกลิงก์แนะนำ
+                    </div>
+                </div>
+
+                <div class="commission-field" style="margin-top:1rem;">
+                    <label for="signupSuccessMessage">ข้อความหลังสมัครสำเร็จ</label>
+                    <textarea id="signupSuccessMessage" name="signupSuccessMessage">{{ $signupSuccessMessage }}</textarea>
+                    <div class="commission-helper">
+                        ระบบจะเติมส่วนคงที่ให้อัตโนมัติใต้ข้อความนี้ในลำดับต่อไปนี้:
                         <br>รหัสสมาชิก: [จากระบบ]
                         <br>พาสเวิร์ด: [จากระบบ]
                     </div>
@@ -483,9 +494,8 @@
                 <button
                     type="submit"
                     class="commission-save"
-                    data-turbo="false"
                 >
-                    Save Signup Share Message
+                    Save Signup Share Messages
                 </button>
                 </form>
             </div>

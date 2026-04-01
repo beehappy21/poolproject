@@ -184,13 +184,15 @@ class CommissionSettingsController extends Controller
     public function saveSignupShare(Request $request): RedirectResponse
     {
         $payload = $request->validate([
-            'shareMessage' => ['nullable', 'string', 'max:2000'],
+            'shareLinkMessage' => ['nullable', 'string', 'max:2000'],
+            'signupSuccessMessage' => ['nullable', 'string', 'max:2000'],
         ]);
 
         $current = PoolprojectSettingsStore::readSignupShareSettings();
 
         PoolprojectSettingsStore::writeSignupShareSettings([
-            'shareMessage' => trim((string) ($payload['shareMessage'] ?? $current['shareMessage'])),
+            'shareLinkMessage' => trim((string) ($payload['shareLinkMessage'] ?? $current['shareLinkMessage'] ?? '')),
+            'signupSuccessMessage' => trim((string) ($payload['signupSuccessMessage'] ?? $current['signupSuccessMessage'] ?? '')),
         ]);
 
         return redirect()
