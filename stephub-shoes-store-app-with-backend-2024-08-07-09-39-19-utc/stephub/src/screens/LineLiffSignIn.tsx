@@ -9,6 +9,7 @@ import {hooks} from '../hooks';
 import {RootState} from '../store';
 import {actions} from '../store/actions';
 import {
+  buildPublicSignUpUrl,
   buildLineShareUrl,
   buildLineLoginCallbackUrl,
   buildSignUpPath,
@@ -117,7 +118,7 @@ const buildLocalReferralPreviewLink = (code: string) => {
     return '';
   }
 
-  return `${window.location.origin}/SignUp?sponsorCode=${encodeURIComponent(normalizedCode)}`;
+  return buildPublicSignUpUrl(normalizedCode);
 };
 
 const buildBaoAlignedReferralLink = (payload?: {
@@ -126,12 +127,6 @@ const buildBaoAlignedReferralLink = (payload?: {
   referralLink?: string;
   lineReferralLink?: string;
 }) => {
-  const lineReferralLink = payload?.lineReferralLink?.trim();
-
-  if (lineReferralLink) {
-    return lineReferralLink;
-  }
-
   const sponsorCode = normalizeMemberCode(payload?.sponsorCode || payload?.memberCode);
 
   if (sponsorCode) {
@@ -237,6 +232,14 @@ export const LineLiffSignIn: React.FC = () => {
       }
 
       if (!bootstrap.isLoggedIn) {
+        if (mode === 'signup' && sponsorCode) {
+          navigate(buildSignUpPath(sponsorCode), {
+            replace: true,
+            state: {sponsorCode},
+          });
+          return;
+        }
+
         setStatusTone('neutral');
         setStatusTitle('Redirecting to LINE login');
         setStatusDetail(

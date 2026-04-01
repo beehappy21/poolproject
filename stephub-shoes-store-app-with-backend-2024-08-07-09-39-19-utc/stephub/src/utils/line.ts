@@ -96,6 +96,53 @@ export const buildSignUpPath = (sponsorCode?: string | null): string => {
   return `/SignUp?sponsorCode=${encodeURIComponent(normalizedSponsorCode)}`;
 };
 
+export const resolvePublicAppBaseUrl = (): string => {
+  const candidates = [
+    URLS.LINE_LIFF_SIGNIN_URL?.trim(),
+    URLS.LINE_LOGIN_CALLBACK_URL?.trim(),
+  ].filter(Boolean) as string[];
+
+  for (const candidate of candidates) {
+    try {
+      return new URL(candidate).origin;
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  if (typeof window === 'undefined') {
+    return '';
+  }
+
+  const runtimeOrigin = window.location.origin;
+  const runtimeHost = window.location.hostname.toLowerCase();
+
+  if (
+    runtimeHost === 'localhost' ||
+    runtimeHost === '127.0.0.1' ||
+    runtimeHost.endsWith('.local')
+  ) {
+    return '';
+  }
+
+  return runtimeOrigin;
+};
+
+export const buildPublicSignUpUrl = (sponsorCode?: string | null): string => {
+  const path = buildSignUpPath(sponsorCode);
+  const publicBaseUrl = resolvePublicAppBaseUrl();
+
+  if (!publicBaseUrl) {
+    if (typeof window === 'undefined') {
+      return path;
+    }
+
+    return `${window.location.origin}${path}`;
+  }
+
+  return `${publicBaseUrl}${path}`;
+};
+
 export const buildLineShareUrl = (message: string, targetUrl: string): string => {
   const text = [message.trim(), targetUrl.trim()].filter(Boolean).join('\n');
   return `https://line.me/R/msg/text/?${encodeURIComponent(text)}`;

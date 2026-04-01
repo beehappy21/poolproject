@@ -12,6 +12,7 @@ import {RootState} from '../../store';
 import {actions} from '../../store/actions';
 import {
   LineProfile,
+  buildPublicSignUpUrl,
   buildLineLiffLaunchUrl,
   buildLineShareUrl,
   initializeLineLiff,
@@ -58,6 +59,17 @@ type LineBindingStatusResponse = {
   lineBinding: LineBindingResponse | null;
 };
 
+type WindowWithSharePicker = Window & {
+  liff?: {
+    shareTargetPicker?(
+      messages: Array<{
+        type: 'text';
+        text: string;
+      }>,
+    ): Promise<unknown | null>;
+  };
+};
+
 const COMPANY_LOGO_FALLBACK = `${URLS.BAO_BASE_URL}/favicon.ico`;
 const DEFAULT_LINE_SHARE_MESSAGE = 'สมัครผ่านลิงก์แนะนำนี้ได้เลย';
 
@@ -78,7 +90,7 @@ const buildLocalReferralPreviewLink = (code: string) => {
     return '';
   }
 
-  return `${window.location.origin}/SignUp?sponsorCode=${encodeURIComponent(normalizedCode)}`;
+  return buildPublicSignUpUrl(normalizedCode);
 };
 
 const buildBaoAlignedReferralLink = (payload?: {
@@ -87,12 +99,6 @@ const buildBaoAlignedReferralLink = (payload?: {
   referralLink?: string;
   lineReferralLink?: string;
 }) => {
-  const lineReferralLink = payload?.lineReferralLink?.trim();
-
-  if (lineReferralLink) {
-    return lineReferralLink;
-  }
-
   const sponsorCode = normalizeMemberCode(payload?.sponsorCode || payload?.memberCode);
 
   if (sponsorCode) {
@@ -289,7 +295,7 @@ export const Profile: React.FC = () => {
       if (navigator.share) {
         await navigator.share({
           title: 'Stephub referral link',
-          text: 'สมัครผ่านลิงก์แนะนำนี้ได้เลย',
+          text: shareMessage.trim() || DEFAULT_LINE_SHARE_MESSAGE,
           url: referralLink,
         });
         setCopyMessage('เปิดหน้าต่างแชร์แล้ว');
@@ -305,15 +311,41 @@ export const Profile: React.FC = () => {
     }
   };
 
-  const handleShareViaLine = () => {
+  const handleShareViaLine = async () => {
     if (!referralLink) {
       return;
     }
 
+    const shareUrl = buildLineShareUrl(shareMessage, referralLink);
+
     try {
-      const shareUrl = buildLineShareUrl(shareMessage, referralLink);
-      window.open(shareUrl, '_blank', 'noopener,noreferrer');
-      setCopyMessage('เปิดหน้าต่างแชร์ผ่าน LINE แล้ว');
+      const liff = (window as WindowWithSharePicker).liff;
+
+      if (liff?.shareTargetPicker) {
+        try {
+          const result = await liff.shareTargetPicker([
+            {
+              type: 'text',
+              text: [shareMessage.trim(), referralLink.trim()]
+                .filter(Boolean)
+                .join('\n'),
+            },
+          ]);
+
+          if (result === null) {
+            setCopyMessage('ยกเลิกการแชร์ไว้ก่อน');
+            return;
+          }
+
+          setCopyMessage('แชร์ผ่าน LINE แล้ว');
+          return;
+        } catch (pickerError) {
+          console.error('LINE shareTargetPicker failed, fallback to LINE share URL.', pickerError);
+        }
+      }
+
+      window.location.assign(shareUrl);
+      setCopyMessage('กำลังเปิดแชร์ผ่าน LINE');
     } catch (error) {
       console.error(error);
       setCopyMessage('เปิดแชร์ผ่าน LINE ไม่สำเร็จ');

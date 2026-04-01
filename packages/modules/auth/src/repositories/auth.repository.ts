@@ -319,7 +319,9 @@ export class PrismaAuthRepository implements AuthRepository {
     });
 
     if (existingByLine && existingByLine.userId.toString() !== input.userId) {
-      throw new Error("LINE account is already connected to another member.");
+      throw new ConflictException(
+        "LINE account is already connected to another member.",
+      );
     }
 
     const record = await this.prisma.lineBinding.upsert({
@@ -454,3 +456,4 @@ export class PrismaAuthRepository implements AuthRepository {
     };
   }
 }
+import { ConflictException } from "@nestjs/common";
