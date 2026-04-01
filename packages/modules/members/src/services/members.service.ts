@@ -161,6 +161,13 @@ export interface MembersServiceContract {
     sponsorCode?: string | null;
     ref?: string | null;
     password?: string | null;
+    lineBinding?: {
+      lineUserId: string;
+      displayName?: string | null;
+      pictureUrl?: string | null;
+      statusMessage?: string | null;
+      source?: string | null;
+    };
   }): Promise<{
     memberId: string;
     memberCode: string;
@@ -367,6 +374,13 @@ export class MembersService implements MembersServiceContract {
     sponsorCode?: string | null;
     ref?: string | null;
     password?: string | null;
+    lineBinding?: {
+      lineUserId: string;
+      displayName?: string | null;
+      pictureUrl?: string | null;
+      statusMessage?: string | null;
+      source?: string | null;
+    };
   }) {
     return this.membersRepository.createMember(input);
   }

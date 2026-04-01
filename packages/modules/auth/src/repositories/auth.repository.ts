@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { ConflictException, Injectable } from "@nestjs/common";
 
 import { PrismaService } from "../../../../infrastructure/src/prisma/prisma.service";
 import {
@@ -456,4 +456,3 @@ export class PrismaAuthRepository implements AuthRepository {
     };
   }
 }
-import { ConflictException } from "@nestjs/common";

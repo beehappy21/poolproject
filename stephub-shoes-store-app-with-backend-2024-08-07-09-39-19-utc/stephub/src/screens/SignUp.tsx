@@ -217,6 +217,13 @@ export const SignUp: FC = (): JSX.Element => {
       return;
     }
 
+    if (!lineUserId) {
+      setErrorMessage(
+        'กรุณาเปิดลิงก์สมัครผ่าน LINE เพื่อดึง LINE profile ก่อนสมัครสมาชิก',
+      );
+      return;
+    }
+
     setLoading(true);
     setErrorMessage('');
 
@@ -254,6 +261,10 @@ export const SignUp: FC = (): JSX.Element => {
         {
           sponsorCode,
           name: lineDisplayName || undefined,
+          lineUserId,
+          lineIdToken: lineIdToken || undefined,
+          lineDisplayName: lineDisplayName || undefined,
+          linePictureUrl: linePictureUrl || undefined,
         },
         {
           withCredentials: true,
@@ -278,56 +289,14 @@ export const SignUp: FC = (): JSX.Element => {
         },
       );
 
-      let nextLineUserId = lineUserId || undefined;
-      let nextLineDisplayName = lineDisplayName || undefined;
-      let nextLinePictureUrl = linePictureUrl || undefined;
-      let postSignupNotice = '';
-
-      if (lineUserId) {
-        try {
-          await axios.post(
-            URLS.AUTH_LINE_BINDING,
-            {
-              lineUserId,
-              lineIdToken: lineIdToken || undefined,
-              displayName: lineDisplayName || undefined,
-              pictureUrl: linePictureUrl || undefined,
-              source: 'line_invite_signup',
-            },
-            {
-              headers: {
-                Authorization: `Bearer ${loginResponse.data.accessToken}`,
-              },
-            },
-          );
-        } catch (lineBindingError) {
-          console.error(lineBindingError);
-
-          nextLineUserId = undefined;
-          nextLineDisplayName = undefined;
-          nextLinePictureUrl = undefined;
-
-          if (
-            axios.isAxiosError(lineBindingError) &&
-            lineBindingError.response?.status === 409
-          ) {
-            postSignupNotice =
-              'สมัครสำเร็จแล้ว แต่ LINE account นี้ถูกเชื่อมกับสมาชิกอื่นอยู่ จึงยังไม่ผูก LINE ให้บัญชีใหม่นี้';
-          } else {
-            postSignupNotice =
-              'สมัครสำเร็จแล้ว แต่ระบบยังผูก LINE ให้บัญชีใหม่นี้ไม่สำเร็จ สามารถเข้าใช้งานก่อนแล้วค่อยเชื่อม LINE ภายหลังได้';
-          }
-        }
-      }
-
       dispatch(
         actions.setUser({
           userId: loginResponse.data.user?.userId,
           memberCode: loginResponse.data.user?.memberCode || createdMemberCode,
           name: loginResponse.data.user?.name || lineDisplayName || createdMemberCode,
-          lineUserId: nextLineUserId,
-          lineDisplayName: nextLineDisplayName,
-          linePictureUrl: nextLinePictureUrl,
+          lineUserId: lineUserId || undefined,
+          lineDisplayName: lineDisplayName || undefined,
+          linePictureUrl: linePictureUrl || undefined,
           email: loginResponse.data.user?.email ?? '',
           phone: loginResponse.data.user?.phone ?? '',
           accessToken: loginResponse.data.accessToken,
@@ -342,7 +311,7 @@ export const SignUp: FC = (): JSX.Element => {
       setShowChangePassword(false);
       setNewPassword('');
       setConfirmPassword('');
-      setShareStatus(postSignupNotice);
+      setShareStatus('');
 
       try {
         const shareSettingsResponse = await axios.get<SignupShareSettingsResponse>(
@@ -719,9 +688,9 @@ export const SignUp: FC = (): JSX.Element => {
               lineHeight: 1.7,
             }}
           >
-            ตอนนี้ยังไม่พบ LINE profile บนอุปกรณ์นี้ แต่ยังสมัครสมาชิกต่อได้ตามปกติ
+            ตอนนี้ยังไม่พบ LINE profile บนอุปกรณ์นี้ จึงยังสมัครสมาชิกไม่ได้
             <div style={{marginTop: 8, fontSize: 13, opacity: 0.9}}>
-              หากต้องการเชื่อม LINE ภายหลัง ให้ sign in ก่อน แล้วไปกดเชื่อม LINE ในหน้า Profile อีกครั้งหลังจากทีมงาน publish LINE channel สำหรับผู้ใช้ทั่วไปแล้ว
+              กรุณาเปิดลิงก์สมัครจาก LINE อีกครั้งเพื่อให้ระบบดึง LINE profile ก่อนสร้างบัญชี
             </div>
           </div>
         ) : null}
