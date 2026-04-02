@@ -317,6 +317,11 @@ export interface OrdersRepository {
     totalPv: string;
     commissionSettingsSnapshot: string | null;
     matrixSettingsSnapshot: string | null;
+    items: Array<{
+      productDetailId: string | null;
+      packageId: string | null;
+      quantity: number;
+    }>;
   } | null>;
 
   findApprovedOrdersForPoolDate(poolDate: string): Promise<
@@ -1846,6 +1851,11 @@ export class PrismaOrdersRepository implements OrdersRepository {
     totalPv: string;
     commissionSettingsSnapshot: string | null;
     matrixSettingsSnapshot: string | null;
+    items: Array<{
+      productDetailId: string | null;
+      packageId: string | null;
+      quantity: number;
+    }>;
   } | null> {
     const order = await this.prisma.order.findFirst({
       where: {
@@ -1860,6 +1870,13 @@ export class PrismaOrdersRepository implements OrdersRepository {
         totalPv: true,
         commissionSettingsSnapshot: true,
         matrixSettingsSnapshot: true,
+        orderItems: {
+          select: {
+            productId: true,
+            packageId: true,
+            qty: true,
+          },
+        },
       },
     });
 
@@ -1871,6 +1888,11 @@ export class PrismaOrdersRepository implements OrdersRepository {
           totalPv: order.totalPv.toString(),
           commissionSettingsSnapshot: order.commissionSettingsSnapshot,
           matrixSettingsSnapshot: order.matrixSettingsSnapshot,
+          items: order.orderItems.map((item) => ({
+            productDetailId: item.productId ?? null,
+            packageId: item.packageId?.toString() ?? null,
+            quantity: item.qty,
+          })),
         }
       : null;
   }

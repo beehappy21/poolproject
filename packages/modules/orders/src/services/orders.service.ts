@@ -253,6 +253,11 @@ export interface OrdersServiceContract {
     totalPv: string;
     commissionSettingsSnapshot: string | null;
     matrixSettingsSnapshot: string | null;
+    items: Array<{
+      productDetailId: string | null;
+      packageId: string | null;
+      quantity: number;
+    }>;
   } | null>;
 
   listApprovedOrdersForPoolDate(poolDate: string): Promise<
@@ -277,6 +282,11 @@ export interface OrdersServiceContract {
     totalPv: string;
     commissionSettingsSnapshot: string | null;
     matrixSettingsSnapshot: string | null;
+    items: Array<{
+      productDetailId: string | null;
+      packageId: string | null;
+      quantity: number;
+    }>;
     approvalFinalInNormalFlow: true;
     includedInPoolFundingSource: true;
   }>;
@@ -287,6 +297,7 @@ import { CommissionsService } from "../../../commissions/src/services/commission
 import { CommissionsServiceContract } from "../../../commissions/src/services/commissions.service";
 import { MatrixService } from "../../../matrix/src/services/matrix.service";
 import { MatrixServiceContract } from "../../../matrix/src/services/matrix.service";
+import { MembersService } from "../../../members/src/services/members.service";
 import { PoolService } from "../../../pool/src/services/pool.service";
 import { PoolServiceContract } from "../../../pool/src/services/pool.service";
 import { QualificationService } from "../../../qualification/src/services/qualification.service";
@@ -302,6 +313,7 @@ import { PrismaOrdersRepository } from "../repositories/orders.repository";
 export class OrdersService implements OrdersServiceContract {
   constructor(
     private readonly ordersRepository: PrismaOrdersRepository,
+    private readonly membersService: MembersService,
     private readonly qualificationService: QualificationService,
     @Inject(forwardRef(() => CommissionsService))
     private readonly commissionsService: CommissionsService,
@@ -402,6 +414,11 @@ export class OrdersService implements OrdersServiceContract {
     totalPv: string;
     commissionSettingsSnapshot: string | null;
     matrixSettingsSnapshot: string | null;
+    items: Array<{
+      productDetailId: string | null;
+      packageId: string | null;
+      quantity: number;
+    }>;
   } | null> {
     return this.ordersRepository.findApprovedOrderById(orderId);
   }
@@ -435,6 +452,11 @@ export class OrdersService implements OrdersServiceContract {
     totalPv: string;
     commissionSettingsSnapshot: string | null;
     matrixSettingsSnapshot: string | null;
+    items: Array<{
+      productDetailId: string | null;
+      packageId: string | null;
+      quantity: number;
+    }>;
     approvalFinalInNormalFlow: true;
     includedInPoolFundingSource: true;
   }> {
@@ -485,6 +507,8 @@ export class OrdersService implements OrdersServiceContract {
         matrixFlow,
       );
     }
+
+    await this.activateSourceMemberCyclesFromApprovedOrder(approvedOrder);
 
     await this.qualificationService.evaluateMemberQualification({
       userId: approvedOrder.sourceUserId,
@@ -545,6 +569,11 @@ export class OrdersService implements OrdersServiceContract {
       approvedAt: string;
       commissionSettingsSnapshot: string | null;
       matrixSettingsSnapshot: string | null;
+      items: Array<{
+        productDetailId: string | null;
+        packageId: string | null;
+        quantity: number;
+      }>;
       approvalFinalInNormalFlow: true;
       includedInPoolFundingSource: true;
       totalPv: string;
@@ -676,5 +705,38 @@ export class OrdersService implements OrdersServiceContract {
         },
   ) {
     return Array.isArray(result) ? result : result.items;
+  }
+
+  private async activateSourceMemberCyclesFromApprovedOrder(approvedOrder: {
+    sourceUserId: string;
+    approvedAt: string;
+    items: Array<{
+      productDetailId: string | null;
+      packageId: string | null;
+      quantity: number;
+    }>;
+  }): Promise<void> {
+    for (const item of approvedOrder.items) {
+      const quantity = Math.max(1, item.quantity || 1);
+
+      for (let index = 0; index < quantity; index += 1) {
+        if (item.productDetailId) {
+          await this.membersService.activateProductCycle({
+            memberId: approvedOrder.sourceUserId,
+            productDetailId: item.productDetailId,
+            activatedAt: approvedOrder.approvedAt,
+          });
+          continue;
+        }
+
+        if (item.packageId) {
+          await this.membersService.activateProductCycle({
+            memberId: approvedOrder.sourceUserId,
+            packageId: item.packageId,
+            activatedAt: approvedOrder.approvedAt,
+          });
+        }
+      }
+    }
   }
 }

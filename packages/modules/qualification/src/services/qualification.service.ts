@@ -152,6 +152,16 @@ export class QualificationService implements QualificationServiceContract {
       cycle.earnedTotalInCycle,
       input.bonusAmount,
     );
+    const capConfigured = compareDecimalStrings(effectiveCap, "0") > 0;
+
+    if (!capConfigured) {
+      return {
+        cycleId: input.cycle.cycleId,
+        canAbsorbFullAmount: true,
+        fallbackReason: null,
+      };
+    }
+
     const canAbsorbFullAmount =
       compareDecimalStrings(earnedAfterBonus, effectiveCap) <= 0;
 
