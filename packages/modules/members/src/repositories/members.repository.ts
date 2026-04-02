@@ -271,6 +271,7 @@ export interface MembersRepository {
     memberId: string;
     productDetailId?: string;
     packageId?: string;
+    activatedAt?: string;
   }): Promise<{
     cycleId: string;
     memberId: string;
@@ -1271,6 +1272,7 @@ export class PrismaMembersRepository implements MembersRepository {
     memberId: string;
     productDetailId?: string;
     packageId?: string;
+    activatedAt?: string;
   }) {
     const packageSnapshot = input.packageId
       ? await this.prisma.package.findUnique({
@@ -1344,7 +1346,7 @@ export class PrismaMembersRepository implements MembersRepository {
       select: { cycleNo: true },
     });
 
-    const activatedAt = new Date();
+    const activatedAt = input.activatedAt ? new Date(input.activatedAt) : new Date();
     const activeUntil = new Date(activatedAt);
     activeUntil.setUTCDate(
       activeUntil.getUTCDate() +

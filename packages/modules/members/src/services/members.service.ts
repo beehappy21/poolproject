@@ -272,6 +272,7 @@ export interface MembersServiceContract {
     memberId: string;
     productDetailId?: string;
     packageId?: string;
+    activatedAt?: string;
   }): Promise<{
     cycleId: string;
     memberId: string;
@@ -435,6 +436,7 @@ export class MembersService implements MembersServiceContract {
     memberId: string;
     productDetailId?: string;
     packageId?: string;
+    activatedAt?: string;
   }) {
     return this.membersRepository.activateProductCycle(input);
   }
