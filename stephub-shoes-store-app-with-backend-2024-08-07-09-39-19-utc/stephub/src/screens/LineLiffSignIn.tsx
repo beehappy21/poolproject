@@ -819,6 +819,7 @@ export const LineRichMenuShare: React.FC = () => {
       mounted = false;
     };
   }, [dispatch, user?.accessToken, user?.lineUserId, user?.memberCode]);
+  }, [dispatch, user?.accessToken, user?.lineUserId, user?.memberCode]);
 
   useEffect(() => {
     let cancelled = false;
