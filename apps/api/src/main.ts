@@ -139,6 +139,10 @@ function resolveRouteAccess(
     return "public";
   }
 
+  if (method === "GET" && path.startsWith("/matrix/member/by-code/")) {
+    return "public";
+  }
+
   if (
     method === "GET" &&
     (

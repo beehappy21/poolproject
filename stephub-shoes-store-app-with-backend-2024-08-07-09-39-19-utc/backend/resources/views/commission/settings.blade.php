@@ -231,7 +231,7 @@
                     </table>
                 </div>
                 <div class="commission-panel">
-                    <form action="{{ route('platform.commission.save') }}" method="POST">
+                    <form action="{{ route('platform.commission.save') }}" method="POST" data-turbo="false">
                         @csrf
                         <div class="commission-eyebrow">App Commission Menu Visibility</div>
                         <div class="commission-helper">
@@ -266,7 +266,6 @@
                         <button
                             type="submit"
                             class="commission-save"
-                            data-turbo="false"
                         >
                             บันทึกการแสดงผลเมนูบนแอป
                         </button>

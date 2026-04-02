@@ -19,21 +19,31 @@ class CommissionSettingsController extends Controller
             'uniLevelRates' => $request->input('uniLevelRates', $request->input('uni_level_rates')),
             'poolRate' => $request->input('poolRate', $request->input('pool_rate')),
             'cashbackRate' => $request->input('cashbackRate', $request->input('cashback_rate')),
-            'cashbackVisible' => $request->has('cashbackVisible')
-                ? $request->boolean('cashbackVisible')
-                : ($current['appVisibility']['cashback'] ?? true),
-            'directVisible' => $request->has('directVisible')
-                ? $request->boolean('directVisible')
-                : ($current['appVisibility']['direct'] ?? true),
-            'unilevelVisible' => $request->has('unilevelVisible')
-                ? $request->boolean('unilevelVisible')
-                : ($current['appVisibility']['unilevel'] ?? true),
-            'matrixVisible' => $request->has('matrixVisible')
-                ? $request->boolean('matrixVisible')
-                : ($current['appVisibility']['matrix'] ?? true),
-            'poolVisible' => $request->has('poolVisible')
-                ? $request->boolean('poolVisible')
-                : ($current['appVisibility']['pool'] ?? true),
+            'cashbackVisible' => $this->resolveVisibilityInput(
+                $request,
+                'cashbackVisible',
+                $current['appVisibility']['cashback'] ?? true
+            ),
+            'directVisible' => $this->resolveVisibilityInput(
+                $request,
+                'directVisible',
+                $current['appVisibility']['direct'] ?? true
+            ),
+            'unilevelVisible' => $this->resolveVisibilityInput(
+                $request,
+                'unilevelVisible',
+                $current['appVisibility']['unilevel'] ?? true
+            ),
+            'matrixVisible' => $this->resolveVisibilityInput(
+                $request,
+                'matrixVisible',
+                $current['appVisibility']['matrix'] ?? true
+            ),
+            'poolVisible' => $this->resolveVisibilityInput(
+                $request,
+                'poolVisible',
+                $current['appVisibility']['pool'] ?? true
+            ),
             'redirectSection' => $request->input('redirectSection', $request->input('redirect_section')),
         ]);
 
@@ -71,6 +81,21 @@ class CommissionSettingsController extends Controller
         return redirect()
             ->route($this->redirectRouteName((string) ($payload['redirectSection'] ?? 'settings')))
             ->with('status', 'Commission settings updated.');
+    }
+
+    private function resolveVisibilityInput(Request $request, string $key, bool $fallback): bool
+    {
+        if (! $request->exists($key)) {
+            return $fallback;
+        }
+
+        $raw = $request->input($key);
+
+        if (is_array($raw)) {
+            $raw = end($raw);
+        }
+
+        return filter_var($raw, FILTER_VALIDATE_BOOLEAN);
     }
 
     public function saveMatrix(Request $request): RedirectResponse
