@@ -678,10 +678,17 @@ export const LineRichMenuShare: React.FC = () => {
         return null;
       }
 
-      if (user?.accessToken?.trim()) {
+      const persistedAccessToken = user?.accessToken?.trim() || '';
+      const persistedLineUserId = user?.lineUserId?.trim() || '';
+      const hasMatchingPersistedLineSession =
+        Boolean(persistedAccessToken) &&
+        Boolean(persistedLineUserId) &&
+        persistedLineUserId === bootstrap.profile.userId;
+
+      if (hasMatchingPersistedLineSession) {
         return {
-          accessToken: user.accessToken,
-          memberCode: normalizeMemberCode(user.memberCode),
+          accessToken: persistedAccessToken,
+          memberCode: normalizeMemberCode(user?.memberCode),
         };
       }
 
@@ -811,7 +818,7 @@ export const LineRichMenuShare: React.FC = () => {
     return () => {
       mounted = false;
     };
-  }, [dispatch, user?.accessToken, user?.memberCode]);
+  }, [dispatch, user?.accessToken, user?.lineUserId, user?.memberCode]);
 
   useEffect(() => {
     let cancelled = false;

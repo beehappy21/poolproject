@@ -46,150 +46,6 @@ const commissionCards = [
   },
 ] as const;
 
-const LOCAL_MATRIX_FALLBACK_MEMBER_CODE = 'TH0000013';
-const LOCAL_MATRIX_DEV_FALLBACK_DATA: MatrixResponse = {
-  cycles: [
-    {
-      cycleId: '15',
-      userId: '33',
-      cycleNo: 1,
-      boardWidth: 3,
-      boardDepth: 3,
-      boardCount: 3,
-      organizationPvRate: '700',
-      cwReentryAmount: '700',
-      personalCarryPv: '0',
-      levelRatesSnapshot: [],
-      totalAccumulatedPv: '4200',
-      currentBoardNo: 1,
-      currentBoardRoundNo: 1,
-      status: 'active',
-      startedAt: '2026-03-26T11:30:04.078Z',
-      completedAt: null,
-      boards: [
-        {
-          boardId: '37',
-          boardNo: 1,
-          roundNo: 1,
-          slotCount: 39,
-          filledSlots: 6,
-          openThresholdPv: '700',
-          accumulatedPv: '4200',
-          status: 'open',
-          positions: [
-            {
-              positionId: '10',
-              slotNo: 1,
-              levelNo: 1,
-              roundNo: 1,
-              parentSlotNo: null,
-              sourceUserId: '36',
-              sourceMemberCode: 'TH0000016',
-              sourceMemberName: 'สุวัฒน์ วังวรตระกูล',
-              sourcePv: '700',
-              creditedPv: '700',
-              status: 'filled',
-              assignedAt: '2026-03-26T11:30:04.970Z',
-            },
-            {
-              positionId: '11',
-              slotNo: 2,
-              levelNo: 1,
-              roundNo: 1,
-              parentSlotNo: null,
-              sourceUserId: '37',
-              sourceMemberCode: 'TH0000017',
-              sourceMemberName: 'วทัญญู  วงษ์ทะ',
-              sourcePv: '700',
-              creditedPv: '700',
-              status: 'filled',
-              assignedAt: '2026-03-26T11:30:05.968Z',
-            },
-            {
-              positionId: '13',
-              slotNo: 3,
-              levelNo: 1,
-              roundNo: 1,
-              parentSlotNo: null,
-              sourceUserId: '40',
-              sourceMemberCode: 'TH0000020',
-              sourceMemberName: 'ธันยาดา จินันทุยา',
-              sourcePv: '700',
-              creditedPv: '700',
-              status: 'filled',
-              assignedAt: '2026-03-26T11:30:06.730Z',
-            },
-            {
-              positionId: '15',
-              slotNo: 4,
-              levelNo: 2,
-              roundNo: 1,
-              parentSlotNo: 1,
-              sourceUserId: '43',
-              sourceMemberCode: 'TH0000023',
-              sourceMemberName: 'พุฒิพงศ์ อัจฉริยะสมบัติ',
-              sourcePv: '700',
-              creditedPv: '700',
-              status: 'filled',
-              assignedAt: '2026-03-26T11:30:07.519Z',
-            },
-            {
-              positionId: '17',
-              slotNo: 5,
-              levelNo: 2,
-              roundNo: 1,
-              parentSlotNo: 1,
-              sourceUserId: '51',
-              sourceMemberCode: 'TH0000031',
-              sourceMemberName: 'มณีวรรณ์  กันทะวงค์',
-              sourcePv: '700',
-              creditedPv: '700',
-              status: 'filled',
-              assignedAt: '2026-03-26T11:30:08.272Z',
-            },
-            {
-              positionId: '19',
-              slotNo: 6,
-              levelNo: 2,
-              roundNo: 1,
-              parentSlotNo: 1,
-              sourceUserId: '52',
-              sourceMemberCode: 'TH0000032',
-              sourceMemberName: 'นุกวิญ เล',
-              sourcePv: '700',
-              creditedPv: '700',
-              status: 'filled',
-              assignedAt: '2026-03-26T11:30:09.022Z',
-            },
-          ],
-        },
-        {
-          boardId: '38',
-          boardNo: 2,
-          roundNo: 1,
-          slotCount: 39,
-          filledSlots: 0,
-          openThresholdPv: '700',
-          accumulatedPv: '0',
-          status: 'locked',
-          positions: [],
-        },
-        {
-          boardId: '39',
-          boardNo: 3,
-          roundNo: 1,
-          slotCount: 39,
-          filledSlots: 0,
-          openThresholdPv: '700',
-          accumulatedPv: '0',
-          status: 'locked',
-          positions: [],
-        },
-      ],
-    },
-  ],
-};
-
 type CommissionKey = (typeof commissionCards)[number]['key'];
 
 type CommissionSettingsResponse = {
@@ -642,37 +498,6 @@ export const Commission: React.FC = () => {
         } catch (fallbackError) {
           console.error(fallbackError);
         }
-      }
-
-      if (
-        !(resolvedMatrixData.cycles || []).length &&
-        URLS.API_BASE_URL.includes('127.0.0.1')
-      ) {
-        try {
-          const memberLookup = await axios.get<MemberLookupResponse>(
-            URLS.buildMemberByCodeUrl(LOCAL_MATRIX_FALLBACK_MEMBER_CODE),
-            {withCredentials: true},
-          );
-          const fallbackMemberId =
-            memberLookup.data.memberId || memberLookup.data.userId;
-
-          if (fallbackMemberId) {
-            const memberMatrix = await axios.get<MatrixMemberResponse>(
-              URLS.buildMatrixByMemberIdUrl(fallbackMemberId),
-              {withCredentials: true},
-            );
-            resolvedMatrixData = {cycles: memberMatrix.data.cycles || []};
-          }
-        } catch (fallbackError) {
-          console.error(fallbackError);
-        }
-      }
-
-      if (
-        !(resolvedMatrixData.cycles || []).length &&
-        URLS.API_BASE_URL.includes('127.0.0.1')
-      ) {
-        resolvedMatrixData = LOCAL_MATRIX_DEV_FALLBACK_DATA;
       }
 
       setMatrixData(resolvedMatrixData);
@@ -1181,12 +1006,7 @@ export const Commission: React.FC = () => {
   };
 
   const renderMatrixBoards = (): JSX.Element => {
-    const cycles =
-      (matrixData.cycles || []).length > 0
-        ? matrixData.cycles || []
-        : URLS.API_BASE_URL.includes('127.0.0.1')
-          ? LOCAL_MATRIX_DEV_FALLBACK_DATA.cycles || []
-          : [];
+    const cycles = matrixData.cycles || [];
 
     if (!cycles.length) {
       return (
@@ -1295,12 +1115,7 @@ export const Commission: React.FC = () => {
       return null;
     }
 
-    const cycles =
-      (matrixData.cycles || []).length > 0
-        ? matrixData.cycles || []
-        : URLS.API_BASE_URL.includes('127.0.0.1')
-          ? LOCAL_MATRIX_DEV_FALLBACK_DATA.cycles || []
-          : [];
+    const cycles = matrixData.cycles || [];
 
     const cycle = cycles.find(
       entry => entry.cycleNo === selectedMatrixBoard.cycleNo,
