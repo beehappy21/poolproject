@@ -2602,9 +2602,7 @@ async function runOrderAction(orderId, action) {
   let result;
 
   if (action === "approve-process-order") {
-    const approval = await request(`/orders/${orderId}/approve`, { method: "POST" });
-    const processed = await request(`/orders/${orderId}/process-approved`, { method: "POST" });
-    result = { approval, processed };
+    result = await request(`/orders/${orderId}/approve`, { method: "POST" });
   } else {
     const path =
       action === "approve-order"
