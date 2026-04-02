@@ -81,6 +81,8 @@ export const buildMemberReferralLinkUrl = (memberCode: string) =>
   `${API_BASE_URL}/members/by-code/${encodeURIComponent(memberCode)}/referral-link`;
 export const buildMemberByCodeUrl = (memberCode: string) =>
   `${API_BASE_URL}/members/by-code/${encodeURIComponent(memberCode)}`;
+export const buildMatrixByMemberCodeUrl = (memberCode: string) =>
+  `${API_BASE_URL}/matrix/member/by-code/${encodeURIComponent(memberCode)}`;
 export const buildMatrixByMemberIdUrl = (memberId: string | number) =>
   `${API_BASE_URL}/matrix/member/${memberId}`;
 
@@ -136,6 +138,7 @@ export const URLS = {
   GET_MATRIX_SETTINGS,
   GET_SIGNUP_SHARE_SETTINGS,
   buildMemberByCodeUrl,
+  buildMatrixByMemberCodeUrl,
   buildMatrixByMemberIdUrl,
   buildMemberDirectReferralsUrl,
   buildMemberReferralLinkUrl,

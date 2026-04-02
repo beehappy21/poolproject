@@ -166,13 +166,6 @@ type MatrixSettingsResponse = {
   boardOpenPvThresholds?: string[];
 };
 
-type MemberLookupResponse = {
-  memberId?: string;
-  userId?: string;
-  memberCode?: string;
-  name?: string;
-};
-
 type MatrixMemberResponse = {
   cycles?: MatrixCycleSummary[];
 };
@@ -433,10 +426,10 @@ export const Commission: React.FC = () => {
         matrixResult.status === 'fulfilled' ? matrixResult.value.data : undefined;
       let resolvedMatrixData: MatrixResponse = matrixPayload || {cycles: []};
 
-      if (!(resolvedMatrixData.cycles || []).length && user?.userId) {
+      if (!(resolvedMatrixData.cycles || []).length && user?.memberCode) {
         try {
           const memberMatrix = await axios.get<MatrixMemberResponse>(
-            URLS.buildMatrixByMemberIdUrl(user.userId),
+            URLS.buildMatrixByMemberCodeUrl(user.memberCode),
             {withCredentials: true},
           );
           resolvedMatrixData = {cycles: memberMatrix.data.cycles || []};
@@ -445,21 +438,13 @@ export const Commission: React.FC = () => {
         }
       }
 
-      if (!(resolvedMatrixData.cycles || []).length && user?.memberCode) {
+      if (!(resolvedMatrixData.cycles || []).length && user?.userId) {
         try {
-          const memberLookup = await axios.get<MemberLookupResponse>(
-            URLS.buildMemberByCodeUrl(user.memberCode),
+          const memberMatrix = await axios.get<MatrixMemberResponse>(
+            URLS.buildMatrixByMemberIdUrl(user.userId),
             {withCredentials: true},
           );
-          const fallbackMemberId = memberLookup.data.memberId || memberLookup.data.userId;
-
-          if (fallbackMemberId) {
-            const memberMatrix = await axios.get<MatrixMemberResponse>(
-              URLS.buildMatrixByMemberIdUrl(fallbackMemberId),
-              {withCredentials: true},
-            );
-            resolvedMatrixData = {cycles: memberMatrix.data.cycles || []};
-          }
+          resolvedMatrixData = {cycles: memberMatrix.data.cycles || []};
         } catch (fallbackError) {
           console.error(fallbackError);
         }
@@ -473,27 +458,18 @@ export const Commission: React.FC = () => {
           const meUserId = meResult.data.user?.userId;
           const meMemberCode = meResult.data.user?.memberCode;
 
-          if (meUserId) {
+          if (meMemberCode) {
+            const memberMatrix = await axios.get<MatrixMemberResponse>(
+              URLS.buildMatrixByMemberCodeUrl(meMemberCode),
+              {withCredentials: true},
+            );
+            resolvedMatrixData = {cycles: memberMatrix.data.cycles || []};
+          } else if (meUserId) {
             const memberMatrix = await axios.get<MatrixMemberResponse>(
               URLS.buildMatrixByMemberIdUrl(meUserId),
               {withCredentials: true},
             );
             resolvedMatrixData = {cycles: memberMatrix.data.cycles || []};
-          } else if (meMemberCode) {
-            const memberLookup = await axios.get<MemberLookupResponse>(
-              URLS.buildMemberByCodeUrl(meMemberCode),
-              {withCredentials: true},
-            );
-            const fallbackMemberId =
-              memberLookup.data.memberId || memberLookup.data.userId;
-
-            if (fallbackMemberId) {
-              const memberMatrix = await axios.get<MatrixMemberResponse>(
-                URLS.buildMatrixByMemberIdUrl(fallbackMemberId),
-                {withCredentials: true},
-              );
-              resolvedMatrixData = {cycles: memberMatrix.data.cycles || []};
-            }
           }
         } catch (fallbackError) {
           console.error(fallbackError);

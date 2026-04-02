@@ -15,6 +15,22 @@ export class MatrixController {
     private readonly membersService: MembersService,
   ) {}
 
+  @Get("member/by-code/:memberCode")
+  async getMemberMatrixByCode(@Param("memberCode") memberCode: string) {
+    const validatedMemberCode = memberCode.trim();
+    if (validatedMemberCode === "") {
+      throw new NotFoundException("Member not found.");
+    }
+
+    const member = await this.membersService.getMemberByCode(validatedMemberCode);
+
+    if (!member) {
+      throw new NotFoundException("Member not found.");
+    }
+
+    return this.buildMemberMatrixResponse(member.memberId, member);
+  }
+
   @Get("member/:memberId")
   async getMemberMatrix(@Param("memberId") memberId: string) {
     const validatedMemberId = requirePositiveIntegerString(memberId, "memberId");
@@ -24,6 +40,13 @@ export class MatrixController {
       throw new NotFoundException("Member not found.");
     }
 
+    return this.buildMemberMatrixResponse(validatedMemberId, member);
+  }
+
+  private async buildMemberMatrixResponse(
+    memberId: string,
+    member: Awaited<ReturnType<MembersService["getMember"]>>,
+  ) {
     if (readCommissionSettings().appVisibility.matrix === false) {
       return {
         member,
@@ -31,7 +54,7 @@ export class MatrixController {
       };
     }
 
-    const cycles = await this.matrixService.getMemberMatrixCycles(validatedMemberId);
+    const cycles = await this.matrixService.getMemberMatrixCycles(memberId);
 
     return {
       member,
