@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use RuntimeException;
+
 class PoolprojectSettingsStore
 {
     private const DEFAULT_COMMISSION_SETTINGS = [
@@ -124,6 +126,34 @@ class PoolprojectSettingsStore
 
     private static function runtimeRoot(): string
     {
+        foreach (['POOLPROJECT_RUNTIME_ROOT', 'RUNTIME_ROOT'] as $envKey) {
+            $configured = trim((string) env($envKey, ''));
+            if ($configured !== '') {
+                return rtrim($configured, DIRECTORY_SEPARATOR);
+            }
+        }
+
+        foreach ([base_path(), __DIR__] as $startPath) {
+            $resolved = realpath($startPath) ?: $startPath;
+            $current = $resolved;
+
+            while ($current !== '' && $current !== DIRECTORY_SEPARATOR) {
+                $runtimeDir = $current . DIRECTORY_SEPARATOR . 'runtime';
+                $packageJson = $current . DIRECTORY_SEPARATOR . 'package.json';
+
+                if (is_dir($runtimeDir) && is_file($packageJson)) {
+                    return $runtimeDir;
+                }
+
+                $parent = dirname($current);
+                if ($parent === $current) {
+                    break;
+                }
+
+                $current = $parent;
+            }
+        }
+
         return dirname(base_path(), 2) . DIRECTORY_SEPARATOR . 'runtime';
     }
 
@@ -147,10 +177,20 @@ class PoolprojectSettingsStore
     {
         $dir = dirname($path);
         if (!is_dir($dir)) {
-            mkdir($dir, 0777, true);
+            if (!mkdir($dir, 0777, true) && !is_dir($dir)) {
+                throw new RuntimeException('Unable to create settings directory: ' . $dir);
+            }
         }
 
-        file_put_contents($path, json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL);
+        $encoded = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if ($encoded === false) {
+            throw new RuntimeException('Unable to encode settings payload for ' . $path);
+        }
+
+        $result = file_put_contents($path, $encoded . PHP_EOL, LOCK_EX);
+        if ($result === false) {
+            throw new RuntimeException('Unable to write settings file: ' . $path);
+        }
     }
 
     private static function normalizeCommissionSettings(array $input): array
