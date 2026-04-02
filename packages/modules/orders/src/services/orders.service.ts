@@ -202,9 +202,38 @@ export interface OrdersServiceContract {
     orderId: string;
     sourceUserId: string;
     approvedAt: string;
-    totalPv: string;
-    commissionSettingsSnapshot: string | null;
-    matrixSettingsSnapshot: string | null;
+    approvalFinalInNormalFlow: true;
+    poolContributionSource: "approved_orders_only";
+    steps: Array<{
+      step:
+        | "load_approved_order"
+        | "run_source_qualification"
+        | "build_commission_drafts"
+        | "register_pool_source"
+        | "prepare_wallet_postings"
+        | "evaluate_risk_holds";
+      status: "completed";
+    }>;
+    commissionDrafts: {
+      directStatus: "approved" | "held" | "fallback" | "withdrawable";
+      cashbackCount: number;
+      directCount: number;
+      uniCount: number;
+      hasFallback: boolean;
+    };
+    matrixProcessing: {
+      affectedMemberCount: number;
+      payoutCount: number;
+      completedCycleCount: number;
+      skipped: boolean;
+    };
+    walletPostingInputs: Array<{
+      userId: string;
+      refType: "commission";
+      refId: string;
+      amount: string;
+      holdRequired: boolean;
+    }>;
   } | null>;
 
   cancelOrder(input: {
@@ -353,7 +382,13 @@ export class OrdersService implements OrdersServiceContract {
   }
 
   async approveOrder(orderId: string) {
-    return this.ordersRepository.approveOrder(orderId);
+    const approvedOrder = await this.ordersRepository.approveOrder(orderId);
+
+    if (!approvedOrder) {
+      return null;
+    }
+
+    return this.handleApprovedOrder(orderId);
   }
 
   async cancelOrder(input: { orderId: string; reason?: string }) {

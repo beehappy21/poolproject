@@ -358,7 +358,6 @@ class OrderCreateScreen extends Screen
                 if (($payload['workflow_mode'] ?? 'approve_and_process') === 'approve_and_process') {
                     $orderId = (string) ($createdOrder['orderId'] ?? '');
                     $this->apiRequest('POST', "/orders/{$orderId}/approve");
-                    $this->apiRequest('POST', "/orders/{$orderId}/process-approved");
                 }
 
                 $createdOrders[] = [

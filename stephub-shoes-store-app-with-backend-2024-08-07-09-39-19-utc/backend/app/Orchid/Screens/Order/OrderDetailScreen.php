@@ -81,17 +81,17 @@ class OrderDetailScreen extends Screen {
       abort(404);
     }
 
-    if (!$this->sourceOrder instanceof OrderSource) {
+    if (empty($this->order->source_order_id)) {
       abort(422, 'Source order not found.');
     }
 
-    $approvedAt = now();
-
-    $this->sourceOrder->forceFill([
-      'approvedAt' => $approvedAt,
-      'approvalStatus' => 'APPROVED',
-      'status' => 'APPROVED',
-    ])->save();
+    try {
+      $this->apiClient->request('POST', '/orders/'.$this->order->source_order_id.'/approve');
+    } catch (\Throwable $exception) {
+      return back()->withErrors([
+        'order.approve' => $exception->getMessage(),
+      ]);
+    }
 
     Alert::info('You have successfully approved the order.');
 
