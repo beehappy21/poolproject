@@ -339,7 +339,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   private async generateNextOrderNo(tx: Prisma.TransactionClient) {
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(24032801)`;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(24032801)`;
 
     const rows = await tx.$queryRaw<Array<{ next_order_no: number | string | bigint }>>(
       Prisma.sql`
