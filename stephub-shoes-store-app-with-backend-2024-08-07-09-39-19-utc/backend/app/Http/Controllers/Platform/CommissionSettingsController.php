@@ -183,9 +183,16 @@ class CommissionSettingsController extends Controller
 
     public function saveSignupShare(Request $request): RedirectResponse
     {
+        $request->merge([
+            'shareLinkMessage' => $request->input('shareLinkMessage', $request->input('share_link_message')),
+            'signupSuccessMessage' => $request->input('signupSuccessMessage', $request->input('signup_success_message')),
+            'redirectSection' => $request->input('redirectSection', $request->input('redirect_section')),
+        ]);
+
         $payload = $request->validate([
             'shareLinkMessage' => ['nullable', 'string', 'max:2000'],
             'signupSuccessMessage' => ['nullable', 'string', 'max:2000'],
+            'redirectSection' => ['nullable', 'string'],
         ]);
 
         $current = PoolprojectSettingsStore::readSignupShareSettings();
@@ -196,7 +203,7 @@ class CommissionSettingsController extends Controller
         ]);
 
         return redirect()
-            ->route('platform.commission.signupShare')
+            ->route($this->redirectRouteName((string) ($payload['redirectSection'] ?? 'signup-share')))
             ->with('status', 'Signup share settings updated.');
     }
 
