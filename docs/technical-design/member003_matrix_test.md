@@ -6,7 +6,11 @@ This sandbox uses:
 - [member003-pv-table.json](/Users/macbook/poolproject/scripts/member003-pv-table.json)
 - [build_member003_matrix_scenario.py](/Users/macbook/poolproject/scripts/build_member003_matrix_scenario.py)
 - [run_member003_matrix_test.sh](/Users/macbook/poolproject/scripts/run_member003_matrix_test.sh)
+- [run_member003_matrix_legacy_benchmarks.sh](/Users/macbook/poolproject/scripts/run_member003_matrix_legacy_benchmarks.sh)
 - [assert_member003_matrix_test.py](/Users/macbook/poolproject/scripts/assert_member003_matrix_test.py)
+- [assert_member003_matrix_legacy_feeders.py](/Users/macbook/poolproject/scripts/assert_member003_matrix_legacy_feeders.py)
+- [assert_member003_matrix_legacy_benchmarks.py](/Users/macbook/poolproject/scripts/assert_member003_matrix_legacy_benchmarks.py)
+- [member003-matrix-legacy-benchmarks.json](/Users/macbook/poolproject/scripts/member003-matrix-legacy-benchmarks.json)
 - [matrix-sandbox.js](/Users/macbook/poolproject/scripts/matrix-sandbox.js)
 
 Current scope:
@@ -42,3 +46,15 @@ One-shot run:
 ```bash
 bash scripts/run_member003_matrix_test.sh
 ```
+
+Legacy benchmark run:
+
+```bash
+bash scripts/run_member003_matrix_legacy_benchmarks.sh
+```
+
+Permanent benchmark policy:
+
+- `scripts/member003-matrix-legacy-benchmarks.json` is the locked source of truth for legacy feeder expectations.
+- Any change that touches matrix routing should be checked against `pnpm run test:matrix:legacy-benchmarks`.
+- The primary acceptance members are `TH0000013`, `TH0000016`, `TH0000020`, and `TH0000023`.
