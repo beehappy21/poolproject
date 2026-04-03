@@ -1,0 +1,2 @@
+ALTER TABLE "User"
+ADD COLUMN "matrixReentryEnabled" BOOLEAN NOT NULL DEFAULT true;

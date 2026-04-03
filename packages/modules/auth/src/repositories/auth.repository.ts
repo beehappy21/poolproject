@@ -105,6 +105,7 @@ export class PrismaAuthRepository implements AuthRepository {
         name: true,
         email: true,
         phone: true,
+        matrixReentryEnabled: true,
       },
     });
 
@@ -115,6 +116,7 @@ export class PrismaAuthRepository implements AuthRepository {
           name: user.name,
           email: user.email,
           phone: user.phone,
+          matrixReentryEnabled: user.matrixReentryEnabled,
         }
       : null;
   }
@@ -145,6 +147,7 @@ export class PrismaAuthRepository implements AuthRepository {
         email: true,
         phone: true,
         passwordHash: true,
+        matrixReentryEnabled: true,
       },
     });
 
@@ -166,6 +169,7 @@ export class PrismaAuthRepository implements AuthRepository {
           name: user.name,
           email: user.email,
           phone: user.phone,
+          matrixReentryEnabled: user.matrixReentryEnabled,
         }
       : null;
   }
@@ -179,6 +183,7 @@ export class PrismaAuthRepository implements AuthRepository {
         name: true,
         email: true,
         phone: true,
+        matrixReentryEnabled: true,
       },
     });
 
@@ -189,6 +194,7 @@ export class PrismaAuthRepository implements AuthRepository {
           name: user.name,
           email: user.email,
           phone: user.phone,
+          matrixReentryEnabled: user.matrixReentryEnabled,
         }
       : null;
   }

@@ -191,8 +191,15 @@ export interface MembersServiceContract {
     name: string;
     email: string | null;
     phone: string | null;
-    sponsorId: string | null;
-  }>;
+      sponsorId: string | null;
+    }>;
+
+  getMatrixReentryPreference(memberId: string): Promise<boolean>;
+
+  updateMatrixReentryPreference(
+    memberId: string,
+    enabled: boolean,
+  ): Promise<boolean>;
 
   listShippingAddresses(memberId: string): Promise<
     Array<{
@@ -395,6 +402,14 @@ export class MembersService implements MembersServiceContract {
     },
   ) {
     return this.membersRepository.updateMemberProfile(memberId, input);
+  }
+
+  async getMatrixReentryPreference(memberId: string) {
+    return this.membersRepository.getMatrixReentryPreference(memberId);
+  }
+
+  async updateMatrixReentryPreference(memberId: string, enabled: boolean) {
+    return this.membersRepository.updateMatrixReentryPreference(memberId, enabled);
   }
 
   async listShippingAddresses(memberId: string) {

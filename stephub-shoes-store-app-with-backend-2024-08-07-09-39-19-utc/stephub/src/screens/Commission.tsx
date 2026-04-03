@@ -159,7 +159,16 @@ type MatrixCycleSummary = {
 };
 
 type MatrixResponse = {
+  reentryEnabled?: boolean;
   cycles?: MatrixCycleSummary[];
+};
+
+type MatrixPayoutSummary = {
+  payoutId: string;
+  beneficiaryUserId: string;
+  amount: string;
+  status: string;
+  createdAt: string;
 };
 
 type MatrixSettingsResponse = {
@@ -174,6 +183,7 @@ type AuthMeResponse = {
   user?: {
     userId?: string;
     memberCode?: string;
+    matrixReentryEnabled?: boolean;
   };
 };
 
@@ -267,6 +277,26 @@ const formatDateTime = (value?: string | null) => {
   }
 
   return parsed.toLocaleString('th-TH');
+};
+
+const formatDateParts = (value?: string | null) => {
+  if (!value) {
+    return {date: '-', time: '-'};
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return {date: '-', time: '-'};
+  }
+
+  return {
+    date: parsed.toLocaleDateString('th-TH'),
+    time: parsed.toLocaleTimeString('th-TH', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    }),
+  };
 };
 
 const isWithinLastDays = (value?: string | null, days = 5) => {
@@ -419,6 +449,7 @@ export const Commission: React.FC = () => {
         matrixResult,
         transactionsResult,
         withdrawRequestsResult,
+        matrixPayoutsResult,
       ] = await Promise.allSettled([
         axios.get<CommissionSettingsResponse>(URLS.GET_COMMISSION_SETTINGS),
         axios.get<MatrixSettingsResponse>(URLS.GET_MATRIX_SETTINGS),
@@ -427,6 +458,12 @@ export const Commission: React.FC = () => {
         axios.get<MatrixResponse>(URLS.AUTH_MATRIX, authRequestConfig),
         axios.get<WalletTransactionSummary[]>(URLS.AUTH_TRANSACTIONS, authRequestConfig),
         axios.get<WithdrawRequestSummary[]>(URLS.AUTH_WITHDRAW_REQUESTS, authRequestConfig),
+        user?.userId
+          ? axios.get<MatrixPayoutSummary[]>(
+              `${URLS.API_BASE_URL}/matrix/payouts?beneficiaryUserId=${user.userId}`,
+              {withCredentials: true},
+            )
+          : Promise.resolve({data: [] as MatrixPayoutSummary[]}),
       ]);
 
       if (commissionSettingsResult.status === 'fulfilled') {
@@ -523,7 +560,7 @@ export const Commission: React.FC = () => {
           : undefined;
 
       const startOfToday = toStartOfToday();
-      const cwToday = commissions.reduce((sum, entry) => {
+      const todayCommissionTotal = commissions.reduce((sum, entry) => {
         if (entry.status?.toLowerCase() === 'fallback' || !entry.createdAt) {
           return sum;
         }
@@ -536,6 +573,23 @@ export const Commission: React.FC = () => {
 
         return sum + parseDecimal(entry.amount);
       }, 0);
+
+      const matrixPayouts =
+        matrixPayoutsResult.status === 'fulfilled'
+          ? matrixPayoutsResult.value.data
+          : [];
+
+      const todayMatrixTotal = matrixPayouts.reduce((sum, payout) => {
+        const createdAt = new Date(payout.createdAt || '').getTime();
+
+        if (Number.isNaN(createdAt) || createdAt < startOfToday) {
+          return sum;
+        }
+
+        return sum + parseDecimal(payout.amount);
+      }, 0);
+
+      const cwToday = todayCommissionTotal + todayMatrixTotal;
 
       if (user?.memberCode) {
         try {
@@ -641,7 +695,7 @@ export const Commission: React.FC = () => {
   const isMobileViewport = viewportWidth < 768;
   const isTabletViewport = viewportWidth >= 768 && viewportWidth < 1180;
   const matrixBoardWidth = isMobileViewport
-    ? 'calc((100% - 8px) / 2)'
+    ? 'calc((100% - 22px) / 2.2)'
     : isTabletViewport
       ? '168px'
       : '196px';
@@ -649,7 +703,8 @@ export const Commission: React.FC = () => {
     () => resolveActiveMatrixCycle(matrixData),
     [matrixData],
   );
-  const manualReentryAvailable = useMemo(
+  const reentryEnabled = matrixData.reentryEnabled !== false;
+  const reentryEligible = useMemo(
     () => canRequestManualReentry(activeCycle),
     [activeCycle],
   );
@@ -662,6 +717,15 @@ export const Commission: React.FC = () => {
     return Math.max(parseDecimal(metrics.cwTotal), 0);
   }, [metrics.cwTotal]);
 
+  const reentryReady = useMemo(() => {
+    return (
+      reentryEnabled &&
+      reentryEligible &&
+      reentryCwAmount > 0 &&
+      cwAvailableForDisplay >= reentryCwAmount
+    );
+  }, [cwAvailableForDisplay, reentryCwAmount, reentryEligible, reentryEnabled]);
+
   const cwRecentEntries = useMemo(() => {
     return commissionEntries
       .filter(entry => isWithinLastDays(entry.createdAt, 5))
@@ -672,6 +736,34 @@ export const Commission: React.FC = () => {
         );
       });
   }, [commissionEntries]);
+
+  const cashbackEntries = useMemo(() => {
+    return commissionEntries
+      .filter(entry => entry.commissionType?.toLowerCase() === 'cashback')
+      .sort(
+        (left, right) =>
+          new Date(right.createdAt || 0).getTime() -
+          new Date(left.createdAt || 0).getTime(),
+      );
+  }, [commissionEntries]);
+
+  const directEntries = useMemo(() => {
+    return commissionEntries
+      .filter(entry => entry.commissionType?.toLowerCase() === 'direct')
+      .sort(
+        (left, right) =>
+          new Date(right.createdAt || 0).getTime() -
+          new Date(left.createdAt || 0).getTime(),
+      );
+  }, [commissionEntries]);
+
+  const cashbackTotal = useMemo(() => {
+    return cashbackEntries.reduce((sum, entry) => sum + parseDecimal(entry.amount), 0);
+  }, [cashbackEntries]);
+
+  const directTotal = useMemo(() => {
+    return directEntries.reduce((sum, entry) => sum + parseDecimal(entry.amount), 0);
+  }, [directEntries]);
 
   const recentDcwTransactions = useMemo(() => {
     return walletTransactions
@@ -746,6 +838,252 @@ export const Commission: React.FC = () => {
     ...metrics,
     cwTotal: formatDecimal(cwAvailableForDisplay),
   });
+
+  const renderCommissionSummaryCard = () => {
+    if (!selectedCard || selectedCard.key === 'matrix') {
+      return null;
+    }
+
+    if (selectedCard.key === 'cashback') {
+      return (
+        <section style={{display: 'grid', gap: 12}}>
+          <div
+            style={{
+              padding: 18,
+              borderRadius: 16,
+              backgroundColor: theme.colors.white,
+              border: `1px solid ${theme.colors.aliceBlue2}`,
+            }}
+          >
+            <p
+              style={{
+                margin: '0 0 6px',
+                color: theme.colors.textColor,
+                fontSize: 14,
+                ...theme.fonts.Mulish_400Regular,
+              }}
+            >
+              {selectedCard.title}
+            </p>
+            <h3
+              style={{
+                margin: '0 0 8px',
+                color: theme.colors.mainColor,
+                fontSize: 22,
+                ...theme.fonts.Mulish_700Bold,
+              }}
+            >
+              รวม {formatDecimal(cashbackTotal)}
+            </h3>
+            <p style={{margin: 0, color: theme.colors.textColor, lineHeight: 1.6}}>
+              รายการ cashback ทั้งหมด {cashbackEntries.length} รายการ
+            </p>
+          </div>
+
+          {cashbackEntries.slice(0, 5).map(entry => (
+            <article
+              key={entry.commissionId || `${entry.createdAt}-${entry.amount}`}
+              style={{
+                padding: 14,
+                borderRadius: 14,
+                backgroundColor: '#F8FAFC',
+                border: `1px solid ${theme.colors.aliceBlue2}`,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 12,
+                  marginBottom: 6,
+                }}
+              >
+                <div style={{color: theme.colors.mainColor, ...theme.fonts.Mulish_700Bold}}>
+                  Cashback
+                </div>
+                <div style={{color: theme.colors.mainColor, ...theme.fonts.Mulish_700Bold}}>
+                  {formatDecimal(parseDecimal(entry.amount))}
+                </div>
+              </div>
+              <div style={{color: theme.colors.textColor, lineHeight: 1.6}}>
+                <div>เวลา: {formatDateTime(entry.createdAt)}</div>
+                <div>สถานะ: {entry.status || '-'}</div>
+              </div>
+            </article>
+          ))}
+
+          {!cashbackEntries.length ? (
+            <div style={{color: theme.colors.textColor}}>ยังไม่มีรายการ cashback</div>
+          ) : null}
+        </section>
+      );
+    }
+
+    if (selectedCard.key === 'direct') {
+      return (
+        <section style={{display: 'grid', gap: 12}}>
+          <div
+            style={{
+              padding: 18,
+              borderRadius: 16,
+              backgroundColor: theme.colors.white,
+              border: `1px solid ${theme.colors.aliceBlue2}`,
+            }}
+          >
+            <p
+              style={{
+                margin: '0 0 6px',
+                color: theme.colors.textColor,
+                fontSize: 14,
+                ...theme.fonts.Mulish_400Regular,
+              }}
+            >
+              {selectedCard.title}
+            </p>
+            <h3
+              style={{
+                margin: '0 0 8px',
+                color: theme.colors.mainColor,
+                fontSize: 22,
+                ...theme.fonts.Mulish_700Bold,
+              }}
+            >
+              รวม {formatDecimal(directTotal)}
+            </h3>
+            <p style={{margin: 0, color: theme.colors.textColor, lineHeight: 1.6}}>
+              สมาชิกสายตรง {directReferrals.length} คน · รายการ direct {directEntries.length} รายการ
+            </p>
+          </div>
+
+          {directReferrals.length ? (
+            <section
+              style={{
+                padding: 14,
+                borderRadius: 14,
+                backgroundColor: '#F8FAFC',
+                border: `1px solid ${theme.colors.aliceBlue2}`,
+              }}
+            >
+              <div
+                style={{
+                  marginBottom: 10,
+                  color: theme.colors.mainColor,
+                  ...theme.fonts.Mulish_700Bold,
+                }}
+              >
+                สมาชิกสายตรง
+              </div>
+              <div style={{display: 'grid', gap: 10}}>
+                {directReferrals.slice(0, 5).map(referral => (
+                  <div
+                    key={referral.memberId}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                    }}
+                  >
+                    <div>
+                      <div style={{color: theme.colors.mainColor, ...theme.fonts.Mulish_700Bold}}>
+                        {referral.memberCode}
+                      </div>
+                      <div style={{color: theme.colors.textColor}}>{referral.name}</div>
+                    </div>
+                    <div style={{color: theme.colors.textColor}}>
+                      ทีมย่อย {referral.childCount}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {directEntries.slice(0, 5).map(entry => (
+            <article
+              key={entry.commissionId || `${entry.createdAt}-${entry.amount}`}
+              style={{
+                padding: 14,
+                borderRadius: 14,
+                backgroundColor: '#F8FAFC',
+                border: `1px solid ${theme.colors.aliceBlue2}`,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 12,
+                  marginBottom: 6,
+                }}
+              >
+                <div style={{color: theme.colors.mainColor, ...theme.fonts.Mulish_700Bold}}>
+                  Direct {entry.levelNo ? `L${entry.levelNo}` : ''}
+                </div>
+                <div style={{color: theme.colors.mainColor, ...theme.fonts.Mulish_700Bold}}>
+                  {formatDecimal(parseDecimal(entry.amount))}
+                </div>
+              </div>
+              <div style={{color: theme.colors.textColor, lineHeight: 1.6}}>
+                <div>เวลา: {formatDateTime(entry.createdAt)}</div>
+                <div>สถานะ: {entry.status || '-'}</div>
+              </div>
+            </article>
+          ))}
+
+          {!directEntries.length && !directReferrals.length ? (
+            <div style={{color: theme.colors.textColor}}>ยังไม่มีข้อมูล direct</div>
+          ) : null}
+        </section>
+      );
+    }
+
+    return (
+      <section style={{display: 'grid', gap: 12}}>
+        <div
+          key={selectedCard.title}
+          style={{
+            padding: 18,
+            borderRadius: 16,
+            backgroundColor: theme.colors.white,
+            border: `1px solid ${theme.colors.aliceBlue2}`,
+          }}
+        >
+          <p
+            style={{
+              margin: '0 0 6px',
+              color: theme.colors.textColor,
+              fontSize: 14,
+              ...theme.fonts.Mulish_400Regular,
+            }}
+          >
+            {selectedCard.title}
+          </p>
+          <h3
+            style={{
+              margin: '0 0 8px',
+              color: theme.colors.mainColor,
+              fontSize: 22,
+              ...theme.fonts.Mulish_700Bold,
+            }}
+          >
+            {selectedCard.value}
+          </h3>
+          <p
+            style={{
+              margin: 0,
+              color: theme.colors.textColor,
+              lineHeight: 1.6,
+              ...theme.fonts.Mulish_400Regular,
+            }}
+          >
+            {selectedCard.note}
+          </p>
+        </div>
+      </section>
+    );
+  };
 
   const handleTileClick = (tileKey: string) => {
     if (tileKey === 'sw-transfer') {
@@ -833,9 +1171,9 @@ export const Commission: React.FC = () => {
     }
   };
 
-  const handleOpenMatrixReentry = async () => {
+  const handleToggleMatrixReentry = async () => {
     if (!user?.accessToken) {
-      setReentryError('ต้องมี session ก่อนจึงจะเปิด reentry ได้');
+      setReentryError('ต้องมี session ก่อนจึงจะตั้งค่า reentry ได้');
       return;
     }
 
@@ -845,8 +1183,8 @@ export const Commission: React.FC = () => {
 
     try {
       const response = await axios.post(
-        URLS.AUTH_MATRIX_REENTRY,
-        {},
+        URLS.AUTH_MATRIX_REENTRY_PREFERENCE,
+        {enabled: !reentryEnabled},
         {
           headers: {
             Authorization: `Bearer ${user.accessToken}`,
@@ -856,13 +1194,18 @@ export const Commission: React.FC = () => {
       );
 
       const nextRoundNo = response.data?.openedReentry?.roundNo;
+      const enabled = response.data?.enabled !== false;
       setReentryMessage(
-        `เปิด reentry สำเร็จ${nextRoundNo ? ` รอบ ${nextRoundNo}` : ''} และอัปเดต firm ให้แล้ว`,
+        enabled
+          ? nextRoundNo
+            ? `เปิดใช้งาน reentry แล้ว และระบบเปิดรอบ ${nextRoundNo} ให้ทันที`
+            : 'เปิดใช้งาน reentry แล้ว'
+          : 'ปิดใช้งาน reentry แล้ว',
       );
       await loadCommissionPage();
     } catch (error: any) {
       setReentryError(
-        error?.response?.data?.message || 'ยังไม่สามารถเปิด reentry ได้ในขณะนี้',
+        error?.response?.data?.message || 'ยังไม่สามารถเปลี่ยนสถานะ reentry ได้ในขณะนี้',
       );
     } finally {
       setReentrySubmitting(false);
@@ -896,27 +1239,36 @@ export const Commission: React.FC = () => {
     });
   };
 
-  const getBoardStatusLabel = (board: MatrixBoardSummary) => {
-    if (board.status?.toLowerCase() === 'completed') {
-      return 'Complete';
-    }
+const getBoardStatusLabel = (board: MatrixBoardSummary) => {
+  if (board.status?.toLowerCase() === 'completed') {
+    return 'Complete';
+  }
 
-    if (board.status?.toLowerCase() === 'active') {
-      return 'Active';
-    }
+  if (
+    board.status?.toLowerCase() === 'active' ||
+    board.status?.toLowerCase() === 'open'
+  ) {
+    return 'Active';
+  }
 
-    return 'Wait';
-  };
+  if (board.status?.toLowerCase() === 'locked') {
+    return 'Locked';
+  }
+
+  return 'Wait';
+};
 
   const renderMatrixBoardCard = (
     cycle: MatrixCycleSummary,
     board: MatrixBoardSummary,
+    widthOverride?: string,
   ): JSX.Element => {
     const levelRows = getBoardLevelRows(cycle, board);
     const statusLabel = getBoardStatusLabel(board);
     const isComplete = statusLabel === 'Complete';
     const isActive = statusLabel === 'Active';
     const boardTitle = `Board ${board.boardNo || 1}`;
+    const roundLabel = `Round ${board.roundNo || 1}`;
 
     return (
       <button
@@ -926,18 +1278,19 @@ export const Commission: React.FC = () => {
           border: 'none',
           textAlign: 'left',
           borderRadius: 16,
-          padding: 11,
+          padding: isMobileViewport ? 6 : 11,
           cursor: 'pointer',
           background:
             'linear-gradient(180deg, rgba(96,126,218,0.96) 0%, rgba(96,126,218,0.90) 100%)',
           boxShadow: '0 12px 24px rgba(47, 74, 156, 0.22)',
           color: '#FFFFFF',
           display: 'grid',
-          gap: 8,
-          width: matrixBoardWidth,
-          minWidth: matrixBoardWidth,
+          gap: isMobileViewport ? 6 : 8,
+          width: widthOverride || matrixBoardWidth,
+          minWidth: widthOverride || matrixBoardWidth,
           flex: '0 0 auto',
           overflow: 'hidden',
+          scrollSnapAlign: 'start',
         }}
       >
         <div
@@ -953,31 +1306,31 @@ export const Commission: React.FC = () => {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 5,
-                marginBottom: 6,
+                gap: 4,
+                marginBottom: 4,
               }}
             >
               <span
                 style={{
-                  width: 11,
-                  height: 11,
+                  width: isMobileViewport ? 9 : 11,
+                  height: isMobileViewport ? 9 : 11,
                   borderRadius: '50%',
                   backgroundColor: '#8CF369',
                   boxShadow: '0 0 0 2px rgba(255,255,255,0.12)',
                 }}
               />
               <strong
-                style={{
-                  fontSize: 10,
-                  ...theme.fonts.Mulish_700Bold,
-                }}
-              >
+              style={{
+                fontSize: isMobileViewport ? 9 : 10,
+                ...theme.fonts.Mulish_700Bold,
+              }}
+            >
                 S Size
               </strong>
             </div>
             <div
               style={{
-                fontSize: 9,
+                fontSize: isMobileViewport ? 8 : 9,
                 ...theme.fonts.Mulish_600SemiBold,
               }}
             >
@@ -989,20 +1342,21 @@ export const Commission: React.FC = () => {
           <div style={{textAlign: 'right'}}>
             <div
               style={{
-                fontSize: 11,
+                fontSize: isMobileViewport ? 10 : 11,
                 ...theme.fonts.Mulish_700Bold,
-                marginBottom: 6,
+                marginBottom: isMobileViewport ? 2 : 4,
               }}
             >
               {boardTitle}
             </div>
             <div
               style={{
-                fontSize: 9,
+                fontSize: isMobileViewport ? 8 : 9,
                 ...theme.fonts.Mulish_600SemiBold,
+                opacity: 0.92,
               }}
             >
-              Inv {cycle.cycleNo}
+              {roundLabel}
             </div>
           </div>
         </div>
@@ -1010,18 +1364,18 @@ export const Commission: React.FC = () => {
         <div
           style={{
             display: 'grid',
-            gap: 10,
-            maxHeight: 172,
+            gap: isMobileViewport ? 6 : 10,
+            maxHeight: isMobileViewport ? 102 : 172,
             overflowY: 'auto',
             paddingRight: 2,
           }}
         >
-          {levelRows.map(level => (
+            {levelRows.map(level => (
             <div key={`${board.boardId}-level-${level.levelNo}`}>
               <div
                 style={{
-                  marginBottom: 6,
-                  fontSize: 10,
+                  marginBottom: isMobileViewport ? 4 : 6,
+                  fontSize: isMobileViewport ? 8 : 10,
                   ...theme.fonts.Mulish_600SemiBold,
                 }}
               >
@@ -1030,7 +1384,7 @@ export const Commission: React.FC = () => {
               <div
                 style={{
                   width: '100%',
-                  height: 14,
+                  height: isMobileViewport ? 9 : 14,
                   borderRadius: 999,
                   overflow: 'hidden',
                   backgroundColor: 'rgba(28, 56, 123, 0.78)',
@@ -1053,14 +1407,14 @@ export const Commission: React.FC = () => {
         <div
           style={{
             borderRadius: 14,
-            padding: '8px 10px',
+            padding: isMobileViewport ? '5px 7px' : '8px 10px',
             textAlign: 'center',
             backgroundColor: isComplete
               ? 'rgba(58, 85, 150, 0.95)'
               : isActive
                 ? 'rgba(25, 73, 151, 0.95)'
                 : 'rgba(58, 85, 150, 0.95)',
-            fontSize: 11,
+            fontSize: isMobileViewport ? 9 : 11,
             ...theme.fonts.Mulish_700Bold,
           }}
         >
@@ -1099,74 +1453,106 @@ export const Commission: React.FC = () => {
     return (
       <section style={{display: 'grid', gap: 26}}>
         {cycles.map(cycle => {
-          const orderedBoards = [...(cycle.boards || [])].sort((left, right) => {
-            const leftRound = left.roundNo || 0;
-            const rightRound = right.roundNo || 0;
+          const orderedBoards = [...(cycle.boards || [])]
+            .filter(board => board.status?.toLowerCase() !== 'locked')
+            .sort((left, right) => {
+              const leftBoard = left.boardNo || 0;
+              const rightBoard = right.boardNo || 0;
 
-            if (leftRound !== rightRound) {
-              return leftRound - rightRound;
+              if (leftBoard !== rightBoard) {
+                return leftBoard - rightBoard;
+              }
+
+              return (left.roundNo || 0) - (right.roundNo || 0);
+            });
+          const roundRows = orderedBoards.reduce<Array<{
+            roundNo: number;
+            boards: MatrixBoardSummary[];
+          }>>((rows, board) => {
+            const roundNo = board.roundNo || 1;
+            const existingRow = rows.find(row => row.roundNo === roundNo);
+
+            if (existingRow) {
+              existingRow.boards.push(board);
+            } else {
+              rows.push({roundNo, boards: [board]});
             }
 
-            return (left.boardNo || 0) - (right.boardNo || 0);
-          });
+            return rows;
+          }, []);
 
           return (
             <section
               key={cycle.cycleId}
               style={{
                 borderRadius: 28,
-                padding: 18,
+                padding: isMobileViewport ? 14 : 18,
                 background: 'linear-gradient(180deg, #5B9DE0 0%, #4D8FD6 100%)',
                 border: '4px solid #35699E',
                 boxShadow: '0 20px 40px rgba(53, 105, 158, 0.18)',
-                overflow: 'hidden',
+                overflow: 'visible',
               }}
             >
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: 12,
-                  marginBottom: 14,
-                  color: '#FFFFFF',
-                }}
-              >
-                <div>
-                  <div
-                    style={{
-                      fontSize: isMobileViewport ? 18 : 24,
-                      ...theme.fonts.Mulish_700Bold,
-                    }}
-                  >
-                    รอบ {cycle.cycleNo}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: isMobileViewport ? 14 : 15,
-                      opacity: 0.92,
-                      ...theme.fonts.Mulish_400Regular,
-                    }}
-                  >
-                    กระดาน {orderedBoards.length} / ปัจจุบัน Board {cycle.currentBoardNo}
-                  </div>
-                </div>
-              </div>
+              {/* Mobile matrix layout contract:
+                  - boards are grouped by round, with Round 2 rendered on its own row beneath Round 1
+                  - rows are left-aligned by default to match the approved WAP layout
+                  - a row with exactly 3 visible boards should fill the row width on mobile
+                  - the cycle summary header above the rows is intentionally hidden to avoid duplicate labels
+              */}
+              <div style={{display: 'grid', gap: 12}}>
+                {roundRows.map(row => (
+                  <div key={`${cycle.cycleId}-round-${row.roundNo}`}>
+                    {(() => {
+                      const rowGap = isMobileViewport ? 6 : 8;
+                      const rowCardWidth =
+                        isMobileViewport
+                          ? row.boards.length >= 3
+                            ? `calc((100% - ${rowGap * 2}px) / 3)`
+                            : undefined
+                          : undefined;
 
-              <div
-                style={{
-                  display: 'flex',
-                  overflowX: 'auto',
-                  overflowY: 'hidden',
-                  scrollBehavior: 'smooth',
-                  overscrollBehaviorX: 'contain',
-                  WebkitOverflowScrolling: 'touch',
-                  gap: 8,
-                  alignItems: 'stretch',
-                  paddingBottom: 4,
-                }}
-              >
-                {orderedBoards.map(board => renderMatrixBoardCard(cycle, board))}
+                      return (
+                    <div
+                      style={{
+                        display: 'grid',
+                        gap: 10,
+                        padding: isMobileViewport ? 10 : 14,
+                        borderRadius: 24,
+                        background: 'rgba(104, 139, 220, 0.22)',
+                        border: '1px solid rgba(255,255,255,0.18)',
+                        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12)',
+                      }}
+                    >
+                      {roundRows.length > 1 ? (
+                        <div
+                          style={{
+                            color: 'rgba(255,255,255,0.96)',
+                            fontSize: isMobileViewport ? 11 : 12,
+                            textAlign: 'center',
+                            ...theme.fonts.Mulish_700Bold,
+                          }}
+                        >
+                          Round {row.roundNo}
+                        </div>
+                      ) : null}
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          gap: isMobileViewport ? 6 : 8,
+                          alignItems: 'stretch',
+                          justifyContent: 'flex-start',
+                        }}
+                      >
+                        {row.boards.map(board =>
+                          renderMatrixBoardCard(cycle, board, rowCardWidth),
+                        )}
+                      </div>
+                    </div>
+                      );
+                    })()}
+                  </div>
+                ))}
               </div>
             </section>
           );
@@ -1370,11 +1756,17 @@ export const Commission: React.FC = () => {
             >
               {formatDecimal(cwAvailableForDisplay)}
             </div>
-            {manualReentryAvailable ? (
+            {reentryEnabled ? (
               <div style={{marginTop: 8, color: theme.colors.textColor}}>
-                เปิด reentry ตอนนี้จะใช้ CW {formatDecimal(reentryCwAmount)}
+                {reentryReady
+                  ? `ครบเงื่อนไขแล้ว ระบบจะใช้ CW ${formatDecimal(reentryCwAmount)} เปิดรอบถัดไป`
+                  : `เปิด reentry ไว้แล้ว ระบบจะใช้ CW ${formatDecimal(reentryCwAmount)} เมื่อ Board 1 ครบ 6 จุด`}
               </div>
-            ) : null}
+            ) : (
+              <div style={{marginTop: 8, color: theme.colors.textColor}}>
+                ปิด reentry อยู่ ระบบจะยังไม่ดึง CW ไปเปิดรอบถัดไป
+              </div>
+            )}
           </div>
 
           <input
@@ -1441,36 +1833,95 @@ export const Commission: React.FC = () => {
     if (detailPanel === 'cw-today') {
       title = 'ค่าคอมมิชชั่นย้อนหลัง 5 วัน';
       content = cwRecentEntries.length ? (
-        <div style={{overflowX: 'auto'}}>
-          <table style={{width: '100%', borderCollapse: 'collapse'}}>
-            <thead>
-              <tr style={{textAlign: 'left', color: '#64748B'}}>
-                <th style={{padding: '0 0 12px'}}>วันเวลา</th>
-                <th style={{padding: '0 0 12px'}}>ข้อคอมมิชชั่น</th>
-                <th style={{padding: '0 0 12px'}}>ยอด</th>
-                <th style={{padding: '0 0 12px'}}>สถานะ</th>
-              </tr>
-            </thead>
-            <tbody>
-              {cwRecentEntries.map(entry => (
-                <tr key={entry.commissionId || `${entry.createdAt}-${entry.amount}`}>
-                  <td style={{padding: '12px 0', borderTop: '1px solid #E2E8F0'}}>
-                    {formatDateTime(entry.createdAt)}
-                  </td>
-                  <td style={{padding: '12px 0', borderTop: '1px solid #E2E8F0'}}>
+        <div
+          style={{
+            display: 'grid',
+            gap: 12,
+            maxHeight: '58vh',
+            overflowY: 'auto',
+            paddingRight: 4,
+          }}
+        >
+          {cwRecentEntries.map(entry => {
+            const {date, time} = formatDateParts(entry.createdAt);
+            const member = entry.sourceUserId
+              ? memberDirectory.get(entry.sourceUserId)
+              : undefined;
+            const code = member?.memberCode || entry.orderId || entry.sourceUserId || '-';
+
+            return (
+              <article
+                key={entry.commissionId || `${entry.createdAt}-${entry.amount}`}
+                style={{
+                  padding: 14,
+                  borderRadius: 14,
+                  backgroundColor: '#F8FAFC',
+                  border: `1px solid ${theme.colors.aliceBlue2}`,
+                  display: 'grid',
+                  gap: 10,
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      color: theme.colors.mainColor,
+                      fontSize: 16,
+                      lineHeight: 1.2,
+                      ...theme.fonts.Mulish_700Bold,
+                    }}
+                  >
+                    {date}
+                  </div>
+                  <div
+                    style={{
+                      marginTop: 2,
+                      color: '#64748B',
+                      fontSize: 8,
+                      lineHeight: 1.2,
+                      ...theme.fonts.Mulish_600SemiBold,
+                    }}
+                  >
+                    {time}
+                  </div>
+                </div>
+
+                <div style={{color: theme.colors.textColor}}>
+                  รหัส: <strong style={{color: theme.colors.mainColor}}>{code}</strong>
+                </div>
+
+                <div style={{color: theme.colors.textColor}}>
+                  ประเภท:{' '}
+                  <strong style={{color: theme.colors.mainColor}}>
                     {getCommissionTypeLabel(entry.commissionType)}
                     {entry.levelNo ? ` L${entry.levelNo}` : ''}
-                  </td>
-                  <td style={{padding: '12px 0', borderTop: '1px solid #E2E8F0'}}>
+                  </strong>
+                </div>
+
+                <div
+                  style={{
+                    color: theme.colors.textColor,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: 12,
+                  }}
+                >
+                  <span>ยอดเงิน</span>
+                  <strong
+                    style={{
+                      color: theme.colors.mainColor,
+                      maxWidth: '55%',
+                      overflowX: 'auto',
+                      whiteSpace: 'nowrap',
+                      textAlign: 'right',
+                    }}
+                  >
                     {formatDecimal(parseDecimal(entry.amount))}
-                  </td>
-                  <td style={{padding: '12px 0', borderTop: '1px solid #E2E8F0'}}>
-                    {entry.status || '-'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </strong>
+                </div>
+              </article>
+            );
+          })}
         </div>
       ) : (
         <div style={{color: theme.colors.textColor}}>
@@ -1791,31 +2242,28 @@ export const Commission: React.FC = () => {
                   </span>
                   <button
                     type='button'
-                    disabled={!manualReentryAvailable || reentrySubmitting}
+                    disabled={reentrySubmitting}
                     onClick={event => {
                       event.stopPropagation();
-                      handleOpenMatrixReentry();
+                      handleToggleMatrixReentry();
                     }}
                     style={{
                       border: 'none',
                       borderRadius: 999,
                       padding: '8px 14px',
-                      cursor:
-                        !manualReentryAvailable || reentrySubmitting
-                          ? 'not-allowed'
-                          : 'pointer',
-                      backgroundColor: manualReentryAvailable ? '#16A34A' : '#94A3B8',
+                      cursor: reentrySubmitting ? 'not-allowed' : 'pointer',
+                      backgroundColor: reentryEnabled ? '#16A34A' : '#94A3B8',
                       color: '#FFFFFF',
                       minWidth: 88,
-                      opacity: !manualReentryAvailable || reentrySubmitting ? 0.8 : 1,
+                      opacity: reentrySubmitting ? 0.8 : 1,
                       ...theme.fonts.Mulish_700Bold,
                     }}
                   >
                     {reentrySubmitting
-                      ? 'OPEN...'
-                      : manualReentryAvailable
-                        ? 'OPEN'
-                        : 'LOCKED'}
+                      ? '...'
+                      : reentryEnabled
+                        ? 'ON'
+                        : 'OFF'}
                   </button>
                 </div>
               </div>
@@ -1939,50 +2387,9 @@ export const Commission: React.FC = () => {
 
         {selectedCard?.key === 'matrix' ? renderMatrixBoards() : null}
 
-        {selectedCard && selectedCard.key !== 'matrix' ? (
-          <section style={{display: 'grid', gap: 12}}>
-            <div
-              key={selectedCard.title}
-              style={{
-                padding: 18,
-                borderRadius: 16,
-                backgroundColor: theme.colors.white,
-                border: `1px solid ${theme.colors.aliceBlue2}`,
-              }}
-            >
-              <p
-                style={{
-                  margin: '0 0 6px',
-                  color: theme.colors.textColor,
-                  fontSize: 14,
-                  ...theme.fonts.Mulish_400Regular,
-                }}
-              >
-                {selectedCard.title}
-              </p>
-              <h3
-                style={{
-                  margin: '0 0 8px',
-                  color: theme.colors.mainColor,
-                  fontSize: 22,
-                  ...theme.fonts.Mulish_700Bold,
-                }}
-              >
-                {selectedCard.value}
-              </h3>
-              <p
-                style={{
-                  margin: 0,
-                  color: theme.colors.textColor,
-                  lineHeight: 1.6,
-                  ...theme.fonts.Mulish_400Regular,
-                }}
-              >
-                {selectedCard.note}
-              </p>
-            </div>
-          </section>
-        ) : null}
+        {selectedCard && selectedCard.key !== 'matrix'
+          ? renderCommissionSummaryCard()
+          : null}
 
         {renderMatrixBoardModal()}
         {renderDetailPanel()}

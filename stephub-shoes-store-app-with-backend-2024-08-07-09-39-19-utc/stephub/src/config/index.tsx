@@ -63,6 +63,7 @@ export const AUTH_PROFILE = `${API_BASE_URL}/auth/profile`;
 export const AUTH_CHANGE_PASSWORD = `${API_BASE_URL}/auth/change-password`;
 export const AUTH_FORGOT_PASSWORD_RESET = `${API_BASE_URL}/auth/forgot-password-reset`;
 export const AUTH_MATRIX_REENTRY = `${API_BASE_URL}/auth/matrix/reentry`;
+export const AUTH_MATRIX_REENTRY_PREFERENCE = `${API_BASE_URL}/auth/matrix/reentry-preference`;
 export const AUTH_ORDERS = `${API_BASE_URL}/auth/orders`;
 export const AUTH_COMMISSIONS = `${API_BASE_URL}/auth/commissions`;
 export const AUTH_MATRIX = `${API_BASE_URL}/auth/matrix`;
@@ -133,6 +134,7 @@ export const URLS = {
   AUTH_CHANGE_PASSWORD,
   AUTH_FORGOT_PASSWORD_RESET,
   AUTH_MATRIX_REENTRY,
+  AUTH_MATRIX_REENTRY_PREFERENCE,
   AUTH_ORDERS,
   AUTH_COMMISSIONS,
   AUTH_MATRIX,

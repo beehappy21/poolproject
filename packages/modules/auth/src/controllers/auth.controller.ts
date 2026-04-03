@@ -362,12 +362,14 @@ export class AuthController {
     if (readCommissionSettings().appVisibility.matrix === false) {
       return {
         userId: user.userId,
+        reentryEnabled: user.matrixReentryEnabled,
         cycles: [],
       };
     }
 
     return {
       userId: user.userId,
+      reentryEnabled: user.matrixReentryEnabled,
       cycles: await this.matrixService.getMemberMatrixCycles(user.userId),
     };
   }
@@ -865,6 +867,26 @@ export class AuthController {
 
       throw new BadRequestException("Unable to open matrix reentry.");
     }
+  }
+
+  @Post("matrix/reentry-preference")
+  async updateOwnMatrixReentryPreference(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+    @Body() body?: { enabled?: boolean },
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+
+    if (typeof body?.enabled !== "boolean") {
+      throw new BadRequestException("enabled must be a boolean.");
+    }
+
+    const result = await this.matrixService.updateMemberReentryPreference({
+      userId: user.userId,
+      enabled: body.enabled,
+    });
+
+    return result;
   }
 
   @Post("logout")
