@@ -7,6 +7,7 @@
   "scripts": {
     "build": "nest build api && nest build worker",
     "dev:api": "nest start api --watch",
+    "dev:api:retest": "bash scripts/run_local_api_retest.sh",
     "dev:worker": "nest start worker --watch",
     "dev:up": "bash scripts/dev-up.sh",
     "dev:restart": "bash scripts/dev-restart.sh",
@@ -15,6 +16,7 @@
     "dev:backup": "bash scripts/create_local_backup.sh",
     "uat:backup": "bash scripts/create_uat_backup.sh",
     "uat:restore": "bash scripts/restore_uat_backup.sh",
+    "reset:runtime:retest": "node scripts/reset_retest_runtime.mjs",
     "dev:launchd:install": "bash scripts/install_local_stack_launch_agents.sh",
     "dev:launchd:status": "bash scripts/local_stack_launch_agents_status.sh",
     "dev:launchd:uninstall": "bash scripts/uninstall_local_stack_launch_agents.sh",
@@ -27,6 +29,7 @@
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",
     "prisma:format": "prisma format --schema prisma/schema.prisma",
     "prisma:push": "prisma db push --schema prisma/schema.prisma",
+    "db:bootstrap:retest": "node scripts/bootstrap_retest_db.mjs",
     "line:bindings:migrate-runtime": "node scripts/migrate_line_bindings_runtime_to_db.mjs",
     "db:seed": "node scripts/seed-dev.js",
     "smoke:local": "bash scripts/local-smoke.sh",
