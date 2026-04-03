@@ -643,7 +643,7 @@ export const Commission: React.FC = () => {
   const isMobileViewport = viewportWidth < 768;
   const isTabletViewport = viewportWidth >= 768 && viewportWidth < 1180;
   const matrixBoardWidth = isMobileViewport
-    ? 'calc((100% - 8px) / 2)'
+    ? 'calc((100% - 22px) / 2.2)'
     : isTabletViewport
       ? '168px'
       : '196px';
@@ -935,12 +935,14 @@ const getBoardStatusLabel = (board: MatrixBoardSummary) => {
   const renderMatrixBoardCard = (
     cycle: MatrixCycleSummary,
     board: MatrixBoardSummary,
+    widthOverride?: string,
   ): JSX.Element => {
     const levelRows = getBoardLevelRows(cycle, board);
     const statusLabel = getBoardStatusLabel(board);
     const isComplete = statusLabel === 'Complete';
     const isActive = statusLabel === 'Active';
     const boardTitle = `Board ${board.boardNo || 1}`;
+    const roundLabel = `Round ${board.roundNo || 1}`;
 
     return (
       <button
@@ -950,18 +952,19 @@ const getBoardStatusLabel = (board: MatrixBoardSummary) => {
           border: 'none',
           textAlign: 'left',
           borderRadius: 16,
-          padding: 11,
+          padding: isMobileViewport ? 6 : 11,
           cursor: 'pointer',
           background:
             'linear-gradient(180deg, rgba(96,126,218,0.96) 0%, rgba(96,126,218,0.90) 100%)',
           boxShadow: '0 12px 24px rgba(47, 74, 156, 0.22)',
           color: '#FFFFFF',
           display: 'grid',
-          gap: 8,
-          width: matrixBoardWidth,
-          minWidth: matrixBoardWidth,
+          gap: isMobileViewport ? 6 : 8,
+          width: widthOverride || matrixBoardWidth,
+          minWidth: widthOverride || matrixBoardWidth,
           flex: '0 0 auto',
           overflow: 'hidden',
+          scrollSnapAlign: 'start',
         }}
       >
         <div
@@ -977,31 +980,31 @@ const getBoardStatusLabel = (board: MatrixBoardSummary) => {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 5,
-                marginBottom: 6,
+                gap: 4,
+                marginBottom: 4,
               }}
             >
               <span
                 style={{
-                  width: 11,
-                  height: 11,
+                  width: isMobileViewport ? 9 : 11,
+                  height: isMobileViewport ? 9 : 11,
                   borderRadius: '50%',
                   backgroundColor: '#8CF369',
                   boxShadow: '0 0 0 2px rgba(255,255,255,0.12)',
                 }}
               />
               <strong
-                style={{
-                  fontSize: 10,
-                  ...theme.fonts.Mulish_700Bold,
-                }}
-              >
+              style={{
+                fontSize: isMobileViewport ? 9 : 10,
+                ...theme.fonts.Mulish_700Bold,
+              }}
+            >
                 S Size
               </strong>
             </div>
             <div
               style={{
-                fontSize: 9,
+                fontSize: isMobileViewport ? 8 : 9,
                 ...theme.fonts.Mulish_600SemiBold,
               }}
             >
@@ -1013,20 +1016,21 @@ const getBoardStatusLabel = (board: MatrixBoardSummary) => {
           <div style={{textAlign: 'right'}}>
             <div
               style={{
-                fontSize: 11,
+                fontSize: isMobileViewport ? 10 : 11,
                 ...theme.fonts.Mulish_700Bold,
-                marginBottom: 6,
+                marginBottom: isMobileViewport ? 2 : 4,
               }}
             >
               {boardTitle}
             </div>
             <div
               style={{
-                fontSize: 9,
+                fontSize: isMobileViewport ? 8 : 9,
                 ...theme.fonts.Mulish_600SemiBold,
+                opacity: 0.92,
               }}
             >
-              Inv {cycle.cycleNo}
+              {roundLabel}
             </div>
           </div>
         </div>
@@ -1034,18 +1038,18 @@ const getBoardStatusLabel = (board: MatrixBoardSummary) => {
         <div
           style={{
             display: 'grid',
-            gap: 10,
-            maxHeight: 172,
+            gap: isMobileViewport ? 6 : 10,
+            maxHeight: isMobileViewport ? 102 : 172,
             overflowY: 'auto',
             paddingRight: 2,
           }}
         >
-          {levelRows.map(level => (
+            {levelRows.map(level => (
             <div key={`${board.boardId}-level-${level.levelNo}`}>
               <div
                 style={{
-                  marginBottom: 6,
-                  fontSize: 10,
+                  marginBottom: isMobileViewport ? 4 : 6,
+                  fontSize: isMobileViewport ? 8 : 10,
                   ...theme.fonts.Mulish_600SemiBold,
                 }}
               >
@@ -1054,7 +1058,7 @@ const getBoardStatusLabel = (board: MatrixBoardSummary) => {
               <div
                 style={{
                   width: '100%',
-                  height: 14,
+                  height: isMobileViewport ? 9 : 14,
                   borderRadius: 999,
                   overflow: 'hidden',
                   backgroundColor: 'rgba(28, 56, 123, 0.78)',
@@ -1077,14 +1081,14 @@ const getBoardStatusLabel = (board: MatrixBoardSummary) => {
         <div
           style={{
             borderRadius: 14,
-            padding: '8px 10px',
+            padding: isMobileViewport ? '5px 7px' : '8px 10px',
             textAlign: 'center',
             backgroundColor: isComplete
               ? 'rgba(58, 85, 150, 0.95)'
               : isActive
                 ? 'rgba(25, 73, 151, 0.95)'
                 : 'rgba(58, 85, 150, 0.95)',
-            fontSize: 11,
+            fontSize: isMobileViewport ? 9 : 11,
             ...theme.fonts.Mulish_700Bold,
           }}
         >
@@ -1126,73 +1130,103 @@ const getBoardStatusLabel = (board: MatrixBoardSummary) => {
           const orderedBoards = [...(cycle.boards || [])]
             .filter(board => board.status?.toLowerCase() !== 'locked')
             .sort((left, right) => {
-              const leftRound = left.roundNo || 0;
-              const rightRound = right.roundNo || 0;
+              const leftBoard = left.boardNo || 0;
+              const rightBoard = right.boardNo || 0;
 
-              if (leftRound !== rightRound) {
-                return leftRound - rightRound;
+              if (leftBoard !== rightBoard) {
+                return leftBoard - rightBoard;
               }
 
-              return (left.boardNo || 0) - (right.boardNo || 0);
+              return (left.roundNo || 0) - (right.roundNo || 0);
             });
+          const roundRows = orderedBoards.reduce<Array<{
+            roundNo: number;
+            boards: MatrixBoardSummary[];
+          }>>((rows, board) => {
+            const roundNo = board.roundNo || 1;
+            const existingRow = rows.find(row => row.roundNo === roundNo);
+
+            if (existingRow) {
+              existingRow.boards.push(board);
+            } else {
+              rows.push({roundNo, boards: [board]});
+            }
+
+            return rows;
+          }, []);
 
           return (
             <section
               key={cycle.cycleId}
               style={{
                 borderRadius: 28,
-                padding: 18,
+                padding: isMobileViewport ? 14 : 18,
                 background: 'linear-gradient(180deg, #5B9DE0 0%, #4D8FD6 100%)',
                 border: '4px solid #35699E',
                 boxShadow: '0 20px 40px rgba(53, 105, 158, 0.18)',
-                overflow: 'hidden',
+                overflow: 'visible',
               }}
             >
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: 12,
-                  marginBottom: 14,
-                  color: '#FFFFFF',
-                }}
-              >
-                <div>
-                  <div
-                    style={{
-                      fontSize: isMobileViewport ? 18 : 24,
-                      ...theme.fonts.Mulish_700Bold,
-                    }}
-                  >
-                    รอบ {cycle.cycleNo}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: isMobileViewport ? 14 : 15,
-                      opacity: 0.92,
-                      ...theme.fonts.Mulish_400Regular,
-                    }}
-                  >
-                    กระดาน {orderedBoards.length} / ปัจจุบัน Board {cycle.currentBoardNo}
-                  </div>
-                </div>
-              </div>
+              {/* Mobile matrix layout contract:
+                  - boards are grouped by round, with Round 2 rendered on its own row beneath Round 1
+                  - rows are left-aligned by default to match the approved WAP layout
+                  - a row with exactly 3 visible boards should fill the row width on mobile
+                  - the cycle summary header above the rows is intentionally hidden to avoid duplicate labels
+              */}
+              <div style={{display: 'grid', gap: 12}}>
+                {roundRows.map(row => (
+                  <div key={`${cycle.cycleId}-round-${row.roundNo}`}>
+                    {(() => {
+                      const rowGap = isMobileViewport ? 6 : 8;
+                      const rowCardWidth =
+                        isMobileViewport
+                          ? row.boards.length >= 3
+                            ? `calc((100% - ${rowGap * 2}px) / 3)`
+                            : undefined
+                          : undefined;
 
-              <div
-                style={{
-                  display: 'flex',
-                  overflowX: 'auto',
-                  overflowY: 'hidden',
-                  scrollBehavior: 'smooth',
-                  overscrollBehaviorX: 'contain',
-                  WebkitOverflowScrolling: 'touch',
-                  gap: 8,
-                  alignItems: 'stretch',
-                  paddingBottom: 4,
-                }}
-              >
-                {orderedBoards.map(board => renderMatrixBoardCard(cycle, board))}
+                      return (
+                    <div
+                      style={{
+                        display: 'grid',
+                        gap: 10,
+                        padding: isMobileViewport ? 10 : 14,
+                        borderRadius: 24,
+                        background: 'rgba(104, 139, 220, 0.22)',
+                        border: '1px solid rgba(255,255,255,0.18)',
+                        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12)',
+                      }}
+                    >
+                      {roundRows.length > 1 ? (
+                        <div
+                          style={{
+                            color: 'rgba(255,255,255,0.96)',
+                            fontSize: isMobileViewport ? 11 : 12,
+                            textAlign: 'center',
+                            ...theme.fonts.Mulish_700Bold,
+                          }}
+                        >
+                          Round {row.roundNo}
+                        </div>
+                      ) : null}
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          gap: isMobileViewport ? 6 : 8,
+                          alignItems: 'stretch',
+                          justifyContent: 'flex-start',
+                        }}
+                      >
+                        {row.boards.map(board =>
+                          renderMatrixBoardCard(cycle, board, rowCardWidth),
+                        )}
+                      </div>
+                    </div>
+                      );
+                    })()}
+                  </div>
+                ))}
               </div>
             </section>
           );
