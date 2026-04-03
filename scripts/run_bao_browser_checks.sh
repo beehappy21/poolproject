@@ -71,3 +71,4 @@ done
 node scripts/cashback-smoke.js
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-Admin123}" bash scripts/check_stephub_admin_cashback_report.sh http://127.0.0.1:8001
 COOKIE_JAR=/tmp/stephub-cashback-report.cookies SKIP_BAO_LOGIN=1 BOOTSTRAP_LOCAL_STACK=0 bash scripts/check_stephub_order_shipment_flow.sh
+COOKIE_JAR=/tmp/stephub-withdraw-kyc.cookies bash scripts/check_stephub_admin_withdraw_kyc.sh

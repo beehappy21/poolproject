@@ -1,6 +1,6 @@
 # Live Operations Checklist
 
-Updated: 2026-03-28
+Updated: 2026-04-03
 
 Use this checklist before starting real data entry and real day-to-day usage on the current local/runtime stack.
 
@@ -33,6 +33,7 @@ Dangerous commands to avoid unless intentionally resetting:
 - [ ] API health works at `http://127.0.0.1:3000/health`
 - [ ] Superadmin account is available
 - [ ] Team roles/permissions are correct
+- [ ] `Delivered Orders` appears in the BAO menu
 
 ## Members
 
@@ -111,6 +112,7 @@ Dangerous commands to avoid unless intentionally resetting:
 - [ ] Withdraw request can be approved
 - [ ] Mark paid flow works
 - [ ] Net bank amount is correct
+- [ ] BAO withdraw detail page opens without 500
 
 ## Orders
 
@@ -127,9 +129,18 @@ Dangerous commands to avoid unless intentionally resetting:
 - [ ] Order detail shows THB / บาท
 - [ ] Approve order flow works
 - [ ] Process approved order flow works
+- [ ] `Delivered Orders` list opens and shows processed/delivered records
 - [ ] Stock is reduced correctly after order creation
 - [ ] Cancel order restores stock correctly
 - [ ] Cancel order restores wallet balances correctly where applicable
+
+## KYC
+
+- [ ] KYC request can be submitted from app/API
+- [ ] KYC request can be approved in BAO
+- [ ] KYC request can be rejected in BAO with a reason
+- [ ] BAO KYC detail page opens without 500
+- [ ] Approved/rejected status matches API/DB state
 
 ## App Checks
 
@@ -155,6 +166,7 @@ Dangerous commands to avoid unless intentionally resetting:
 - [ ] Confirm commission movement
 - [ ] Confirm app order history display
 - [ ] Confirm BAO reports display
+- [ ] Run `npm run smoke:bao:withdraw-kyc`
 - [ ] Confirm no unexpected reset happened after restart
 
 ## Notes
@@ -162,3 +174,5 @@ Dangerous commands to avoid unless intentionally resetting:
 - Current runtime is configured to preserve DB state by default.
 - Demo Stephub `10x5` catalog restore is disabled.
 - Do not use destructive flags/scripts unless you intentionally want to reset data.
+- `npm run smoke:bao:withdraw-kyc` covers `Delivered Orders`, `KYC approve/reject`, and `Withdraw approve + paid` on local BAO/API.
+- If member-side withdraw submission fails with `Insufficient withdrawable balance.`, seed or create enough withdrawable balance first; BAO approve/paid flow still validates correctly once a request exists.

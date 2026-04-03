@@ -3,6 +3,7 @@
 namespace App\Orchid\Screens\Withdraw;
 
 use App\Models\WithdrawRequest;
+use App\Support\BaoAdminApiClient;
 use Illuminate\Http\Request;
 use Orchid\Screen\Actions\Button;
 use Orchid\Screen\Actions\Link;
@@ -14,7 +15,11 @@ use Orchid\Support\Facades\Layout;
 
 class WithdrawRequestDetailScreen extends Screen
 {
-    public WithdrawRequest $withdrawRequest;
+    public ?WithdrawRequest $withdrawRequest = null;
+
+    public function __construct(private readonly BaoAdminApiClient $apiClient)
+    {
+    }
 
     public function query(WithdrawRequest $withdrawRequest): iterable
     {
@@ -47,7 +52,7 @@ class WithdrawRequestDetailScreen extends Screen
 
     public function name(): ?string
     {
-        return 'รายละเอียดการแจ้งถอน #' . $this->withdrawRequest->id;
+        return 'รายละเอียดการแจ้งถอน #' . ($this->withdrawRequest?->id ?? '-');
     }
 
     public function commandBar(): iterable
@@ -59,15 +64,15 @@ class WithdrawRequestDetailScreen extends Screen
             Button::make('Approve')
                 ->icon('bs.check2-circle')
                 ->method('approveRequest')
-                ->canSee(in_array($this->withdrawRequest->status, ['PENDING', 'REJECTED'], true)),
+                ->canSee(in_array((string) $this->withdrawRequest?->status, ['PENDING', 'REJECTED'], true)),
             Button::make('Reject')
                 ->icon('bs.x-circle')
                 ->method('rejectRequest')
-                ->canSee(in_array($this->withdrawRequest->status, ['PENDING', 'APPROVED'], true)),
+                ->canSee(in_array((string) $this->withdrawRequest?->status, ['PENDING', 'APPROVED'], true)),
             Button::make('Mark Paid')
                 ->icon('bs.bank')
                 ->method('markPaid')
-                ->canSee(in_array($this->withdrawRequest->status, ['APPROVED', 'EXPORTED'], true)),
+                ->canSee(in_array((string) $this->withdrawRequest?->status, ['APPROVED', 'EXPORTED'], true)),
         ];
     }
 
@@ -99,11 +104,13 @@ class WithdrawRequestDetailScreen extends Screen
 
     public function approveRequest()
     {
-        $this->withdrawRequest->forceFill([
-            'status' => 'APPROVED',
-            'approvedAt' => now(),
-            'rejectionReason' => null,
-        ])->save();
+        try {
+            $this->apiClient->request('POST', '/wallets/withdraw-requests/'.$this->withdrawRequest->id.'/approve');
+        } catch (\Throwable $exception) {
+            Alert::error($exception->getMessage());
+
+            return redirect()->route('platform.withdraw.detail', $this->withdrawRequest->id);
+        }
 
         Alert::info('Withdraw request approved.');
 
@@ -113,14 +120,18 @@ class WithdrawRequestDetailScreen extends Screen
     public function rejectRequest(Request $request)
     {
         $payload = $request->validate([
-            'request.rejection_reason' => ['nullable', 'string'],
+            'request.rejection_reason' => ['required', 'string'],
         ]);
 
-        $this->withdrawRequest->forceFill([
-            'status' => 'REJECTED',
-            'approvedAt' => null,
-            'rejectionReason' => trim((string) ($payload['request']['rejection_reason'] ?? 'Rejected by admin')),
-        ])->save();
+        try {
+            $this->apiClient->request('POST', '/wallets/withdraw-requests/'.$this->withdrawRequest->id.'/reject', [
+                'rejectionReason' => trim((string) ($payload['request']['rejection_reason'] ?? 'Rejected by admin')),
+            ]);
+        } catch (\Throwable $exception) {
+            Alert::error($exception->getMessage());
+
+            return redirect()->route('platform.withdraw.detail', $this->withdrawRequest->id);
+        }
 
         Alert::info('Withdraw request rejected.');
 
@@ -129,10 +140,13 @@ class WithdrawRequestDetailScreen extends Screen
 
     public function markPaid()
     {
-        $this->withdrawRequest->forceFill([
-            'status' => 'PAID',
-            'paidAt' => now(),
-        ])->save();
+        try {
+            $this->apiClient->request('POST', '/wallets/withdraw-requests/'.$this->withdrawRequest->id.'/paid');
+        } catch (\Throwable $exception) {
+            Alert::error($exception->getMessage());
+
+            return redirect()->route('platform.withdraw.detail', $this->withdrawRequest->id);
+        }
 
         Alert::info('Withdraw request marked as paid.');
 
