@@ -25,6 +25,18 @@ Updated: 2026-04-03
 - commit `0765b164`
   - เพิ่ม logic re-check matrix reentry eligibility หลังมี payout/event ใหม่
   - แก้เคสที่ `board 1` จบไปก่อน แต่ member เพิ่งมีสิทธิ์ reentry ครบใน event ภายหลัง
+- commit `4a7fb761`
+  - สร้าง `reentry audit order` อัตโนมัติจาก matrix reentry event
+  - กันการสร้างซ้ำด้วย `approvalBatchRef` marker
+- commit `e3ca0b12`
+  - เปิดให้ API / user UI / admin UI มองเห็น `reentry audit order`
+  - เพิ่ม filter `sourceType` และ badge `REENTRY`
+- commit `891577a7`
+  - ล็อก policy ว่า `matrix reentry audit order` ห้าม cancel
+- working tree (ยังไม่ commit ณ เวลา handoff นี้)
+  - เพิ่ม `Order.orderSourceType` ใน Prisma schema
+  - ย้าย repository/query หลักไปใช้ field จริง
+  - คง legacy fallback ผ่าน `approvalBatchRef` ไว้ชั่วคราวเพื่อรองรับข้อมูลระหว่างช่วงเปลี่ยนผ่าน
 
 ## Verified Runtime State
 
@@ -35,6 +47,19 @@ Updated: 2026-04-03
   - หลัง approve order ระบบ matrix วิ่งต่อและเปิด `TH0000013` เป็น `board 1 / round 2`
   - `currentBoardNo/currentBoardRoundNo` ของ `TH0000013` กลายเป็น `1 / 2`
   - `firmBalance` ของ `TH0000013` กลายเป็น `700`
+- ระบบสร้าง `reentry audit order` ให้เห็นใน production flow แล้ว
+  - event `86` ของ `TH0000013` สร้าง order `0000019`
+  - API ส่ง `orderSourceType = matrix_reentry`
+  - user/admin UI เห็น source และแยกจาก normal order ได้
+- policy `no cancel` ผ่านการพิสูจน์แล้ว
+  - `POST /orders/:id/cancel` สำหรับ reentry audit order ตอบ `400`
+  - message คือ `Matrix reentry audit orders cannot be cancelled.`
+- schema-level source type ใช้งานได้กับ reentry order ที่สร้างใหม่แล้ว
+  - `orderId = 47` (`0000020`) ถูกอ่านเป็น `matrix_reentry` ผ่านทั้ง list และ snapshot
+  - query `GET /orders?...&sourceType=matrix_reentry` คืนค่าได้ตามคาด
+- local DB backfill ของ rows เก่าผ่านแล้ว
+  - query `approvalBatchRef LIKE 'matrix-reentry:%' AND orderSourceType = NORMAL` คืน `0`
+  - `orderId = 46` (`0000019`) ถูกอ่านเป็น `matrix_reentry` ผ่าน API แล้ว
 
 ## Important Findings
 
@@ -45,41 +70,31 @@ Updated: 2026-04-03
   - ผ่าน `MatrixAccumulationEvent` แบบ `REENTRY`
   - ผ่านการเปิด `board 1 / round ถัดไป`
   - ผ่านการ credit `firm wallet`
-- แต่ runtime production ตอนนี้ยัง “ไม่มี” auto/generated reentry bill จริง
-  - ไม่พบ `orderType = reentry` ใน Prisma `Order` schema
-  - `OrdersController`, `OrdersService`, `OrdersRepository` ไม่มี input/flow สำหรับสร้าง order reentry อัตโนมัติ
-  - สิ่งที่เรียกว่า generated/system reentry order ตอนนี้มีอยู่ในสคริปต์ replay/analysis เท่านั้น เช่น
-    - `scripts/replay_allsaletest_by_day_with_global_auto.py`
-  - สรุปคือ business event ของ reentry เกิดจริงใน matrix runtime แล้ว แต่ order/bill artifact ยังไม่ถูกสร้างใน production flow
+- runtime production ตอนนี้ “มี” auto/generated reentry bill แล้ว แต่ยังอยู่ในรูป `audit order`
+  - source-of-truth ของประเภท order กำลังถูกย้ายไป field `Order.orderSourceType`
+  - จึงเหมาะเป็น audit / visibility artifact มากกว่า commercial order ปกติ
+  - marker ยังมีประโยชน์สำหรับ dedupe กับ trace back ไปที่ `matrixEventId`
 
 ## Current Gap
 
-- ถ้า business ต้องการให้ “เปิด reentry แล้วต้องมีบิลอัตโนมัติ” ตอนนี้ยังไม่ครบ
-- ช่องว่างที่ยังไม่มีใน runtime:
-  - field หรือ type สำหรับบอกว่า order ใดเป็น `reentry`
-  - service ที่สร้าง reentry order จาก matrix event
-  - การผูกระหว่าง `matrix reentry event` กับ `order`
-  - UI/BAO visibility ว่าบิลไหนเป็น normal order และบิลไหนเป็น auto reentry bill
+- ช่องว่างหลักตอนนี้ไม่ใช่เรื่อง reentry visibility แล้ว
+- สิ่งที่ยังควรปิดต่อ:
+  - ตัดสินใจระยะยาวว่า `approvalBatchRef` จะคงไว้เพื่อ dedupe อย่างเดียวหรือไม่
+  - เมื่อมั่นใจเรื่องข้อมูลครบทุก environment แล้ว ค่อยพิจารณาลด legacy fallback ในโค้ด
 
 ## Recommended Next Work
 
-1. ตัดสินใจให้ชัดก่อนว่า reentry bill ในระบบจริงต้องมีหรือไม่
-- ถ้า “ไม่ต้องมี”
-  - ให้ยึด matrix event + wallet movement เป็น source of truth
-  - และอย่าใช้คำว่า bill/order ใน UI หรือ handoff เพื่อไม่ให้สับสน
-- ถ้า “ต้องมี”
-  - ต้องออกแบบ runtime เพิ่มจริง ไม่ใช่แค่ script replay
+1. รอ stabilize แล้วค่อยลด legacy fallback
+- ตอนนี้ local runtime และ local DB ผ่านแล้ว
+- เมื่อ environment อื่นถูก backfill ครบ ค่อยถอด dependence จาก marker เก่า
 
-2. ถ้าต้องมี reentry bill ให้ทำเป็นก้อน backend แยก
-- เพิ่ม discriminator ใน order เช่น `orderType` หรือ `sourceType`
-- เพิ่ม service สำหรับสร้าง auto reentry order จาก matrix reentry event
-- เก็บ link ระหว่าง reentry order กับ `reentrySourceBoardId` หรือ `matrixEventId`
-- ตกลงสถานะของบิลว่าจะ auto-approve เลยหรือเป็นเพียง audit artifact
+2. คง `approvalBatchRef` ไว้เฉพาะงาน dedupe / trace
+- ใช้ผูกกับ `matrixEventId`
+- ไม่ใช้เป็น source-of-truth ของประเภท order อีก
 
-3. หลังจากนั้นค่อยต่อ BAO/WAP visibility
-- list/filter ให้เห็น reentry orders แยกจาก normal orders
-- snapshot/order detail ควรโชว์ว่า order นี้มาจาก matrix reentry
-- ถ้าต้องการ audit ชัด ควรเห็น trigger member, source board, round, firm posting ในหน้าเดียว
+3. ถ้าจะยกระดับ audit ต่อ
+- เพิ่มหน้า detail ให้เห็น `sourceBoardId`, `roundNo`, `matrixEventId`
+- รวม firm posting / matrix event / audit order ไว้ในมุมมองเดียว
 
 ## Notes
 

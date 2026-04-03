@@ -36,12 +36,21 @@ function buildMatrixReentryAuditRef(matrixEventId: string) {
   return `${MATRIX_REENTRY_AUDIT_PREFIX}:${matrixEventId}`;
 }
 
-function resolveOrderSourceType(
-  approvalBatchRef?: string | null,
-): "normal" | "matrix_reentry" {
-  return approvalBatchRef?.startsWith(`${MATRIX_REENTRY_AUDIT_PREFIX}:`)
-    ? "matrix_reentry"
-    : "normal";
+function isMatrixReentryOrder(input: {
+  orderSourceType?: string | null;
+  approvalBatchRef?: string | null;
+}) {
+  return (
+    input.orderSourceType === "MATRIX_REENTRY" ||
+    input.approvalBatchRef?.startsWith(`${MATRIX_REENTRY_AUDIT_PREFIX}:`) === true
+  );
+}
+
+function mapOrderSourceType(input: {
+  orderSourceType?: string | null;
+  approvalBatchRef?: string | null;
+}): "normal" | "matrix_reentry" {
+  return isMatrixReentryOrder(input) ? "matrix_reentry" : "normal";
 }
 
 function computeDefaultDcwUsageAmount(input: {
@@ -626,12 +635,30 @@ export class PrismaOrdersRepository implements OrdersRepository {
       orderNo: filters?.orderNo
         ? { contains: filters.orderNo, mode: "insensitive" as const }
         : undefined,
-      approvalBatchRef:
+      OR:
         filters?.sourceType === "matrix_reentry"
-          ? { startsWith: `${MATRIX_REENTRY_AUDIT_PREFIX}:` }
-          : filters?.sourceType === "normal"
-            ? { not: { startsWith: `${MATRIX_REENTRY_AUDIT_PREFIX}:` } }
-            : undefined,
+          ? [
+              { orderSourceType: "MATRIX_REENTRY" as const },
+              {
+                approvalBatchRef: {
+                  startsWith: `${MATRIX_REENTRY_AUDIT_PREFIX}:`,
+                },
+              },
+            ]
+          : undefined,
+      AND:
+        filters?.sourceType === "normal"
+          ? [
+              { orderSourceType: "NORMAL" as const },
+              {
+                approvalBatchRef: {
+                  not: {
+                    startsWith: `${MATRIX_REENTRY_AUDIT_PREFIX}:`,
+                  },
+                },
+              },
+            ]
+          : undefined,
       ...bucketWhere,
     };
     const orders = await this.prisma.order.findMany({
@@ -672,6 +699,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
         shipmentTrackingNo: true,
         shipmentCarrier: true,
         shipmentNote: true,
+        orderSourceType: true,
         approvalBatchRef: true,
         shippingLabel: true,
         shippingAddressLine: true,
@@ -747,7 +775,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
         shipmentTrackingNo: order.shipmentTrackingNo ?? null,
         shipmentCarrier: order.shipmentCarrier ?? null,
         shipmentNote: order.shipmentNote ?? null,
-        orderSourceType: resolveOrderSourceType(order.approvalBatchRef),
+        orderSourceType: mapOrderSourceType(order),
         firstProductName: firstProductDetail?.name ?? null,
         firstProductImageUrl: firstProductDetail?.imageUrl ?? null,
         productItemCount: order.orderItems.length,
@@ -793,6 +821,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
         shipmentTrackingNo: true,
         shipmentCarrier: true,
         shipmentNote: true,
+        orderSourceType: true,
         approvalBatchRef: true,
         shippingLabel: true,
         shippingAddressLine: true,
@@ -891,7 +920,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
           shipmentTrackingNo: order.shipmentTrackingNo ?? null,
           shipmentCarrier: order.shipmentCarrier ?? null,
           shipmentNote: order.shipmentNote ?? null,
-          orderSourceType: resolveOrderSourceType(order.approvalBatchRef),
+          orderSourceType: mapOrderSourceType(order),
           createdAt: order.createdAt.toISOString(),
           items: productItems,
           productItems,
@@ -1731,6 +1760,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
           paidAt: new Date(),
           approvedAt: new Date(),
           approvalStatus: "APPROVED",
+          orderSourceType: "MATRIX_REENTRY",
           status: "APPROVED",
           approvalBatchRef,
           shipmentNote: note,
@@ -1917,6 +1947,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
         select: {
           id: true,
           userId: true,
+          orderSourceType: true,
           approvalBatchRef: true,
           status: true,
           approvalStatus: true,
@@ -1929,7 +1960,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
         return null;
       }
 
-      if (resolveOrderSourceType(existingOrder.approvalBatchRef) === "matrix_reentry") {
+      if (isMatrixReentryOrder(existingOrder)) {
         throw new BadRequestException("Matrix reentry audit orders cannot be cancelled.");
       }
 
@@ -1996,11 +2027,16 @@ export class PrismaOrdersRepository implements OrdersRepository {
         id: BigInt(orderId),
         approvalStatus: "APPROVED",
         approvedAt: { not: null },
-        approvalBatchRef: {
-          not: {
-            startsWith: `${MATRIX_REENTRY_AUDIT_PREFIX}:`,
+        AND: [
+          { orderSourceType: "NORMAL" },
+          {
+            approvalBatchRef: {
+              not: {
+                startsWith: `${MATRIX_REENTRY_AUDIT_PREFIX}:`,
+              },
+            },
           },
-        },
+        ],
       },
       select: {
         id: true,
@@ -2060,11 +2096,16 @@ export class PrismaOrdersRepository implements OrdersRepository {
       where: {
         approvalStatus: "APPROVED",
         approvedAt: range,
-        approvalBatchRef: {
-          not: {
-            startsWith: `${MATRIX_REENTRY_AUDIT_PREFIX}:`,
+        AND: [
+          { orderSourceType: "NORMAL" },
+          {
+            approvalBatchRef: {
+              not: {
+                startsWith: `${MATRIX_REENTRY_AUDIT_PREFIX}:`,
+              },
+            },
           },
-        },
+        ],
       },
       orderBy: [{ approvedAt: "asc" }, { id: "asc" }],
       select: {

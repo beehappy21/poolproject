@@ -87,6 +87,11 @@ enum ApprovalStatus {
   VOIDED
 }
 
+enum OrderSourceType {
+  NORMAL
+  MATRIX_REENTRY
+}
+
 enum ExceptionalReversalStatus {
   NONE
   REQUESTED
@@ -700,6 +705,7 @@ model Order {
   approvalBatchRef           String?                   @db.VarChar(100)
   commissionSettingsSnapshot String?                   @db.Text
   matrixSettingsSnapshot     String?                   @db.Text
+  orderSourceType            OrderSourceType           @default(NORMAL)
   approvalStatus             ApprovalStatus            @default(PENDING)
   exceptionalReversalStatus  ExceptionalReversalStatus @default(NONE)
   status                     OrderStatus               @default(PENDING)
@@ -718,6 +724,7 @@ model Order {
   @@index([shippingAddressId])
   @@index([approvedAt])
   @@index([approvalStatus])
+  @@index([orderSourceType])
   @@index([transferSubmittedAt])
   @@index([shippedAt])
   @@index([deliveredAt])
