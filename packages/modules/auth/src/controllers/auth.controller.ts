@@ -25,6 +25,7 @@ import { CommissionsService } from "../../../commissions";
 import { MatrixService } from "../../../matrix/src";
 import { MembersService } from "../../../members";
 import { OrdersService } from "../../../orders";
+import { PackagesService } from "../../../packages";
 import { PoolService } from "../../../pool";
 import { WalletsService } from "../../../wallets";
 import { AuthService } from "../services/auth.service";
@@ -38,6 +39,7 @@ export class AuthController {
     private readonly walletsService: WalletsService,
     private readonly commissionsService: CommissionsService,
     private readonly matrixService: MatrixService,
+    private readonly packagesService: PackagesService,
     private readonly poolService: PoolService,
   ) {}
 
@@ -815,6 +817,54 @@ export class AuthController {
         appVisibility,
       ),
     };
+  }
+
+  @Post("products/:productDetailId/reviews")
+  async upsertOwnProductReview(
+    @Param("productDetailId") productDetailId: string,
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+    @Body() body?: { rating?: number | string; comment?: string },
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+    const normalizedRating = Number(body?.rating);
+
+    if (!Number.isInteger(normalizedRating) || normalizedRating < 1 || normalizedRating > 5) {
+      throw new BadRequestException("rating must be an integer between 1 and 5.");
+    }
+
+    return this.packagesService.upsertProductReview({
+      productDetailId: requirePositiveIntegerString(productDetailId, "productDetailId"),
+      userId: user.userId,
+      rating: normalizedRating,
+      comment: optionalString(body?.comment),
+    });
+  }
+
+  @Post("matrix/reentry")
+  async requestOwnMatrixReentry(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+
+    try {
+      const openedReentry = await this.matrixService.requestMemberReentry(user.userId);
+      await this.ordersService.createMatrixReentryAuditArtifacts({
+        openedReentries: [openedReentry],
+      });
+
+      return {
+        opened: true,
+        openedReentry,
+      };
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new BadRequestException(error.message);
+      }
+
+      throw new BadRequestException("Unable to open matrix reentry.");
+    }
   }
 
   @Post("logout")

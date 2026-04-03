@@ -62,6 +62,7 @@ export const AUTH_DASHBOARD = `${API_BASE_URL}/auth/dashboard`;
 export const AUTH_PROFILE = `${API_BASE_URL}/auth/profile`;
 export const AUTH_CHANGE_PASSWORD = `${API_BASE_URL}/auth/change-password`;
 export const AUTH_FORGOT_PASSWORD_RESET = `${API_BASE_URL}/auth/forgot-password-reset`;
+export const AUTH_MATRIX_REENTRY = `${API_BASE_URL}/auth/matrix/reentry`;
 export const AUTH_ORDERS = `${API_BASE_URL}/auth/orders`;
 export const AUTH_COMMISSIONS = `${API_BASE_URL}/auth/commissions`;
 export const AUTH_MATRIX = `${API_BASE_URL}/auth/matrix`;
@@ -89,6 +90,12 @@ export const buildMatrixByMemberIdUrl = (memberId: string | number) =>
 
 export const buildAuthOrderDetailUrl = (orderId: string | number) =>
   `${AUTH_ORDERS}/${orderId}`;
+
+export const buildProductReviewsUrl = (productDetailId: string | number) =>
+  `${API_BASE_URL}/products/${productDetailId}/reviews`;
+
+export const buildAuthProductReviewsUrl = (productDetailId: string | number) =>
+  `${API_BASE_URL}/auth/products/${productDetailId}/reviews`;
 
 export const buildSubmitTransferSlipUrl = (orderId: string | number) =>
   `${AUTH_ORDERS}/${orderId}/submit-transfer-slip`;
@@ -125,6 +132,7 @@ export const URLS = {
   AUTH_PROFILE,
   AUTH_CHANGE_PASSWORD,
   AUTH_FORGOT_PASSWORD_RESET,
+  AUTH_MATRIX_REENTRY,
   AUTH_ORDERS,
   AUTH_COMMISSIONS,
   AUTH_MATRIX,
@@ -145,6 +153,8 @@ export const URLS = {
   buildMemberDirectReferralsUrl,
   buildMemberReferralLinkUrl,
   buildAuthOrderDetailUrl,
+  buildProductReviewsUrl,
+  buildAuthProductReviewsUrl,
   buildSubmitTransferSlipUrl,
   buildSetDefaultShippingAddressUrl,
 };

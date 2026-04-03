@@ -60,6 +60,16 @@ export interface MatrixServiceContract {
         pageSize: number;
       }
   >;
+
+  requestMemberReentry(userId: string): Promise<{
+    cycleId: string;
+    userId: string;
+    matrixEventId: string;
+    sourceBoardId: string;
+    roundNo: number;
+    reentryAmount: string;
+    reentryPvAmount: string;
+  }>;
 }
 
 @Injectable()
@@ -190,6 +200,44 @@ export class MatrixService implements MatrixServiceContract {
     pageSize?: number;
   }) {
     return this.matrixRepository.listMatrixPayouts(filters);
+  }
+
+  async requestMemberReentry(userId: string) {
+    const cycles = await this.matrixRepository.getMemberMatrixCycles(userId);
+    const cycle = cycles[0];
+
+    if (!cycle || cycle.status !== "active") {
+      throw new Error("ยังไม่มี matrix cycle ที่เปิดใช้งานสำหรับสมาชิกนี้");
+    }
+
+    const candidateBoard = [...(cycle.boards || [])]
+      .filter((board) => board.boardNo === 1 && board.status === "completed")
+      .sort((left, right) => right.roundNo - left.roundNo)
+      .find((board) => {
+        const nextRoundNo = board.roundNo + 1;
+        return !(cycle.boards || []).some(
+          (entry) => entry.boardNo === 1 && entry.roundNo === nextRoundNo,
+        );
+      });
+
+    if (!candidateBoard) {
+      throw new Error("ยังไม่ถึงเงื่อนไขเปิด reentry รอบถัดไป");
+    }
+
+    const openedReentry = await this.maybeOpenBoardOneNextRound(cycle, {
+      boardId: this.getBoardId(candidateBoard),
+      boardNo: candidateBoard.boardNo,
+      roundNo: candidateBoard.roundNo,
+      openThresholdPv: candidateBoard.openThresholdPv.toString(),
+    });
+
+    if (!openedReentry) {
+      throw new Error(
+        `CW ไม่พอสำหรับเปิด reentry ต้องมีอย่างน้อย ${cycle.cwReentryAmount.toString()}`,
+      );
+    }
+
+    return openedReentry;
   }
 
   private async processAccumulationForBeneficiary(input: {

@@ -6,6 +6,19 @@ import { PrismaPackagesRepository } from "../repositories/packages.repository";
 export class PackagesService {
   constructor(private readonly packagesRepository: PrismaPackagesRepository) {}
 
+  async listProductReviews(productDetailId: string) {
+    return this.packagesRepository.listProductReviews(productDetailId);
+  }
+
+  async upsertProductReview(input: {
+    productDetailId: string;
+    userId: string;
+    rating: number;
+    comment?: string;
+  }) {
+    return this.packagesRepository.upsertProductReview(input);
+  }
+
   async createSupplier(input: { code: string; name: string }) {
     return this.packagesRepository.createSupplier(input);
   }

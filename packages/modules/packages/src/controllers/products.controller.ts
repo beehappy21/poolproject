@@ -1,4 +1,6 @@
-import { Controller, Get } from "@nestjs/common";
+import { Controller, Get, Param } from "@nestjs/common";
+
+import { requirePositiveIntegerString } from "../../../../../apps/api/src/http/request.util";
 
 import { PackagesService } from "../services/packages.service";
 
@@ -29,5 +31,14 @@ export class ProductsController {
   @Get("storefront")
   async listStorefrontProducts() {
     return this.packagesService.listStorefrontProducts();
+  }
+
+  @Get(":productDetailId/reviews")
+  async listProductReviews(@Param("productDetailId") productDetailId: string) {
+    return {
+      items: await this.packagesService.listProductReviews(
+        requirePositiveIntegerString(productDetailId, "productDetailId"),
+      ),
+    };
   }
 }

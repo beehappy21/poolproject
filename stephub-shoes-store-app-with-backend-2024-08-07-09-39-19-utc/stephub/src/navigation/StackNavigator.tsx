@@ -164,10 +164,6 @@ const stack = createBrowserRouter([
           </RequireAuth>
         ),
       },
-      {path: 'SendPhoneOtp', element: <screens.SendPhoneOtp />},
-      {path: 'VerifyEmail', element: <screens.VerifyEmail />},
-      {path: 'VerifyPhone', element: <screens.VerifyPhone />},
-      {path: 'SendEmailOtp', element: <screens.SendEmailOtp />},
       {
         path: 'OrderHistoryEmpty',
         element: (
@@ -176,8 +172,6 @@ const stack = createBrowserRouter([
           </RequireAuth>
         ),
       },
-      {path: 'EmailVerified', element: <screens.EmailVerified />},
-      {path: 'PhoneVerified', element: <screens.PhoneVerified />},
       {path: 'SignUp', element: <screens.SignUp />},
       {path: 'line/liff/signin', element: <screens.LineLiffSignIn />},
       {path: 'line/liff/signin/share', element: <screens.LineRichMenuShare />},
@@ -188,14 +182,6 @@ const stack = createBrowserRouter([
       {
         path: 'ForgotPasswordSentEmail',
         element: <screens.ForgotPasswordSentEmail />,
-      },
-      {
-        path: 'DeleteAccount',
-        element: (
-          <RequireAuth>
-            <screens.DeleteAccount />
-          </RequireAuth>
-        ),
       },
       {
         path: 'ChangePassword',

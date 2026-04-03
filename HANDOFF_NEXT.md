@@ -40,6 +40,17 @@ Updated: 2026-04-03
 - commit `70167793`
   - เพิ่ม smoke test `matrix_reentry_audit_smoke`
   - เจอและแก้ normal-order filter ที่เผลอตัด orders ที่ `approvalBatchRef = null`
+- commit `4324be56`
+  - เพิ่ม tooling สำหรับ reset runtime และ bootstrap ฐาน fresh `poolproject_retest`
+  - แยก lane ทดสอบเป็น legacy parity กับ fresh confidence
+- commit `61da5d42`
+  - แก้ race condition ของ flow `approve`
+  - ทำ `approveOrder` ให้ idempotent
+  - เพิ่ม per-order lock ใน orchestration เพื่อกัน commission ซ้ำเมื่อมี request ซ้อน
+- commit `63a4d907`
+  - ทำ WAP `Leave a review` ให้ใช้งานจริงผ่าน backend
+  - ทำปุ่ม `REENTRY` ฝั่ง WAP ให้ยิง backend จริง
+  - ซ่อนหน้า/route mock ที่ยังไม่ใช้จริง เช่น OTP และ delete account
 
 ## Verified Runtime State
 
@@ -69,6 +80,22 @@ Updated: 2026-04-03
   - สร้าง reentry audit order
   - reprocess แล้วไม่ duplicate
   - cancel ได้ `400` ตาม policy
+- ฐาน fresh `poolproject_retest` พร้อมใช้แล้ว
+  - seed สมาชิกใหม่ `30` คน
+  - `memberCode` ตรงกับ `User.id` ทุกคนในชุด fresh
+  - catalog master (`ProductDetail = 9`, `Package = 5`) ถูก copy มาครบ
+- commission ทั้ง 5 ระบบพิสูจน์บนฐาน fresh แล้ว
+  - `cashback` ทำงานจริง
+  - `direct` ทำงานจริง
+  - `unilevel` ทำงานจริงหลังเปิด settings
+  - `pool` ทำงานจริงและมี payout จริงใน `/auth/pool-payouts`
+  - `matrix` ทำงานจริงและมี cycle + payout จริงใน `/auth/matrix` และ `/auth/matrix-payouts`
+- WAP review ใช้งานจริงแล้ว
+  - `POST /auth/products/:productDetailId/reviews` ใช้งานได้
+  - `GET /products/:productDetailId/reviews` อ่านกลับได้จริง
+- bug commission duplicate จาก approve ซ้ำถูกกดลงแล้ว
+  - order ใหม่ที่ approve ซ้อนกันไม่สร้าง cashback/direct/uni ซ้ำอีก
+  - ต้นเหตุคือ `approve` ไม่ idempotent และ orchestration ไม่มี per-order lock
 
 ## Important Findings
 
@@ -83,26 +110,36 @@ Updated: 2026-04-03
   - source-of-truth ของประเภท order กำลังถูกย้ายไป field `Order.orderSourceType`
   - จึงเหมาะเป็น audit / visibility artifact มากกว่า commercial order ปกติ
   - marker ยังมีประโยชน์สำหรับ dedupe กับ trace back ไปที่ `matrixEventId`
+- commission ทุกชนิดยังคำนวณเมื่อ order ถูก `approve` เท่านั้น
+  - order ที่ยัง `pending` จะยังไม่สร้าง commission draft จริง
+- logic reentry ปัจจุบันเปิด `board 1 / round ถัดไป` จริง
+  - ไม่ได้เปิด board 2 หรือ board อื่นแทน
+  - เมื่อครบเงื่อนไขจะเปิด round ใหม่, credit firm, และสร้าง reentry audit order
 
 ## Current Gap
 
-- ช่องว่างหลักตอนนี้ไม่ใช่เรื่อง reentry visibility แล้ว
+- ช่องว่างหลักตอนนี้ไม่ใช่เรื่อง commission core แล้ว
 - สิ่งที่ยังควรปิดต่อ:
+  - cleanup ข้อมูล test ซ้ำเก่าบนฐานที่เคยโดน approve ซ้อนก่อน patch
   - ตัดสินใจระยะยาวว่า `approvalBatchRef` จะคงไว้เพื่อ dedupe อย่างเดียวหรือไม่
   - เมื่อมั่นใจเรื่องข้อมูลครบทุก environment แล้ว ค่อยพิจารณาลด legacy fallback ในโค้ด
   - ถ้าจะให้ audit ใช้งานง่ายขึ้นอีก ควรดัน `matrixEventId / sourceBoardId / roundNo / firm credit` ขึ้นหน้า detail แบบสรุปอ่านง่าย
 
 ## Recommended Next Work
 
-1. รอ stabilize แล้วค่อยลด legacy fallback
+1. cleanup ข้อมูลซ้ำเก่าบนฐานทดสอบ
+- order ที่เคยโดน approve ซ้ำก่อน patch อาจยังมี commission ซ้ำค้างอยู่
+- ควรล้าง/รีเซ็ต หรือเขียน one-off cleanup ก่อนเริ่ม UAT รอบจริง
+
+2. รอ stabilize แล้วค่อยลด legacy fallback
 - ตอนนี้ local runtime และ local DB ผ่านแล้ว
 - เมื่อ environment อื่นถูก backfill ครบ ค่อยถอด dependence จาก marker เก่า
 
-2. คง `approvalBatchRef` ไว้เฉพาะงาน dedupe / trace
+3. คง `approvalBatchRef` ไว้เฉพาะงาน dedupe / trace
 - ใช้ผูกกับ `matrixEventId`
 - ไม่ใช้เป็น source-of-truth ของประเภท order อีก
 
-3. ถ้าจะยกระดับ audit ต่อ
+4. ถ้าจะยกระดับ audit ต่อ
 - เพิ่มหน้า detail ให้เห็น `sourceBoardId`, `roundNo`, `matrixEventId`
 - รวม firm posting / matrix event / audit order ไว้ในมุมมองเดียว
 
@@ -116,3 +153,5 @@ Updated: 2026-04-03
   - `scripts/run_local_api.sh`
   - `scripts/run_local_stephub_app.sh`
   - `testcommission001.md`
+- พอร์ต `3000` ล่าสุดถูกใช้กับฐาน `poolproject_retest` ระหว่าง fresh confidence lane
+- admin/member ที่ใช้พิสูจน์บนฐาน fresh หลัก ๆ คือ `TH0000013`, `TH0000014`, `TH0000007`, `TH0000003`, `TH0000006`

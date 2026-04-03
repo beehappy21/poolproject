@@ -1,13 +1,97 @@
+import axios from 'axios';
 import React, {useState} from 'react';
+import {useLocation} from 'react-router-dom';
 
 import {hooks} from '../hooks';
 import {theme} from '../constants';
 import {components} from '../components';
+import {URLS} from '../config';
+import {RootState} from '../store';
+import {ProductType} from '../types';
+
+type LeaveReviewLocationState = {
+  product?: ProductType;
+  productDetailId?: string;
+  productName?: string;
+};
 
 export const LeaveAReview: React.FC = () => {
   const navigate = hooks.useAppNavigate();
+  const location = useLocation();
+  const user = hooks.useAppSelector((state: RootState) => state.userSlice.user);
+  const reviewState = (location.state || {}) as LeaveReviewLocationState;
 
   const [rating, setRating] = useState<number>(0);
+  const [comment, setComment] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('');
+  const [statusTone, setStatusTone] = useState<'success' | 'error'>('success');
+
+  const productDetailId = String(reviewState.productDetailId || '').trim();
+  const productName = reviewState.productName?.trim() || 'สินค้านี้';
+
+  const showStatus = (message: string, tone: 'success' | 'error') => {
+    setStatusMessage(message);
+    setStatusTone(tone);
+  };
+
+  const handleSubmit = async () => {
+    if (!productDetailId) {
+      showStatus('ไม่พบข้อมูลสินค้าที่ต้องการรีวิว', 'error');
+      return;
+    }
+
+    if (!user?.accessToken) {
+      showStatus('กรุณาเข้าสู่ระบบก่อนส่งรีวิว', 'error');
+      return;
+    }
+
+    if (rating < 1 || rating > 5) {
+      showStatus('กรุณาเลือกระดับดาวอย่างน้อย 1 ดาว', 'error');
+      return;
+    }
+
+    setSubmitting(true);
+    setStatusMessage('');
+
+    try {
+      await axios.post(
+        URLS.buildAuthProductReviewsUrl(productDetailId),
+        {
+          rating,
+          comment: comment.trim() || undefined,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${user.accessToken}`,
+          },
+          withCredentials: true,
+        },
+      );
+
+      showStatus('ส่งรีวิวเรียบร้อยแล้ว', 'success');
+
+      window.setTimeout(() => {
+        if (reviewState.product) {
+          navigate('/Product', {
+            replace: true,
+            state: {item: reviewState.product},
+          });
+          return;
+        }
+
+        navigate(-1);
+      }, 600);
+    } catch (error: any) {
+      console.error(error);
+      showStatus(
+        error?.response?.data?.message || 'ยังไม่สามารถส่งรีวิวได้ในขณะนี้',
+        'error',
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const renderHeader = () => {
     return <components.Header title='Leave a review' goBack={true} />;
@@ -34,13 +118,23 @@ export const LeaveAReview: React.FC = () => {
             fontSize: 22,
             lineHeight: 1.2,
             color: theme.colors.mainColor,
-            marginBottom: 20,
+            marginBottom: 12,
             textTransform: 'capitalize',
             whiteSpace: 'pre-line',
           }}
         >
-          Please rate the quality of service for the order!
+          รีวิวสินค้า
         </h2>
+        <p
+          style={{
+            margin: '0 20px 20px',
+            textAlign: 'center',
+            color: theme.colors.textColor,
+            lineHeight: 1.7,
+          }}
+        >
+          {productName}
+        </p>
         <components.RatingStars
           containerStyle={{
             marginBottom: 20,
@@ -55,11 +149,10 @@ export const LeaveAReview: React.FC = () => {
             textAlign: 'center',
             color: theme.colors.textColor,
             lineHeight: 1.7,
-            marginBottom: 38,
+            marginBottom: 24,
           }}
         >
-          Your comments and suggestions help us improve the service quality
-          better!
+          ความเห็นของคุณจะช่วยให้สมาชิกคนอื่นตัดสินใจได้ง่ายขึ้น
         </p>
         <div style={{position: 'relative'}}>
           <span
@@ -84,7 +177,7 @@ export const LeaveAReview: React.FC = () => {
               width: '100%',
               height: 130,
               borderColor: '#E8EFF4',
-              marginBottom: 40,
+              marginBottom: 20,
               borderRadius: 12,
               display: 'block',
               boxSizing: 'border-box',
@@ -95,15 +188,31 @@ export const LeaveAReview: React.FC = () => {
               resize: 'none',
               color: theme.colors.mainColor,
             }}
-            placeholder='Enter your comment'
+            placeholder='บอกความประทับใจหรือข้อเสนอแนะเพิ่มเติม'
+            value={comment}
+            onChange={event => setComment(event.target.value)}
           />
         </div>
 
+        {statusMessage ? (
+          <div
+            style={{
+              marginBottom: 16,
+              padding: '12px 14px',
+              borderRadius: 12,
+              backgroundColor: statusTone === 'success' ? '#ECFDF3' : '#FEF2F2',
+              color: statusTone === 'success' ? '#027A48' : '#B42318',
+              lineHeight: 1.5,
+              ...theme.fonts.Mulish_600SemiBold,
+            }}
+          >
+            {statusMessage}
+          </div>
+        ) : null}
+
         <components.Button
-          title='submit'
-          onClick={() => {
-            navigate(-1);
-          }}
+          title={submitting ? 'กำลังส่ง...' : 'submit'}
+          onClick={handleSubmit}
         />
       </div>
     );

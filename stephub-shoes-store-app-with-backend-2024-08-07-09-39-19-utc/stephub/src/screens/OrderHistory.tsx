@@ -1116,12 +1116,43 @@ export const OrderHistory: FC = () => {
                       justifyContent: 'space-between',
                     }}
                 >
-                    <button style={{margin: 0, padding: 0, lineHeight: 0}}>
-                      <svg.RepeatOrderSvg />
-                    </button>
-                    <button style={{lineHeight: 0}}>
-                      <svg.LeaveAReviewSvg />
-                    </button>
+                    {(() => {
+                      const detail = orderDetails[order.orderId];
+                      const reviewItem =
+                        detail?.productItems?.find(item => item.productDetailId) ||
+                        detail?.items?.find(item => item.productDetailId);
+                      const canReview =
+                        order.approvalStatus === 'approved' &&
+                        Boolean(reviewItem?.productDetailId);
+
+                      return (
+                        <>
+                          <button style={{margin: 0, padding: 0, lineHeight: 0}}>
+                            <svg.RepeatOrderSvg />
+                          </button>
+                          {canReview ? (
+                            <button
+                              style={{lineHeight: 0}}
+                              onClick={() =>
+                                navigate('/LeaveAReview', {
+                                  state: {
+                                    productDetailId: reviewItem?.productDetailId || '',
+                                    productName:
+                                      reviewItem?.productName ||
+                                      order.firstProductName ||
+                                      'สินค้า',
+                                  },
+                                })
+                              }
+                            >
+                              <svg.LeaveAReviewSvg />
+                            </button>
+                          ) : (
+                            <span />
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 </Accordion.Content>
               </Accordion.Item>

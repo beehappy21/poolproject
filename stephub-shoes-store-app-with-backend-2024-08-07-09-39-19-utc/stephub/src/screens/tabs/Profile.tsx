@@ -566,17 +566,6 @@ export const Profile: React.FC = () => {
           }}
           navIcon={false}
         />
-        <items.ProfileItem
-          title='Delete account'
-          icon={<svg.DeleteSvg />}
-          onClick={() => {
-            navigate('/DeleteAccount');
-          }}
-          navIcon={false}
-          titleStyle={{
-            color: theme.colors.coralRed,
-          }}
-        />
       </>
     );
   };

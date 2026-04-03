@@ -110,15 +110,24 @@ export const Product: React.FC = () => {
     !(item.colors.length === 1 && item.colors[0]?.name === 'default');
 
   const getReviews = async () => {
+    const targetProductDetailId = item?.productDetailId || item?.id;
+
+    if (!targetProductDetailId) {
+      setReviewsData([]);
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const reviews = await axios
-        .get(URLS.GET_REVIEWS)
-        .then(res => res.data.reviews);
+      const response = await axios.get<{items?: any[]}>(
+        URLS.buildProductReviewsUrl(String(targetProductDetailId)),
+      );
+      const reviews = response.data?.items || [];
 
       setReviewsData(reviews);
     } catch (error) {
       console.error(error);
+      setReviewsData([]);
     } finally {
       setIsLoading(false);
     }
@@ -669,7 +678,15 @@ export const Product: React.FC = () => {
         <components.Button
           title='เขียนรีวิว'
           colorScheme='light'
-          onClick={() => navigate('/LeaveAReview')}
+          onClick={() =>
+            navigate('/LeaveAReview', {
+              state: {
+                product: item,
+                productDetailId: String(item.productDetailId || item.id || ''),
+                productName: item.name,
+              },
+            })
+          }
         />
       </section>
     );

@@ -10,6 +10,10 @@ type Props = {
 };
 
 export const ReviewItem: React.FC<Props> = ({item, isLast}): JSX.Element => {
+  const reviewerName = item.name || 'Member';
+  const reviewerInitial = reviewerName.charAt(0).toUpperCase() || 'M';
+  const reviewDate = item.date || item.createdAt || '-';
+
   return (
     <div
       style={{
@@ -23,17 +27,36 @@ export const ReviewItem: React.FC<Props> = ({item, isLast}): JSX.Element => {
         borderBottom: isLast ? 'none' : '1px solid #e8eff4',
       }}
     >
-      <img
-        src={item.photo}
-        alt='review'
-        style={{
-          width: 50,
-          height: 50,
-          borderRadius: 25,
-          marginRight: 10,
-          objectFit: 'cover',
-        }}
-      />
+      {item.photo ? (
+        <img
+          src={item.photo}
+          alt='review'
+          style={{
+            width: 50,
+            height: 50,
+            borderRadius: 25,
+            marginRight: 10,
+            objectFit: 'cover',
+          }}
+        />
+      ) : (
+        <div
+          style={{
+            width: 50,
+            height: 50,
+            borderRadius: 25,
+            marginRight: 10,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: '#DBEAFE',
+            color: theme.colors.mainColor,
+            ...theme.fonts.Mulish_700Bold,
+          }}
+        >
+          {reviewerInitial}
+        </div>
+      )}
       <div>
         <div
           style={{
@@ -54,7 +77,7 @@ export const ReviewItem: React.FC<Props> = ({item, isLast}): JSX.Element => {
               margin: 0,
             }}
           >
-            {item.name}
+            {reviewerName}
           </h5>
           <product.ProductRating rating={item.rating} ratingNumber={false} />
         </div>
@@ -67,7 +90,7 @@ export const ReviewItem: React.FC<Props> = ({item, isLast}): JSX.Element => {
             color: theme.colors.textColor,
           }}
         >
-          {item.date}
+          {reviewDate}
         </p>
         <p
           style={{
