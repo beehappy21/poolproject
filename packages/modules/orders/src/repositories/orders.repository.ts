@@ -30,6 +30,11 @@ import { readWalletSettings } from "../../../../shared/utils/src/wallet-settings
 const BRANCH_PICKUP_LABEL = "branch_pickup";
 const ORDER_NUMBER_WIDTH = 7;
 const ORDER_NUMBER_PATTERN = "^[0-9]{7}$";
+const MATRIX_REENTRY_AUDIT_PREFIX = "matrix-reentry";
+
+function buildMatrixReentryAuditRef(matrixEventId: string) {
+  return `${MATRIX_REENTRY_AUDIT_PREFIX}:${matrixEventId}`;
+}
 
 function computeDefaultDcwUsageAmount(input: {
   costPriceUsdt: string;
@@ -249,6 +254,23 @@ export interface OrdersRepository {
     walletAppliedUsdt: string;
     cashDueUsdt: string;
     cashPaymentMethod: string | null;
+  }>;
+
+  createMatrixReentryAuditOrder(input: {
+    userId: string;
+    matrixEventId: string;
+    sourceBoardId: string;
+    roundNo: number;
+    amount: string;
+    pv: string;
+  }): Promise<{
+    orderId: string;
+    orderNo: string;
+    status: string;
+    approvalStatus: string;
+    totalUsdt: string;
+    totalPv: string;
+    cashDueUsdt: string;
   }>;
 
   submitTransferSlip(input: {
@@ -1631,6 +1653,90 @@ export class PrismaOrdersRepository implements OrdersRepository {
     };
   }
 
+  async createMatrixReentryAuditOrder(input: {
+    userId: string;
+    matrixEventId: string;
+    sourceBoardId: string;
+    roundNo: number;
+    amount: string;
+    pv: string;
+  }) {
+    const approvalBatchRef = buildMatrixReentryAuditRef(input.matrixEventId);
+    const existing = await this.prisma.order.findFirst({
+      where: {
+        approvalBatchRef,
+      },
+      select: {
+        id: true,
+        orderNo: true,
+        status: true,
+        approvalStatus: true,
+        totalUsdt: true,
+        totalPv: true,
+        cashDueUsdt: true,
+      },
+    });
+
+    if (existing) {
+      return {
+        orderId: existing.id.toString(),
+        orderNo: existing.orderNo,
+        status: existing.status.toLowerCase(),
+        approvalStatus: existing.approvalStatus.toLowerCase(),
+        totalUsdt: existing.totalUsdt.toString(),
+        totalPv: existing.totalPv.toString(),
+        cashDueUsdt: existing.cashDueUsdt.toString(),
+      };
+    }
+
+    const note = `system-generated reentry from board ${input.sourceBoardId} round ${input.roundNo}`;
+    const order = await this.prisma.$transaction(async (tx) => {
+      return tx.order.create({
+        data: {
+          orderNo: await this.generateNextOrderNo(tx),
+          userId: BigInt(input.userId),
+          shippingLabel: BRANCH_PICKUP_LABEL,
+          shippingAddressLine: "MATRIX_REENTRY",
+          shippingAddressNote: "system-generated reentry",
+          subtotalUsdt: input.amount,
+          totalUsdt: input.amount,
+          totalPv: input.pv,
+          dcwAppliedUsdt: "0",
+          walletAppliedUsdt: input.amount,
+          cashDueUsdt: "0",
+          cashPaymentMethod: null,
+          paidAt: new Date(),
+          approvedAt: new Date(),
+          approvalStatus: "APPROVED",
+          status: "APPROVED",
+          approvalBatchRef,
+          shipmentNote: note,
+          transferSlipNote: note,
+          matrixSettingsSnapshot: serializeMatrixSettingsSnapshot(readMatrixSettings()),
+        },
+        select: {
+          id: true,
+          orderNo: true,
+          status: true,
+          approvalStatus: true,
+          totalUsdt: true,
+          totalPv: true,
+          cashDueUsdt: true,
+        },
+      });
+    });
+
+    return {
+      orderId: order.id.toString(),
+      orderNo: order.orderNo,
+      status: order.status.toLowerCase(),
+      approvalStatus: order.approvalStatus.toLowerCase(),
+      totalUsdt: order.totalUsdt.toString(),
+      totalPv: order.totalPv.toString(),
+      cashDueUsdt: order.cashDueUsdt.toString(),
+    };
+  }
+
   async submitTransferSlip(input: {
     orderId: string;
     transferSlipUrl: string;
@@ -1862,6 +1968,11 @@ export class PrismaOrdersRepository implements OrdersRepository {
         id: BigInt(orderId),
         approvalStatus: "APPROVED",
         approvedAt: { not: null },
+        approvalBatchRef: {
+          not: {
+            startsWith: `${MATRIX_REENTRY_AUDIT_PREFIX}:`,
+          },
+        },
       },
       select: {
         id: true,
@@ -1921,6 +2032,11 @@ export class PrismaOrdersRepository implements OrdersRepository {
       where: {
         approvalStatus: "APPROVED",
         approvedAt: range,
+        approvalBatchRef: {
+          not: {
+            startsWith: `${MATRIX_REENTRY_AUDIT_PREFIX}:`,
+          },
+        },
       },
       orderBy: [{ approvedAt: "asc" }, { id: "asc" }],
       select: {
