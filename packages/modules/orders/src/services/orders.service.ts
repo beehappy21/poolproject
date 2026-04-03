@@ -6,6 +6,7 @@ export interface OrdersServiceContract {
   listOrders(filters?: {
     userId?: string;
     approvalStatus?: "pending" | "approved";
+    sourceType?: "normal" | "matrix_reentry";
     bucket?:
       | "awaiting-payment"
       | "transfer-review"
@@ -37,6 +38,7 @@ export interface OrdersServiceContract {
         shipmentTrackingNo: string | null;
         shipmentCarrier: string | null;
         shipmentNote: string | null;
+        orderSourceType: "normal" | "matrix_reentry";
         fulfillmentMethod: "delivery" | "branch_pickup";
         pickupBranchName: string | null;
         pickupBranchNote: string | null;
@@ -64,6 +66,7 @@ export interface OrdersServiceContract {
           shipmentTrackingNo: string | null;
           shipmentCarrier: string | null;
           shipmentNote: string | null;
+          orderSourceType: "normal" | "matrix_reentry";
           fulfillmentMethod: "delivery" | "branch_pickup";
           pickupBranchName: string | null;
           pickupBranchNote: string | null;
@@ -96,10 +99,24 @@ export interface OrdersServiceContract {
     shipmentTrackingNo: string | null;
     shipmentCarrier: string | null;
     shipmentNote: string | null;
+    orderSourceType: "normal" | "matrix_reentry";
     fulfillmentMethod: "delivery" | "branch_pickup";
     pickupBranchName: string | null;
     pickupBranchNote: string | null;
     createdAt: string;
+    reentryAudit: {
+      matrixEventId: string;
+      sourceBoardId: string | null;
+      sourceBoardNo: number | null;
+      sourceBoardRoundNo: number | null;
+      generatedBoardId: string | null;
+      generatedBoardNo: number | null;
+      generatedRoundNo: number | null;
+      sourcePv: string;
+      creditedPv: string;
+      firmCreditAmount: string | null;
+      eventCreatedAt: string;
+    } | null;
     items: Array<{
       orderItemId: string;
       productDetailId: string | null;
@@ -226,6 +243,7 @@ export interface OrdersServiceContract {
       payoutCount: number;
       completedCycleCount: number;
       skipped: boolean;
+      openedReentryCount: number;
     };
     walletPostingInputs: Array<{
       userId: string;
@@ -360,6 +378,7 @@ export class OrdersService implements OrdersServiceContract {
   async listOrders(filters?: {
     userId?: string;
     approvalStatus?: "pending" | "approved";
+    sourceType?: "normal" | "matrix_reentry";
     bucket?:
       | "awaiting-payment"
       | "transfer-review"
@@ -497,6 +516,7 @@ export class OrdersService implements OrdersServiceContract {
               totalPv: approvedOrder.totalPv,
               matrixSettingsSnapshot: approvedOrder.matrixSettingsSnapshot,
             });
+      await this.createMatrixReentryAuditOrders(matrixFlow);
       const walletPostingInputs = await this.postCommissionWalletEntries(orderId);
       await this.walletsService.creditDiscountWalletFromApprovedOrder({ orderId });
 
@@ -528,6 +548,7 @@ export class OrdersService implements OrdersServiceContract {
             totalPv: approvedOrder.totalPv,
             matrixSettingsSnapshot: approvedOrder.matrixSettingsSnapshot,
           });
+    await this.createMatrixReentryAuditOrders(matrixFlow);
 
     if (commissionSettings.appVisibility.pool !== false) {
       await this.poolService.loadApprovedOrderFunding(
@@ -559,7 +580,30 @@ export class OrdersService implements OrdersServiceContract {
       payoutCount: 0,
       completedCycleCount: 0,
       skipped: true,
+      openedReentries: [],
     };
+  }
+
+  private async createMatrixReentryAuditOrders(matrixFlow: {
+    openedReentries?: Array<{
+      userId: string;
+      matrixEventId: string;
+      sourceBoardId: string;
+      roundNo: number;
+      reentryAmount: string;
+      reentryPvAmount: string;
+    }>;
+  }) {
+    for (const openedReentry of matrixFlow.openedReentries ?? []) {
+      await this.ordersRepository.createMatrixReentryAuditOrder({
+        userId: openedReentry.userId,
+        matrixEventId: openedReentry.matrixEventId,
+        sourceBoardId: openedReentry.sourceBoardId,
+        roundNo: openedReentry.roundNo,
+        amount: openedReentry.reentryAmount,
+        pv: openedReentry.reentryPvAmount,
+      });
+    }
   }
 
   private buildApprovedOrderResultFromEntries(
@@ -591,6 +635,9 @@ export class OrdersService implements OrdersServiceContract {
       payoutCount: number;
       completedCycleCount: number;
       skipped: boolean;
+      openedReentries?: Array<{
+        matrixEventId: string;
+      }>;
     },
   ): ApprovedOrderOrchestrationResult {
     const directEntries = commissionEntries.filter(
@@ -634,6 +681,7 @@ export class OrdersService implements OrdersServiceContract {
         payoutCount: matrixFlow?.payoutCount ?? 0,
         completedCycleCount: matrixFlow?.completedCycleCount ?? 0,
         skipped: matrixFlow?.skipped ?? false,
+        openedReentryCount: matrixFlow?.openedReentries?.length ?? 0,
       },
       walletPostingInputs,
     };

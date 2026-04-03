@@ -219,6 +219,46 @@ const formatDecimal = (value: number): string => {
   return decimalFormatter.format(value);
 };
 
+const normalizePositiveInteger = (value?: number, fallback = 2): number => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return fallback;
+  }
+
+  const normalized = Math.floor(value);
+  return normalized > 0 ? normalized : fallback;
+};
+
+const buildReentryPreferenceKey = (memberCode?: string) =>
+  `commission-reentry-enabled:${memberCode || 'guest'}`;
+
+const readReentryPreference = (memberCode?: string): boolean => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  try {
+    return window.localStorage.getItem(buildReentryPreferenceKey(memberCode)) === 'true';
+  } catch (error) {
+    console.warn('Unable to read cached reentry preference.', error);
+    return false;
+  }
+};
+
+const writeReentryPreference = (memberCode: string | undefined, enabled: boolean) => {
+  if (typeof window === 'undefined' || !memberCode) {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(
+      buildReentryPreferenceKey(memberCode),
+      enabled ? 'true' : 'false',
+    );
+  } catch (error) {
+    console.warn('Unable to persist reentry preference.', error);
+  }
+};
+
 const formatDateTime = (value?: string | null) => {
   if (!value) {
     return '-';
@@ -359,6 +399,14 @@ export const Commission: React.FC = () => {
     matrix: true,
     pool: true,
   });
+
+  useEffect(() => {
+    setSwReentryEnabled(readReentryPreference(user?.memberCode));
+  }, [user?.memberCode]);
+
+  useEffect(() => {
+    writeReentryPreference(user?.memberCode, swReentryEnabled);
+  }, [swReentryEnabled, user?.memberCode]);
 
   const loadCommissionPage = async () => {
     setLoading(true);
@@ -782,13 +830,14 @@ export const Commission: React.FC = () => {
   };
 
   const getBoardLevelCapacity = (cycle: MatrixCycleSummary, levelNo: number) => {
-    return Math.max(1, Math.pow(cycle.boardWidth || 2, levelNo));
+    const boardWidth = normalizePositiveInteger(cycle.boardWidth, 2);
+    return Math.max(1, Math.pow(boardWidth, levelNo));
   };
 
   const getBoardLevelRows = (cycle: MatrixCycleSummary, board: MatrixBoardSummary) => {
-    const maxVisibleDepth = Math.max(3, cycle.boardDepth || 3);
+    const boardDepth = normalizePositiveInteger(cycle.boardDepth, 2);
 
-    return Array.from({length: maxVisibleDepth}, (_, index) => {
+    return Array.from({length: boardDepth}, (_, index) => {
       const levelNo = index + 1;
       const positions = (board.positions || []).filter(
         position => position.levelNo === levelNo,

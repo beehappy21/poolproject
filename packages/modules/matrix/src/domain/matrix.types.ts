@@ -54,4 +54,13 @@ export interface MatrixOrderProcessingResult {
   payoutCount: number;
   completedCycleCount: number;
   skipped: boolean;
+  openedReentries: Array<{
+    cycleId: string;
+    userId: string;
+    matrixEventId: string;
+    sourceBoardId: string;
+    roundNo: number;
+    reentryAmount: string;
+    reentryPvAmount: string;
+  }>;
 }

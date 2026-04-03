@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 
 import { PrismaService } from "../../../../infrastructure/src/prisma/prisma.service";
@@ -30,6 +30,36 @@ import { readWalletSettings } from "../../../../shared/utils/src/wallet-settings
 const BRANCH_PICKUP_LABEL = "branch_pickup";
 const ORDER_NUMBER_WIDTH = 7;
 const ORDER_NUMBER_PATTERN = "^[0-9]{7}$";
+const MATRIX_REENTRY_AUDIT_PREFIX = "matrix-reentry";
+
+function buildMatrixReentryAuditRef(matrixEventId: string) {
+  return `${MATRIX_REENTRY_AUDIT_PREFIX}:${matrixEventId}`;
+}
+
+function parseMatrixReentryAuditRef(approvalBatchRef?: string | null): string | null {
+  if (!approvalBatchRef?.startsWith(`${MATRIX_REENTRY_AUDIT_PREFIX}:`)) {
+    return null;
+  }
+
+  return approvalBatchRef.slice(`${MATRIX_REENTRY_AUDIT_PREFIX}:`.length) || null;
+}
+
+function isMatrixReentryOrder(input: {
+  orderSourceType?: string | null;
+  approvalBatchRef?: string | null;
+}) {
+  return (
+    input.orderSourceType === "MATRIX_REENTRY" ||
+    input.approvalBatchRef?.startsWith(`${MATRIX_REENTRY_AUDIT_PREFIX}:`) === true
+  );
+}
+
+function mapOrderSourceType(input: {
+  orderSourceType?: string | null;
+  approvalBatchRef?: string | null;
+}): "normal" | "matrix_reentry" {
+  return isMatrixReentryOrder(input) ? "matrix_reentry" : "normal";
+}
 
 function computeDefaultDcwUsageAmount(input: {
   costPriceUsdt: string;
@@ -91,6 +121,7 @@ export interface OrdersRepository {
   listOrders(filters?: {
     userId?: string;
     approvalStatus?: "pending" | "approved";
+    sourceType?: "normal" | "matrix_reentry";
     bucket?:
       | "awaiting-payment"
       | "transfer-review"
@@ -122,6 +153,7 @@ export interface OrdersRepository {
         shipmentTrackingNo: string | null;
         shipmentCarrier: string | null;
         shipmentNote: string | null;
+        orderSourceType: "normal" | "matrix_reentry";
         fulfillmentMethod: "delivery" | "branch_pickup";
         pickupBranchName: string | null;
         pickupBranchNote: string | null;
@@ -152,6 +184,7 @@ export interface OrdersRepository {
           shipmentTrackingNo: string | null;
           shipmentCarrier: string | null;
           shipmentNote: string | null;
+          orderSourceType: "normal" | "matrix_reentry";
           fulfillmentMethod: "delivery" | "branch_pickup";
           pickupBranchName: string | null;
           pickupBranchNote: string | null;
@@ -187,10 +220,24 @@ export interface OrdersRepository {
     shipmentTrackingNo: string | null;
     shipmentCarrier: string | null;
     shipmentNote: string | null;
+    orderSourceType: "normal" | "matrix_reentry";
     fulfillmentMethod: "delivery" | "branch_pickup";
     pickupBranchName: string | null;
     pickupBranchNote: string | null;
     createdAt: string;
+    reentryAudit: {
+      matrixEventId: string;
+      sourceBoardId: string | null;
+      sourceBoardNo: number | null;
+      sourceBoardRoundNo: number | null;
+      generatedBoardId: string | null;
+      generatedBoardNo: number | null;
+      generatedRoundNo: number | null;
+      sourcePv: string;
+      creditedPv: string;
+      firmCreditAmount: string | null;
+      eventCreatedAt: string;
+    } | null;
     items: Array<{
       orderItemId: string;
       productDetailId: string | null;
@@ -249,6 +296,23 @@ export interface OrdersRepository {
     walletAppliedUsdt: string;
     cashDueUsdt: string;
     cashPaymentMethod: string | null;
+  }>;
+
+  createMatrixReentryAuditOrder(input: {
+    userId: string;
+    matrixEventId: string;
+    sourceBoardId: string;
+    roundNo: number;
+    amount: string;
+    pv: string;
+  }): Promise<{
+    orderId: string;
+    orderNo: string;
+    status: string;
+    approvalStatus: string;
+    totalUsdt: string;
+    totalPv: string;
+    cashDueUsdt: string;
   }>;
 
   submitTransferSlip(input: {
@@ -541,6 +605,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
   async listOrders(filters?: {
     userId?: string;
     approvalStatus?: "pending" | "approved";
+    sourceType?: "normal" | "matrix_reentry";
     bucket?:
       | "awaiting-payment"
       | "transfer-review"
@@ -591,6 +656,12 @@ export class PrismaOrdersRepository implements OrdersRepository {
       orderNo: filters?.orderNo
         ? { contains: filters.orderNo, mode: "insensitive" as const }
         : undefined,
+      orderSourceType:
+        filters?.sourceType === "matrix_reentry"
+          ? ("MATRIX_REENTRY" as const)
+          : filters?.sourceType === "normal"
+            ? ("NORMAL" as const)
+            : undefined,
       ...bucketWhere,
     };
     const orders = await this.prisma.order.findMany({
@@ -631,6 +702,8 @@ export class PrismaOrdersRepository implements OrdersRepository {
         shipmentTrackingNo: true,
         shipmentCarrier: true,
         shipmentNote: true,
+        orderSourceType: true,
+        approvalBatchRef: true,
         shippingLabel: true,
         shippingAddressLine: true,
         shippingAddressNote: true,
@@ -705,6 +778,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
         shipmentTrackingNo: order.shipmentTrackingNo ?? null,
         shipmentCarrier: order.shipmentCarrier ?? null,
         shipmentNote: order.shipmentNote ?? null,
+        orderSourceType: mapOrderSourceType(order),
         firstProductName: firstProductDetail?.name ?? null,
         firstProductImageUrl: firstProductDetail?.imageUrl ?? null,
         productItemCount: order.orderItems.length,
@@ -750,6 +824,8 @@ export class PrismaOrdersRepository implements OrdersRepository {
         shipmentTrackingNo: true,
         shipmentCarrier: true,
         shipmentNote: true,
+        orderSourceType: true,
+        approvalBatchRef: true,
         shippingLabel: true,
         shippingAddressLine: true,
         shippingAddressNote: true,
@@ -825,6 +901,49 @@ export class PrismaOrdersRepository implements OrdersRepository {
       };
     });
 
+    const matrixEventId = parseMatrixReentryAuditRef(order.approvalBatchRef);
+    const reentryEvent =
+      matrixEventId && isMatrixReentryOrder(order)
+        ? await this.prisma.matrixAccumulationEvent.findUnique({
+            where: { id: BigInt(matrixEventId) },
+            select: {
+              id: true,
+              sourcePv: true,
+              creditedPv: true,
+              createdAt: true,
+              board: {
+                select: {
+                  id: true,
+                  boardNo: true,
+                  roundNo: true,
+                  reentrySourceBoard: {
+                    select: {
+                      id: true,
+                      boardNo: true,
+                      roundNo: true,
+                    },
+                  },
+                },
+              },
+            },
+          })
+        : null;
+    const firmCredit =
+      matrixEventId && isMatrixReentryOrder(order)
+        ? await this.prisma.walletTransaction.findFirst({
+            where: {
+              userId: order.userId,
+              txType: "FIRM_REENTRY_CREDIT",
+              refType: "matrix",
+              refId: BigInt(matrixEventId),
+              status: "POSTED",
+            },
+            select: {
+              amount: true,
+            },
+          })
+        : null;
+
     return {
           ...mapFulfillment(order),
           orderId: order.id.toString(),
@@ -847,7 +966,24 @@ export class PrismaOrdersRepository implements OrdersRepository {
           shipmentTrackingNo: order.shipmentTrackingNo ?? null,
           shipmentCarrier: order.shipmentCarrier ?? null,
           shipmentNote: order.shipmentNote ?? null,
+          orderSourceType: mapOrderSourceType(order),
           createdAt: order.createdAt.toISOString(),
+          reentryAudit:
+            reentryEvent && isMatrixReentryOrder(order)
+              ? {
+                  matrixEventId: reentryEvent.id.toString(),
+                  sourceBoardId: reentryEvent.board?.reentrySourceBoard?.id?.toString() ?? null,
+                  sourceBoardNo: reentryEvent.board?.reentrySourceBoard?.boardNo ?? null,
+                  sourceBoardRoundNo: reentryEvent.board?.reentrySourceBoard?.roundNo ?? null,
+                  generatedBoardId: reentryEvent.board?.id?.toString() ?? null,
+                  generatedBoardNo: reentryEvent.board?.boardNo ?? null,
+                  generatedRoundNo: reentryEvent.board?.roundNo ?? null,
+                  sourcePv: reentryEvent.sourcePv.toString(),
+                  creditedPv: reentryEvent.creditedPv.toString(),
+                  firmCreditAmount: firmCredit?.amount?.toString() ?? null,
+                  eventCreatedAt: reentryEvent.createdAt.toISOString(),
+                }
+              : null,
           items: productItems,
           productItems,
         }
@@ -1631,6 +1767,91 @@ export class PrismaOrdersRepository implements OrdersRepository {
     };
   }
 
+  async createMatrixReentryAuditOrder(input: {
+    userId: string;
+    matrixEventId: string;
+    sourceBoardId: string;
+    roundNo: number;
+    amount: string;
+    pv: string;
+  }) {
+    const approvalBatchRef = buildMatrixReentryAuditRef(input.matrixEventId);
+    const existing = await this.prisma.order.findFirst({
+      where: {
+        approvalBatchRef,
+      },
+      select: {
+        id: true,
+        orderNo: true,
+        status: true,
+        approvalStatus: true,
+        totalUsdt: true,
+        totalPv: true,
+        cashDueUsdt: true,
+      },
+    });
+
+    if (existing) {
+      return {
+        orderId: existing.id.toString(),
+        orderNo: existing.orderNo,
+        status: existing.status.toLowerCase(),
+        approvalStatus: existing.approvalStatus.toLowerCase(),
+        totalUsdt: existing.totalUsdt.toString(),
+        totalPv: existing.totalPv.toString(),
+        cashDueUsdt: existing.cashDueUsdt.toString(),
+      };
+    }
+
+    const note = `system-generated reentry from board ${input.sourceBoardId} round ${input.roundNo}`;
+    const order = await this.prisma.$transaction(async (tx) => {
+      return tx.order.create({
+        data: {
+          orderNo: await this.generateNextOrderNo(tx),
+          userId: BigInt(input.userId),
+          shippingLabel: BRANCH_PICKUP_LABEL,
+          shippingAddressLine: "MATRIX_REENTRY",
+          shippingAddressNote: "system-generated reentry",
+          subtotalUsdt: input.amount,
+          totalUsdt: input.amount,
+          totalPv: input.pv,
+          dcwAppliedUsdt: "0",
+          walletAppliedUsdt: input.amount,
+          cashDueUsdt: "0",
+          cashPaymentMethod: null,
+          paidAt: new Date(),
+          approvedAt: new Date(),
+          approvalStatus: "APPROVED",
+          orderSourceType: "MATRIX_REENTRY",
+          status: "APPROVED",
+          approvalBatchRef,
+          shipmentNote: note,
+          transferSlipNote: note,
+          matrixSettingsSnapshot: serializeMatrixSettingsSnapshot(readMatrixSettings()),
+        },
+        select: {
+          id: true,
+          orderNo: true,
+          status: true,
+          approvalStatus: true,
+          totalUsdt: true,
+          totalPv: true,
+          cashDueUsdt: true,
+        },
+      });
+    });
+
+    return {
+      orderId: order.id.toString(),
+      orderNo: order.orderNo,
+      status: order.status.toLowerCase(),
+      approvalStatus: order.approvalStatus.toLowerCase(),
+      totalUsdt: order.totalUsdt.toString(),
+      totalPv: order.totalPv.toString(),
+      cashDueUsdt: order.cashDueUsdt.toString(),
+    };
+  }
+
   async submitTransferSlip(input: {
     orderId: string;
     transferSlipUrl: string;
@@ -1788,6 +2009,8 @@ export class PrismaOrdersRepository implements OrdersRepository {
         select: {
           id: true,
           userId: true,
+          orderSourceType: true,
+          approvalBatchRef: true,
           status: true,
           approvalStatus: true,
           shippedAt: true,
@@ -1797,6 +2020,10 @@ export class PrismaOrdersRepository implements OrdersRepository {
 
       if (!existingOrder) {
         return null;
+      }
+
+      if (isMatrixReentryOrder(existingOrder)) {
+        throw new BadRequestException("Matrix reentry audit orders cannot be cancelled.");
       }
 
       if (
@@ -1862,6 +2089,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
         id: BigInt(orderId),
         approvalStatus: "APPROVED",
         approvedAt: { not: null },
+        orderSourceType: "NORMAL",
       },
       select: {
         id: true,
@@ -1921,6 +2149,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
       where: {
         approvalStatus: "APPROVED",
         approvedAt: range,
+        orderSourceType: "NORMAL",
       },
       orderBy: [{ approvedAt: "asc" }, { id: "asc" }],
       select: {

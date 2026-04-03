@@ -8,6 +8,7 @@ import {
   AuthUserSummary,
   LineBindingSummary,
 } from "../domain/auth.types";
+import { MembersService } from "../../../members";
 import { PrismaAuthRepository } from "../repositories/auth.repository";
 
 export interface AuthServiceContract {
@@ -25,6 +26,15 @@ export interface AuthServiceContract {
     currentPassword: string;
     newPassword: string;
   }): Promise<{ userId: string; passwordUpdated: true }>;
+
+  resetPasswordFromIdentifier(input: {
+    identifier: string;
+  }): Promise<{
+    userId: string;
+    memberCode: string;
+    passwordUpdated: true;
+    passwordRule: "national_id_last_6_digits";
+  }>;
 }
 
 @Injectable()
@@ -44,7 +54,10 @@ export class AuthService implements AuthServiceContract {
     "auth-sessions.json",
   );
 
-  constructor(private readonly authRepository: PrismaAuthRepository) {
+  constructor(
+    private readonly authRepository: PrismaAuthRepository,
+    private readonly membersService: MembersService,
+  ) {
     this.loadSessionsFromDisk();
   }
 
@@ -177,6 +190,41 @@ export class AuthService implements AuthServiceContract {
     }
 
     return this.authRepository.updateUserPassword(input.userId, input.newPassword);
+  }
+
+  async resetPasswordFromIdentifier(input: {
+    identifier: string;
+  }): Promise<{
+    userId: string;
+    memberCode: string;
+    passwordUpdated: true;
+    passwordRule: "national_id_last_6_digits";
+  }> {
+    const user = await this.authRepository.findUserByIdentifier(input.identifier);
+
+    if (!user) {
+      throw new UnauthorizedException("ไม่พบสมาชิกจากข้อมูลที่กรอก");
+    }
+
+    const member = await this.membersService.getMemberByCode(user.memberCode);
+    const nationalId = String(member?.nationalId || "").replace(/\D+/g, "");
+
+    if (nationalId.length < 6) {
+      throw new BadRequestException("สมาชิกคนนี้ยังไม่มีเลขบัตรประชาชนอย่างน้อย 6 หลัก");
+    }
+
+    const newPassword = nationalId.slice(-6);
+    const result = await this.membersService.resetMemberPassword(
+      user.userId,
+      newPassword,
+    );
+
+    return {
+      userId: result.memberId,
+      memberCode: user.memberCode,
+      passwordUpdated: true,
+      passwordRule: "national_id_last_6_digits",
+    };
   }
 
   isAdminUser(user: AuthUserSummary | null | undefined): boolean {

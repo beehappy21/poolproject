@@ -1,53 +1,109 @@
-import React from 'react';
+import axios from 'axios';
+import React, {useState} from 'react';
 
 import {hooks} from '../hooks';
 import {custom} from '../custom';
-import {svg} from '../assets/svg';
 import {theme} from '../constants';
 import {components} from '../components';
+import {URLS} from '../config';
 
 export const ForgotPassword: React.FC = () => {
   const navigate = hooks.useAppNavigate();
 
-  const renderHeader = () => {
-    return <components.Header title='Forgot password' goBack={true} />;
+  const [identifier, setIdentifier] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('');
+  const [statusTone, setStatusTone] = useState<'success' | 'error'>('success');
+
+  const showStatus = (message: string, tone: 'success' | 'error') => {
+    setStatusMessage(message);
+    setStatusTone(tone);
   };
 
-  const renderContent = () => {
-    return (
-      <div style={{padding: '30px 20px 20px 20px'}}>
-        <p
-          style={{
-            margin: 0,
-            marginBottom: 40,
-            color: theme.colors.textColor,
-            lineHeight: 1.7,
-            marginRight: 20,
-            ...theme.fonts.Mulish_400Regular,
-          }}
-        >
-          Please enter your email address. You will receive an OTP code.
-        </p>
-        <custom.InputField
-          label='Email'
-          icon={<svg.InputCheckSvg />}
-          placeholder='zenithsneaks@mail.com'
-          containerStyle={{marginBottom: 20}}
-        />
-        <components.Button
-          title='send'
-          onClick={() => {
-            navigate('/NewPassword');
-          }}
-        />
-      </div>
-    );
+  const handleResetPassword = async () => {
+    if (!identifier.trim()) {
+      showStatus('กรุณากรอกรหัสสมาชิก', 'error');
+      return;
+    }
+
+    setSubmitting(true);
+    setStatusMessage('');
+
+    try {
+      await axios.post(
+        URLS.AUTH_FORGOT_PASSWORD_RESET,
+        {
+          identifier: identifier.trim(),
+        },
+        {
+          withCredentials: true,
+        },
+      );
+
+      navigate('/ForgotPasswordSentEmail', {
+        state: {
+          title: 'รีเซ็ตรหัสผ่านเรียบร้อย',
+          message:
+            'password คือ เลข 6 หลักท้ายบัตรประชาชน\nกรุณาใช้รหัสนี้เข้าสู่ระบบ แล้วเปลี่ยนรหัสผ่านใหม่ภายหลัง',
+        },
+      });
+    } catch (error: any) {
+      console.error(error);
+      showStatus(
+        error?.response?.data?.message || 'รีเซ็ตรหัสผ่านไม่สำเร็จ',
+        'error',
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <>
-      {renderHeader()}
-      {renderContent()}
+      <components.Header title='Forgot password' goBack={true} />
+      <div style={{padding: '30px 20px 20px 20px'}}>
+        <p
+          style={{
+            margin: 0,
+            marginBottom: 24,
+            color: theme.colors.textColor,
+            lineHeight: 1.7,
+            ...theme.fonts.Mulish_400Regular,
+          }}
+        >
+          กรอกรหัสสมาชิก แล้วระบบจะรีเซ็ตรหัสผ่านเป็นเลข 6 หลักท้ายบัตรประชาชนทันที
+        </p>
+
+        <custom.InputField
+          label='รหัสสมาชิก'
+          placeholder='TH0000013'
+          value={identifier}
+          onChange={event => setIdentifier(event.target.value)}
+          containerStyle={{marginBottom: 20}}
+        />
+
+        {statusMessage ? (
+          <div
+            style={{
+              marginBottom: 16,
+              padding: '12px 14px',
+              borderRadius: 12,
+              backgroundColor: statusTone === 'success' ? '#ECFDF3' : '#FEF2F2',
+              color: statusTone === 'success' ? '#027A48' : '#B42318',
+              fontSize: 14,
+              lineHeight: 1.5,
+              ...theme.fonts.Mulish_600SemiBold,
+            }}
+          >
+            {statusMessage}
+          </div>
+        ) : null}
+
+        <components.Button
+          title={submitting ? 'กำลังรีเซ็ต...' : 'รีเซ็ตเลย'}
+          onClick={handleResetPassword}
+        />
+      </div>
     </>
   );
 };

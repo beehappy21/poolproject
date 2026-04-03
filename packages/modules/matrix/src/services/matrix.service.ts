@@ -85,6 +85,7 @@ export class MatrixService implements MatrixServiceContract {
         payoutCount: 0,
         completedCycleCount: 0,
         skipped: true,
+        openedReentries: [],
       };
     }
 
@@ -112,6 +113,7 @@ export class MatrixService implements MatrixServiceContract {
           payoutCount: 0,
           completedCycleCount: 0,
           skipped: false,
+          openedReentries: [],
         };
       }
 
@@ -132,6 +134,7 @@ export class MatrixService implements MatrixServiceContract {
         payoutCount: 0,
         completedCycleCount: 0,
         skipped: false,
+        openedReentries: [],
       };
     }
 
@@ -143,6 +146,7 @@ export class MatrixService implements MatrixServiceContract {
     let affectedMemberCount = 0;
     let payoutCount = 0;
     let completedCycleCount = 0;
+    const openedReentries: MatrixOrderProcessingResult["openedReentries"] = [];
 
     for (const [index, beneficiaryUserId] of uplineUserIds.entries()) {
       const result = await this.processAccumulationForBeneficiary({
@@ -157,6 +161,7 @@ export class MatrixService implements MatrixServiceContract {
       affectedMemberCount += 1;
       payoutCount += result.payoutCount;
       completedCycleCount += result.completedCycleCount;
+      openedReentries.push(...result.openedReentries);
     }
 
     return {
@@ -166,6 +171,7 @@ export class MatrixService implements MatrixServiceContract {
       payoutCount,
       completedCycleCount,
       skipped: false,
+      openedReentries,
     };
   }
 
@@ -193,12 +199,16 @@ export class MatrixService implements MatrixServiceContract {
     sourcePv: string;
     depthNo: number;
     sourceSettings: ReturnType<typeof parseMatrixSettingsSnapshot>;
-  }): Promise<{ payoutCount: number; completedCycleCount: number }> {
+  }): Promise<{
+    payoutCount: number;
+    completedCycleCount: number;
+    openedReentries: MatrixOrderProcessingResult["openedReentries"];
+  }> {
     const cycle = await this.getActiveCycle(
       input.beneficiaryUserId,
     );
     if (!cycle) {
-      return { payoutCount: 0, completedCycleCount: 0 };
+      return { payoutCount: 0, completedCycleCount: 0, openedReentries: [] };
     }
 
     const boardLevelRates = this.parseBoardLevelRatesSnapshot(
@@ -246,11 +256,11 @@ export class MatrixService implements MatrixServiceContract {
       ) ?? this.resolveHighestPriorityOpenBoard(latestCycle.boards);
 
     if (!currentBoard) {
-      return { payoutCount: 0, completedCycleCount: 0 };
+      return { payoutCount: 0, completedCycleCount: 0, openedReentries: [] };
     }
 
     if (currentBoard.status !== "open" || currentBoard.filledSlots >= currentBoard.slotCount) {
-      return { payoutCount: 0, completedCycleCount: 0 };
+      return { payoutCount: 0, completedCycleCount: 0, openedReentries: [] };
     }
 
     const slotNo = currentBoard.filledSlots + 1;
@@ -296,6 +306,7 @@ export class MatrixService implements MatrixServiceContract {
     });
 
     let completedCycleCount = 0;
+    const openedReentries: MatrixOrderProcessingResult["openedReentries"] = [];
     if (slotNo >= currentBoard.slotCount) {
       await this.matrixRepository.markBoardCompleted(this.getBoardId(currentBoard));
 
@@ -327,12 +338,15 @@ export class MatrixService implements MatrixServiceContract {
       }
 
       if (currentBoard.boardNo === 1) {
-        await this.maybeOpenBoardOneNextRound(latestCycle, {
+        const openedReentry = await this.maybeOpenBoardOneNextRound(latestCycle, {
           boardId: this.getBoardId(currentBoard),
           boardNo: currentBoard.boardNo,
           roundNo: currentBoard.roundNo,
           openThresholdPv: currentBoard.openThresholdPv.toString(),
         });
+        if (openedReentry) {
+          openedReentries.push(openedReentry);
+        }
 
         await this.maybeSpillCompletedReentryRoundToUplineBoardTwo(
           latestCycle,
@@ -346,9 +360,17 @@ export class MatrixService implements MatrixServiceContract {
       }
     }
 
+    const deferredOpenedReentry = await this.maybeOpenEligibleBoardOneNextRound(
+      input.beneficiaryUserId,
+    );
+    if (deferredOpenedReentry) {
+      openedReentries.push(deferredOpenedReentry);
+    }
+
     return {
       payoutCount: 1,
       completedCycleCount,
+      openedReentries,
     };
   }
 
@@ -472,7 +494,7 @@ export class MatrixService implements MatrixServiceContract {
       roundNo: number;
       openThresholdPv: string;
     },
-  ) {
+  ): Promise<MatrixOrderProcessingResult["openedReentries"][number] | null> {
     const reentrySettings = this.resolveReentryRuntimeSettings(cycle.organizationPvRate, cycle.cwReentryAmount);
     const nextRoundNo = currentBoard.roundNo + 1;
     const existingNextRound = cycle.boards.find(
@@ -481,7 +503,7 @@ export class MatrixService implements MatrixServiceContract {
 
     if (existingNextRound) {
       await this.matrixRepository.updateCurrentBoard(cycle.cycleId, 1, nextRoundNo);
-      return;
+      return null;
     }
 
     if (
@@ -522,12 +544,20 @@ export class MatrixService implements MatrixServiceContract {
       }
 
       await this.matrixRepository.updateCurrentBoard(cycle.cycleId, 1, nextRoundNo);
-      return;
+      return {
+        cycleId: cycle.cycleId,
+        userId: cycle.userId,
+        matrixEventId: reentryEvent.id.toString(),
+        sourceBoardId: currentBoard.boardId,
+        roundNo: nextRoundNo,
+        reentryAmount: reentrySettings.reentryFirmAmount,
+        reentryPvAmount: reentrySettings.reentryPvAmount,
+      };
     }
 
     const wallet = await this.walletsService.getWalletSummary(cycle.userId);
     if (compareDecimalStrings(wallet.withdrawableBalance, cycle.cwReentryAmount) < 0) {
-      return;
+      return null;
     }
 
     await this.walletsService.debitWithdrawableForMatrixReentry({
@@ -566,6 +596,48 @@ export class MatrixService implements MatrixServiceContract {
     }
 
     await this.matrixRepository.updateCurrentBoard(cycle.cycleId, 1, nextRoundNo);
+
+    return {
+      cycleId: cycle.cycleId,
+      userId: cycle.userId,
+      matrixEventId: reentryEvent.id.toString(),
+      sourceBoardId: currentBoard.boardId,
+      roundNo: nextRoundNo,
+      reentryAmount: cycle.cwReentryAmount,
+      reentryPvAmount: reentrySettings.reentryPvAmount,
+    };
+  }
+
+  private async maybeOpenEligibleBoardOneNextRound(
+    userId: string,
+  ): Promise<MatrixOrderProcessingResult["openedReentries"][number] | null> {
+    const cycles = await this.matrixRepository.getMemberMatrixCycles(userId);
+    const cycle = cycles[0];
+
+    if (!cycle || cycle.status !== "active") {
+      return null;
+    }
+
+    const candidateBoard = [...(cycle.boards || [])]
+      .filter((board) => board.boardNo === 1 && board.status === "completed")
+      .sort((left, right) => right.roundNo - left.roundNo)
+      .find((board) => {
+        const nextRoundNo = board.roundNo + 1;
+        return !(cycle.boards || []).some(
+          (entry) => entry.boardNo === 1 && entry.roundNo === nextRoundNo,
+        );
+      });
+
+    if (!candidateBoard) {
+      return null;
+    }
+
+    return this.maybeOpenBoardOneNextRound(cycle, {
+      boardId: this.getBoardId(candidateBoard),
+      boardNo: candidateBoard.boardNo,
+      roundNo: candidateBoard.roundNo,
+      openThresholdPv: candidateBoard.openThresholdPv.toString(),
+    });
   }
 
   private async maybeSpillCompletedReentryRoundToUplineBoardTwo(

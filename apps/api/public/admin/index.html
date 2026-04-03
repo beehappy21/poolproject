@@ -1310,6 +1310,11 @@
                   <option value="approved">Approved</option>
                   <option value="pending">Pending</option>
                 </select>
+                <select id="orderSourceFilter">
+                  <option value="">All Sources</option>
+                  <option value="normal">Normal</option>
+                  <option value="matrix_reentry">Reentry</option>
+                </select>
                 <select id="orderSortSelect">
                   <option value="created_desc">Newest</option>
                   <option value="order_no_asc">Order No A-Z</option>
@@ -1324,6 +1329,7 @@
                     <th>ID</th>
                     <th>Order No</th>
                     <th>User</th>
+                    <th>Source</th>
                     <th>Status</th>
                     <th>PV</th>
                     <th>Actions</th>
