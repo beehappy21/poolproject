@@ -388,6 +388,7 @@ model User {
   matrixSourcePayouts            MatrixPayout[]                 @relation("MatrixPayoutSourceUser")
   matrixAccumulationEvents       MatrixAccumulationEvent[]      @relation("MatrixAccumulationSourceUser")
   lineBinding                    LineBinding?
+  productReviews                 ProductReview[]
 }
 
 model LineBinding {
@@ -568,8 +569,26 @@ model ProductDetail {
   product      Product       @relation(fields: [productId], references: [id])
   packageItems PackageItem[]
   memberPackageCycles MemberPackageCycle[]
+  reviews      ProductReview[]
 
   @@index([productId, status])
+}
+
+model ProductReview {
+  id              BigInt       @id @default(autoincrement())
+  productDetailId BigInt
+  userId          BigInt
+  rating          Int
+  comment         String?      @db.Text
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  productDetail ProductDetail @relation(fields: [productDetailId], references: [id])
+  user          User          @relation(fields: [userId], references: [id])
+
+  @@unique([productDetailId, userId])
+  @@index([productDetailId, createdAt])
+  @@index([userId, createdAt])
 }
 
 model Package {

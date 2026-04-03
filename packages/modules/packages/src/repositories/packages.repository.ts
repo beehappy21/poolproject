@@ -103,6 +103,33 @@ function computeFirmRedemptionEligible(input: {
   );
 }
 
+function toReviewSummary(review: {
+  id: bigint;
+  rating: number;
+  comment: string | null;
+  createdAt: Date;
+  user: {
+    name: string;
+    memberCode: string;
+  };
+}) {
+  const displayDate = review.createdAt.toLocaleDateString("th-TH", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+
+  return {
+    id: Number(review.id),
+    name: review.user.name || review.user.memberCode,
+    rating: review.rating,
+    comment: review.comment ?? undefined,
+    createdAt: review.createdAt.toISOString(),
+    date: displayDate,
+    photo: undefined,
+  };
+}
+
 function toPackageSummary(pkg: {
   id: bigint;
   code: string;
@@ -165,6 +192,37 @@ function toPackageSummary(pkg: {
 }
 
 export interface PackagesRepository {
+  listProductReviews(productDetailId: string): Promise<
+    Array<{
+      id: number;
+      name: string;
+      rating: number;
+      comment?: string;
+      createdAt?: string;
+      date?: string;
+      photo?: string;
+    }>
+  >;
+
+  upsertProductReview(input: {
+    productDetailId: string;
+    userId: string;
+    rating: number;
+    comment?: string;
+  }): Promise<{
+    review: {
+      id: number;
+      name: string;
+      rating: number;
+      comment?: string;
+      createdAt?: string;
+      date?: string;
+      photo?: string;
+    };
+    ratingAvg: string;
+    ratingCount: number;
+  }>;
+
   createSupplier(input: { code: string; name: string }): Promise<{
     supplierId: string;
     code: string;
@@ -434,6 +492,116 @@ export interface PackagesRepository {
 @Injectable()
 export class PrismaPackagesRepository implements PackagesRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  async listProductReviews(productDetailId: string) {
+    const productReview = (this.prisma as any).productReview;
+    const reviews = await productReview.findMany({
+      where: {
+        productDetailId: BigInt(productDetailId),
+      },
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+      include: {
+        user: {
+          select: {
+            name: true,
+            memberCode: true,
+          },
+        },
+      },
+    });
+
+    return reviews.map((review: {
+      id: bigint;
+      rating: number;
+      comment: string | null;
+      createdAt: Date;
+      user: {
+        name: string;
+        memberCode: string;
+      };
+    }) => toReviewSummary(review));
+  }
+
+  async upsertProductReview(input: {
+    productDetailId: string;
+    userId: string;
+    rating: number;
+    comment?: string;
+  }) {
+    return this.prisma.$transaction(async (tx) => {
+      const productReview = (tx as any).productReview;
+      const existingProductDetail = await tx.productDetail.findUnique({
+        where: {
+          id: BigInt(input.productDetailId),
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (!existingProductDetail) {
+        throw new Error("Product detail not found.");
+      }
+
+      const review = await productReview.upsert({
+        where: {
+          productDetailId_userId: {
+            productDetailId: BigInt(input.productDetailId),
+            userId: BigInt(input.userId),
+          },
+        },
+        update: {
+          rating: input.rating,
+          comment: input.comment ?? null,
+        },
+        create: {
+          productDetailId: BigInt(input.productDetailId),
+          userId: BigInt(input.userId),
+          rating: input.rating,
+          comment: input.comment ?? null,
+        },
+        include: {
+          user: {
+            select: {
+              name: true,
+              memberCode: true,
+            },
+          },
+        },
+      });
+
+      const aggregate = await productReview.aggregate({
+        where: {
+          productDetailId: BigInt(input.productDetailId),
+        },
+        _avg: {
+          rating: true,
+        },
+        _count: {
+          id: true,
+        },
+      });
+
+      const normalizedAverage = Number(aggregate._avg.rating || 0).toFixed(2);
+      const normalizedCount = aggregate._count.id || 0;
+
+      await tx.productDetail.update({
+        where: {
+          id: BigInt(input.productDetailId),
+        },
+        data: {
+          ratingAvg: normalizedAverage,
+          ratingCount: normalizedCount,
+        },
+      });
+
+      return {
+        review: toReviewSummary(review),
+        ratingAvg: normalizedAverage,
+        ratingCount: normalizedCount,
+      };
+    });
+  }
 
   async createSupplier(input: { code: string; name: string }) {
     const supplier = await this.prisma.supplier.create({

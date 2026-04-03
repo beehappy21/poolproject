@@ -29,19 +29,12 @@ import {MyPromocodes} from './MyPromocodes';
 import {OrderHistory} from './OrderHistory';
 import {LeaveAReview} from './LeaveAReview';
 import {Categories} from './tabs/Categories';
-import {DeleteAccount} from './DeleteAccount';
 import {ChangePassword} from './ChangePassword';
 import {ForgotPassword} from './ForgotPassword';
 import {OrderSuccessful} from './OrderSuccessful';
 import {WishlistEmpty} from './tabs/WishlistEmpty';
 import {MyPromocodesEmpty} from './MyPromocodesEmpty';
 import {OrderHistoryEmpty} from './OrderHistoryEmpty';
-import {VerifyEmail} from './verification/VerifyEmail';
-import {VerifyPhone} from './verification/VerifyPhone';
-import {SendPhoneOtp} from './verification/SendPhoneOtp';
-import {SendEmailOtp} from './verification/SendEmailOtp';
-import {PhoneVerified} from './verification/PhoneVerified';
-import {EmailVerified} from './verification/EmailVerified';
 import {SignUpAccountCreated} from './SignUpAccountCreated';
 import {ShippingAndPaymentInfo} from './ShippingAndPaymentInfo';
 import {ForgotPasswordSentEmail} from './ForgotPasswordSentEmail';
@@ -72,22 +65,15 @@ export const screens = {
   CartEmpty,
   InfoSaved,
   Categories,
-  VerifyPhone,
   Description,
   EditProfile,
   OrderFailed,
   NewPassword,
-  VerifyEmail,
   OrderHistory,
-  SendEmailOtp,
   MyPromocodes,
-  SendPhoneOtp,
   LeaveAReview,
-  DeleteAccount,
   ChangePassword,
-  PhoneVerified,
   WishlistEmpty,
-  EmailVerified,
   ForgotPassword,
   OrderSuccessful,
   OrderHistoryEmpty,

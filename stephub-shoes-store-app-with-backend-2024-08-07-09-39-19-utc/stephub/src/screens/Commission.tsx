@@ -228,35 +228,32 @@ const normalizePositiveInteger = (value?: number, fallback = 2): number => {
   return normalized > 0 ? normalized : fallback;
 };
 
-const buildReentryPreferenceKey = (memberCode?: string) =>
-  `commission-reentry-enabled:${memberCode || 'guest'}`;
-
-const readReentryPreference = (memberCode?: string): boolean => {
-  if (typeof window === 'undefined') {
-    return false;
-  }
-
-  try {
-    return window.localStorage.getItem(buildReentryPreferenceKey(memberCode)) === 'true';
-  } catch (error) {
-    console.warn('Unable to read cached reentry preference.', error);
-    return false;
-  }
+const resolveActiveMatrixCycle = (
+  matrixResponse?: MatrixResponse,
+): MatrixCycleSummary | undefined => {
+  return (
+    matrixResponse?.cycles?.find(cycle => cycle.status?.toLowerCase() === 'active') ||
+    matrixResponse?.cycles?.[0]
+  );
 };
 
-const writeReentryPreference = (memberCode: string | undefined, enabled: boolean) => {
-  if (typeof window === 'undefined' || !memberCode) {
-    return;
+const canRequestManualReentry = (cycle?: MatrixCycleSummary): boolean => {
+  if (!cycle || cycle.status?.toLowerCase() !== 'active') {
+    return false;
   }
 
-  try {
-    window.localStorage.setItem(
-      buildReentryPreferenceKey(memberCode),
-      enabled ? 'true' : 'false',
+  const boards = cycle.boards || [];
+
+  return boards.some(board => {
+    if (board.boardNo !== 1 || board.status?.toLowerCase() !== 'completed') {
+      return false;
+    }
+
+    const nextRoundNo = (board.roundNo || 0) + 1;
+    return !boards.some(
+      entry => entry.boardNo === 1 && entry.roundNo === nextRoundNo,
     );
-  } catch (error) {
-    console.warn('Unable to persist reentry preference.', error);
-  }
+  });
 };
 
 const formatDateTime = (value?: string | null) => {
@@ -372,7 +369,6 @@ export const Commission: React.FC = () => {
 
   const [loading, setLoading] = useState(true);
   const [selectedKey, setSelectedKey] = useState<CommissionKey | null>(null);
-  const [swReentryEnabled, setSwReentryEnabled] = useState(false);
   const [commissionEntries, setCommissionEntries] = useState<CommissionEntry[]>([]);
   const [walletTransactions, setWalletTransactions] = useState<WalletTransactionSummary[]>([]);
   const [directReferrals, setDirectReferrals] = useState<DirectReferralSummary[]>([]);
@@ -385,6 +381,9 @@ export const Commission: React.FC = () => {
   const [convertError, setConvertError] = useState('');
   const [metrics, setMetrics] = useState<DashboardMetrics>(defaultMetrics);
   const [matrixData, setMatrixData] = useState<MatrixResponse>({cycles: []});
+  const [reentrySubmitting, setReentrySubmitting] = useState(false);
+  const [reentryMessage, setReentryMessage] = useState('');
+  const [reentryError, setReentryError] = useState('');
   const [viewportWidth, setViewportWidth] = useState<number>(() =>
     typeof window === 'undefined' ? 1440 : window.innerWidth,
   );
@@ -399,14 +398,6 @@ export const Commission: React.FC = () => {
     matrix: true,
     pool: true,
   });
-
-  useEffect(() => {
-    setSwReentryEnabled(readReentryPreference(user?.memberCode));
-  }, [user?.memberCode]);
-
-  useEffect(() => {
-    writeReentryPreference(user?.memberCode, swReentryEnabled);
-  }, [swReentryEnabled, user?.memberCode]);
 
   const loadCommissionPage = async () => {
     setLoading(true);
@@ -562,7 +553,10 @@ export const Commission: React.FC = () => {
       }
 
       const swBalance = parseDecimal(wallet?.shoppingBalance);
-      const reentryTarget = resolveReentryTarget(resolvedMatrixData, matrixSettings);
+      const activeCycle = resolveActiveMatrixCycle(resolvedMatrixData);
+      const reentryTarget = activeCycle
+        ? parseDecimal(activeCycle.cwReentryAmount)
+        : resolveReentryTarget(resolvedMatrixData, matrixSettings);
       const pendingWithdrawTotal = withdrawRequestItems.reduce((sum, request) => {
         if (
           request.status === 'pending' ||
@@ -651,12 +645,22 @@ export const Commission: React.FC = () => {
     : isTabletViewport
       ? '168px'
       : '196px';
+  const activeCycle = useMemo(
+    () => resolveActiveMatrixCycle(matrixData),
+    [matrixData],
+  );
+  const manualReentryAvailable = useMemo(
+    () => canRequestManualReentry(activeCycle),
+    [activeCycle],
+  );
+  const reentryCwAmount = useMemo(
+    () => parseDecimal(activeCycle?.cwReentryAmount || metrics.swReentryTarget),
+    [activeCycle?.cwReentryAmount, metrics.swReentryTarget],
+  );
 
   const cwAvailableForDisplay = useMemo(() => {
-    const total = parseDecimal(metrics.cwTotal);
-    const reentry = swReentryEnabled ? parseDecimal(metrics.swReentryTarget) : 0;
-    return Math.max(total - reentry, 0);
-  }, [metrics.cwTotal, metrics.swReentryTarget, swReentryEnabled]);
+    return Math.max(parseDecimal(metrics.cwTotal), 0);
+  }, [metrics.cwTotal]);
 
   const cwRecentEntries = useMemo(() => {
     return commissionEntries
@@ -794,7 +798,7 @@ export const Commission: React.FC = () => {
     }
 
     if (amount > cwAvailableForDisplay) {
-      setConvertError('จำนวนที่เปลี่ยนต้องไม่เกิน CW คงเหลือหลังหัก reentry');
+      setConvertError('จำนวนที่เปลี่ยนต้องไม่เกิน CW คงเหลือ');
       return;
     }
 
@@ -826,6 +830,42 @@ export const Commission: React.FC = () => {
       );
     } finally {
       setConvertSubmitting(false);
+    }
+  };
+
+  const handleOpenMatrixReentry = async () => {
+    if (!user?.accessToken) {
+      setReentryError('ต้องมี session ก่อนจึงจะเปิด reentry ได้');
+      return;
+    }
+
+    setReentrySubmitting(true);
+    setReentryMessage('');
+    setReentryError('');
+
+    try {
+      const response = await axios.post(
+        URLS.AUTH_MATRIX_REENTRY,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${user.accessToken}`,
+          },
+          withCredentials: true,
+        },
+      );
+
+      const nextRoundNo = response.data?.openedReentry?.roundNo;
+      setReentryMessage(
+        `เปิด reentry สำเร็จ${nextRoundNo ? ` รอบ ${nextRoundNo}` : ''} และอัปเดต firm ให้แล้ว`,
+      );
+      await loadCommissionPage();
+    } catch (error: any) {
+      setReentryError(
+        error?.response?.data?.message || 'ยังไม่สามารถเปิด reentry ได้ในขณะนี้',
+      );
+    } finally {
+      setReentrySubmitting(false);
     }
   };
 
@@ -1330,9 +1370,9 @@ export const Commission: React.FC = () => {
             >
               {formatDecimal(cwAvailableForDisplay)}
             </div>
-            {swReentryEnabled ? (
+            {manualReentryAvailable ? (
               <div style={{marginTop: 8, color: theme.colors.textColor}}>
-                หัก Reentry แล้ว {formatDecimal(parseDecimal(metrics.swReentryTarget))}
+                เปิด reentry ตอนนี้จะใช้ CW {formatDecimal(reentryCwAmount)}
               </div>
             ) : null}
           </div>
@@ -1750,26 +1790,64 @@ export const Commission: React.FC = () => {
                     Reentry
                   </span>
                   <button
+                    type='button'
+                    disabled={!manualReentryAvailable || reentrySubmitting}
                     onClick={event => {
                       event.stopPropagation();
-                      setSwReentryEnabled(current => !current);
+                      handleOpenMatrixReentry();
                     }}
                     style={{
                       border: 'none',
                       borderRadius: 999,
                       padding: '8px 14px',
-                      cursor: 'pointer',
-                      backgroundColor: swReentryEnabled ? '#16A34A' : '#DC2626',
+                      cursor:
+                        !manualReentryAvailable || reentrySubmitting
+                          ? 'not-allowed'
+                          : 'pointer',
+                      backgroundColor: manualReentryAvailable ? '#16A34A' : '#94A3B8',
                       color: '#FFFFFF',
-                      minWidth: 62,
+                      minWidth: 88,
+                      opacity: !manualReentryAvailable || reentrySubmitting ? 0.8 : 1,
                       ...theme.fonts.Mulish_700Bold,
                     }}
                   >
-                    {swReentryEnabled ? 'ON' : 'OFF'}
+                    {reentrySubmitting
+                      ? 'OPEN...'
+                      : manualReentryAvailable
+                        ? 'OPEN'
+                        : 'LOCKED'}
                   </button>
                 </div>
               </div>
             </section>
+
+            {reentryMessage ? (
+              <section
+                style={{
+                  marginBottom: 16,
+                  padding: '12px 14px',
+                  borderRadius: 14,
+                  backgroundColor: '#DCFCE7',
+                  color: '#166534',
+                }}
+              >
+                {reentryMessage}
+              </section>
+            ) : null}
+
+            {reentryError ? (
+              <section
+                style={{
+                  marginBottom: 16,
+                  padding: '12px 14px',
+                  borderRadius: 14,
+                  backgroundColor: '#FEE2E2',
+                  color: '#B91C1C',
+                }}
+              >
+                {reentryError}
+              </section>
+            ) : null}
 
             <section
               style={{

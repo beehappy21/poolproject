@@ -5,6 +5,7 @@ import { CommissionsModule } from "../../commissions";
 import { MatrixModule } from "../../matrix/src";
 import { MembersModule } from "../../members";
 import { OrdersModule } from "../../orders";
+import { PackagesModule } from "../../packages";
 import { PoolModule } from "../../pool";
 import { WalletsModule } from "../../wallets";
 import { AuthController } from "./controllers/auth.controller";
@@ -16,6 +17,7 @@ import { AuthService } from "./services/auth.service";
     PrismaModule,
     MembersModule,
     OrdersModule,
+    PackagesModule,
     forwardRef(() => WalletsModule),
     CommissionsModule,
     MatrixModule,
