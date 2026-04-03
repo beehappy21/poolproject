@@ -566,8 +566,8 @@ export class WalletsService implements WalletsServiceContract {
     }
 
     const wallet = await this.walletsRepository.getWalletSummary(input.userId);
-    if (compareDecimalStrings(wallet.withdrawableBalance, input.amount) < 0) {
-      throw new Error("Insufficient withdrawable balance.");
+    if (compareDecimalStrings(wallet.shoppingBalance, input.amount) < 0) {
+      throw new Error("Insufficient SW balance.");
     }
 
     const taxAmount = multiplyDecimalStrings(input.amount, settings.withholdingTaxRate);

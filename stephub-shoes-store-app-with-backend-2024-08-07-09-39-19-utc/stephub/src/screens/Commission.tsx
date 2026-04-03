@@ -163,6 +163,14 @@ type MatrixResponse = {
   cycles?: MatrixCycleSummary[];
 };
 
+type MatrixPayoutSummary = {
+  payoutId: string;
+  beneficiaryUserId: string;
+  amount: string;
+  status: string;
+  createdAt: string;
+};
+
 type MatrixSettingsResponse = {
   boardOpenPvThresholds?: string[];
 };
@@ -269,6 +277,26 @@ const formatDateTime = (value?: string | null) => {
   }
 
   return parsed.toLocaleString('th-TH');
+};
+
+const formatDateParts = (value?: string | null) => {
+  if (!value) {
+    return {date: '-', time: '-'};
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return {date: '-', time: '-'};
+  }
+
+  return {
+    date: parsed.toLocaleDateString('th-TH'),
+    time: parsed.toLocaleTimeString('th-TH', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    }),
+  };
 };
 
 const isWithinLastDays = (value?: string | null, days = 5) => {
@@ -421,6 +449,7 @@ export const Commission: React.FC = () => {
         matrixResult,
         transactionsResult,
         withdrawRequestsResult,
+        matrixPayoutsResult,
       ] = await Promise.allSettled([
         axios.get<CommissionSettingsResponse>(URLS.GET_COMMISSION_SETTINGS),
         axios.get<MatrixSettingsResponse>(URLS.GET_MATRIX_SETTINGS),
@@ -429,6 +458,12 @@ export const Commission: React.FC = () => {
         axios.get<MatrixResponse>(URLS.AUTH_MATRIX, authRequestConfig),
         axios.get<WalletTransactionSummary[]>(URLS.AUTH_TRANSACTIONS, authRequestConfig),
         axios.get<WithdrawRequestSummary[]>(URLS.AUTH_WITHDRAW_REQUESTS, authRequestConfig),
+        user?.userId
+          ? axios.get<MatrixPayoutSummary[]>(
+              `${URLS.API_BASE_URL}/matrix/payouts?beneficiaryUserId=${user.userId}`,
+              {withCredentials: true},
+            )
+          : Promise.resolve({data: [] as MatrixPayoutSummary[]}),
       ]);
 
       if (commissionSettingsResult.status === 'fulfilled') {
@@ -525,7 +560,7 @@ export const Commission: React.FC = () => {
           : undefined;
 
       const startOfToday = toStartOfToday();
-      const cwToday = commissions.reduce((sum, entry) => {
+      const todayCommissionTotal = commissions.reduce((sum, entry) => {
         if (entry.status?.toLowerCase() === 'fallback' || !entry.createdAt) {
           return sum;
         }
@@ -538,6 +573,23 @@ export const Commission: React.FC = () => {
 
         return sum + parseDecimal(entry.amount);
       }, 0);
+
+      const matrixPayouts =
+        matrixPayoutsResult.status === 'fulfilled'
+          ? matrixPayoutsResult.value.data
+          : [];
+
+      const todayMatrixTotal = matrixPayouts.reduce((sum, payout) => {
+        const createdAt = new Date(payout.createdAt || '').getTime();
+
+        if (Number.isNaN(createdAt) || createdAt < startOfToday) {
+          return sum;
+        }
+
+        return sum + parseDecimal(payout.amount);
+      }, 0);
+
+      const cwToday = todayCommissionTotal + todayMatrixTotal;
 
       if (user?.memberCode) {
         try {
@@ -685,6 +737,34 @@ export const Commission: React.FC = () => {
       });
   }, [commissionEntries]);
 
+  const cashbackEntries = useMemo(() => {
+    return commissionEntries
+      .filter(entry => entry.commissionType?.toLowerCase() === 'cashback')
+      .sort(
+        (left, right) =>
+          new Date(right.createdAt || 0).getTime() -
+          new Date(left.createdAt || 0).getTime(),
+      );
+  }, [commissionEntries]);
+
+  const directEntries = useMemo(() => {
+    return commissionEntries
+      .filter(entry => entry.commissionType?.toLowerCase() === 'direct')
+      .sort(
+        (left, right) =>
+          new Date(right.createdAt || 0).getTime() -
+          new Date(left.createdAt || 0).getTime(),
+      );
+  }, [commissionEntries]);
+
+  const cashbackTotal = useMemo(() => {
+    return cashbackEntries.reduce((sum, entry) => sum + parseDecimal(entry.amount), 0);
+  }, [cashbackEntries]);
+
+  const directTotal = useMemo(() => {
+    return directEntries.reduce((sum, entry) => sum + parseDecimal(entry.amount), 0);
+  }, [directEntries]);
+
   const recentDcwTransactions = useMemo(() => {
     return walletTransactions
       .filter(
@@ -758,6 +838,252 @@ export const Commission: React.FC = () => {
     ...metrics,
     cwTotal: formatDecimal(cwAvailableForDisplay),
   });
+
+  const renderCommissionSummaryCard = () => {
+    if (!selectedCard || selectedCard.key === 'matrix') {
+      return null;
+    }
+
+    if (selectedCard.key === 'cashback') {
+      return (
+        <section style={{display: 'grid', gap: 12}}>
+          <div
+            style={{
+              padding: 18,
+              borderRadius: 16,
+              backgroundColor: theme.colors.white,
+              border: `1px solid ${theme.colors.aliceBlue2}`,
+            }}
+          >
+            <p
+              style={{
+                margin: '0 0 6px',
+                color: theme.colors.textColor,
+                fontSize: 14,
+                ...theme.fonts.Mulish_400Regular,
+              }}
+            >
+              {selectedCard.title}
+            </p>
+            <h3
+              style={{
+                margin: '0 0 8px',
+                color: theme.colors.mainColor,
+                fontSize: 22,
+                ...theme.fonts.Mulish_700Bold,
+              }}
+            >
+              รวม {formatDecimal(cashbackTotal)}
+            </h3>
+            <p style={{margin: 0, color: theme.colors.textColor, lineHeight: 1.6}}>
+              รายการ cashback ทั้งหมด {cashbackEntries.length} รายการ
+            </p>
+          </div>
+
+          {cashbackEntries.slice(0, 5).map(entry => (
+            <article
+              key={entry.commissionId || `${entry.createdAt}-${entry.amount}`}
+              style={{
+                padding: 14,
+                borderRadius: 14,
+                backgroundColor: '#F8FAFC',
+                border: `1px solid ${theme.colors.aliceBlue2}`,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 12,
+                  marginBottom: 6,
+                }}
+              >
+                <div style={{color: theme.colors.mainColor, ...theme.fonts.Mulish_700Bold}}>
+                  Cashback
+                </div>
+                <div style={{color: theme.colors.mainColor, ...theme.fonts.Mulish_700Bold}}>
+                  {formatDecimal(parseDecimal(entry.amount))}
+                </div>
+              </div>
+              <div style={{color: theme.colors.textColor, lineHeight: 1.6}}>
+                <div>เวลา: {formatDateTime(entry.createdAt)}</div>
+                <div>สถานะ: {entry.status || '-'}</div>
+              </div>
+            </article>
+          ))}
+
+          {!cashbackEntries.length ? (
+            <div style={{color: theme.colors.textColor}}>ยังไม่มีรายการ cashback</div>
+          ) : null}
+        </section>
+      );
+    }
+
+    if (selectedCard.key === 'direct') {
+      return (
+        <section style={{display: 'grid', gap: 12}}>
+          <div
+            style={{
+              padding: 18,
+              borderRadius: 16,
+              backgroundColor: theme.colors.white,
+              border: `1px solid ${theme.colors.aliceBlue2}`,
+            }}
+          >
+            <p
+              style={{
+                margin: '0 0 6px',
+                color: theme.colors.textColor,
+                fontSize: 14,
+                ...theme.fonts.Mulish_400Regular,
+              }}
+            >
+              {selectedCard.title}
+            </p>
+            <h3
+              style={{
+                margin: '0 0 8px',
+                color: theme.colors.mainColor,
+                fontSize: 22,
+                ...theme.fonts.Mulish_700Bold,
+              }}
+            >
+              รวม {formatDecimal(directTotal)}
+            </h3>
+            <p style={{margin: 0, color: theme.colors.textColor, lineHeight: 1.6}}>
+              สมาชิกสายตรง {directReferrals.length} คน · รายการ direct {directEntries.length} รายการ
+            </p>
+          </div>
+
+          {directReferrals.length ? (
+            <section
+              style={{
+                padding: 14,
+                borderRadius: 14,
+                backgroundColor: '#F8FAFC',
+                border: `1px solid ${theme.colors.aliceBlue2}`,
+              }}
+            >
+              <div
+                style={{
+                  marginBottom: 10,
+                  color: theme.colors.mainColor,
+                  ...theme.fonts.Mulish_700Bold,
+                }}
+              >
+                สมาชิกสายตรง
+              </div>
+              <div style={{display: 'grid', gap: 10}}>
+                {directReferrals.slice(0, 5).map(referral => (
+                  <div
+                    key={referral.memberId}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                    }}
+                  >
+                    <div>
+                      <div style={{color: theme.colors.mainColor, ...theme.fonts.Mulish_700Bold}}>
+                        {referral.memberCode}
+                      </div>
+                      <div style={{color: theme.colors.textColor}}>{referral.name}</div>
+                    </div>
+                    <div style={{color: theme.colors.textColor}}>
+                      ทีมย่อย {referral.childCount}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {directEntries.slice(0, 5).map(entry => (
+            <article
+              key={entry.commissionId || `${entry.createdAt}-${entry.amount}`}
+              style={{
+                padding: 14,
+                borderRadius: 14,
+                backgroundColor: '#F8FAFC',
+                border: `1px solid ${theme.colors.aliceBlue2}`,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 12,
+                  marginBottom: 6,
+                }}
+              >
+                <div style={{color: theme.colors.mainColor, ...theme.fonts.Mulish_700Bold}}>
+                  Direct {entry.levelNo ? `L${entry.levelNo}` : ''}
+                </div>
+                <div style={{color: theme.colors.mainColor, ...theme.fonts.Mulish_700Bold}}>
+                  {formatDecimal(parseDecimal(entry.amount))}
+                </div>
+              </div>
+              <div style={{color: theme.colors.textColor, lineHeight: 1.6}}>
+                <div>เวลา: {formatDateTime(entry.createdAt)}</div>
+                <div>สถานะ: {entry.status || '-'}</div>
+              </div>
+            </article>
+          ))}
+
+          {!directEntries.length && !directReferrals.length ? (
+            <div style={{color: theme.colors.textColor}}>ยังไม่มีข้อมูล direct</div>
+          ) : null}
+        </section>
+      );
+    }
+
+    return (
+      <section style={{display: 'grid', gap: 12}}>
+        <div
+          key={selectedCard.title}
+          style={{
+            padding: 18,
+            borderRadius: 16,
+            backgroundColor: theme.colors.white,
+            border: `1px solid ${theme.colors.aliceBlue2}`,
+          }}
+        >
+          <p
+            style={{
+              margin: '0 0 6px',
+              color: theme.colors.textColor,
+              fontSize: 14,
+              ...theme.fonts.Mulish_400Regular,
+            }}
+          >
+            {selectedCard.title}
+          </p>
+          <h3
+            style={{
+              margin: '0 0 8px',
+              color: theme.colors.mainColor,
+              fontSize: 22,
+              ...theme.fonts.Mulish_700Bold,
+            }}
+          >
+            {selectedCard.value}
+          </h3>
+          <p
+            style={{
+              margin: 0,
+              color: theme.colors.textColor,
+              lineHeight: 1.6,
+              ...theme.fonts.Mulish_400Regular,
+            }}
+          >
+            {selectedCard.note}
+          </p>
+        </div>
+      </section>
+    );
+  };
 
   const handleTileClick = (tileKey: string) => {
     if (tileKey === 'sw-transfer') {
@@ -1507,36 +1833,95 @@ const getBoardStatusLabel = (board: MatrixBoardSummary) => {
     if (detailPanel === 'cw-today') {
       title = 'ค่าคอมมิชชั่นย้อนหลัง 5 วัน';
       content = cwRecentEntries.length ? (
-        <div style={{overflowX: 'auto'}}>
-          <table style={{width: '100%', borderCollapse: 'collapse'}}>
-            <thead>
-              <tr style={{textAlign: 'left', color: '#64748B'}}>
-                <th style={{padding: '0 0 12px'}}>วันเวลา</th>
-                <th style={{padding: '0 0 12px'}}>ข้อคอมมิชชั่น</th>
-                <th style={{padding: '0 0 12px'}}>ยอด</th>
-                <th style={{padding: '0 0 12px'}}>สถานะ</th>
-              </tr>
-            </thead>
-            <tbody>
-              {cwRecentEntries.map(entry => (
-                <tr key={entry.commissionId || `${entry.createdAt}-${entry.amount}`}>
-                  <td style={{padding: '12px 0', borderTop: '1px solid #E2E8F0'}}>
-                    {formatDateTime(entry.createdAt)}
-                  </td>
-                  <td style={{padding: '12px 0', borderTop: '1px solid #E2E8F0'}}>
+        <div
+          style={{
+            display: 'grid',
+            gap: 12,
+            maxHeight: '58vh',
+            overflowY: 'auto',
+            paddingRight: 4,
+          }}
+        >
+          {cwRecentEntries.map(entry => {
+            const {date, time} = formatDateParts(entry.createdAt);
+            const member = entry.sourceUserId
+              ? memberDirectory.get(entry.sourceUserId)
+              : undefined;
+            const code = member?.memberCode || entry.orderId || entry.sourceUserId || '-';
+
+            return (
+              <article
+                key={entry.commissionId || `${entry.createdAt}-${entry.amount}`}
+                style={{
+                  padding: 14,
+                  borderRadius: 14,
+                  backgroundColor: '#F8FAFC',
+                  border: `1px solid ${theme.colors.aliceBlue2}`,
+                  display: 'grid',
+                  gap: 10,
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      color: theme.colors.mainColor,
+                      fontSize: 16,
+                      lineHeight: 1.2,
+                      ...theme.fonts.Mulish_700Bold,
+                    }}
+                  >
+                    {date}
+                  </div>
+                  <div
+                    style={{
+                      marginTop: 2,
+                      color: '#64748B',
+                      fontSize: 8,
+                      lineHeight: 1.2,
+                      ...theme.fonts.Mulish_600SemiBold,
+                    }}
+                  >
+                    {time}
+                  </div>
+                </div>
+
+                <div style={{color: theme.colors.textColor}}>
+                  รหัส: <strong style={{color: theme.colors.mainColor}}>{code}</strong>
+                </div>
+
+                <div style={{color: theme.colors.textColor}}>
+                  ประเภท:{' '}
+                  <strong style={{color: theme.colors.mainColor}}>
                     {getCommissionTypeLabel(entry.commissionType)}
                     {entry.levelNo ? ` L${entry.levelNo}` : ''}
-                  </td>
-                  <td style={{padding: '12px 0', borderTop: '1px solid #E2E8F0'}}>
+                  </strong>
+                </div>
+
+                <div
+                  style={{
+                    color: theme.colors.textColor,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: 12,
+                  }}
+                >
+                  <span>ยอดเงิน</span>
+                  <strong
+                    style={{
+                      color: theme.colors.mainColor,
+                      maxWidth: '55%',
+                      overflowX: 'auto',
+                      whiteSpace: 'nowrap',
+                      textAlign: 'right',
+                    }}
+                  >
                     {formatDecimal(parseDecimal(entry.amount))}
-                  </td>
-                  <td style={{padding: '12px 0', borderTop: '1px solid #E2E8F0'}}>
-                    {entry.status || '-'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </strong>
+                </div>
+              </article>
+            );
+          })}
         </div>
       ) : (
         <div style={{color: theme.colors.textColor}}>
@@ -2002,50 +2387,9 @@ const getBoardStatusLabel = (board: MatrixBoardSummary) => {
 
         {selectedCard?.key === 'matrix' ? renderMatrixBoards() : null}
 
-        {selectedCard && selectedCard.key !== 'matrix' ? (
-          <section style={{display: 'grid', gap: 12}}>
-            <div
-              key={selectedCard.title}
-              style={{
-                padding: 18,
-                borderRadius: 16,
-                backgroundColor: theme.colors.white,
-                border: `1px solid ${theme.colors.aliceBlue2}`,
-              }}
-            >
-              <p
-                style={{
-                  margin: '0 0 6px',
-                  color: theme.colors.textColor,
-                  fontSize: 14,
-                  ...theme.fonts.Mulish_400Regular,
-                }}
-              >
-                {selectedCard.title}
-              </p>
-              <h3
-                style={{
-                  margin: '0 0 8px',
-                  color: theme.colors.mainColor,
-                  fontSize: 22,
-                  ...theme.fonts.Mulish_700Bold,
-                }}
-              >
-                {selectedCard.value}
-              </h3>
-              <p
-                style={{
-                  margin: 0,
-                  color: theme.colors.textColor,
-                  lineHeight: 1.6,
-                  ...theme.fonts.Mulish_400Regular,
-                }}
-              >
-                {selectedCard.note}
-              </p>
-            </div>
-          </section>
-        ) : null}
+        {selectedCard && selectedCard.key !== 'matrix'
+          ? renderCommissionSummaryCard()
+          : null}
 
         {renderMatrixBoardModal()}
         {renderDetailPanel()}
