@@ -20,4 +20,8 @@ if [[ -z "${NODE_BIN:-}" || ! -x "$NODE_BIN" ]]; then
 fi
 
 cd "$ROOT_DIR"
+export APP_WAP_URL="${APP_WAP_URL:-https://wap.blifehealthy.com}"
+export APP_PUBLIC_BASE_URL="${APP_PUBLIC_BASE_URL:-https://api.blifehealthy.com}"
+export LINE_LOGIN_CALLBACK_URL="${LINE_LOGIN_CALLBACK_URL:-https://wap.blifehealthy.com/line/liff/signin}"
+export LINE_LIFF_SIGNIN_URL="${LINE_LIFF_SIGNIN_URL:-https://wap.blifehealthy.com/line/liff/signin}"
 exec "$NODE_BIN" dist/apps/api/apps/api/src/main.js
