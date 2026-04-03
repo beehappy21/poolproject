@@ -272,6 +272,254 @@
                     </form>
                 </div>
             </div>
+
+            <div class="commission-panel">
+                <form action="{{ route('platform.commission.save') }}" method="POST" data-turbo="false">
+                @csrf
+                <input type="hidden" name="redirectSection" value="settings">
+                <div class="commission-eyebrow">Direct Bonus Settings</div>
+                <div class="commission-toolbar">
+                    <button type="button" class="commission-action" data-level-list="settingsDirectLevelList" data-level-label="Direct level" data-level-action="add">+ Add level</button>
+                    <button type="button" class="commission-action" data-level-list="settingsDirectLevelList" data-level-label="Direct level" data-level-action="remove">- Remove level</button>
+                </div>
+                <div class="commission-form-grid" id="settingsDirectLevelList">
+                    @foreach ($directRates as $index => $value)
+                        <div class="commission-field" data-level-item>
+                            <label>Direct level {{ $index + 1 }}</label>
+                            <input name="directLevelRates[]" value="{{ $value }}" required>
+                        </div>
+                    @endforeach
+                </div>
+                @foreach ($uniRates as $value)
+                    <input type="hidden" name="uniLevelRates[]" value="{{ $value }}">
+                @endforeach
+                <input type="hidden" name="poolRate" value="{{ $poolRate }}">
+                <input type="hidden" name="cashbackRate" value="{{ $cashbackRate }}">
+                @foreach ([
+                    'cashback' => 'cashbackVisible',
+                    'direct' => 'directVisible',
+                    'unilevel' => 'unilevelVisible',
+                    'matrix' => 'matrixVisible',
+                    'pool' => 'poolVisible',
+                ] as $key => $inputName)
+                    <input type="hidden" name="{{ $inputName }}" value="{{ !empty($appVisibility[$key]) ? '1' : '0' }}">
+                @endforeach
+                <button type="submit" class="commission-save">Save Direct Settings</button>
+                </form>
+            </div>
+
+            <div class="commission-panel">
+                <form action="{{ route('platform.commission.save') }}" method="POST" data-turbo="false">
+                @csrf
+                <input type="hidden" name="redirectSection" value="settings">
+                @foreach ($directRates as $value)
+                    <input type="hidden" name="directLevelRates[]" value="{{ $value }}">
+                @endforeach
+                <div class="commission-eyebrow">Unilevel Bonus Settings</div>
+                <div class="commission-toolbar">
+                    <button type="button" class="commission-action" data-level-list="settingsUniLevelList" data-level-label="Unilevel" data-level-action="add">+ Add level</button>
+                    <button type="button" class="commission-action" data-level-list="settingsUniLevelList" data-level-label="Unilevel" data-level-action="remove">- Remove level</button>
+                </div>
+                <div class="commission-form-grid" id="settingsUniLevelList">
+                    @foreach ($uniRates as $index => $value)
+                        <div class="commission-field" data-level-item>
+                            <label>Unilevel {{ $index + 1 }}</label>
+                            <input name="uniLevelRates[]" value="{{ $value }}" required>
+                        </div>
+                    @endforeach
+                </div>
+                <input type="hidden" name="poolRate" value="{{ $poolRate }}">
+                <input type="hidden" name="cashbackRate" value="{{ $cashbackRate }}">
+                @foreach ([
+                    'cashback' => 'cashbackVisible',
+                    'direct' => 'directVisible',
+                    'unilevel' => 'unilevelVisible',
+                    'matrix' => 'matrixVisible',
+                    'pool' => 'poolVisible',
+                ] as $key => $inputName)
+                    <input type="hidden" name="{{ $inputName }}" value="{{ !empty($appVisibility[$key]) ? '1' : '0' }}">
+                @endforeach
+                <button type="submit" class="commission-save">Save Unilevel Settings</button>
+                </form>
+            </div>
+
+            <div class="commission-panel">
+                <form action="{{ route('platform.commission.save') }}" method="POST" data-turbo="false">
+                @csrf
+                <input type="hidden" name="redirectSection" value="settings">
+                @foreach ($directRates as $value)
+                    <input type="hidden" name="directLevelRates[]" value="{{ $value }}">
+                @endforeach
+                @foreach ($uniRates as $value)
+                    <input type="hidden" name="uniLevelRates[]" value="{{ $value }}">
+                @endforeach
+                @foreach ([
+                    'cashback' => 'cashbackVisible',
+                    'direct' => 'directVisible',
+                    'unilevel' => 'unilevelVisible',
+                    'matrix' => 'matrixVisible',
+                    'pool' => 'poolVisible',
+                ] as $key => $inputName)
+                    <input type="hidden" name="{{ $inputName }}" value="{{ !empty($appVisibility[$key]) ? '1' : '0' }}">
+                @endforeach
+                <div class="commission-eyebrow">Pool And Cashback</div>
+                <div class="commission-form-grid">
+                    <div class="commission-field">
+                        <label>Pool rate</label>
+                        <input name="poolRate" value="{{ $poolRate }}" required>
+                    </div>
+                    <div class="commission-field">
+                        <label>Cash back rate</label>
+                        <input name="cashbackRate" value="{{ $cashbackRate }}" required>
+                        <div class="commission-helper">คิดจาก PV ซื้อส่วนตัวของสมาชิก และจ่ายทันทีเมื่อออเดอร์ได้รับการอนุมัติ</div>
+                    </div>
+                </div>
+                <button type="submit" class="commission-save">Save Pool And Cashback</button>
+                </form>
+            </div>
+
+            <div class="commission-panel">
+                <form action="{{ route('platform.commission.saveMatrix') }}" method="POST" data-turbo="false">
+                @csrf
+                <input type="hidden" name="redirectSection" value="settings">
+                <div class="commission-eyebrow">Matrix Settings</div>
+                <div class="commission-form-grid">
+                    <div class="commission-field">
+                        <label>Board width</label>
+                        <input type="number" min="1" name="boardWidth" value="{{ $matrixBoardWidth }}" required>
+                    </div>
+                    <div class="commission-field">
+                        <label>PV ส่วนตัวขั้นต่ำเพื่อเปิดบอร์ด</label>
+                        <input name="organizationPvRate" value="{{ $matrixOrgRate }}" required>
+                    </div>
+                    <div class="commission-field">
+                        <label>CW สำหรับ Reentry</label>
+                        <input name="cwReentryAmount" value="{{ $matrixCwReentryAmount }}" required>
+                    </div>
+                </div>
+                <div class="commission-toolbar">
+                    <button type="button" class="commission-action" data-level-list="settingsMatrixThresholdList" data-level-label="Board" data-level-suffix="open PV threshold" data-level-action="add">+ Add board</button>
+                    <button type="button" class="commission-action" data-level-list="settingsMatrixThresholdList" data-level-label="Board" data-level-suffix="open PV threshold" data-level-action="remove">- Remove board</button>
+                </div>
+                <div class="commission-form-grid" id="settingsMatrixThresholdList">
+                    @foreach ($matrixThresholds as $index => $value)
+                        <div class="commission-field" data-level-item>
+                            <label>เกณฑ์ PV ส่วนตัวขั้นต่ำสำหรับเปิดบอร์ด {{ $index + 1 }}</label>
+                            <input name="boardOpenPvThresholds[]" value="{{ $value }}" required>
+                        </div>
+                    @endforeach
+                </div>
+                <div class="commission-eyebrow" style="margin-top:1.25rem;">เปอร์เซ็นต์รายชั้นของแต่ละบอร์ด</div>
+                <div class="commission-board-rate-list">
+                    @foreach ($matrixBoardLevelRates as $boardIndex => $boardRates)
+                        <div class="commission-board-rate-card" data-board-item>
+                            <div class="commission-board-rate-header">
+                                <h3 class="commission-board-rate-title">บอร์ด {{ $boardIndex + 1 }}</h3>
+                                <div class="commission-toolbar">
+                                    <button type="button" class="commission-action" data-level-list="settingsMatrixBoardLevels-{{ $boardIndex }}" data-level-label="บอร์ด {{ $boardIndex + 1 }} ชั้น" data-level-action="add">+ Add level</button>
+                                    <button type="button" class="commission-action" data-level-list="settingsMatrixBoardLevels-{{ $boardIndex }}" data-level-label="บอร์ด {{ $boardIndex + 1 }} ชั้น" data-level-action="remove">- Remove level</button>
+                                </div>
+                            </div>
+                            <div class="commission-form-grid" id="settingsMatrixBoardLevels-{{ $boardIndex }}">
+                                @foreach ($boardRates as $rateIndex => $rateValue)
+                                    <div class="commission-field" data-level-item>
+                                        <label>บอร์ด {{ $boardIndex + 1 }} ชั้น {{ $rateIndex + 1 }}</label>
+                                        <input name="boardLevelRates[{{ $boardIndex }}][]" value="{{ $rateValue }}" required>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+                <button type="submit" class="commission-save">Save Matrix Settings</button>
+                </form>
+            </div>
+
+            <div class="commission-panel">
+                <form action="{{ route('platform.commission.saveMatrix') }}" method="POST" data-turbo="false">
+                @csrf
+                <input type="hidden" name="redirectSection" value="settings">
+                <input type="hidden" name="boardWidth" value="{{ $matrixBoardWidth }}">
+                <input type="hidden" name="organizationPvRate" value="{{ $matrixOrgRate }}">
+                @foreach ($matrixThresholds as $value)
+                    <input type="hidden" name="boardOpenPvThresholds[]" value="{{ $value }}">
+                @endforeach
+                @foreach ($matrixBoardLevelRates as $boardIndex => $boardRates)
+                    @foreach ($boardRates as $rateValue)
+                        <input type="hidden" name="boardLevelRates[{{ $boardIndex }}][]" value="{{ $rateValue }}">
+                    @endforeach
+                @endforeach
+                <div class="commission-eyebrow">Reentry Settings</div>
+                <div class="commission-form-grid">
+                    <div class="commission-field">
+                        <label>ยอด Reentry</label>
+                        <input name="cwReentryAmount" value="{{ $matrixCwReentryAmount }}" required>
+                    </div>
+                    <div class="commission-field">
+                        <label>จำนวน Firm ที่ได้</label>
+                        <input name="reentryFirmAmount" value="{{ $matrixReentryFirmAmount }}" required>
+                    </div>
+                    <div class="commission-field">
+                        <label>จำนวน PV ที่ได้</label>
+                        <input name="reentryPvAmount" value="{{ $matrixReentryPvAmount }}" required>
+                    </div>
+                </div>
+                <button type="submit" class="commission-save">Save Reentry Settings</button>
+                </form>
+            </div>
+
+            <div class="commission-panel">
+                <form action="{{ route('platform.commission.saveManualPayment') }}" method="POST" enctype="multipart/form-data" data-turbo="false">
+                @csrf
+                <div class="commission-eyebrow">Manual Payment Instructions</div>
+                <div class="commission-form-grid">
+                    <div class="commission-field">
+                        <label>Account name</label>
+                        <input name="accountName" value="{{ $manualAccountName }}" required>
+                    </div>
+                    <div class="commission-field">
+                        <label>Bank name</label>
+                        <input name="bankName" value="{{ $manualBankName }}" required>
+                    </div>
+                    <div class="commission-field">
+                        <label>Account number</label>
+                        <input name="accountNumber" value="{{ $manualAccountNumber }}" required>
+                    </div>
+                    <div class="commission-field">
+                        <label>PromptPay name</label>
+                        <input name="promptPayName" value="{{ $manualPromptPayName }}" required>
+                    </div>
+                    <div class="commission-field">
+                        <label>PromptPay number</label>
+                        <input name="promptPayNumber" value="{{ $manualPromptPayNumber }}" required>
+                    </div>
+                </div>
+                <div class="commission-form-grid">
+                    <div class="commission-field" style="grid-column:1 / -1;">
+                        <label>Payment note</label>
+                        <textarea name="note" required>{{ $manualPaymentNote }}</textarea>
+                    </div>
+                </div>
+                <button type="submit" class="commission-save">Save Manual Payment</button>
+                </form>
+            </div>
+
+            <div class="commission-panel">
+                <form action="{{ route('platform.commission.saveSignupShare') }}" method="POST" data-turbo="false">
+                @csrf
+                <input type="hidden" name="redirectSection" value="settings">
+                <div class="commission-eyebrow">Signup Share Messages</div>
+                <div class="commission-field" style="margin-top:1rem;">
+                    <label for="settingsShareLinkMessage">ข้อความแนบลิงก์สมัคร</label>
+                    <textarea id="settingsShareLinkMessage" name="shareLinkMessage">{{ $signupShareLinkMessage }}</textarea>
+                </div>
+                <div class="commission-field" style="margin-top:1rem;">
+                    <label for="settingsSignupSuccessMessage">ข้อความหลังสมัครสำเร็จ</label>
+                    <textarea id="settingsSignupSuccessMessage" name="signupSuccessMessage">{{ $signupSuccessMessage }}</textarea>
+                </div>
+                <button type="submit" class="commission-save">Save Signup Share Messages</button>
+                </form>
+            </div>
         @endif
 
         @if ($activeKey === 'direct' || $activeKey === 'unilevel' || $activeKey === 'pool' || $activeKey === 'cashback')
@@ -659,16 +907,12 @@
         @endif
 
         <div class="commission-panel">
-            <div class="commission-eyebrow">Planning Notes</div>
+            <div class="commission-eyebrow">{{ $activeKey === 'settings' ? 'Operational Notes' : 'Section Notes' }}</div>
             <ol class="commission-list">
                 @foreach (($section['bullets'] ?? []) as $bullet)
                     <li>{{ $bullet }}</li>
                 @endforeach
             </ol>
-        </div>
-
-        <div class="commission-placeholder">
-            Commission pages now write into the shared runtime settings used by poolproject. Next step is wiring deeper validation and per-section business rules.
         </div>
     </section>
 </div>
