@@ -36,6 +36,14 @@ function buildMatrixReentryAuditRef(matrixEventId: string) {
   return `${MATRIX_REENTRY_AUDIT_PREFIX}:${matrixEventId}`;
 }
 
+function resolveOrderSourceType(
+  approvalBatchRef?: string | null,
+): "normal" | "matrix_reentry" {
+  return approvalBatchRef?.startsWith(`${MATRIX_REENTRY_AUDIT_PREFIX}:`)
+    ? "matrix_reentry"
+    : "normal";
+}
+
 function computeDefaultDcwUsageAmount(input: {
   costPriceUsdt: string;
   memberPriceUsdt: string;
@@ -96,6 +104,7 @@ export interface OrdersRepository {
   listOrders(filters?: {
     userId?: string;
     approvalStatus?: "pending" | "approved";
+    sourceType?: "normal" | "matrix_reentry";
     bucket?:
       | "awaiting-payment"
       | "transfer-review"
@@ -127,6 +136,7 @@ export interface OrdersRepository {
         shipmentTrackingNo: string | null;
         shipmentCarrier: string | null;
         shipmentNote: string | null;
+        orderSourceType: "normal" | "matrix_reentry";
         fulfillmentMethod: "delivery" | "branch_pickup";
         pickupBranchName: string | null;
         pickupBranchNote: string | null;
@@ -157,6 +167,7 @@ export interface OrdersRepository {
           shipmentTrackingNo: string | null;
           shipmentCarrier: string | null;
           shipmentNote: string | null;
+          orderSourceType: "normal" | "matrix_reentry";
           fulfillmentMethod: "delivery" | "branch_pickup";
           pickupBranchName: string | null;
           pickupBranchNote: string | null;
@@ -192,6 +203,7 @@ export interface OrdersRepository {
     shipmentTrackingNo: string | null;
     shipmentCarrier: string | null;
     shipmentNote: string | null;
+    orderSourceType: "normal" | "matrix_reentry";
     fulfillmentMethod: "delivery" | "branch_pickup";
     pickupBranchName: string | null;
     pickupBranchNote: string | null;
@@ -563,6 +575,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
   async listOrders(filters?: {
     userId?: string;
     approvalStatus?: "pending" | "approved";
+    sourceType?: "normal" | "matrix_reentry";
     bucket?:
       | "awaiting-payment"
       | "transfer-review"
@@ -613,6 +626,12 @@ export class PrismaOrdersRepository implements OrdersRepository {
       orderNo: filters?.orderNo
         ? { contains: filters.orderNo, mode: "insensitive" as const }
         : undefined,
+      approvalBatchRef:
+        filters?.sourceType === "matrix_reentry"
+          ? { startsWith: `${MATRIX_REENTRY_AUDIT_PREFIX}:` }
+          : filters?.sourceType === "normal"
+            ? { not: { startsWith: `${MATRIX_REENTRY_AUDIT_PREFIX}:` } }
+            : undefined,
       ...bucketWhere,
     };
     const orders = await this.prisma.order.findMany({
@@ -653,6 +672,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
         shipmentTrackingNo: true,
         shipmentCarrier: true,
         shipmentNote: true,
+        approvalBatchRef: true,
         shippingLabel: true,
         shippingAddressLine: true,
         shippingAddressNote: true,
@@ -727,6 +747,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
         shipmentTrackingNo: order.shipmentTrackingNo ?? null,
         shipmentCarrier: order.shipmentCarrier ?? null,
         shipmentNote: order.shipmentNote ?? null,
+        orderSourceType: resolveOrderSourceType(order.approvalBatchRef),
         firstProductName: firstProductDetail?.name ?? null,
         firstProductImageUrl: firstProductDetail?.imageUrl ?? null,
         productItemCount: order.orderItems.length,
@@ -772,6 +793,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
         shipmentTrackingNo: true,
         shipmentCarrier: true,
         shipmentNote: true,
+        approvalBatchRef: true,
         shippingLabel: true,
         shippingAddressLine: true,
         shippingAddressNote: true,
@@ -869,6 +891,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
           shipmentTrackingNo: order.shipmentTrackingNo ?? null,
           shipmentCarrier: order.shipmentCarrier ?? null,
           shipmentNote: order.shipmentNote ?? null,
+          orderSourceType: resolveOrderSourceType(order.approvalBatchRef),
           createdAt: order.createdAt.toISOString(),
           items: productItems,
           productItems,

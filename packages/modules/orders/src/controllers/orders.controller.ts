@@ -22,6 +22,7 @@ export class OrdersController {
   async listOrders(
     @Query("userId") userId?: string,
     @Query("approvalStatus") approvalStatus?: string,
+    @Query("sourceType") sourceType?: string,
     @Query("bucket") bucket?: string,
     @Query("orderNo") orderNo?: string,
     @Query("page") page?: string,
@@ -43,6 +44,10 @@ export class OrdersController {
       ? requireNonEmptyString(bucket, "bucket").toLowerCase()
       : undefined;
 
+    const normalizedSourceType = sourceType
+      ? requireNonEmptyString(sourceType, "sourceType").toLowerCase()
+      : undefined;
+
     if (
       normalizedBucket &&
       normalizedBucket !== "awaiting-payment" &&
@@ -56,9 +61,18 @@ export class OrdersController {
       );
     }
 
+    if (
+      normalizedSourceType &&
+      normalizedSourceType !== "normal" &&
+      normalizedSourceType !== "matrix_reentry"
+    ) {
+      throw new NotFoundException("sourceType must be normal or matrix_reentry.");
+    }
+
     return this.ordersService.listOrders({
       userId: userId ? requirePositiveIntegerString(userId, "userId") : undefined,
       approvalStatus: normalizedApprovalStatus as "pending" | "approved" | undefined,
+      sourceType: normalizedSourceType as "normal" | "matrix_reentry" | undefined,
       bucket: normalizedBucket as
         | "awaiting-payment"
         | "transfer-review"

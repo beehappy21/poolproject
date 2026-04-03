@@ -112,6 +112,7 @@ function renderOrders(orderResult) {
           .map(
             (order) => `<tr>
               <td>${order.orderNo}</td>
+              <td>${formatOrderSourceType(order)}</td>
               <td><span class="status-chip ${getOrderStateClassName(order)}">${getOrderStateLabel(order)}</span></td>
               <td><span class="status-chip ${getApprovalClassName(order.approvalStatus)}">${order.approvalStatus}</span></td>
               <td><span class="status-chip ${getShipmentClassName(order)}">${formatShipmentStatus(order)}</span></td>
@@ -121,9 +122,13 @@ function renderOrders(orderResult) {
             </tr>`,
           )
           .join("")
-      : '<tr><td colspan="7" class="muted">No orders</td></tr>';
+      : '<tr><td colspan="8" class="muted">No orders</td></tr>';
 
   renderOrderGuide(rows);
+}
+
+function formatOrderSourceType(order) {
+  return order.orderSourceType === "matrix_reentry" ? "matrix reentry" : "normal";
 }
 
 function renderPackageOptions(packages) {
@@ -332,6 +337,9 @@ function renderOrderGuide(orders) {
   ).length;
   const pendingCount = awaitingPaymentCount + transferReviewCount;
   const approvedCount = orders.filter((order) => order.approvalStatus === "approved").length;
+  const reentryCount = orders.filter(
+    (order) => order.orderSourceType === "matrix_reentry",
+  ).length;
   const awaitingShipmentCount = orders.filter(
     (order) => order.approvalStatus === "approved" && !order.shippedAt,
   ).length;
@@ -342,6 +350,7 @@ function renderOrderGuide(orders) {
     `<div class="stack-item">
       <strong>${approvedCount} approved / ${pendingCount} pending</strong>
       <p class="muted">BAO buckets: ${awaitingPaymentCount} awaiting payment • ${transferReviewCount} transfer review • ${awaitingShipmentCount} awaiting shipment • ${shippedCount} shipped • ${deliveredCount} delivered</p>
+      <p class="muted">Visible reentry audit bills: ${reentryCount}</p>
       <p class="muted">Pending orders still need admin approval. Approved orders are ready for downstream processing and earnings allocation.</p>
     </div>`,
     transferReviewCount > 0
@@ -507,6 +516,7 @@ async function loadOrderDetail(orderId) {
   orderTimeline.innerHTML = [
     `<div class="stack-item">
       <strong>${snapshot.order.orderNo}</strong>
+      <p class="muted">Source ${formatOrderSourceType(snapshot.order)}</p>
       <p class="muted">State ${getOrderStateLabel(snapshot.order)} • Approval ${snapshot.order.approvalStatus}</p>
       <p class="muted">PV ${snapshot.order.totalPv} • Created ${snapshot.order.createdAt}</p>
       <p class="muted">${snapshot.order.transferSubmittedAt ? `Slip submitted ${snapshot.order.transferSubmittedAt}` : "No transfer slip submitted yet"}</p>
@@ -524,6 +534,13 @@ async function loadOrderDetail(orderId) {
       <p class="muted">${snapshot.order.shipmentTrackingNo ? `Tracking ${snapshot.order.shipmentTrackingNo}` : "Tracking number not set"}</p>
       <p class="muted">${snapshot.order.shipmentNote || "No shipment note"}</p>
     </div>`,
+    snapshot.order.orderSourceType === "matrix_reentry"
+      ? `<div class="stack-item">
+          <strong>Reentry audit</strong>
+          <p class="muted">This order was generated automatically from a matrix reentry event.</p>
+          <p class="muted">${snapshot.order.transferSlipNote || snapshot.order.shipmentNote || "No reentry note"}</p>
+        </div>`
+      : "",
     `<div class="stack-item">
       <strong>Commissions</strong>
       <p class="muted">${commissionRows.length} item(s)</p>

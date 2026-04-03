@@ -18,6 +18,7 @@ const memberSearchInput = document.getElementById("memberSearchInput");
 const memberSortSelect = document.getElementById("memberSortSelect");
 const orderUserFilterInput = document.getElementById("orderUserFilterInput");
 const orderSortSelect = document.getElementById("orderSortSelect");
+const orderSourceFilter = document.getElementById("orderSourceFilter");
 const commissionOrderFilterInput = document.getElementById("commissionOrderFilterInput");
 const commissionBeneficiaryFilterInput = document.getElementById("commissionBeneficiaryFilterInput");
 const poolPayoutDateInput = document.getElementById("poolPayoutDateInput");
@@ -2225,6 +2226,9 @@ async function loadDashboard() {
   if (orderStatusFilter.value) {
     orderQuery.set("approvalStatus", orderStatusFilter.value);
   }
+  if (orderSourceFilter?.value) {
+    orderQuery.set("sourceType", orderSourceFilter.value);
+  }
   if (state.orderUserId) {
     orderQuery.set("userId", state.orderUserId);
   }
@@ -2355,14 +2359,15 @@ async function loadDashboard() {
       <td>${order.orderId}</td>
       <td>${order.orderNo}</td>
       <td>${order.sourceUserId}</td>
+      <td>${order.orderSourceType === "matrix_reentry" ? '<span class="status-badge status-badge--success">REENTRY</span>' : '<span class="status-badge">NORMAL</span>'}</td>
       <td>${order.approvalStatus}</td>
       <td>${order.totalPv}</td>
       <td>
         <div class="table-actions">
-          <button type="button" data-action="approve-process-order" data-order-id="${order.orderId}">Approve + Process</button>
+          ${order.orderSourceType === "matrix_reentry" ? "" : `<button type="button" data-action="approve-process-order" data-order-id="${order.orderId}">Approve + Process</button>
           <button type="button" data-action="approve-order" data-order-id="${order.orderId}">Approve</button>
           <button type="button" data-action="process-order" data-order-id="${order.orderId}">Process</button>
-          <button type="button" class="secondary" data-action="reprocess-order" data-order-id="${order.orderId}">Reprocess</button>
+          <button type="button" class="secondary" data-action="reprocess-order" data-order-id="${order.orderId}">Reprocess</button>`}
           <button type="button" class="secondary" data-action="order-detail" data-order-id="${order.orderId}">Detail</button>
         </div>
       </td>
@@ -2726,6 +2731,13 @@ if (logoutButton) {
 
 if (orderStatusFilter) {
   orderStatusFilter.addEventListener("change", () => {
+    state.pages.orders = 1;
+    loadDashboard().catch((error) => setStatus(error.message));
+  });
+}
+
+if (orderSourceFilter) {
+  orderSourceFilter.addEventListener("change", () => {
     state.pages.orders = 1;
     loadDashboard().catch((error) => setStatus(error.message));
   });

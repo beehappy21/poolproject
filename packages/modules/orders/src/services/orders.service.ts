@@ -6,6 +6,7 @@ export interface OrdersServiceContract {
   listOrders(filters?: {
     userId?: string;
     approvalStatus?: "pending" | "approved";
+    sourceType?: "normal" | "matrix_reentry";
     bucket?:
       | "awaiting-payment"
       | "transfer-review"
@@ -37,6 +38,7 @@ export interface OrdersServiceContract {
         shipmentTrackingNo: string | null;
         shipmentCarrier: string | null;
         shipmentNote: string | null;
+        orderSourceType: "normal" | "matrix_reentry";
         fulfillmentMethod: "delivery" | "branch_pickup";
         pickupBranchName: string | null;
         pickupBranchNote: string | null;
@@ -64,6 +66,7 @@ export interface OrdersServiceContract {
           shipmentTrackingNo: string | null;
           shipmentCarrier: string | null;
           shipmentNote: string | null;
+          orderSourceType: "normal" | "matrix_reentry";
           fulfillmentMethod: "delivery" | "branch_pickup";
           pickupBranchName: string | null;
           pickupBranchNote: string | null;
@@ -96,6 +99,7 @@ export interface OrdersServiceContract {
     shipmentTrackingNo: string | null;
     shipmentCarrier: string | null;
     shipmentNote: string | null;
+    orderSourceType: "normal" | "matrix_reentry";
     fulfillmentMethod: "delivery" | "branch_pickup";
     pickupBranchName: string | null;
     pickupBranchNote: string | null;
@@ -361,6 +365,7 @@ export class OrdersService implements OrdersServiceContract {
   async listOrders(filters?: {
     userId?: string;
     approvalStatus?: "pending" | "approved";
+    sourceType?: "normal" | "matrix_reentry";
     bucket?:
       | "awaiting-payment"
       | "transfer-review"
