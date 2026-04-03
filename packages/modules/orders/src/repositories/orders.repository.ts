@@ -651,11 +651,16 @@ export class PrismaOrdersRepository implements OrdersRepository {
           ? [
               { orderSourceType: "NORMAL" as const },
               {
-                approvalBatchRef: {
-                  not: {
-                    startsWith: `${MATRIX_REENTRY_AUDIT_PREFIX}:`,
+                OR: [
+                  { approvalBatchRef: null },
+                  {
+                    approvalBatchRef: {
+                      not: {
+                        startsWith: `${MATRIX_REENTRY_AUDIT_PREFIX}:`,
+                      },
+                    },
                   },
-                },
+                ],
               },
             ]
           : undefined,
@@ -2030,11 +2035,16 @@ export class PrismaOrdersRepository implements OrdersRepository {
         AND: [
           { orderSourceType: "NORMAL" },
           {
-            approvalBatchRef: {
-              not: {
-                startsWith: `${MATRIX_REENTRY_AUDIT_PREFIX}:`,
+            OR: [
+              { approvalBatchRef: null },
+              {
+                approvalBatchRef: {
+                  not: {
+                    startsWith: `${MATRIX_REENTRY_AUDIT_PREFIX}:`,
+                  },
+                },
               },
-            },
+            ],
           },
         ],
       },
@@ -2099,11 +2109,16 @@ export class PrismaOrdersRepository implements OrdersRepository {
         AND: [
           { orderSourceType: "NORMAL" },
           {
-            approvalBatchRef: {
-              not: {
-                startsWith: `${MATRIX_REENTRY_AUDIT_PREFIX}:`,
+            OR: [
+              { approvalBatchRef: null },
+              {
+                approvalBatchRef: {
+                  not: {
+                    startsWith: `${MATRIX_REENTRY_AUDIT_PREFIX}:`,
+                  },
+                },
               },
-            },
+            ],
           },
         ],
       },
