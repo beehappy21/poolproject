@@ -2498,7 +2498,21 @@ async function loadWalletDetail(memberId) {
 async function loadOrderDetail(orderId) {
   setStatus(`Loading order ${orderId}`);
   const snapshot = await request(`/orders/${orderId}/snapshot`);
-  setActionOutput(`Order ${orderId} detail`, snapshot);
+  setActionOutput(`Order ${orderId} detail`, {
+    summary: {
+      orderId: snapshot.order?.orderId,
+      orderNo: snapshot.order?.orderNo,
+      sourceUserId: snapshot.order?.sourceUserId,
+      orderSourceType: snapshot.order?.orderSourceType,
+      approvalStatus: snapshot.order?.approvalStatus,
+      status: snapshot.order?.status,
+      totalPv: snapshot.order?.totalPv,
+      reentryAudit: snapshot.order?.reentryAudit ?? null,
+    },
+    order: snapshot.order,
+    commissions: snapshot.commissions,
+    companyFallbacks: snapshot.companyFallbacks,
+  });
   setStatus(`Loaded order ${orderId}`);
   pushHistory("Order Detail", `Loaded snapshot for order ${orderId}`);
 }

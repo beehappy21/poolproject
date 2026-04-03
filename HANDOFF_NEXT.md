@@ -33,10 +33,13 @@ Updated: 2026-04-03
   - เพิ่ม filter `sourceType` และ badge `REENTRY`
 - commit `891577a7`
   - ล็อก policy ว่า `matrix reentry audit order` ห้าม cancel
-- working tree (ยังไม่ commit ณ เวลา handoff นี้)
+- commit `a8be4e52`
   - เพิ่ม `Order.orderSourceType` ใน Prisma schema
   - ย้าย repository/query หลักไปใช้ field จริง
   - คง legacy fallback ผ่าน `approvalBatchRef` ไว้ชั่วคราวเพื่อรองรับข้อมูลระหว่างช่วงเปลี่ยนผ่าน
+- commit `70167793`
+  - เพิ่ม smoke test `matrix_reentry_audit_smoke`
+  - เจอและแก้ normal-order filter ที่เผลอตัด orders ที่ `approvalBatchRef = null`
 
 ## Verified Runtime State
 
@@ -60,6 +63,12 @@ Updated: 2026-04-03
 - local DB backfill ของ rows เก่าผ่านแล้ว
   - query `approvalBatchRef LIKE 'matrix-reentry:%' AND orderSourceType = NORMAL` คืน `0`
   - `orderId = 46` (`0000019`) ถูกอ่านเป็น `matrix_reentry` ผ่าน API แล้ว
+- smoke test ใหม่ผ่านบน local API แล้ว
+  - เปิด `board 1 / round 2`
+  - credit `firm = 700`
+  - สร้าง reentry audit order
+  - reprocess แล้วไม่ duplicate
+  - cancel ได้ `400` ตาม policy
 
 ## Important Findings
 
@@ -81,6 +90,7 @@ Updated: 2026-04-03
 - สิ่งที่ยังควรปิดต่อ:
   - ตัดสินใจระยะยาวว่า `approvalBatchRef` จะคงไว้เพื่อ dedupe อย่างเดียวหรือไม่
   - เมื่อมั่นใจเรื่องข้อมูลครบทุก environment แล้ว ค่อยพิจารณาลด legacy fallback ในโค้ด
+  - ถ้าจะให้ audit ใช้งานง่ายขึ้นอีก ควรดัน `matrixEventId / sourceBoardId / roundNo / firm credit` ขึ้นหน้า detail แบบสรุปอ่านง่าย
 
 ## Recommended Next Work
 

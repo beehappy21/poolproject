@@ -36,6 +36,14 @@ function buildMatrixReentryAuditRef(matrixEventId: string) {
   return `${MATRIX_REENTRY_AUDIT_PREFIX}:${matrixEventId}`;
 }
 
+function parseMatrixReentryAuditRef(approvalBatchRef?: string | null): string | null {
+  if (!approvalBatchRef?.startsWith(`${MATRIX_REENTRY_AUDIT_PREFIX}:`)) {
+    return null;
+  }
+
+  return approvalBatchRef.slice(`${MATRIX_REENTRY_AUDIT_PREFIX}:`.length) || null;
+}
+
 function isMatrixReentryOrder(input: {
   orderSourceType?: string | null;
   approvalBatchRef?: string | null;
@@ -217,6 +225,19 @@ export interface OrdersRepository {
     pickupBranchName: string | null;
     pickupBranchNote: string | null;
     createdAt: string;
+    reentryAudit: {
+      matrixEventId: string;
+      sourceBoardId: string | null;
+      sourceBoardNo: number | null;
+      sourceBoardRoundNo: number | null;
+      generatedBoardId: string | null;
+      generatedBoardNo: number | null;
+      generatedRoundNo: number | null;
+      sourcePv: string;
+      creditedPv: string;
+      firmCreditAmount: string | null;
+      eventCreatedAt: string;
+    } | null;
     items: Array<{
       orderItemId: string;
       productDetailId: string | null;
@@ -635,35 +656,12 @@ export class PrismaOrdersRepository implements OrdersRepository {
       orderNo: filters?.orderNo
         ? { contains: filters.orderNo, mode: "insensitive" as const }
         : undefined,
-      OR:
+      orderSourceType:
         filters?.sourceType === "matrix_reentry"
-          ? [
-              { orderSourceType: "MATRIX_REENTRY" as const },
-              {
-                approvalBatchRef: {
-                  startsWith: `${MATRIX_REENTRY_AUDIT_PREFIX}:`,
-                },
-              },
-            ]
-          : undefined,
-      AND:
-        filters?.sourceType === "normal"
-          ? [
-              { orderSourceType: "NORMAL" as const },
-              {
-                OR: [
-                  { approvalBatchRef: null },
-                  {
-                    approvalBatchRef: {
-                      not: {
-                        startsWith: `${MATRIX_REENTRY_AUDIT_PREFIX}:`,
-                      },
-                    },
-                  },
-                ],
-              },
-            ]
-          : undefined,
+          ? ("MATRIX_REENTRY" as const)
+          : filters?.sourceType === "normal"
+            ? ("NORMAL" as const)
+            : undefined,
       ...bucketWhere,
     };
     const orders = await this.prisma.order.findMany({
@@ -903,6 +901,49 @@ export class PrismaOrdersRepository implements OrdersRepository {
       };
     });
 
+    const matrixEventId = parseMatrixReentryAuditRef(order.approvalBatchRef);
+    const reentryEvent =
+      matrixEventId && isMatrixReentryOrder(order)
+        ? await this.prisma.matrixAccumulationEvent.findUnique({
+            where: { id: BigInt(matrixEventId) },
+            select: {
+              id: true,
+              sourcePv: true,
+              creditedPv: true,
+              createdAt: true,
+              board: {
+                select: {
+                  id: true,
+                  boardNo: true,
+                  roundNo: true,
+                  reentrySourceBoard: {
+                    select: {
+                      id: true,
+                      boardNo: true,
+                      roundNo: true,
+                    },
+                  },
+                },
+              },
+            },
+          })
+        : null;
+    const firmCredit =
+      matrixEventId && isMatrixReentryOrder(order)
+        ? await this.prisma.walletTransaction.findFirst({
+            where: {
+              userId: order.userId,
+              txType: "FIRM_REENTRY_CREDIT",
+              refType: "matrix",
+              refId: BigInt(matrixEventId),
+              status: "POSTED",
+            },
+            select: {
+              amount: true,
+            },
+          })
+        : null;
+
     return {
           ...mapFulfillment(order),
           orderId: order.id.toString(),
@@ -927,6 +968,22 @@ export class PrismaOrdersRepository implements OrdersRepository {
           shipmentNote: order.shipmentNote ?? null,
           orderSourceType: mapOrderSourceType(order),
           createdAt: order.createdAt.toISOString(),
+          reentryAudit:
+            reentryEvent && isMatrixReentryOrder(order)
+              ? {
+                  matrixEventId: reentryEvent.id.toString(),
+                  sourceBoardId: reentryEvent.board?.reentrySourceBoard?.id?.toString() ?? null,
+                  sourceBoardNo: reentryEvent.board?.reentrySourceBoard?.boardNo ?? null,
+                  sourceBoardRoundNo: reentryEvent.board?.reentrySourceBoard?.roundNo ?? null,
+                  generatedBoardId: reentryEvent.board?.id?.toString() ?? null,
+                  generatedBoardNo: reentryEvent.board?.boardNo ?? null,
+                  generatedRoundNo: reentryEvent.board?.roundNo ?? null,
+                  sourcePv: reentryEvent.sourcePv.toString(),
+                  creditedPv: reentryEvent.creditedPv.toString(),
+                  firmCreditAmount: firmCredit?.amount?.toString() ?? null,
+                  eventCreatedAt: reentryEvent.createdAt.toISOString(),
+                }
+              : null,
           items: productItems,
           productItems,
         }
@@ -2032,21 +2089,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
         id: BigInt(orderId),
         approvalStatus: "APPROVED",
         approvedAt: { not: null },
-        AND: [
-          { orderSourceType: "NORMAL" },
-          {
-            OR: [
-              { approvalBatchRef: null },
-              {
-                approvalBatchRef: {
-                  not: {
-                    startsWith: `${MATRIX_REENTRY_AUDIT_PREFIX}:`,
-                  },
-                },
-              },
-            ],
-          },
-        ],
+        orderSourceType: "NORMAL",
       },
       select: {
         id: true,
@@ -2106,21 +2149,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
       where: {
         approvalStatus: "APPROVED",
         approvedAt: range,
-        AND: [
-          { orderSourceType: "NORMAL" },
-          {
-            OR: [
-              { approvalBatchRef: null },
-              {
-                approvalBatchRef: {
-                  not: {
-                    startsWith: `${MATRIX_REENTRY_AUDIT_PREFIX}:`,
-                  },
-                },
-              },
-            ],
-          },
-        ],
+        orderSourceType: "NORMAL",
       },
       orderBy: [{ approvedAt: "asc" }, { id: "asc" }],
       select: {

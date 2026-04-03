@@ -131,6 +131,33 @@ function formatOrderSourceType(order) {
   return order.orderSourceType === "matrix_reentry" ? "matrix reentry" : "normal";
 }
 
+function formatReentryAuditSummary(reentryAudit) {
+  if (!reentryAudit) {
+    return [];
+  }
+
+  return [
+    `Matrix event ${reentryAudit.matrixEventId}`,
+    reentryAudit.sourceBoardNo
+      ? `Source board ${reentryAudit.sourceBoardNo}/${reentryAudit.sourceBoardRoundNo ?? "-"}` +
+        (reentryAudit.sourceBoardId ? ` • ${reentryAudit.sourceBoardId}` : "")
+      : reentryAudit.sourceBoardId
+        ? `Source board id ${reentryAudit.sourceBoardId}`
+        : null,
+    reentryAudit.generatedBoardNo
+      ? `Generated board ${reentryAudit.generatedBoardNo}/${reentryAudit.generatedRoundNo ?? "-"}` +
+        (reentryAudit.generatedBoardId ? ` • ${reentryAudit.generatedBoardId}` : "")
+      : reentryAudit.generatedBoardId
+        ? `Generated board id ${reentryAudit.generatedBoardId}`
+        : null,
+    `PV source ${reentryAudit.sourcePv} • credited ${reentryAudit.creditedPv}`,
+    reentryAudit.firmCreditAmount
+      ? `Firm credit ${reentryAudit.firmCreditAmount}`
+      : "No firm credit linked",
+    `Event time ${reentryAudit.eventCreatedAt}`,
+  ].filter(Boolean);
+}
+
 function renderPackageOptions(packages) {
   const options =
     packages.length > 0
@@ -538,6 +565,9 @@ async function loadOrderDetail(orderId) {
       ? `<div class="stack-item">
           <strong>Reentry audit</strong>
           <p class="muted">This order was generated automatically from a matrix reentry event.</p>
+          ${formatReentryAuditSummary(snapshot.order.reentryAudit)
+            .map((line) => `<p class="muted">${line}</p>`)
+            .join("")}
           <p class="muted">${snapshot.order.transferSlipNote || snapshot.order.shipmentNote || "No reentry note"}</p>
         </div>`
       : "",

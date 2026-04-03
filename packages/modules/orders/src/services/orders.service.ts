@@ -104,6 +104,19 @@ export interface OrdersServiceContract {
     pickupBranchName: string | null;
     pickupBranchNote: string | null;
     createdAt: string;
+    reentryAudit: {
+      matrixEventId: string;
+      sourceBoardId: string | null;
+      sourceBoardNo: number | null;
+      sourceBoardRoundNo: number | null;
+      generatedBoardId: string | null;
+      generatedBoardNo: number | null;
+      generatedRoundNo: number | null;
+      sourcePv: string;
+      creditedPv: string;
+      firmCreditAmount: string | null;
+      eventCreatedAt: string;
+    } | null;
     items: Array<{
       orderItemId: string;
       productDetailId: string | null;
