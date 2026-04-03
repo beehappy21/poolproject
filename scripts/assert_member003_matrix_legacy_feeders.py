@@ -13,7 +13,7 @@ def load_expected_feeders():
 
 
 def load_actual_slots(report_payload: dict, member_id: str):
-    if member_id in {"TH0000008", "TH0000011", "TH0000012", "TH0000013", "TH0000016", "TH0000020", "TH0000023", "TH0000031", "TH0000032", "TH0000074", "TH0000086", "TH0000099", "TH0000128"}:
+    if member_id in {"TH0000008", "TH0000011", "TH0000012", "TH0000013", "TH0000016", "TH0000020", "TH0000023", "TH0000031", "TH0000032", "TH0000074", "TH0000086", "TH0000099"}:
         derived = next(
             (
                 row

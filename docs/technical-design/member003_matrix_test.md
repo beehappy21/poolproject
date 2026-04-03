@@ -58,3 +58,4 @@ Permanent benchmark policy:
 - `scripts/member003-matrix-legacy-benchmarks.json` is the locked source of truth for legacy feeder expectations.
 - Any change that touches matrix routing should be checked against `pnpm run test:matrix:legacy-benchmarks`.
 - The primary acceptance members are `TH0000013`, `TH0000016`, `TH0000020`, and `TH0000023`.
+- `TH0000128` is intentionally excluded from the locked feeder benchmark when running `allsaletest02042026` as an order-based baseline, because its old special board depended on synthetic legacy placement rather than confirmed normal orders.

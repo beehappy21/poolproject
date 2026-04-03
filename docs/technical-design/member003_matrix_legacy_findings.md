@@ -18,7 +18,8 @@ Benchmark cases:
 - `TH0000074` expected board 1: `86, 87, 85, 94, 113, 117`
 - `TH0000086` expected board 1: `85, 92, 113, 127, 131, 133`
 - `TH0000099` expected board 1: `115, 128, 153, 155, 172, 174`
-- `TH0000128` expected board 1: `73, 108, 109, 127, 130, 132`
+- `TH0000128` expected board 1: `108, 109, 127, 130, 132, -`
+  - `TH0000073` does not have a normal order in `allsaletest02042026`, so the order-based replay baseline skips it
 
 ## Current System Rule
 
