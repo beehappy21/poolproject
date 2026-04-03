@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 
 import { PrismaService } from "../../../../infrastructure/src/prisma/prisma.service";
@@ -1917,6 +1917,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
         select: {
           id: true,
           userId: true,
+          approvalBatchRef: true,
           status: true,
           approvalStatus: true,
           shippedAt: true,
@@ -1926,6 +1927,10 @@ export class PrismaOrdersRepository implements OrdersRepository {
 
       if (!existingOrder) {
         return null;
+      }
+
+      if (resolveOrderSourceType(existingOrder.approvalBatchRef) === "matrix_reentry") {
+        throw new BadRequestException("Matrix reentry audit orders cannot be cancelled.");
       }
 
       if (
