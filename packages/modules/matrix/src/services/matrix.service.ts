@@ -346,6 +346,8 @@ export class MatrixService implements MatrixServiceContract {
       }
     }
 
+    await this.maybeOpenEligibleBoardOneNextRound(input.beneficiaryUserId);
+
     return {
       payoutCount: 1,
       completedCycleCount,
@@ -566,6 +568,36 @@ export class MatrixService implements MatrixServiceContract {
     }
 
     await this.matrixRepository.updateCurrentBoard(cycle.cycleId, 1, nextRoundNo);
+  }
+
+  private async maybeOpenEligibleBoardOneNextRound(userId: string): Promise<void> {
+    const cycles = await this.matrixRepository.getMemberMatrixCycles(userId);
+    const cycle = cycles[0];
+
+    if (!cycle || cycle.status !== "active") {
+      return;
+    }
+
+    const candidateBoard = [...(cycle.boards || [])]
+      .filter((board) => board.boardNo === 1 && board.status === "completed")
+      .sort((left, right) => right.roundNo - left.roundNo)
+      .find((board) => {
+        const nextRoundNo = board.roundNo + 1;
+        return !(cycle.boards || []).some(
+          (entry) => entry.boardNo === 1 && entry.roundNo === nextRoundNo,
+        );
+      });
+
+    if (!candidateBoard) {
+      return;
+    }
+
+    await this.maybeOpenBoardOneNextRound(cycle, {
+      boardId: this.getBoardId(candidateBoard),
+      boardNo: candidateBoard.boardNo,
+      roundNo: candidateBoard.roundNo,
+      openThresholdPv: candidateBoard.openThresholdPv.toString(),
+    });
   }
 
   private async maybeSpillCompletedReentryRoundToUplineBoardTwo(
