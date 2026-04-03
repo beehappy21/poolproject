@@ -329,6 +329,8 @@ import { PrismaOrdersRepository } from "../repositories/orders.repository";
 
 @Injectable()
 export class OrdersService implements OrdersServiceContract {
+  private readonly approvedOrderLocks = new Map<string, Promise<void>>();
+
   constructor(
     private readonly ordersRepository: PrismaOrdersRepository,
     private readonly membersService: MembersService,
@@ -426,6 +428,22 @@ export class OrdersService implements OrdersServiceContract {
     return this.ordersRepository.cancelOrder(input);
   }
 
+  async createMatrixReentryAuditArtifacts(input: {
+    openedReentries?: Array<{
+      userId: string;
+      matrixEventId: string;
+      sourceBoardId: string;
+      roundNo: number;
+      reentryAmount: string;
+      reentryPvAmount: string;
+    }>;
+  }) {
+    await this.createMatrixReentryAuditOrders(input);
+    return {
+      createdCount: input.openedReentries?.length ?? 0,
+    };
+  }
+
   async getApprovedOrder(orderId: string): Promise<{
     orderId: string;
     sourceUserId: string;
@@ -497,15 +515,48 @@ export class OrdersService implements OrdersServiceContract {
   async handleApprovedOrder(
     orderId: string,
   ): Promise<ApprovedOrderOrchestrationResult> {
-    const approvedOrder = await this.handleApprovedOrderEvent(orderId);
-    const commissionSettings = parseCommissionSettingsSnapshot(
-      approvedOrder.commissionSettingsSnapshot,
-    );
-    const existingCommissionEntries = this.asCommissionEntryArray(
-      await this.commissionsService.listCommissions({ orderId }),
-    );
+    return this.withApprovedOrderLock(orderId, async () => {
+      const approvedOrder = await this.handleApprovedOrderEvent(orderId);
+      const commissionSettings = parseCommissionSettingsSnapshot(
+        approvedOrder.commissionSettingsSnapshot,
+      );
+      const existingCommissionEntries = this.asCommissionEntryArray(
+        await this.commissionsService.listCommissions({ orderId }),
+      );
 
-    if (existingCommissionEntries.length > 0) {
+      if (existingCommissionEntries.length > 0) {
+        const matrixFlow =
+          commissionSettings.appVisibility.matrix === false
+            ? this.buildSkippedMatrixFlow(approvedOrder)
+            : await this.matrixService.handleApprovedOrderMatrixSource({
+                orderId: approvedOrder.orderId,
+                sourceUserId: approvedOrder.sourceUserId,
+                approvedAt: approvedOrder.approvedAt,
+                totalPv: approvedOrder.totalPv,
+                matrixSettingsSnapshot: approvedOrder.matrixSettingsSnapshot,
+              });
+        await this.createMatrixReentryAuditOrders(matrixFlow);
+        const walletPostingInputs = await this.postCommissionWalletEntries(orderId);
+        await this.walletsService.creditDiscountWalletFromApprovedOrder({ orderId });
+
+        return this.buildApprovedOrderResultFromEntries(
+          approvedOrder,
+          existingCommissionEntries,
+          walletPostingInputs,
+          matrixFlow,
+        );
+      }
+
+      await this.activateSourceMemberCyclesFromApprovedOrder(approvedOrder);
+
+      await this.qualificationService.evaluateMemberQualification({
+        userId: approvedOrder.sourceUserId,
+        evaluationAt: approvedOrder.approvedAt,
+        cycles: [],
+      });
+
+      const commissionFlow =
+        await this.commissionsService.handleApprovedOrderCommissionSource(orderId);
       const matrixFlow =
         commissionSettings.appVisibility.matrix === false
           ? this.buildSkippedMatrixFlow(approvedOrder)
@@ -517,56 +568,49 @@ export class OrdersService implements OrdersServiceContract {
               matrixSettingsSnapshot: approvedOrder.matrixSettingsSnapshot,
             });
       await this.createMatrixReentryAuditOrders(matrixFlow);
+
+      if (commissionSettings.appVisibility.pool !== false) {
+        await this.poolService.loadApprovedOrderFunding(
+          approvedOrder.approvedAt.slice(0, 10),
+        );
+      }
+
       const walletPostingInputs = await this.postCommissionWalletEntries(orderId);
       await this.walletsService.creditDiscountWalletFromApprovedOrder({ orderId });
 
       return this.buildApprovedOrderResultFromEntries(
         approvedOrder,
-        existingCommissionEntries,
+        this.asCommissionEntryArray(
+          await this.commissionsService.listCommissions({ orderId }),
+        ),
         walletPostingInputs,
         matrixFlow,
       );
-    }
-
-    await this.activateSourceMemberCyclesFromApprovedOrder(approvedOrder);
-
-    await this.qualificationService.evaluateMemberQualification({
-      userId: approvedOrder.sourceUserId,
-      evaluationAt: approvedOrder.approvedAt,
-      cycles: [],
     });
+  }
 
-    const commissionFlow =
-      await this.commissionsService.handleApprovedOrderCommissionSource(orderId);
-    const matrixFlow =
-      commissionSettings.appVisibility.matrix === false
-        ? this.buildSkippedMatrixFlow(approvedOrder)
-        : await this.matrixService.handleApprovedOrderMatrixSource({
-            orderId: approvedOrder.orderId,
-            sourceUserId: approvedOrder.sourceUserId,
-            approvedAt: approvedOrder.approvedAt,
-            totalPv: approvedOrder.totalPv,
-            matrixSettingsSnapshot: approvedOrder.matrixSettingsSnapshot,
-          });
-    await this.createMatrixReentryAuditOrders(matrixFlow);
+  private async withApprovedOrderLock<T>(
+    orderId: string,
+    work: () => Promise<T>,
+  ): Promise<T> {
+    const previous = this.approvedOrderLocks.get(orderId) ?? Promise.resolve();
+    let release!: () => void;
+    const current = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const tail = previous.then(() => current);
+    this.approvedOrderLocks.set(orderId, tail);
 
-    if (commissionSettings.appVisibility.pool !== false) {
-      await this.poolService.loadApprovedOrderFunding(
-        approvedOrder.approvedAt.slice(0, 10),
-      );
+    await previous;
+
+    try {
+      return await work();
+    } finally {
+      release();
+      if (this.approvedOrderLocks.get(orderId) === tail) {
+        this.approvedOrderLocks.delete(orderId);
+      }
     }
-
-    const walletPostingInputs = await this.postCommissionWalletEntries(orderId);
-    await this.walletsService.creditDiscountWalletFromApprovedOrder({ orderId });
-
-    return this.buildApprovedOrderResultFromEntries(
-      approvedOrder,
-      this.asCommissionEntryArray(
-        await this.commissionsService.listCommissions({ orderId }),
-      ),
-      walletPostingInputs,
-      matrixFlow,
-    );
   }
 
   private buildSkippedMatrixFlow(approvedOrder: {

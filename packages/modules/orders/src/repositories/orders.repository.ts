@@ -1963,6 +1963,34 @@ export class PrismaOrdersRepository implements OrdersRepository {
   }
 
   async approveOrder(orderId: string) {
+    const existingOrder = await this.prisma.order.findUnique({
+      where: { id: BigInt(orderId) },
+      select: {
+        id: true,
+        userId: true,
+        approvedAt: true,
+        totalPv: true,
+        commissionSettingsSnapshot: true,
+        matrixSettingsSnapshot: true,
+        approvalStatus: true,
+      },
+    });
+
+    if (!existingOrder) {
+      return null;
+    }
+
+    if (existingOrder.approvalStatus === "APPROVED") {
+      return {
+        orderId: existingOrder.id.toString(),
+        sourceUserId: existingOrder.userId.toString(),
+        approvedAt: existingOrder.approvedAt?.toISOString() ?? "",
+        totalPv: existingOrder.totalPv.toString(),
+        commissionSettingsSnapshot: existingOrder.commissionSettingsSnapshot,
+        matrixSettingsSnapshot: existingOrder.matrixSettingsSnapshot,
+      };
+    }
+
     const approvedAt = new Date();
     const commissionSettingsSnapshot = serializeCommissionSettingsSnapshot(
       readCommissionSettings(),
