@@ -59,6 +59,18 @@ export class AuthController {
     return session;
   }
 
+  @Post("forgot-password-reset")
+  async forgotPasswordReset(
+    @Body()
+    body: {
+      identifier: string;
+    },
+  ) {
+    return this.authService.resetPasswordFromIdentifier({
+      identifier: requireNonEmptyString(body.identifier, "identifier"),
+    });
+  }
+
   @Post("line-login")
   async lineLogin(
     @Body()
