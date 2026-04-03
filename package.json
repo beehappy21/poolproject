@@ -51,6 +51,7 @@
     "smoke:bao:shipment": "bash scripts/check_stephub_order_shipment_flow.sh",
     "smoke:bao:all": "bash scripts/run_bao_browser_checks.sh",
     "test:matrix:legacy-benchmarks": "bash scripts/run_member003_matrix_legacy_benchmarks.sh",
+    "test:matrix:runtime-benchmarks": "bash scripts/run_member003_matrix_runtime_benchmarks.sh",
     "cleanup:cashback-smoke": "node scripts/backfills/cleanup-cashback-smoke-artifacts.js",
     "calc:scenarios": "bash scripts/calc-scenarios.sh"
   },

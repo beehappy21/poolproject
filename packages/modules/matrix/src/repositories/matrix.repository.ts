@@ -274,6 +274,35 @@ export class PrismaMatrixRepository {
     });
   }
 
+  async listBoardAccumulationEvents(boardId: string) {
+    return this.prisma.matrixAccumulationEvent.findMany({
+      where: { boardId: BigInt(boardId) },
+      orderBy: [{ id: "asc" }],
+      include: {
+        sourceUser: {
+          select: {
+            memberCode: true,
+          },
+        },
+      },
+    });
+  }
+
+  async listBoardAccumulationEventsLean(boardId: string) {
+    return this.prisma.matrixAccumulationEvent.findMany({
+      where: { boardId: BigInt(boardId) },
+      orderBy: [{ id: "asc" }],
+      select: {
+        id: true,
+        sourceUserId: true,
+        sourceOrderId: true,
+        sourceType: true,
+        sourcePv: true,
+        creditedPv: true,
+      },
+    });
+  }
+
   async createPositionAndPayout(input: {
     cycleId: string;
     boardId: string;
