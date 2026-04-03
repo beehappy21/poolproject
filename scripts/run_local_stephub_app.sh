@@ -23,6 +23,12 @@ fi
 
 cd "$APP_DIR"
 
+export REACT_APP_API_BASE_URL="${REACT_APP_API_BASE_URL:-/api}"
+export REACT_APP_BAO_BASE_URL="${REACT_APP_BAO_BASE_URL:-/bao-api}"
+export REACT_APP_LINE_LIFF_ID="${REACT_APP_LINE_LIFF_ID:-2009662380-OAbgN6VR}"
+export REACT_APP_LINE_LOGIN_CALLBACK_URL="${REACT_APP_LINE_LOGIN_CALLBACK_URL:-https://wap.blifehealthy.com/line/liff/signin}"
+export REACT_APP_LINE_LIFF_SIGNIN_URL="${REACT_APP_LINE_LIFF_SIGNIN_URL:-https://wap.blifehealthy.com/line/liff/signin}"
+
 if [[ "$APP_MODE" == "dev" ]]; then
   exec env BROWSER=none HOST=127.0.0.1 PORT=3002 "$NPM_BIN" start
 fi
