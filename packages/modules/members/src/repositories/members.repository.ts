@@ -190,8 +190,15 @@ export interface MembersRepository {
     name: string;
     email: string | null;
     phone: string | null;
-    sponsorId: string | null;
-  }>;
+      sponsorId: string | null;
+    }>;
+
+  getMatrixReentryPreference(memberId: string): Promise<boolean>;
+
+  updateMatrixReentryPreference(
+    memberId: string,
+    enabled: boolean,
+  ): Promise<boolean>;
 
   listShippingAddresses(memberId: string): Promise<
     Array<{
@@ -1164,6 +1171,28 @@ export class PrismaMembersRepository implements MembersRepository {
       phone: member.phone,
       sponsorId: member.sponsorId ? toIdString(member.sponsorId) : null,
     };
+  }
+
+  async getMatrixReentryPreference(memberId: string): Promise<boolean> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: BigInt(memberId) },
+      select: { matrixReentryEnabled: true },
+    });
+
+    return user?.matrixReentryEnabled !== false;
+  }
+
+  async updateMatrixReentryPreference(
+    memberId: string,
+    enabled: boolean,
+  ): Promise<boolean> {
+    const user = await this.prisma.user.update({
+      where: { id: BigInt(memberId) },
+      data: { matrixReentryEnabled: enabled },
+      select: { matrixReentryEnabled: true },
+    });
+
+    return user.matrixReentryEnabled !== false;
   }
 
   async listShippingAddresses(memberId: string) {

@@ -344,6 +344,7 @@ model User {
   manualReviewReason   String?      @db.VarChar(255)
   lastRiskReviewedAt   DateTime?
   matrixPersonalPv     Decimal      @default(0) @db.Decimal(18, 8)
+  matrixReentryEnabled Boolean      @default(true)
   createdAt            DateTime     @default(now())
   updatedAt            DateTime     @updatedAt
 

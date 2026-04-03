@@ -8,6 +8,7 @@ export interface AuthUserSummary {
   name: string;
   email: string | null;
   phone: string | null;
+  matrixReentryEnabled: boolean;
 }
 
 export interface LineBindingSummary {

@@ -159,6 +159,7 @@ type MatrixCycleSummary = {
 };
 
 type MatrixResponse = {
+  reentryEnabled?: boolean;
   cycles?: MatrixCycleSummary[];
 };
 
@@ -174,6 +175,7 @@ type AuthMeResponse = {
   user?: {
     userId?: string;
     memberCode?: string;
+    matrixReentryEnabled?: boolean;
   };
 };
 
@@ -649,7 +651,8 @@ export const Commission: React.FC = () => {
     () => resolveActiveMatrixCycle(matrixData),
     [matrixData],
   );
-  const manualReentryAvailable = useMemo(
+  const reentryEnabled = matrixData.reentryEnabled !== false;
+  const reentryEligible = useMemo(
     () => canRequestManualReentry(activeCycle),
     [activeCycle],
   );
@@ -661,6 +664,15 @@ export const Commission: React.FC = () => {
   const cwAvailableForDisplay = useMemo(() => {
     return Math.max(parseDecimal(metrics.cwTotal), 0);
   }, [metrics.cwTotal]);
+
+  const reentryReady = useMemo(() => {
+    return (
+      reentryEnabled &&
+      reentryEligible &&
+      reentryCwAmount > 0 &&
+      cwAvailableForDisplay >= reentryCwAmount
+    );
+  }, [cwAvailableForDisplay, reentryCwAmount, reentryEligible, reentryEnabled]);
 
   const cwRecentEntries = useMemo(() => {
     return commissionEntries
@@ -833,9 +845,9 @@ export const Commission: React.FC = () => {
     }
   };
 
-  const handleOpenMatrixReentry = async () => {
+  const handleToggleMatrixReentry = async () => {
     if (!user?.accessToken) {
-      setReentryError('ต้องมี session ก่อนจึงจะเปิด reentry ได้');
+      setReentryError('ต้องมี session ก่อนจึงจะตั้งค่า reentry ได้');
       return;
     }
 
@@ -845,8 +857,8 @@ export const Commission: React.FC = () => {
 
     try {
       const response = await axios.post(
-        URLS.AUTH_MATRIX_REENTRY,
-        {},
+        URLS.AUTH_MATRIX_REENTRY_PREFERENCE,
+        {enabled: !reentryEnabled},
         {
           headers: {
             Authorization: `Bearer ${user.accessToken}`,
@@ -856,13 +868,18 @@ export const Commission: React.FC = () => {
       );
 
       const nextRoundNo = response.data?.openedReentry?.roundNo;
+      const enabled = response.data?.enabled !== false;
       setReentryMessage(
-        `เปิด reentry สำเร็จ${nextRoundNo ? ` รอบ ${nextRoundNo}` : ''} และอัปเดต firm ให้แล้ว`,
+        enabled
+          ? nextRoundNo
+            ? `เปิดใช้งาน reentry แล้ว และระบบเปิดรอบ ${nextRoundNo} ให้ทันที`
+            : 'เปิดใช้งาน reentry แล้ว'
+          : 'ปิดใช้งาน reentry แล้ว',
       );
       await loadCommissionPage();
     } catch (error: any) {
       setReentryError(
-        error?.response?.data?.message || 'ยังไม่สามารถเปิด reentry ได้ในขณะนี้',
+        error?.response?.data?.message || 'ยังไม่สามารถเปลี่ยนสถานะ reentry ได้ในขณะนี้',
       );
     } finally {
       setReentrySubmitting(false);
@@ -896,17 +913,24 @@ export const Commission: React.FC = () => {
     });
   };
 
-  const getBoardStatusLabel = (board: MatrixBoardSummary) => {
-    if (board.status?.toLowerCase() === 'completed') {
-      return 'Complete';
-    }
+const getBoardStatusLabel = (board: MatrixBoardSummary) => {
+  if (board.status?.toLowerCase() === 'completed') {
+    return 'Complete';
+  }
 
-    if (board.status?.toLowerCase() === 'active') {
-      return 'Active';
-    }
+  if (
+    board.status?.toLowerCase() === 'active' ||
+    board.status?.toLowerCase() === 'open'
+  ) {
+    return 'Active';
+  }
 
-    return 'Wait';
-  };
+  if (board.status?.toLowerCase() === 'locked') {
+    return 'Locked';
+  }
+
+  return 'Wait';
+};
 
   const renderMatrixBoardCard = (
     cycle: MatrixCycleSummary,
@@ -1099,16 +1123,18 @@ export const Commission: React.FC = () => {
     return (
       <section style={{display: 'grid', gap: 26}}>
         {cycles.map(cycle => {
-          const orderedBoards = [...(cycle.boards || [])].sort((left, right) => {
-            const leftRound = left.roundNo || 0;
-            const rightRound = right.roundNo || 0;
+          const orderedBoards = [...(cycle.boards || [])]
+            .filter(board => board.status?.toLowerCase() !== 'locked')
+            .sort((left, right) => {
+              const leftRound = left.roundNo || 0;
+              const rightRound = right.roundNo || 0;
 
-            if (leftRound !== rightRound) {
-              return leftRound - rightRound;
-            }
+              if (leftRound !== rightRound) {
+                return leftRound - rightRound;
+              }
 
-            return (left.boardNo || 0) - (right.boardNo || 0);
-          });
+              return (left.boardNo || 0) - (right.boardNo || 0);
+            });
 
           return (
             <section
@@ -1370,11 +1396,17 @@ export const Commission: React.FC = () => {
             >
               {formatDecimal(cwAvailableForDisplay)}
             </div>
-            {manualReentryAvailable ? (
+            {reentryEnabled ? (
               <div style={{marginTop: 8, color: theme.colors.textColor}}>
-                เปิด reentry ตอนนี้จะใช้ CW {formatDecimal(reentryCwAmount)}
+                {reentryReady
+                  ? `ครบเงื่อนไขแล้ว ระบบจะใช้ CW ${formatDecimal(reentryCwAmount)} เปิดรอบถัดไป`
+                  : `เปิด reentry ไว้แล้ว ระบบจะใช้ CW ${formatDecimal(reentryCwAmount)} เมื่อ Board 1 ครบ 6 จุด`}
               </div>
-            ) : null}
+            ) : (
+              <div style={{marginTop: 8, color: theme.colors.textColor}}>
+                ปิด reentry อยู่ ระบบจะยังไม่ดึง CW ไปเปิดรอบถัดไป
+              </div>
+            )}
           </div>
 
           <input
@@ -1791,31 +1823,28 @@ export const Commission: React.FC = () => {
                   </span>
                   <button
                     type='button'
-                    disabled={!manualReentryAvailable || reentrySubmitting}
+                    disabled={reentrySubmitting}
                     onClick={event => {
                       event.stopPropagation();
-                      handleOpenMatrixReentry();
+                      handleToggleMatrixReentry();
                     }}
                     style={{
                       border: 'none',
                       borderRadius: 999,
                       padding: '8px 14px',
-                      cursor:
-                        !manualReentryAvailable || reentrySubmitting
-                          ? 'not-allowed'
-                          : 'pointer',
-                      backgroundColor: manualReentryAvailable ? '#16A34A' : '#94A3B8',
+                      cursor: reentrySubmitting ? 'not-allowed' : 'pointer',
+                      backgroundColor: reentryEnabled ? '#16A34A' : '#94A3B8',
                       color: '#FFFFFF',
                       minWidth: 88,
-                      opacity: !manualReentryAvailable || reentrySubmitting ? 0.8 : 1,
+                      opacity: reentrySubmitting ? 0.8 : 1,
                       ...theme.fonts.Mulish_700Bold,
                     }}
                   >
                     {reentrySubmitting
-                      ? 'OPEN...'
-                      : manualReentryAvailable
-                        ? 'OPEN'
-                        : 'LOCKED'}
+                      ? '...'
+                      : reentryEnabled
+                        ? 'ON'
+                        : 'OFF'}
                   </button>
                 </div>
               </div>
