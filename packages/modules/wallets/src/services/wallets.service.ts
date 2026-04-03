@@ -150,6 +150,11 @@ export interface WalletsServiceContract {
     actorUserId: string;
   }): Promise<WithdrawRequestSummary[]>;
 
+  markWithdrawRequestPaid(input: {
+    requestId: string;
+    actorUserId: string;
+  }): Promise<WithdrawRequestSummary>;
+
   createKycRequest(input: {
     userId: string;
     nationalId?: string;
@@ -616,6 +621,13 @@ export class WalletsService implements WalletsServiceContract {
   }): Promise<WithdrawRequestSummary[]> {
     void input.actorUserId;
     return this.walletsRepository.markWithdrawRequestsExported(input.requestIds);
+  }
+
+  async markWithdrawRequestPaid(input: {
+    requestId: string;
+    actorUserId: string;
+  }): Promise<WithdrawRequestSummary> {
+    return this.walletsRepository.markWithdrawRequestPaid(input);
   }
 
   async createKycRequest(input: {

@@ -1,6 +1,6 @@
 # Developer Handoff
 
-Updated: 2026-03-29
+Updated: 2026-04-03
 
 ## Project Overview
 
@@ -26,7 +26,7 @@ Current UAT URLs:
 
 - Branch: `main`
 - Local `main` is synced with `origin/main`
-- Worktree is clean
+- Worktree may contain in-progress local BAO/API validation changes; check `git status --short` before starting risky work
 - `backups/` is hidden from `git status` locally via `.git/info/exclude`
 
 Latest merged PRs relevant to the current handoff:
@@ -53,6 +53,11 @@ Latest merged PRs relevant to the current handoff:
   - `Order No`
   - `Status`
   - `Total`
+- BAO `Delivered Orders` is now exposed in the admin menu again
+- BAO `KYC` approve/reject now goes through the central wallets business API instead of mutating models directly from Orchid
+- BAO `Withdraw` approve/reject/mark paid now goes through the central wallets business API, including a dedicated `paid` endpoint
+- BAO `KYC detail` and `Withdraw detail` pages no longer 500 on first load from uninitialized Orchid typed properties
+- Local BAO smoke coverage now includes `Delivered Orders`, `KYC approve/reject`, and `Withdraw approve + paid`
 
 ## Important Credentials
 
@@ -152,7 +157,14 @@ ALLOW_DESTRUCTIVE_UAT_RESTORE=1 bash scripts/restore_uat_backup.sh <backup-dir> 
    - approve/process the order
    - verify commission flow still behaves normally
 
-6. UAT smoke:
+6. BAO withdrawal/KYC smoke:
+   - run `npm run smoke:bao:withdraw-kyc`
+   - confirm `Delivered Orders` opens from BAO
+   - confirm one KYC request can be approved and another rejected
+   - confirm one withdraw request can be approved then marked paid
+   - confirm BAO detail pages for KYC/withdraw return `200`
+
+7. UAT smoke:
    - open `https://bao.blifehealthy.com/admin/login`
    - open commission settings pages and save one direct setting
    - open `https://wap.blifehealthy.com`
@@ -170,6 +182,7 @@ Avoid destructive flows unless explicitly intended:
 - `npm run smoke:pool:cap`
 - `npm run smoke:pool:rules`
 - `npm run smoke:pool:all-comm-e2e`
+- `npm run smoke:bao:all`
 
 ## Important Files
 
@@ -198,7 +211,14 @@ BAO admin:
 - [settings.blade.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/resources/views/commission/settings.blade.php)
 - [no-form-screen.blade.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/resources/views/orchid/no-form-screen.blade.php)
 - [OrderListScreen.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Order/OrderListScreen.php)
+- [KycRequestDetailScreen.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Kyc/KycRequestDetailScreen.php)
+- [WithdrawRequestDetailScreen.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Withdraw/WithdrawRequestDetailScreen.php)
 - [platform.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/config/platform.php)
+- [wallets.controller.ts](/Users/macbook/poolproject/packages/modules/wallets/src/controllers/wallets.controller.ts)
+- [wallets.service.ts](/Users/macbook/poolproject/packages/modules/wallets/src/services/wallets.service.ts)
+- [wallets.repository.ts](/Users/macbook/poolproject/packages/modules/wallets/src/repositories/wallets.repository.ts)
+- [check_stephub_admin_withdraw_kyc.sh](/Users/macbook/poolproject/scripts/check_stephub_admin_withdraw_kyc.sh)
+- [run_bao_browser_checks.sh](/Users/macbook/poolproject/scripts/run_bao_browser_checks.sh)
 
 Backup tooling:
 
@@ -209,4 +229,4 @@ Backup tooling:
 
 ## Short Version
 
-The project is stable on `main` and the latest critical fixes are already merged: BAO commission settings save flow is repaired, matrix level controls are editable per board, UAT backup/restore helpers exist, public `wap -> api` login drift is guarded by rebuild + smoke checks, and BAO order list columns were reordered. Start with [Start_Local_Stack.command](/Users/macbook/poolproject/Start_Local_Stack.command), keep [backups/stephub-full-20260329-212850](/Users/macbook/poolproject/backups/stephub-full-20260329-212850) as the current restore point, and validate commission save, public login, and one end-to-end order approval flow before any next risky change.
+The project is stable enough for production-like BAO validation on local `main`: commission settings save is repaired, matrix level controls are editable per board, `Delivered Orders` is back in the BAO menu, and `KYC` plus `Withdraw` actions now use the central wallets business API. Start with [Start_Local_Stack.command](/Users/macbook/poolproject/Start_Local_Stack.command), keep [backups/stephub-full-20260329-212850](/Users/macbook/poolproject/backups/stephub-full-20260329-212850) as the current restore point, and run `npm run smoke:bao:withdraw-kyc` before the next risky BAO change so `Delivered/KYC/Withdraw` stays production-like.

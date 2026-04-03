@@ -3,6 +3,7 @@
 namespace App\Orchid\Screens\Kyc;
 
 use App\Models\KycRequest;
+use App\Support\BaoAdminApiClient;
 use Illuminate\Http\Request;
 use Orchid\Screen\Actions\Button;
 use Orchid\Screen\Actions\Link;
@@ -14,7 +15,11 @@ use Orchid\Support\Facades\Layout;
 
 class KycRequestDetailScreen extends Screen
 {
-    public KycRequest $kycRequest;
+    public ?KycRequest $kycRequest = null;
+
+    public function __construct(private readonly BaoAdminApiClient $apiClient)
+    {
+    }
 
     public function query(KycRequest $kycRequest): iterable
     {
@@ -47,7 +52,7 @@ class KycRequestDetailScreen extends Screen
 
     public function name(): ?string
     {
-        return 'รายละเอียด KYC #' . $this->kycRequest->id;
+        return 'รายละเอียด KYC #' . ($this->kycRequest?->id ?? '-');
     }
 
     public function commandBar(): iterable
@@ -59,7 +64,7 @@ class KycRequestDetailScreen extends Screen
             Button::make('Approve')
                 ->icon('bs.check2-circle')
                 ->method('approveRequest')
-                ->canSee(in_array($this->kycRequest->status, ['PENDING', 'REJECTED'], true)),
+                ->canSee(in_array((string) $this->kycRequest?->status, ['PENDING', 'REJECTED'], true)),
             Button::make('Reject')
                 ->icon('bs.x-circle')
                 ->method('rejectRequest'),
@@ -89,11 +94,13 @@ class KycRequestDetailScreen extends Screen
 
     public function approveRequest()
     {
-        $this->kycRequest->forceFill([
-            'status' => 'APPROVED',
-            'approvedAt' => now(),
-            'rejectionReason' => null,
-        ])->save();
+        try {
+            $this->apiClient->request('POST', '/wallets/kyc-requests/'.$this->kycRequest->id.'/approve');
+        } catch (\Throwable $exception) {
+            Alert::error($exception->getMessage());
+
+            return redirect()->route('platform.kyc.detail', $this->kycRequest->id);
+        }
 
         Alert::info('KYC request approved.');
 
@@ -103,13 +110,18 @@ class KycRequestDetailScreen extends Screen
     public function rejectRequest(Request $request)
     {
         $payload = $request->validate([
-            'request.rejection_reason' => ['nullable', 'string'],
+            'request.rejection_reason' => ['required', 'string'],
         ]);
 
-        $this->kycRequest->forceFill([
-            'status' => 'REJECTED',
-            'rejectionReason' => trim((string) ($payload['request']['rejection_reason'] ?? 'Rejected by admin')),
-        ])->save();
+        try {
+            $this->apiClient->request('POST', '/wallets/kyc-requests/'.$this->kycRequest->id.'/reject', [
+                'rejectionReason' => trim((string) ($payload['request']['rejection_reason'] ?? 'Rejected by admin')),
+            ]);
+        } catch (\Throwable $exception) {
+            Alert::error($exception->getMessage());
+
+            return redirect()->route('platform.kyc.detail', $this->kycRequest->id);
+        }
 
         Alert::info('KYC request rejected.');
 

@@ -154,6 +154,9 @@ class PlatformProvider extends OrchidServiceProvider {
           Menu::make('Shipped Orders')
             ->icon('bs-truck')
             ->route('platform.order.shipped'),
+          Menu::make('Delivered Orders')
+            ->icon('bs-bag-check')
+            ->route('platform.order.delivered'),
         ]),
 
       Menu::make('Carousel')

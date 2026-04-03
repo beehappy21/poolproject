@@ -206,6 +206,20 @@ export class WalletsController {
     });
   }
 
+  @Post("withdraw-requests/:requestId/paid")
+  async markWithdrawRequestPaid(
+    @Param("requestId") requestId: string,
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    const adminUser = await this.requireAdminSessionUser(authorization, cookieHeader);
+
+    return this.walletsService.markWithdrawRequestPaid({
+      requestId: requirePositiveIntegerString(requestId, "requestId"),
+      actorUserId: adminUser.userId,
+    });
+  }
+
   @Get("kyc-requests")
   async listKycRequests(
     @Query("userId") userId?: string,

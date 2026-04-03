@@ -160,6 +160,11 @@ export interface WalletsRepository {
 
   markWithdrawRequestsExported(requestIds: string[]): Promise<WithdrawRequestSummary[]>;
 
+  markWithdrawRequestPaid(input: {
+    requestId: string;
+    actorUserId: string;
+  }): Promise<WithdrawRequestSummary>;
+
   createKycRequest(input: {
     userId: string;
     nationalId?: string;
@@ -1408,6 +1413,51 @@ export class PrismaWalletsRepository implements WalletsRepository {
     });
 
     return requests.map((request) => this.toWithdrawRequestSummary(request));
+  }
+
+  async markWithdrawRequestPaid(input: {
+    requestId: string;
+    actorUserId: string;
+  }): Promise<WithdrawRequestSummary> {
+    const prismaClient = this.prisma as PrismaClient;
+    const existingRequest = await prismaClient.withdrawRequest.findUnique({
+      where: { id: BigInt(input.requestId) },
+      include: {
+        user: {
+          select: {
+            memberCode: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!existingRequest) {
+      throw new Error("Withdraw request not found.");
+    }
+
+    if (existingRequest.status !== "APPROVED" && existingRequest.status !== "EXPORTED") {
+      throw new Error("Withdraw request is not ready to mark paid.");
+    }
+
+    const paidRequest = await prismaClient.withdrawRequest.update({
+      where: { id: existingRequest.id },
+      data: {
+        status: "PAID",
+        approvedByUserId: BigInt(input.actorUserId),
+        paidAt: new Date(),
+      },
+      include: {
+        user: {
+          select: {
+            memberCode: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    return this.toWithdrawRequestSummary(paidRequest);
   }
 
   async createKycRequest(input: {
