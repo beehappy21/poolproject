@@ -628,15 +628,6 @@ export class MatrixService implements MatrixServiceContract {
       );
       if (deferredOpenedReentry) {
         openedReentries.push(deferredOpenedReentry);
-        await this.maybePromoteOpenedReentryToUplineSameRound(
-          input.beneficiaryUserId,
-          deferredOpenedReentry.roundNo,
-          deferredOpenedReentry.matrixEventId,
-          this.resolveReentryRuntimeSettings(
-            latestCycle.organizationPvRate.toString(),
-            latestCycle.cwReentryAmount.toString(),
-          ).reentryPvAmount,
-        );
       }
     }
 
@@ -1066,9 +1057,13 @@ export class MatrixService implements MatrixServiceContract {
     );
   }
 
+  private normalizeBoardStatus(status: string | null | undefined) {
+    return (status || "").toLowerCase();
+  }
+
   private resolveHighestPriorityOpenBoard(boards: MatrixBoardLike[]) {
     return [...boards]
-      .filter((entry) => entry.status === "open")
+      .filter((entry) => this.normalizeBoardStatus(entry.status) === "open")
       .sort((left, right) => {
         if (left.boardNo !== right.boardNo) {
           return left.boardNo - right.boardNo;
@@ -1081,14 +1076,12 @@ export class MatrixService implements MatrixServiceContract {
   private resolveOrderTargetBoard(boards: MatrixBoardLike[]) {
     return [...boards]
       .filter(
-        (entry) => entry.roundNo === 1 && entry.status === "open",
+        (entry) =>
+          entry.boardNo === 1 &&
+          this.normalizeBoardStatus(entry.status) === "open",
       )
       .sort((left, right) => {
-        if (left.boardNo !== right.boardNo) {
-          return left.boardNo - right.boardNo;
-        }
-
-        return left.roundNo - right.roundNo;
+        return right.roundNo - left.roundNo;
       })[0];
   }
 
@@ -1261,52 +1254,6 @@ export class MatrixService implements MatrixServiceContract {
     });
   }
 
-  private async maybePromoteOpenedReentryToUplineSameRound(
-    userId: string,
-    roundNo: number,
-    matrixEventId: string,
-    creditedPv: string,
-  ) {
-    const uplineUserIds = await this.membersService.getUplineCandidateIds(
-      userId,
-      new Date().toISOString(),
-    );
-
-    const directUplineUserId = uplineUserIds[0];
-    if (!directUplineUserId) {
-      return;
-    }
-
-    const uplineCycle = await this.getActiveCycle(directUplineUserId);
-    if (!uplineCycle) {
-      return;
-    }
-
-    const targetBoard = uplineCycle.boards.find(
-      (entry) =>
-        entry.boardNo === 1 &&
-        entry.roundNo === roundNo &&
-        entry.status === "OPEN" &&
-        entry.filledSlots < entry.slotCount,
-    );
-
-    if (!targetBoard) {
-      return;
-    }
-
-    await this.placeSyntheticPointIntoBoard({
-      cycle: uplineCycle,
-      board: targetBoard,
-      beneficiaryUserId: directUplineUserId,
-      sourceUserId: userId,
-      sourcePv: creditedPv,
-      creditedPv,
-      sourceType: "REENTRY",
-      sourceRoundNo: roundNo,
-      sourceOrderId: null,
-    });
-  }
-
   private async enqueueSyntheticPointIntoBoard(input: {
     cycle: MatrixCycleLike;
     board: MatrixBoardLike;
@@ -1379,7 +1326,7 @@ export class MatrixService implements MatrixServiceContract {
         sourceUserId: input.sourceUserId,
         sourcePv: input.creditedPv,
         creditedPv: input.creditedPv,
-        sourceType: "REENTRY",
+        sourceType: "ORDER",
         sourceRoundNo: 1,
         sourceOrderId: null,
       });

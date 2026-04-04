@@ -37,7 +37,7 @@ export interface MatrixCycleSummary {
   organizationPvRate: string;
   cwReentryAmount: string;
   personalCarryPv: string;
-  levelRatesSnapshot: string[];
+  levelRatesSnapshot: string | string[];
   totalAccumulatedPv: string;
   currentBoardNo: number;
   currentBoardRoundNo: number;

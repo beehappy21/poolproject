@@ -8,17 +8,6 @@ import {
 } from "../../../../infrastructure/src/prisma/prisma.mappers";
 import { MatrixCycleSummary } from "../domain/matrix.types";
 
-function parseLevelRatesSnapshot(snapshot: string): string[] {
-  try {
-    const parsed = JSON.parse(snapshot);
-    return Array.isArray(parsed)
-      ? parsed.filter((value) => typeof value === "string")
-      : [];
-  } catch {
-    return [];
-  }
-}
-
 @Injectable()
 export class PrismaMatrixRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -406,7 +395,7 @@ export class PrismaMatrixRepository {
       organizationPvRate: toDecimalString(cycle.organizationPvRate),
       cwReentryAmount: toDecimalString(cycle.cwReentryAmount),
       personalCarryPv: toDecimalString(cycle.personalCarryPv),
-      levelRatesSnapshot: parseLevelRatesSnapshot(cycle.levelRatesSnapshot),
+      levelRatesSnapshot: cycle.levelRatesSnapshot,
       totalAccumulatedPv: toDecimalString(cycle.totalAccumulatedPv),
       currentBoardNo: cycle.currentBoardNo,
       currentBoardRoundNo: cycle.currentBoardRoundNo,
