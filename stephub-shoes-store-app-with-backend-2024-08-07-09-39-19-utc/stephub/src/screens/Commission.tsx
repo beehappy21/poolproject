@@ -79,6 +79,9 @@ type CommissionEntry = {
 
 type CommissionListResponse = {
   items?: CommissionEntry[];
+  total?: number;
+  page?: number;
+  pageSize?: number;
 };
 
 type CommissionResponsePayload = CommissionEntry[] | CommissionListResponse;
@@ -332,6 +335,28 @@ const toStartOfToday = () => {
   return new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
 };
 
+const extractCommissionItems = (
+  payload?: CommissionResponsePayload,
+): CommissionEntry[] => {
+  if (!payload) {
+    return [];
+  }
+
+  return Array.isArray(payload) ? payload : payload.items || [];
+};
+
+const extractCommissionTotal = (payload?: CommissionResponsePayload): number => {
+  if (!payload) {
+    return 0;
+  }
+
+  if (Array.isArray(payload)) {
+    return payload.length;
+  }
+
+  return payload.total ?? payload.items?.length ?? 0;
+};
+
 const resolveReentryTarget = (
   matrixResponse?: MatrixResponse,
   matrixSettings?: MatrixSettingsResponse,
@@ -440,6 +465,37 @@ export const Commission: React.FC = () => {
       withCredentials: true,
     };
 
+    const fetchAllCommissions = async (): Promise<CommissionEntry[]> => {
+      const pageSize = 200;
+      const firstResponse = await axios.get<CommissionResponsePayload>(
+        `${URLS.AUTH_COMMISSIONS}?page=1&pageSize=${pageSize}`,
+        authRequestConfig,
+      );
+
+      const firstPayload = firstResponse.data;
+      const firstItems = extractCommissionItems(firstPayload);
+      const total = extractCommissionTotal(firstPayload);
+
+      if (total <= firstItems.length || total === 0) {
+        return firstItems;
+      }
+
+      const totalPages = Math.ceil(total / pageSize);
+      const remainingResponses = await Promise.all(
+        Array.from({length: totalPages - 1}, (_, index) =>
+          axios.get<CommissionResponsePayload>(
+            `${URLS.AUTH_COMMISSIONS}?page=${index + 2}&pageSize=${pageSize}`,
+            authRequestConfig,
+          ),
+        ),
+      );
+
+      return [
+        ...firstItems,
+        ...remainingResponses.flatMap(response => extractCommissionItems(response.data)),
+      ];
+    };
+
     try {
       const [
         commissionSettingsResult,
@@ -454,7 +510,7 @@ export const Commission: React.FC = () => {
         axios.get<CommissionSettingsResponse>(URLS.GET_COMMISSION_SETTINGS),
         axios.get<MatrixSettingsResponse>(URLS.GET_MATRIX_SETTINGS),
         axios.get<DashboardResponse>(URLS.AUTH_DASHBOARD, authRequestConfig),
-        axios.get<CommissionResponsePayload>(URLS.AUTH_COMMISSIONS, authRequestConfig),
+        fetchAllCommissions(),
         axios.get<MatrixResponse>(URLS.AUTH_MATRIX, authRequestConfig),
         axios.get<WalletTransactionSummary[]>(URLS.AUTH_TRANSACTIONS, authRequestConfig),
         axios.get<WithdrawRequestSummary[]>(URLS.AUTH_WITHDRAW_REQUESTS, authRequestConfig),
@@ -483,11 +539,8 @@ export const Commission: React.FC = () => {
           ? dashboardResult.value.data.wallet
           : undefined;
 
-      const commissionPayload: CommissionResponsePayload | undefined =
-        commissionsResult.status === 'fulfilled' ? commissionsResult.value.data : undefined;
-      const commissions: CommissionEntry[] = Array.isArray(commissionPayload)
-        ? commissionPayload
-        : commissionPayload?.items || [];
+      const commissions: CommissionEntry[] =
+        commissionsResult.status === 'fulfilled' ? commissionsResult.value : [];
       setCommissionEntries(commissions);
 
       const transactions =
