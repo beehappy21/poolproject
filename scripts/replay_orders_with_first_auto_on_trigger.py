@@ -61,7 +61,17 @@ def main() -> None:
     output_path = Path(sys.argv[2]) if len(sys.argv) > 2 else RUNTIME / "replayed-first-auto-on-trigger.json"
 
     payload = json.loads(source_path.read_text(encoding="utf-8"))
-    orders = sorted(payload["orders"], key=order_key)
+    if "orders" in payload:
+        orders = payload["orders"]
+    elif "days" in payload:
+        orders = []
+        for day in payload["days"]:
+            orders.extend(day.get("normalOrders", []))
+            orders.extend(day.get("expectedAutoOrders", []))
+    else:
+        raise KeyError("Expected input payload to contain either 'orders' or 'days'.")
+
+    orders = sorted(orders, key=order_key)
     normal_orders = [order for order in orders if order.get("billType") != "บิลอัตโนมัติ"]
     auto_orders = [order for order in orders if order.get("billType") == "บิลอัตโนมัติ"]
 
