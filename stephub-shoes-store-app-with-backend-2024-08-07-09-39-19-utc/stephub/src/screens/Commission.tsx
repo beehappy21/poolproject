@@ -1820,6 +1820,16 @@ const getBoardStatusLabel = (board: MatrixBoardSummary) => {
                 ปิด reentry อยู่ ระบบจะยังไม่ดึง CW ไปเปิดรอบถัดไป
               </div>
             )}
+            <div
+              style={{
+                marginTop: 8,
+                color: theme.colors.textColor,
+                opacity: 0.76,
+                lineHeight: 1.5,
+              }}
+            >
+              CW สำหรับ reentry คือยอดคงเหลือจากทุกแผนคอมที่เข้า CW และยังไม่ถูกแปลงเป็น SW
+            </div>
           </div>
 
           <input
