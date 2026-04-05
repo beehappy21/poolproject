@@ -96,6 +96,11 @@ export interface PoolRepository {
       createdAt: string;
     }>
   >;
+
+  listWeeklyEligibilitySnapshots(input: {
+    evaluationAt: string;
+    qualifiedWindowStartAt: string;
+  }): Promise<PoolEligibilityDecision[]>;
 }
 
 @Injectable()
@@ -411,5 +416,67 @@ export class PrismaPoolRepository implements PoolRepository {
       blockReason: payout.blockReason,
       createdAt: payout.createdAt.toISOString(),
     }));
+  }
+
+  async listWeeklyEligibilitySnapshots(input: {
+    evaluationAt: string;
+    qualifiedWindowStartAt: string;
+  }): Promise<PoolEligibilityDecision[]> {
+    const evaluationAt = new Date(input.evaluationAt);
+    const qualifiedWindowStartAt = new Date(input.qualifiedWindowStartAt);
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        status: "ACTIVE",
+        payoutStatus: "ACTIVE",
+      },
+      select: {
+        id: true,
+        _count: {
+          select: {
+            directReferrals: true,
+          },
+        },
+        matrixCycles: {
+          orderBy: [{ startedAt: "desc" }, { id: "desc" }],
+          select: {
+            boards: {
+              where: {
+                boardNo: 1,
+                status: "COMPLETED",
+                completedAt: {
+                  gte: qualifiedWindowStartAt,
+                  lte: evaluationAt,
+                },
+              },
+              orderBy: [{ completedAt: "desc" }, { id: "desc" }],
+              select: {
+                completedAt: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return users.map((user) => {
+      const latestQualifiedBoardCompletedAt =
+        user.matrixCycles.flatMap((cycle) => cycle.boards)[0]?.completedAt ?? null;
+      const activeDirectReferralCount = user._count.directReferrals;
+      const memberActive = latestQualifiedBoardCompletedAt !== null;
+      const eligible = memberActive && activeDirectReferralCount >= 2;
+
+      return {
+        userId: user.id.toString(),
+        eligible,
+        reasonCode: eligible
+          ? "weekly_pool_qualified"
+          : !memberActive
+            ? "missing_recent_b1_completion"
+            : "missing_two_direct_referrals",
+        memberActive,
+        activeDirectReferralCount,
+      };
+    });
   }
 }

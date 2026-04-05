@@ -34,6 +34,7 @@ export interface PoolEligibilityMemberSnapshot {
   userId: string;
   memberActive: boolean;
   activeDirectReferralCount: number;
+  latestQualifiedBoardCompletedAt?: string | null;
   evaluationAt?: string;
 }
 

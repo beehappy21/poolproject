@@ -3,7 +3,6 @@ import { Prisma } from "@prisma/client";
 
 import { PrismaService } from "../../../../infrastructure/src/prisma/prisma.service";
 import {
-  buildUtcDayRange,
   toDecimalString,
   toIdString,
   toIsoString,
@@ -115,6 +114,62 @@ function canCancelOrderStatus(input: {
 
 function formatSequentialOrderNo(sequence: number) {
   return String(sequence).padStart(ORDER_NUMBER_WIDTH, "0");
+}
+
+const BANGKOK_UTC_OFFSET_HOURS = 7;
+
+function parseDateOnlyParts(dateOnly: string) {
+  const [year, month, day] = dateOnly.split("-").map((part) => Number(part));
+  return { year, month, day };
+}
+
+function toBangkokUtcDate(input: {
+  year: number;
+  month: number;
+  day: number;
+  hour?: number;
+  minute?: number;
+  second?: number;
+  millisecond?: number;
+}) {
+  return new Date(
+    Date.UTC(
+      input.year,
+      input.month - 1,
+      input.day,
+      (input.hour ?? 0) - BANGKOK_UTC_OFFSET_HOURS,
+      input.minute ?? 0,
+      input.second ?? 0,
+      input.millisecond ?? 0,
+    ),
+  );
+}
+
+function buildBangkokWeeklyRange(poolDate: string) {
+  const { year, month, day } = parseDateOnlyParts(poolDate);
+  const closeDayUtc = Date.UTC(year, month - 1, day);
+  const startDay = new Date(closeDayUtc - 6 * 24 * 60 * 60 * 1000);
+
+  return {
+    gte: toBangkokUtcDate({
+      year: startDay.getUTCFullYear(),
+      month: startDay.getUTCMonth() + 1,
+      day: startDay.getUTCDate(),
+      hour: 0,
+      minute: 0,
+      second: 0,
+      millisecond: 0,
+    }),
+    lte: toBangkokUtcDate({
+      year,
+      month,
+      day,
+      hour: 23,
+      minute: 59,
+      second: 59,
+      millisecond: 999,
+    }),
+  } satisfies Prisma.DateTimeFilter;
 }
 
 export interface OrdersRepository {
@@ -2174,7 +2229,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
       }>;
     }>
   > {
-    const range = buildUtcDayRange(poolDate);
+    const range = buildBangkokWeeklyRange(poolDate);
     const orderItemSelect = {
       lineTotalPv: true,
       poolRateMode: true,

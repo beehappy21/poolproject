@@ -14,22 +14,22 @@ import {
   addDecimalStrings,
   compareDecimalStrings,
   divideDecimalStringByInt,
-  divideDecimalStrings,
   minDecimalString,
   multiplyDecimalStrings,
   subtractDecimalStrings,
 } from "../../../../shared/utils/src/money.util";
 import { CommissionsService } from "../../../commissions/src/services/commissions.service";
-import { CommissionsServiceContract } from "../../../commissions/src/services/commissions.service";
 import { MembersService } from "../../../members/src/services/members.service";
-import { MembersServiceContract } from "../../../members/src/services/members.service";
 import { OrdersService } from "../../../orders/src/services/orders.service";
-import { OrdersServiceContract } from "../../../orders/src/services/orders.service";
-import { QualificationService } from "../../../qualification/src/services/qualification.service";
-import { QualificationServiceContract } from "../../../qualification/src/services/qualification.service";
 import { WalletsService } from "../../../wallets/src/services/wallets.service";
-import { WalletsServiceContract } from "../../../wallets/src/services/wallets.service";
 import { PrismaPoolRepository } from "../repositories/pool.repository";
+
+const BANGKOK_UTC_OFFSET_HOURS = 7;
+
+function parseDateOnlyParts(dateOnly: string) {
+  const [year, month, day] = dateOnly.split("-").map((part) => Number(part));
+  return { year, month, day };
+}
 
 export interface PoolServiceContract {
   listPoolCycles(filters?: {
@@ -120,7 +120,6 @@ export class PoolService implements PoolServiceContract {
   constructor(
     @Inject(forwardRef(() => OrdersService))
     private readonly ordersService: OrdersService,
-    private readonly qualificationService: QualificationService,
     private readonly membersService: MembersService,
     @Inject(forwardRef(() => CommissionsService))
     private readonly commissionsService: CommissionsService,
@@ -158,20 +157,18 @@ export class PoolService implements PoolServiceContract {
   async evaluatePoolEligibility(
     snapshots: PoolEligibilityMemberSnapshot[],
   ): Promise<PoolEligibilityDecision[]> {
-    return Promise.all(
-      snapshots.map((snapshot) =>
-        this.qualificationService.evaluatePoolEligibility({
-          userId: snapshot.userId,
-          evaluationAt: snapshot.evaluationAt ?? "",
-        }).then((result) => ({
-          userId: result.userId,
-          eligible: result.eligible,
-          reasonCode: result.reasonCode,
-          memberActive: result.memberActive,
-          activeDirectReferralCount: result.activeDirectReferralCount,
-        })),
-      ),
-    );
+    return snapshots.map((snapshot) => ({
+      userId: snapshot.userId,
+      eligible: snapshot.memberActive && snapshot.activeDirectReferralCount >= 2,
+      reasonCode:
+        snapshot.memberActive && snapshot.activeDirectReferralCount >= 2
+          ? "weekly_pool_qualified"
+          : !snapshot.memberActive
+            ? "missing_recent_b1_completion"
+            : "missing_two_direct_referrals",
+      memberActive: snapshot.memberActive,
+      activeDirectReferralCount: snapshot.activeDirectReferralCount,
+    }));
   }
 
   async closePool(poolDate: string): Promise<PoolCloseResult> {
@@ -195,19 +192,20 @@ export class PoolService implements PoolServiceContract {
       poolDate,
       approvedOrderCount: approvedOrders.length,
       fundingTotalApprovedPv: this.sumApprovedOrderPv(approvedOrders),
-      poolRate: this.resolveEffectivePoolRate(approvedOrders),
+      poolRate: "0.3",
       approvedOrders,
     });
-    const uniqueUserIds = await this.membersService.getMemberIdsWithActiveCycles(
+    const eligibilitySnapshots = await this.poolRepository.listWeeklyEligibilitySnapshots({
       evaluationAt,
-    );
+      qualifiedWindowStartAt: this.resolveQualifiedWindowStartAt(poolDate),
+    });
     const flow = await this.handleDailyPoolFlow(
       poolDate,
       evaluationAt,
-      uniqueUserIds.map((userId) => ({
-        userId,
-        memberActive: false,
-        activeDirectReferralCount: 0,
+      eligibilitySnapshots.map((snapshot) => ({
+        userId: snapshot.userId,
+        memberActive: snapshot.memberActive,
+        activeDirectReferralCount: snapshot.activeDirectReferralCount,
         evaluationAt,
       })),
     );
@@ -215,8 +213,10 @@ export class PoolService implements PoolServiceContract {
       ...funding,
       evaluationAt,
       settingsSnapshot: JSON.stringify({
-        poolRateMode: "configurable_per_item",
-        defaultPoolRate: "0.5",
+        poolRateMode: "weekly_fixed_rate",
+        weeklyPoolRate: "0.3",
+        timezone: "Asia/Bangkok",
+        eligibilityRule: "direct_two_and_recent_b1",
       }),
       eligibleMemberCount: flow.eligibleRecipientCount,
       payoutPerMember: flow.payoutPerMember,
@@ -250,7 +250,7 @@ export class PoolService implements PoolServiceContract {
       poolDate,
       approvedOrderCount: approvedOrders.length,
       fundingTotalApprovedPv: this.sumApprovedOrderPv(approvedOrders),
-      poolRate: this.resolveEffectivePoolRate(approvedOrders),
+      poolRate: "0.3",
       approvedOrders,
     };
   }
@@ -278,7 +278,7 @@ export class PoolService implements PoolServiceContract {
       poolDate,
       approvedOrderCount: approvedOrders.length,
       fundingTotalApprovedPv: this.sumApprovedOrderPv(approvedOrders),
-      poolRate: this.resolveEffectivePoolRate(approvedOrders),
+      poolRate: "0.3",
       approvedOrders,
     });
     const eligibilityDecisions = await this.evaluatePoolEligibility(snapshots);
@@ -524,51 +524,24 @@ export class PoolService implements PoolServiceContract {
   }
 
   private resolvePoolEvaluationAt(poolDate: string): string {
-    return new Date(`${poolDate}T23:59:59.999Z`).toISOString();
+    const { year, month, day } = parseDateOnlyParts(poolDate);
+
+    return new Date(
+      Date.UTC(year, month - 1, day, 23 - BANGKOK_UTC_OFFSET_HOURS, 59, 59, 999),
+    ).toISOString();
   }
 
   private calculatePoolContributionForOrder(order: PoolSourceOrder): string {
-    if (!order.items || order.items.length === 0) {
-      return multiplyDecimalStrings(order.totalPv, "0.5");
-    }
-
-    return order.items.reduce((total, item) => {
-      const rate = this.resolvePoolRateForItem(item.poolRateMode, item.poolRate);
-      return addDecimalStrings(
-        total,
-        multiplyDecimalStrings(item.lineTotalPv, rate),
-      );
-    }, "0");
+    return multiplyDecimalStrings(order.totalPv, "0.3");
   }
 
-  private resolvePoolRateForItem(
-    poolRateMode?: "default_50_percent" | "custom_rate" | "disabled",
-    poolRate?: string,
-  ): string {
-    if (poolRateMode === "disabled") {
-      return "0";
-    }
+  private resolveQualifiedWindowStartAt(poolDate: string): string {
+    const { year, month } = parseDateOnlyParts(poolDate);
+    const previousMonthYear = month === 1 ? year - 1 : year;
+    const previousMonth = month === 1 ? 12 : month - 1;
 
-    if (poolRateMode === "custom_rate") {
-      return poolRate && compareDecimalStrings(poolRate, "0") > 0 ? poolRate : "0";
-    }
-
-    return "0.5";
-  }
-
-  private resolveEffectivePoolRate(approvedOrders: PoolSourceOrder[]): string {
-    const totalPv = this.sumApprovedOrderPv(approvedOrders);
-
-    if (compareDecimalStrings(totalPv, "0") <= 0) {
-      return "0";
-    }
-
-    const totalContribution = approvedOrders.reduce(
-      (total, order) =>
-        addDecimalStrings(total, this.calculatePoolContributionForOrder(order)),
-      "0",
-    );
-
-    return divideDecimalStrings(totalContribution, totalPv);
+    return new Date(
+      Date.UTC(previousMonthYear, previousMonth - 1, 1, 0 - BANGKOK_UTC_OFFSET_HOURS, 0, 0, 0),
+    ).toISOString();
   }
 }
