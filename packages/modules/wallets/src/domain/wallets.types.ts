@@ -125,12 +125,14 @@ export interface FirmWalletCreditResult {
   sourceMatrixEventId: string;
 }
 
-export interface MatrixReentryDebitResult {
+export interface MatrixAutoOrderDebitResult {
   userId: string;
   amount: string;
   withdrawableBalance: string;
   sourceBoardId: string;
 }
+
+export interface MatrixReentryDebitResult extends MatrixAutoOrderDebitResult {}
 
 export interface WalletTopupRequestSummary {
   requestId: string;

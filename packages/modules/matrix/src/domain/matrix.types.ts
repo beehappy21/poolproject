@@ -35,6 +35,7 @@ export interface MatrixCycleSummary {
   boardDepth: number;
   boardCount: number;
   organizationPvRate: string;
+  autoOrderAmount?: string;
   cwReentryAmount: string;
   personalCarryPv: string;
   levelRatesSnapshot: string | string[];
@@ -54,7 +55,16 @@ export interface MatrixOrderProcessingResult {
   payoutCount: number;
   completedCycleCount: number;
   skipped: boolean;
-  openedReentries: Array<{
+  openedAutoOrders: Array<{
+    cycleId: string;
+    userId: string;
+    matrixEventId: string;
+    sourceBoardId: string;
+    roundNo: number;
+    autoOrderAmount: string;
+    autoOrderPvAmount: string;
+  }>;
+  openedReentries?: Array<{
     cycleId: string;
     userId: string;
     matrixEventId: string;

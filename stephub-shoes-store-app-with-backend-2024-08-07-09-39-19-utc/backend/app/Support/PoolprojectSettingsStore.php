@@ -24,17 +24,20 @@ class PoolprojectSettingsStore
         'boardWidth' => 2,
         'boardDepth' => 3,
         'boardCount' => 3,
-        'organizationPvRate' => '0.1',
-        'cwReentryAmount' => '0.1',
-        'reentryFirmAmount' => '0.1',
-        'reentryPvAmount' => '0.1',
+        'organizationPvRate' => '500',
+        'autoOrderAmount' => '500',
+        'autoOrderFirmAmount' => '500',
+        'autoOrderPvAmount' => '500',
+        'cwReentryAmount' => '500',
+        'reentryFirmAmount' => '500',
+        'reentryPvAmount' => '500',
         'levelRates' => ['0.1', '0.05', '0.03'],
         'boardLevelRates' => [
             ['0.1', '0.05', '0.03'],
             ['0.1', '0.05', '0.03'],
             ['0.1', '0.05', '0.03'],
         ],
-        'boardOpenPvThresholds' => ['100', '100', '100'],
+        'boardOpenPvThresholds' => ['500', '500', '500'],
     ];
 
     private const DEFAULT_MANUAL_PAYMENT_SETTINGS = [
@@ -271,16 +274,28 @@ class PoolprojectSettingsStore
                 $input['organizationPvRate'] ?? null,
                 self::DEFAULT_MATRIX_SETTINGS['organizationPvRate']
             ),
+            'autoOrderAmount' => self::normalizeDecimalString(
+                $input['autoOrderAmount'] ?? ($input['cwReentryAmount'] ?? ($input['organizationPvRate'] ?? null)),
+                self::DEFAULT_MATRIX_SETTINGS['autoOrderAmount']
+            ),
+            'autoOrderFirmAmount' => self::normalizeDecimalString(
+                $input['autoOrderFirmAmount'] ?? ($input['reentryFirmAmount'] ?? ($input['autoOrderAmount'] ?? ($input['cwReentryAmount'] ?? ($input['organizationPvRate'] ?? null)))),
+                self::DEFAULT_MATRIX_SETTINGS['autoOrderFirmAmount']
+            ),
+            'autoOrderPvAmount' => self::normalizeDecimalString(
+                $input['autoOrderPvAmount'] ?? ($input['reentryPvAmount'] ?? ($input['organizationPvRate'] ?? null)),
+                self::DEFAULT_MATRIX_SETTINGS['autoOrderPvAmount']
+            ),
             'cwReentryAmount' => self::normalizeDecimalString(
-                $input['cwReentryAmount'] ?? ($input['organizationPvRate'] ?? null),
+                $input['autoOrderAmount'] ?? ($input['cwReentryAmount'] ?? ($input['organizationPvRate'] ?? null)),
                 self::DEFAULT_MATRIX_SETTINGS['cwReentryAmount']
             ),
             'reentryFirmAmount' => self::normalizeDecimalString(
-                $input['reentryFirmAmount'] ?? ($input['cwReentryAmount'] ?? ($input['organizationPvRate'] ?? null)),
+                $input['autoOrderFirmAmount'] ?? ($input['reentryFirmAmount'] ?? ($input['autoOrderAmount'] ?? ($input['cwReentryAmount'] ?? ($input['organizationPvRate'] ?? null)))),
                 self::DEFAULT_MATRIX_SETTINGS['reentryFirmAmount']
             ),
             'reentryPvAmount' => self::normalizeDecimalString(
-                $input['reentryPvAmount'] ?? ($input['organizationPvRate'] ?? null),
+                $input['autoOrderPvAmount'] ?? ($input['reentryPvAmount'] ?? ($input['organizationPvRate'] ?? null)),
                 self::DEFAULT_MATRIX_SETTINGS['reentryPvAmount']
             ),
             'levelRates' => $normalizedLevelRates,

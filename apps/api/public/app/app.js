@@ -128,7 +128,7 @@ function renderOrders(orderResult) {
 }
 
 function formatOrderSourceType(order) {
-  return order.orderSourceType === "matrix_reentry" ? "matrix reentry" : "normal";
+  return order.orderSourceType === "matrix_reentry" ? "matrix auto order" : "normal";
 }
 
 function formatReentryAuditSummary(reentryAudit) {
@@ -563,8 +563,8 @@ async function loadOrderDetail(orderId) {
     </div>`,
     snapshot.order.orderSourceType === "matrix_reentry"
       ? `<div class="stack-item">
-          <strong>Reentry audit</strong>
-          <p class="muted">This order was generated automatically from a matrix reentry event.</p>
+          <strong>Auto order audit</strong>
+          <p class="muted">This order was generated automatically from a matrix auto order event.</p>
           ${formatReentryAuditSummary(snapshot.order.reentryAudit)
             .map((line) => `<p class="muted">${line}</p>`)
             .join("")}

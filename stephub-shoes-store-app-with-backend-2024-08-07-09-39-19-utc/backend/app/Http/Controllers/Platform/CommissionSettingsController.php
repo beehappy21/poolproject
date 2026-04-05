@@ -102,6 +102,9 @@ class CommissionSettingsController extends Controller
     {
         $request->merge([
             'organizationPvRate' => $request->input('organizationPvRate', $request->input('organization_pv_rate')),
+            'autoOrderAmount' => $request->input('autoOrderAmount', $request->input('auto_order_amount', $request->input('cwReentryAmount', $request->input('cw_reentry_amount')))),
+            'autoOrderFirmAmount' => $request->input('autoOrderFirmAmount', $request->input('auto_order_firm_amount', $request->input('reentryFirmAmount', $request->input('reentry_firm_amount')))),
+            'autoOrderPvAmount' => $request->input('autoOrderPvAmount', $request->input('auto_order_pv_amount', $request->input('reentryPvAmount', $request->input('reentry_pv_amount')))),
             'cwReentryAmount' => $request->input('cwReentryAmount', $request->input('cw_reentry_amount')),
             'reentryFirmAmount' => $request->input('reentryFirmAmount', $request->input('reentry_firm_amount')),
             'reentryPvAmount' => $request->input('reentryPvAmount', $request->input('reentry_pv_amount')),
@@ -114,6 +117,9 @@ class CommissionSettingsController extends Controller
 
         $payload = $request->validate([
             'organizationPvRate' => ['nullable', 'string'],
+            'autoOrderAmount' => ['nullable', 'string'],
+            'autoOrderFirmAmount' => ['nullable', 'string'],
+            'autoOrderPvAmount' => ['nullable', 'string'],
             'cwReentryAmount' => ['nullable', 'string'],
             'reentryFirmAmount' => ['nullable', 'string'],
             'reentryPvAmount' => ['nullable', 'string'],
@@ -146,6 +152,9 @@ class CommissionSettingsController extends Controller
             'boardDepth' => count($levelRates),
             'boardCount' => count($boardThresholds),
             'organizationPvRate' => $this->cleanSingleRate($payload['organizationPvRate'] ?? $current['organizationPvRate']),
+            'autoOrderAmount' => $this->cleanSingleRate($payload['autoOrderAmount'] ?? ($current['autoOrderAmount'] ?? $current['cwReentryAmount'])),
+            'autoOrderFirmAmount' => $this->cleanSingleRate($payload['autoOrderFirmAmount'] ?? ($current['autoOrderFirmAmount'] ?? ($current['reentryFirmAmount'] ?? $current['cwReentryAmount']))),
+            'autoOrderPvAmount' => $this->cleanSingleRate($payload['autoOrderPvAmount'] ?? ($current['autoOrderPvAmount'] ?? ($current['reentryPvAmount'] ?? $current['organizationPvRate']))),
             'cwReentryAmount' => $this->cleanSingleRate($payload['cwReentryAmount'] ?? $current['cwReentryAmount']),
             'reentryFirmAmount' => $this->cleanSingleRate($payload['reentryFirmAmount'] ?? ($current['reentryFirmAmount'] ?? $current['cwReentryAmount'])),
             'reentryPvAmount' => $this->cleanSingleRate($payload['reentryPvAmount'] ?? ($current['reentryPvAmount'] ?? $current['organizationPvRate'])),

@@ -139,7 +139,14 @@ PROCESS_JSON="$(curl -s -X POST "$API_BASE_URL/orders/$ORDER_ID/process-approved
 if [[ "$PROCESS_JSON" != *"orderId"* ]]; then
   echo "PROCESS_JSON=$PROCESS_JSON" >&2
 fi
-POOL_JSON="$(curl -s -X POST "$API_BASE_URL/pool/$(date +%F)/close" \
+POOL_CLOSE_DATE="$(node -e '
+const now = new Date();
+const day = now.getDay();
+const sunday = new Date(now);
+sunday.setDate(now.getDate() + ((7 - day) % 7));
+process.stdout.write(sunday.toISOString().slice(0, 10));
+')"
+POOL_JSON="$(curl -s -X POST "$API_BASE_URL/pool/$POOL_CLOSE_DATE/close" \
   -H "$AUTH_HEADER")"
 REFERRAL_JSON="$(curl -s "$API_BASE_URL/members/by-code/BOB/referral-link?baseUrl=$API_BASE_URL")"
 REFERRAL_CODE="$(node -e '

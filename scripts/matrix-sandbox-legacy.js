@@ -1878,8 +1878,8 @@ function buildReport(input) {
     boardWidth: Number(input.settings?.boardWidth ?? 2),
     boardDepth: Number(input.settings?.boardDepth ?? 2),
     boardCount: Number(input.settings?.boardCount ?? 3),
-    organizationPvRate: String(input.settings?.organizationPvRate ?? "700"),
-    boardOpenPvThresholds: input.settings?.boardOpenPvThresholds ?? ["700", "700", "700"],
+    organizationPvRate: String(input.settings?.organizationPvRate ?? "500"),
+    boardOpenPvThresholds: input.settings?.boardOpenPvThresholds ?? ["500", "500", "500"],
     boardLevelRates: input.settings?.boardLevelRates ?? [["0.2", "0.2"]],
   };
 

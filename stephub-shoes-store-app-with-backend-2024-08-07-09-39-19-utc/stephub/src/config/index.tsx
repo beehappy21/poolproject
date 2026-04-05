@@ -67,6 +67,8 @@ export const AUTH_MATRIX_REENTRY_PREFERENCE = `${API_BASE_URL}/auth/matrix/reent
 export const AUTH_ORDERS = `${API_BASE_URL}/auth/orders`;
 export const AUTH_COMMISSIONS = `${API_BASE_URL}/auth/commissions`;
 export const AUTH_MATRIX = `${API_BASE_URL}/auth/matrix`;
+export const AUTH_MATRIX_PAYOUTS = `${API_BASE_URL}/auth/matrix-payouts`;
+export const AUTH_POOL_PAYOUTS = `${API_BASE_URL}/auth/pool-payouts`;
 export const AUTH_TRANSACTIONS = `${API_BASE_URL}/auth/transactions`;
 export const AUTH_WALLETS_CONVERT = `${API_BASE_URL}/auth/wallets/convert`;
 export const AUTH_WALLETS_TRANSFER = `${API_BASE_URL}/auth/wallets/transfer`;
@@ -138,6 +140,8 @@ export const URLS = {
   AUTH_ORDERS,
   AUTH_COMMISSIONS,
   AUTH_MATRIX,
+  AUTH_MATRIX_PAYOUTS,
+  AUTH_POOL_PAYOUTS,
   AUTH_TRANSACTIONS,
   AUTH_WALLETS_CONVERT,
   AUTH_WALLETS_TRANSFER,

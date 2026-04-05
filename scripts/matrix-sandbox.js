@@ -447,8 +447,8 @@ function buildReport(input) {
     boardWidth: Number(input.settings?.boardWidth ?? 2),
     boardDepth: Number(input.settings?.boardDepth ?? 3),
     boardCount: Number(input.settings?.boardCount ?? 3),
-    organizationPvRate: String(input.settings?.organizationPvRate ?? "700"),
-    boardOpenPvThresholds: input.settings?.boardOpenPvThresholds ?? ["700", "700", "700"],
+    organizationPvRate: String(input.settings?.organizationPvRate ?? "500"),
+    boardOpenPvThresholds: input.settings?.boardOpenPvThresholds ?? ["500", "500", "500"],
     boardLevelRates: input.settings?.boardLevelRates ?? [["0.2", "0.2", "0.2"]],
   };
 
@@ -542,10 +542,10 @@ function buildReport(input) {
   return {
     scenarioName: input.scenarioName ?? "matrix-sandbox",
     assumptions: [
-      "Board 1 opens when personal PV accumulated from approved 700 PV orders reaches the configured threshold.",
+      "Board 1 opens when personal PV accumulated from approved 500 PV orders reaches the configured threshold.",
       "Placement prefers sponsor line first; upline + side is used as fallback when sponsor placement is unavailable.",
       "Every new placement into a board pays immediately using organizationPvRate * board level rate.",
-      "When Board 1 completes and accumulated commission is greater than 700, Board 1 next round opens immediately and 700 commission is deducted as the reentry cost.",
+      "When Board 1 completes and accumulated commission is greater than 500, Board 1 next round opens immediately and 500 commission is deducted as the reentry cost.",
       "A Board 1 reentry point does not go back into the completed round; it climbs the upline workline to the nearest open Board 1 Round 2, otherwise the nearest open Board 1 round.",
       "When Board 1 round 2 or later completes while the upline's Board 2 round 1 is still open, the completion creates a spill point into that upline Board 2 round 1.",
     ],

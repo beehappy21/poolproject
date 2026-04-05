@@ -32,6 +32,7 @@ export interface ApprovedOrderOrchestrationResult {
     payoutCount: number;
     completedCycleCount: number;
     skipped: boolean;
+    openedAutoOrderCount: number;
     openedReentryCount: number;
   };
   walletPostingInputs: Array<{

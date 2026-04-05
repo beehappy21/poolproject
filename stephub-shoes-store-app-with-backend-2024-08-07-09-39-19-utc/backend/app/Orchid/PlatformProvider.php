@@ -76,7 +76,7 @@ class PlatformProvider extends OrchidServiceProvider {
           Menu::make('Matrix Bonus')
             ->icon('bs-grid-3x3-gap')
             ->route('platform.commission.matrix'),
-          Menu::make('Reentry Rules')
+          Menu::make('Auto Order Rules')
             ->icon('bs-arrow-repeat')
             ->route('platform.commission.reentry'),
           Menu::make('Pool Bonus')

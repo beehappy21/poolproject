@@ -3,6 +3,7 @@ import {
   CommissionToShoppingConversionResult,
   DiscountWalletCreditResult,
   FirmWalletCreditResult,
+  MatrixAutoOrderDebitResult,
   MatrixReentryDebitResult,
   ShoppingWalletTopupResult,
   ShoppingWalletTransferResult,
@@ -76,6 +77,18 @@ export interface WalletsRepository {
   creditDiscountWalletFromApprovedOrder(input: {
     orderId: string;
   }): Promise<DiscountWalletCreditResult | null>;
+
+  creditFirmWalletFromMatrixAutoOrder(input: {
+    userId: string;
+    matrixEventId: string;
+    amount: string;
+  }): Promise<FirmWalletCreditResult>;
+
+  debitWithdrawableForMatrixAutoOrder(input: {
+    userId: string;
+    sourceBoardId: string;
+    amount: string;
+  }): Promise<MatrixAutoOrderDebitResult>;
 
   creditFirmWalletFromMatrixReentry(input: {
     userId: string;
@@ -860,7 +873,7 @@ export class PrismaWalletsRepository implements WalletsRepository {
     });
   }
 
-  async creditFirmWalletFromMatrixReentry(input: {
+  async creditFirmWalletFromMatrixAutoOrder(input: {
     userId: string;
     matrixEventId: string;
     amount: string;
@@ -913,7 +926,7 @@ export class PrismaWalletsRepository implements WalletsRepository {
           refId: BigInt(input.matrixEventId),
           amount: input.amount,
           status: "POSTED",
-          note: "Firm wallet credit from matrix reentry",
+          note: "Firm wallet credit from matrix auto order",
         },
       });
 
@@ -926,11 +939,11 @@ export class PrismaWalletsRepository implements WalletsRepository {
     });
   }
 
-  async debitWithdrawableForMatrixReentry(input: {
+  async debitWithdrawableForMatrixAutoOrder(input: {
     userId: string;
     sourceBoardId: string;
     amount: string;
-  }): Promise<MatrixReentryDebitResult> {
+  }): Promise<MatrixAutoOrderDebitResult> {
     return this.prisma.$transaction(async (tx) => {
       const wallet = await tx.wallet.upsert({
         where: { userId: BigInt(input.userId) },
@@ -963,7 +976,7 @@ export class PrismaWalletsRepository implements WalletsRepository {
       }
 
       if (compareDecimalStrings(wallet.withdrawableBalance.toString(), input.amount) < 0) {
-        throw new Error("Insufficient CW balance for matrix reentry.");
+        throw new Error("Insufficient balance for matrix auto order.");
       }
 
       const nextWithdrawableBalance = subtractDecimalStrings(
@@ -993,7 +1006,7 @@ export class PrismaWalletsRepository implements WalletsRepository {
           refId: BigInt(input.sourceBoardId),
           amount: input.amount,
           status: "POSTED",
-          note: "CW debit for matrix reentry",
+          note: "CW debit for matrix auto order",
         },
       });
 
@@ -1004,6 +1017,22 @@ export class PrismaWalletsRepository implements WalletsRepository {
         sourceBoardId: input.sourceBoardId,
       };
     });
+  }
+
+  async creditFirmWalletFromMatrixReentry(input: {
+    userId: string;
+    matrixEventId: string;
+    amount: string;
+  }): Promise<FirmWalletCreditResult> {
+    return this.creditFirmWalletFromMatrixAutoOrder(input);
+  }
+
+  async debitWithdrawableForMatrixReentry(input: {
+    userId: string;
+    sourceBoardId: string;
+    amount: string;
+  }): Promise<MatrixReentryDebitResult> {
+    return this.debitWithdrawableForMatrixAutoOrder(input);
   }
 
   async spendShoppingWallet(input: {

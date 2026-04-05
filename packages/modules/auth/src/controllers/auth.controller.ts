@@ -362,6 +362,7 @@ export class AuthController {
     if (readCommissionSettings().appVisibility.matrix === false) {
       return {
         userId: user.userId,
+        autoOrderEnabled: user.matrixReentryEnabled,
         reentryEnabled: user.matrixReentryEnabled,
         cycles: [],
       };
@@ -369,6 +370,7 @@ export class AuthController {
 
     return {
       userId: user.userId,
+      autoOrderEnabled: user.matrixReentryEnabled,
       reentryEnabled: user.matrixReentryEnabled,
       cycles: await this.matrixService.getMemberMatrixCycles(user.userId),
     };
@@ -851,22 +853,31 @@ export class AuthController {
     const user = await this.requireSessionUser(authorization, cookieHeader);
 
     try {
-      const openedReentry = await this.matrixService.requestMemberReentry(user.userId);
-      await this.ordersService.createMatrixReentryAuditArtifacts({
-        openedReentries: [openedReentry],
+      const openedAutoOrder = await this.matrixService.requestMemberAutoOrder(user.userId);
+      await this.ordersService.createMatrixAutoOrderAuditArtifacts({
+        openedAutoOrders: [openedAutoOrder],
       });
 
       return {
         opened: true,
-        openedReentry,
+        openedAutoOrder,
+        openedReentry: openedAutoOrder,
       };
     } catch (error) {
       if (error instanceof Error) {
         throw new BadRequestException(error.message);
       }
 
-      throw new BadRequestException("Unable to open matrix reentry.");
+      throw new BadRequestException("Unable to open matrix auto order.");
     }
+  }
+
+  @Post("matrix/auto-order")
+  async requestOwnMatrixAutoOrder(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    return this.requestOwnMatrixReentry(authorization, cookieHeader);
   }
 
   @Post("matrix/reentry-preference")
@@ -881,12 +892,25 @@ export class AuthController {
       throw new BadRequestException("enabled must be a boolean.");
     }
 
-    const result = await this.matrixService.updateMemberReentryPreference({
+    const result = await this.matrixService.updateMemberAutoOrderPreference({
       userId: user.userId,
       enabled: body.enabled,
     });
 
-    return result;
+    return {
+      ...result,
+      autoOrderEnabled: result.enabled,
+      openedAutoOrder: result.openedAutoOrder ?? result.openedReentry ?? null,
+    };
+  }
+
+  @Post("matrix/auto-order-preference")
+  async updateOwnMatrixAutoOrderPreference(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+    @Body() body?: { enabled?: boolean },
+  ) {
+    return this.updateOwnMatrixReentryPreference(authorization, cookieHeader, body);
   }
 
   @Post("logout")

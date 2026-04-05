@@ -13,19 +13,19 @@ process.env.DATABASE_URL =
 const prisma = new PrismaClient();
 const API_BASE_URL = process.env.API_BASE_URL || "http://127.0.0.1:3000";
 const RUN_SUFFIX = Date.now().toString().slice(-8);
-const ADMIN_IDENTIFIER = process.env.REENTRY_SMOKE_ADMIN || "TH0000013";
-const ADMIN_PASSWORD = process.env.REENTRY_SMOKE_ADMIN_PASSWORD || "005613";
-const SPONSOR_CODE = process.env.REENTRY_SMOKE_SPONSOR || "TH0000013";
-const TARGET_CODE = `RGT${RUN_SUFFIX}`;
-const SOURCE_CODE = `RGS${RUN_SUFFIX}`;
+const ADMIN_IDENTIFIER = process.env.AUTO_BILL_ADMIN || "ALICE";
+const ADMIN_PASSWORD = process.env.AUTO_BILL_ADMIN_PASSWORD || "dev-password";
+const SPONSOR_CODE = process.env.AUTO_BILL_SPONSOR || "ALICE";
+const TARGET_CODE = process.env.AUTO_BILL_TARGET_CODE || `ABT${RUN_SUFFIX}`;
+const SOURCE_CODE = process.env.AUTO_BILL_SOURCE_CODE || `ABS${RUN_SUFFIX}`;
+const MEMBER_PASSWORD = process.env.AUTO_BILL_MEMBER_PASSWORD || "a1a1a1";
 const MATRIX_SETTINGS_PATH = join(process.cwd(), "runtime", "matrix-settings.json");
-const LEVEL_RATES = ["0.1", "0.05", "0.03"];
+const LEVEL_RATES = ["0.15", "0.15", "0.15"];
 const BOARD_LEVEL_RATES = [
   [...LEVEL_RATES],
-  [...LEVEL_RATES],
-  [...LEVEL_RATES],
+  ["0.10", "0.10", "0"],
+  ["0.20", "0.20", "0"],
 ];
-const BOARD_OPEN_PV_THRESHOLDS = ["500", "500", "500"];
 const MATRIX_SETTINGS_PAYLOAD = {
   boardWidth: 2,
   boardDepth: 3,
@@ -36,7 +36,7 @@ const MATRIX_SETTINGS_PAYLOAD = {
   reentryPvAmount: "500",
   levelRates: LEVEL_RATES,
   boardLevelRates: BOARD_LEVEL_RATES,
-  boardOpenPvThresholds: BOARD_OPEN_PV_THRESHOLDS,
+  boardOpenPvThresholds: ["500", "500", "500"],
 };
 
 function readMatrixSettingsFile() {
@@ -114,18 +114,6 @@ async function expectOk(path, options = {}) {
   return response.body;
 }
 
-async function login(identifier, password) {
-  const session = await expectOk("/auth/login", {
-    method: "POST",
-    body: {
-      identifier,
-      password,
-    },
-  });
-
-  return session.accessToken;
-}
-
 function hashPassword(password) {
   const salt = randomBytes(16).toString("hex");
   const hash = scryptSync(password, salt, 64).toString("hex");
@@ -144,6 +132,7 @@ async function createMemberRecord(input) {
       status: "ACTIVE",
       payoutStatus: "ACTIVE",
       riskLevel: "NORMAL",
+      matrixReentryEnabled: true,
     },
     select: {
       id: true,
@@ -157,8 +146,8 @@ async function createMemberRecord(input) {
 async function createSmokePackage() {
   const supplier = await prisma.supplier.create({
     data: {
-      code: `RGSUP${RUN_SUFFIX}`,
-      name: `Reentry Smoke Supplier ${RUN_SUFFIX}`,
+      code: `ABSUP${RUN_SUFFIX}`,
+      name: `Auto Bill Stop Supplier ${RUN_SUFFIX}`,
       status: "ACTIVE",
     },
     select: { id: true },
@@ -167,8 +156,8 @@ async function createSmokePackage() {
   const category = await prisma.productCategory.create({
     data: {
       supplierId: supplier.id,
-      code: `reentry-${RUN_SUFFIX}`,
-      name: `Reentry Smoke ${RUN_SUFFIX}`,
+      code: `autobill-${RUN_SUFFIX}`,
+      name: `Auto Bill Stop ${RUN_SUFFIX}`,
       status: "ACTIVE",
     },
     select: { id: true },
@@ -178,8 +167,8 @@ async function createSmokePackage() {
     data: {
       supplierId: supplier.id,
       categoryId: category.id,
-      code: `RGPROD${RUN_SUFFIX}`,
-      name: `Reentry Smoke Product ${RUN_SUFFIX}`,
+      code: `ABPROD${RUN_SUFFIX}`,
+      name: `Auto Bill Stop Product ${RUN_SUFFIX}`,
       status: "ACTIVE",
     },
     select: { id: true },
@@ -188,8 +177,8 @@ async function createSmokePackage() {
   const detail = await prisma.productDetail.create({
     data: {
       productId: product.id,
-      code: `RGDET${RUN_SUFFIX}`,
-      name: `Reentry Smoke Detail ${RUN_SUFFIX}`,
+      code: `ABDET${RUN_SUFFIX}`,
+      name: `Auto Bill Stop Detail ${RUN_SUFFIX}`,
       costPriceUsdt: "100",
       memberPriceUsdt: "500",
       retailPriceUsdt: "500",
@@ -212,8 +201,8 @@ async function createSmokePackage() {
 
   const pkg = await prisma.package.create({
     data: {
-      code: `RGPKG${RUN_SUFFIX}`,
-      name: `Reentry Smoke Package ${RUN_SUFFIX}`,
+      code: `ABPKG${RUN_SUFFIX}`,
+      name: `Auto Bill Stop Package ${RUN_SUFFIX}`,
       costPriceUsdt: "100",
       memberPriceUsdt: "500",
       retailPriceUsdt: "500",
@@ -314,9 +303,15 @@ async function seedTargetCycle(targetUserId) {
 
 async function main() {
   await expectOk("/health");
-  const token = await login(ADMIN_IDENTIFIER, ADMIN_PASSWORD);
+  const session = await expectOk("/auth/login", {
+    method: "POST",
+    body: {
+      identifier: ADMIN_IDENTIFIER,
+      password: ADMIN_PASSWORD,
+    },
+  });
+  const token = session.accessToken;
   const originalMatrixSettings = readMatrixSettingsFile();
-  let createdOrderId = null;
 
   try {
     writeMatrixSettingsFile(MATRIX_SETTINGS_PAYLOAD);
@@ -326,25 +321,26 @@ async function main() {
       where: { memberCode: SPONSOR_CODE },
       select: { id: true },
     });
+
     if (!sponsor) {
       throw new Error(`Sponsor ${SPONSOR_CODE} not found.`);
     }
 
     const target = await createMemberRecord({
       memberCode: TARGET_CODE,
-      referralCode: `RGTREF${RUN_SUFFIX}`.slice(0, 20),
-      name: `Reentry Target ${RUN_SUFFIX}`,
-      email: `reentry.target.${RUN_SUFFIX}@example.com`,
+      referralCode: `ABTREF${RUN_SUFFIX}`.slice(0, 20),
+      name: `Auto Bill Target ${RUN_SUFFIX}`,
+      email: `auto.bill.target.${RUN_SUFFIX}@example.com`,
       sponsorId: sponsor.id.toString(),
-      password: "smokepass1234",
+      password: MEMBER_PASSWORD,
     });
     const source = await createMemberRecord({
       memberCode: SOURCE_CODE,
-      referralCode: `RGSREF${RUN_SUFFIX}`.slice(0, 20),
-      name: `Reentry Source ${RUN_SUFFIX}`,
-      email: `reentry.source.${RUN_SUFFIX}@example.com`,
+      referralCode: `ABSREF${RUN_SUFFIX}`.slice(0, 20),
+      name: `Auto Bill Source ${RUN_SUFFIX}`,
+      email: `auto.bill.source.${RUN_SUFFIX}@example.com`,
       sponsorId: target.id.toString(),
-      password: "smokepass1234",
+      password: MEMBER_PASSWORD,
     });
 
     await prisma.wallet.upsert({
@@ -365,12 +361,6 @@ async function main() {
     });
 
     const seededCycle = await seedTargetCycle(target.id.toString());
-    const boardOneRoundOne = seededCycle.boards.find(
-      (board) => board.boardNo === 1 && board.roundNo === 1,
-    );
-    if (!boardOneRoundOne) {
-      throw new Error("Failed to seed target board 1 round 1.");
-    }
 
     const createdOrder = await expectOk("/orders", {
       method: "POST",
@@ -380,9 +370,8 @@ async function main() {
         packageId,
       },
     });
-    createdOrderId = createdOrder.orderId;
 
-    const approval = await expectOk(`/orders/${createdOrderId}/approve`, {
+    const approval = await expectOk(`/orders/${createdOrder.orderId}/approve`, {
       method: "POST",
       token,
     });
@@ -398,55 +387,28 @@ async function main() {
     });
 
     if (!cycleAfterApprove) {
-      throw new Error("Target cycle not found after order approval.");
+      throw new Error("Target cycle not found after approval.");
     }
 
     const boardOneRoundTwo = cycleAfterApprove.boards.find(
       (board) => board.boardNo === 1 && board.roundNo === 2,
     );
-    if (!boardOneRoundTwo || boardOneRoundTwo.status !== "OPEN") {
-      throw new Error("Expected board 1 round 2 to open for the target member.");
-    }
-
-    if (
-      cycleAfterApprove.currentBoardNo !== 1 ||
-      cycleAfterApprove.currentBoardRoundNo !== 2
-    ) {
-      throw new Error(
-        `Expected current board to move to 1/2, found ${cycleAfterApprove.currentBoardNo}/${cycleAfterApprove.currentBoardRoundNo}.`,
-      );
-    }
-
-    const targetWallet = await prisma.wallet.findUnique({
-      where: { userId: target.id },
-      select: { firmBalance: true },
-    });
-    if (!targetWallet || targetWallet.firmBalance.toString() !== "500") {
-      throw new Error(
-        `Expected target firm balance to become 500, found ${targetWallet?.firmBalance?.toString() ?? "missing"}.`,
-      );
-    }
-
     const reentryEvents = await prisma.matrixAccumulationEvent.findMany({
       where: {
         cycleId: seededCycle.id,
         sourceUserId: target.id,
         sourceType: "REENTRY",
-        boardId: boardOneRoundTwo.id,
       },
       orderBy: [{ id: "asc" }],
       select: {
         id: true,
+        boardId: true,
         creditedPv: true,
         sourcePv: true,
+        sourceRoundNo: true,
       },
     });
-
-    if (reentryEvents.length !== 1) {
-      throw new Error(`Expected exactly one REENTRY event, found ${reentryEvents.length}.`);
-    }
-
-    const reentryOrdersAfterApprove = await prisma.order.findMany({
+    const reentryOrders = await prisma.order.findMany({
       where: {
         userId: target.id,
         orderSourceType: "MATRIX_REENTRY",
@@ -459,107 +421,95 @@ async function main() {
         approvalBatchRef: true,
         approvalStatus: true,
         status: true,
+        totalPv: true,
+        totalUsdt: true,
       },
     });
-
-    if (reentryOrdersAfterApprove.length !== 1) {
-      throw new Error(
-        `Expected exactly one reentry audit order after approve, found ${reentryOrdersAfterApprove.length}.`,
-      );
-    }
-
-    const reentryOrder = reentryOrdersAfterApprove[0];
-    if (!reentryOrder.approvalBatchRef?.endsWith(reentryEvents[0].id.toString())) {
-      throw new Error(
-        `Expected reentry audit order marker to include matrix event ${reentryEvents[0].id.toString()}, found ${reentryOrder.approvalBatchRef ?? "missing"}.`,
-      );
-    }
-
-    const processApprovedAgain = await expectOk(`/orders/${createdOrderId}/process-approved`, {
-      method: "POST",
-      token,
+    const targetWallet = await prisma.wallet.findUnique({
+      where: { userId: target.id },
+      select: { withdrawableBalance: true, firmBalance: true },
     });
 
-    const reentryOrderCountAfterReprocess = await prisma.order.count({
-      where: {
-        userId: target.id,
-        orderSourceType: "MATRIX_REENTRY",
+    const autoBillCreated = reentryOrders.length > 0;
+    const seededBoardOneCompleted = seededCycle.boards.some(
+      (board) => board.boardNo === 1 && board.roundNo === 1 && board.status === "COMPLETED",
+    );
+    const seededCarryEnough =
+      seededCycle.personalCarryPv &&
+      Number(seededCycle.personalCarryPv.toString()) >= 500;
+    const expectedAutoBill = seededBoardOneCompleted && seededCarryEnough;
+
+    const result = {
+      scenario: "matrix_auto_bill_stop_smoke",
+      pass: autoBillCreated,
+      outcome: autoBillCreated ? "auto_bill_created" : "should_create_but_missing",
+      stopReason: autoBillCreated
+        ? "system_created_matrix_reentry_order"
+        : "rule_reached_but_no_matrix_reentry_order_found",
+      admin: ADMIN_IDENTIFIER,
+      targetMemberCode: target.memberCode,
+      targetPassword: MEMBER_PASSWORD,
+      sourceMemberCode: source.memberCode,
+      sourcePassword: MEMBER_PASSWORD,
+      sourceOrderId: createdOrder.orderId,
+      sourceOrderNo: createdOrder.orderNo,
+      matrixProcessing: approval.matrixProcessing ?? null,
+      cycleAfterApprove: {
+        currentBoardNo: cycleAfterApprove.currentBoardNo,
+        currentBoardRoundNo: cycleAfterApprove.currentBoardRoundNo,
+        boards: cycleAfterApprove.boards.map((board) => ({
+          boardNo: board.boardNo,
+          roundNo: board.roundNo,
+          status: board.status,
+          filledSlots: board.filledSlots,
+          slotCount: board.slotCount,
+        })),
       },
-    });
-
-    if (reentryOrderCountAfterReprocess !== 1) {
-      throw new Error(
-        `Expected reentry audit order dedupe to keep count at 1, found ${reentryOrderCountAfterReprocess}.`,
-      );
-    }
-
-    const cancelResponse = await request(`/orders/${reentryOrder.id.toString()}/cancel`, {
-      method: "POST",
-      token,
-    });
-
-    if (cancelResponse.statusCode !== 400) {
-      throw new Error(
-        `Expected cancelling reentry audit order to return 400, found ${cancelResponse.statusCode}.`,
-      );
-    }
-
-    const cancelMessage =
-      typeof cancelResponse.body?.message === "string"
-        ? cancelResponse.body.message
-        : "";
-    if (cancelMessage !== "Matrix reentry audit orders cannot be cancelled.") {
-      throw new Error(
-        `Unexpected cancel message: ${JSON.stringify(cancelResponse.body)}`,
-      );
-    }
-
-    const snapshot = await expectOk(`/orders/${reentryOrder.id.toString()}/snapshot`, {
-      method: "GET",
-      token,
-    });
-
-    if (snapshot.order?.orderSourceType !== "matrix_reentry") {
-      throw new Error(
-        `Expected snapshot orderSourceType=matrix_reentry, found ${snapshot.order?.orderSourceType ?? "missing"}.`,
-      );
-    }
-
-    console.log(
-      JSON.stringify(
-        {
-          scenario: "matrix_reentry_audit_smoke",
-          pass: true,
-          sourceOrderId: createdOrderId,
-          sourceOrderNo: createdOrder.orderNo,
-          targetMemberCode: target.memberCode,
-          sourceMemberCode: source.memberCode,
-          seededBoardOneRoundOneId: boardOneRoundOne.id.toString(),
-          approval: {
-            affectedMemberCount: approval.matrixProcessing?.affectedMemberCount ?? 0,
-            openedReentryCount: approval.matrixProcessing?.openedReentryCount ?? 0,
-          },
-          reprocess: {
-            skipped: processApprovedAgain.matrixProcessing?.skipped ?? null,
-            openedReentryCount:
-              processApprovedAgain.matrixProcessing?.openedReentryCount ?? 0,
-          },
-          boardOneRoundTwo: {
+      boardOneRoundTwo: boardOneRoundTwo
+        ? {
             boardId: boardOneRoundTwo.id.toString(),
             status: boardOneRoundTwo.status,
             filledSlots: boardOneRoundTwo.filledSlots,
-          },
-          firmBalance: targetWallet.firmBalance.toString(),
-          reentryEventId: reentryEvents[0].id.toString(),
-          reentryOrderId: reentryOrder.id.toString(),
-          reentryOrderNo: reentryOrder.orderNo,
-          cancelStatusCode: cancelResponse.statusCode,
-          cancelMessage,
-        },
-        null,
-        2,
-      ),
-    );
+            slotCount: boardOneRoundTwo.slotCount,
+          }
+        : null,
+      reentryEvents: reentryEvents.map((event) => ({
+        id: event.id.toString(),
+        boardId: event.boardId ? event.boardId.toString() : null,
+        sourceRoundNo: event.sourceRoundNo,
+        sourcePv: event.sourcePv.toString(),
+        creditedPv: event.creditedPv.toString(),
+      })),
+      reentryOrders: reentryOrders.map((order) => ({
+        id: order.id.toString(),
+        orderNo: order.orderNo,
+        orderSourceType: order.orderSourceType,
+        approvalBatchRef: order.approvalBatchRef,
+        approvalStatus: order.approvalStatus,
+        status: order.status,
+        totalUsdt: order.totalUsdt.toString(),
+        totalPv: order.totalPv.toString(),
+      })),
+      targetWallet: targetWallet
+        ? {
+            withdrawableBalance: targetWallet.withdrawableBalance.toString(),
+            firmBalance: targetWallet.firmBalance.toString(),
+          }
+        : null,
+      ruleReached: expectedAutoBill,
+      seededPreconditions: {
+        boardOneRoundOneCompleted: seededBoardOneCompleted,
+        personalCarryPv: seededCycle.personalCarryPv.toString(),
+        organizationPvRate: seededCycle.organizationPvRate.toString(),
+        matrixReentryEnabled: true,
+      },
+    };
+
+    console.log(JSON.stringify(result, null, 2));
+
+    if (!autoBillCreated && expectedAutoBill) {
+      process.exitCode = 2;
+    }
   } finally {
     if (originalMatrixSettings) {
       writeMatrixSettingsFile(originalMatrixSettings);

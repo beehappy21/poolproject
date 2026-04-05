@@ -88,16 +88,54 @@ export class AdminMatrixSettingsController {
         payload.organizationPvRate,
         "organizationPvRate",
       ),
+      autoOrderAmount: requireDecimalString(
+        payload.autoOrderAmount ??
+          payload.cwReentryAmount ??
+          current.autoOrderAmount ??
+          current.cwReentryAmount ??
+          current.organizationPvRate,
+        "autoOrderAmount",
+      ),
+      autoOrderFirmAmount: requireDecimalString(
+        payload.autoOrderFirmAmount ??
+          payload.reentryFirmAmount ??
+          current.autoOrderFirmAmount ??
+          current.reentryFirmAmount ??
+          current.autoOrderAmount ??
+          current.cwReentryAmount,
+        "autoOrderFirmAmount",
+      ),
+      autoOrderPvAmount: requireDecimalString(
+        payload.autoOrderPvAmount ??
+          payload.reentryPvAmount ??
+          current.autoOrderPvAmount ??
+          current.reentryPvAmount ??
+          current.organizationPvRate,
+        "autoOrderPvAmount",
+      ),
       cwReentryAmount: requireDecimalString(
-        payload.cwReentryAmount ?? current.cwReentryAmount ?? current.organizationPvRate,
+        payload.autoOrderAmount ??
+          payload.cwReentryAmount ??
+          current.autoOrderAmount ??
+          current.cwReentryAmount ??
+          current.organizationPvRate,
         "cwReentryAmount",
       ),
       reentryFirmAmount: requireDecimalString(
-        payload.reentryFirmAmount ?? current.reentryFirmAmount ?? current.cwReentryAmount,
+        payload.autoOrderFirmAmount ??
+          payload.reentryFirmAmount ??
+          current.autoOrderFirmAmount ??
+          current.reentryFirmAmount ??
+          current.autoOrderAmount ??
+          current.cwReentryAmount,
         "reentryFirmAmount",
       ),
       reentryPvAmount: requireDecimalString(
-        payload.reentryPvAmount ?? current.reentryPvAmount ?? current.organizationPvRate,
+        payload.autoOrderPvAmount ??
+          payload.reentryPvAmount ??
+          current.autoOrderPvAmount ??
+          current.reentryPvAmount ??
+          current.organizationPvRate,
         "reentryPvAmount",
       ),
       levelRates: payload.levelRates.map((value, index) =>

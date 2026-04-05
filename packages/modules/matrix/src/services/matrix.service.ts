@@ -103,24 +103,77 @@ export interface MatrixServiceContract {
       }
   >;
 
+  requestMemberAutoOrder(userId: string): Promise<{
+    cycleId: string;
+    userId: string;
+    matrixEventId: string;
+    sourceBoardId: string;
+    roundNo: number;
+    autoOrderAmount: string;
+    autoOrderPvAmount: string;
+    reentryAmount?: string;
+    reentryPvAmount?: string;
+  }>;
+
   requestMemberReentry(userId: string): Promise<{
     cycleId: string;
     userId: string;
     matrixEventId: string;
     sourceBoardId: string;
     roundNo: number;
-    reentryAmount: string;
-    reentryPvAmount: string;
+    autoOrderAmount: string;
+    autoOrderPvAmount: string;
+    reentryAmount?: string;
+    reentryPvAmount?: string;
   }>;
 
+  getMemberAutoOrderPreference(userId: string): Promise<boolean>;
   getMemberReentryPreference(userId: string): Promise<boolean>;
+
+  updateMemberAutoOrderPreference(input: {
+    userId: string;
+    enabled: boolean;
+  }): Promise<{
+    enabled: boolean;
+    openedAutoOrder: {
+      cycleId: string;
+      userId: string;
+      matrixEventId: string;
+      sourceBoardId: string;
+      roundNo: number;
+      autoOrderAmount: string;
+      autoOrderPvAmount: string;
+      reentryAmount?: string;
+      reentryPvAmount?: string;
+    } | null;
+    openedReentry?: {
+      cycleId: string;
+      userId: string;
+      matrixEventId: string;
+      sourceBoardId: string;
+      roundNo: number;
+      reentryAmount: string;
+      reentryPvAmount: string;
+    } | null;
+  }>;
 
   updateMemberReentryPreference(input: {
     userId: string;
     enabled: boolean;
   }): Promise<{
     enabled: boolean;
-    openedReentry: {
+    openedAutoOrder: {
+      cycleId: string;
+      userId: string;
+      matrixEventId: string;
+      sourceBoardId: string;
+      roundNo: number;
+      autoOrderAmount: string;
+      autoOrderPvAmount: string;
+      reentryAmount?: string;
+      reentryPvAmount?: string;
+    } | null;
+    openedReentry?: {
       cycleId: string;
       userId: string;
       matrixEventId: string;
@@ -165,6 +218,7 @@ export class MatrixService implements MatrixServiceContract {
         payoutCount: 0,
         completedCycleCount: 0,
         skipped: true,
+        openedAutoOrders: [],
         openedReentries: [],
       };
     }
@@ -193,6 +247,7 @@ export class MatrixService implements MatrixServiceContract {
           payoutCount: 0,
           completedCycleCount: 0,
           skipped: false,
+          openedAutoOrders: [],
           openedReentries: [],
         };
       }
@@ -214,6 +269,7 @@ export class MatrixService implements MatrixServiceContract {
         payoutCount: 0,
         completedCycleCount: 0,
         skipped: false,
+        openedAutoOrders: [],
         openedReentries: [],
       };
     }
@@ -231,7 +287,7 @@ export class MatrixService implements MatrixServiceContract {
     let affectedMemberCount = 0;
     let payoutCount = 0;
     let completedCycleCount = 0;
-    const openedReentries: MatrixOrderProcessingResult["openedReentries"] = [];
+    const openedAutoOrders: MatrixOrderProcessingResult["openedAutoOrders"] = [];
 
     for (const [index, beneficiaryUserId] of beneficiaryUserIds.entries()) {
       const result = await this.processAccumulationForBeneficiary({
@@ -246,7 +302,7 @@ export class MatrixService implements MatrixServiceContract {
       affectedMemberCount += 1;
       payoutCount += result.payoutCount;
       completedCycleCount += result.completedCycleCount;
-      openedReentries.push(...result.openedReentries);
+      openedAutoOrders.push(...result.openedAutoOrders);
     }
 
     return {
@@ -256,7 +312,12 @@ export class MatrixService implements MatrixServiceContract {
       payoutCount,
       completedCycleCount,
       skipped: false,
-      openedReentries,
+      openedAutoOrders,
+      openedReentries: openedAutoOrders.map((entry) => ({
+        ...entry,
+        reentryAmount: entry.autoOrderAmount,
+        reentryPvAmount: entry.autoOrderPvAmount,
+      })),
     };
   }
 
@@ -591,11 +652,15 @@ export class MatrixService implements MatrixServiceContract {
     );
 
     if (!latestCycle || !targetBoard) {
-      return { completedCycleCount: 0, openedReentries: [] as MatrixOrderProcessingResult["openedReentries"] };
+      return {
+        completedCycleCount: 0,
+        openedAutoOrders: [] as MatrixOrderProcessingResult["openedAutoOrders"],
+        openedReentries: [] as MatrixOrderProcessingResult["openedReentries"],
+      };
     }
 
     let completedCycleCount = 0;
-    const openedReentries: MatrixOrderProcessingResult["openedReentries"] = [];
+    const openedAutoOrders: MatrixOrderProcessingResult["openedAutoOrders"] = [];
     if (targetBoard.status === "open" && targetBoard.filledSlots >= targetBoard.slotCount) {
       await this.matrixRepository.markBoardCompleted(this.getBoardId(targetBoard));
 
@@ -645,7 +710,7 @@ export class MatrixService implements MatrixServiceContract {
         input.beneficiaryUserId,
       );
       if (deferredOpenedReentry) {
-        openedReentries.push(deferredOpenedReentry);
+        openedAutoOrders.push(deferredOpenedReentry);
       }
 
       await this.maybePropagateCompletedBoardOneToAncestorNextRound({
@@ -657,7 +722,12 @@ export class MatrixService implements MatrixServiceContract {
 
     return {
       completedCycleCount,
-      openedReentries,
+      openedAutoOrders,
+      openedReentries: openedAutoOrders.map((entry) => ({
+        ...entry,
+        reentryAmount: entry.autoOrderAmount,
+        reentryPvAmount: entry.autoOrderPvAmount,
+      })),
     };
   }
 
@@ -668,7 +738,7 @@ export class MatrixService implements MatrixServiceContract {
   }) {
     let payoutCount = 0;
     let completedCycleCount = 0;
-    const openedReentries: MatrixOrderProcessingResult["openedReentries"] = [];
+    const openedAutoOrders: MatrixOrderProcessingResult["openedAutoOrders"] = [];
 
     while (true) {
       const refreshedCycles = await this.matrixRepository.getMemberMatrixCycles(
@@ -754,13 +824,18 @@ export class MatrixService implements MatrixServiceContract {
         boardId: this.getBoardId(targetBoard),
       });
       completedCycleCount += finalized.completedCycleCount;
-      openedReentries.push(...finalized.openedReentries);
+      openedAutoOrders.push(...finalized.openedAutoOrders);
     }
 
     return {
       payoutCount,
       completedCycleCount,
-      openedReentries,
+      openedAutoOrders,
+      openedReentries: openedAutoOrders.map((entry) => ({
+        ...entry,
+        reentryAmount: entry.autoOrderAmount,
+        reentryPvAmount: entry.autoOrderPvAmount,
+      })),
     };
   }
 
@@ -850,7 +925,7 @@ export class MatrixService implements MatrixServiceContract {
     return this.matrixRepository.listMatrixPayouts(filters);
   }
 
-  async requestMemberReentry(userId: string) {
+  async requestMemberAutoOrder(userId: string) {
     const cycles = await this.matrixRepository.getMemberMatrixCycles(userId);
     const cycle = cycles[0];
 
@@ -869,30 +944,42 @@ export class MatrixService implements MatrixServiceContract {
       });
 
     if (!candidateBoard) {
-      throw new Error("ยังไม่ถึงเงื่อนไขเปิด reentry รอบถัดไป");
+      throw new Error("ยังไม่ถึงเงื่อนไขเปิด auto order รอบถัดไป");
     }
 
-    const openedReentry = await this.maybeOpenBoardOneNextRound(cycle, {
+    const openedAutoOrder = await this.maybeOpenBoardOneNextRound(cycle, {
       boardId: this.getBoardId(candidateBoard),
       boardNo: candidateBoard.boardNo,
       roundNo: candidateBoard.roundNo,
       openThresholdPv: candidateBoard.openThresholdPv.toString(),
     });
 
-    if (!openedReentry) {
+    if (!openedAutoOrder) {
       throw new Error(
-        `CW ไม่พอสำหรับเปิด reentry ต้องมีอย่างน้อย ${cycle.cwReentryAmount.toString()}`,
+        `ยอดไม่พอสำหรับเปิด auto order ต้องมีอย่างน้อย ${cycle.cwReentryAmount.toString()}`,
       );
     }
 
-    return openedReentry;
+    return {
+      ...openedAutoOrder,
+      reentryAmount: openedAutoOrder.autoOrderAmount,
+      reentryPvAmount: openedAutoOrder.autoOrderPvAmount,
+    };
   }
 
-  async getMemberReentryPreference(userId: string) {
+  async requestMemberReentry(userId: string) {
+    return this.requestMemberAutoOrder(userId);
+  }
+
+  async getMemberAutoOrderPreference(userId: string) {
     return this.membersService.getMatrixReentryPreference(userId);
   }
 
-  async updateMemberReentryPreference(input: {
+  async getMemberReentryPreference(userId: string) {
+    return this.getMemberAutoOrderPreference(userId);
+  }
+
+  async updateMemberAutoOrderPreference(input: {
     userId: string;
     enabled: boolean;
   }) {
@@ -901,12 +988,28 @@ export class MatrixService implements MatrixServiceContract {
       input.enabled,
     );
 
+    const openedAutoOrder = enabled
+      ? await this.maybeOpenEligibleBoardOneNextRound(input.userId)
+      : null;
+
     return {
       enabled,
-      openedReentry: enabled
-        ? await this.maybeOpenEligibleBoardOneNextRound(input.userId)
+      openedAutoOrder,
+      openedReentry: openedAutoOrder
+        ? {
+            ...openedAutoOrder,
+            reentryAmount: openedAutoOrder.autoOrderAmount,
+            reentryPvAmount: openedAutoOrder.autoOrderPvAmount,
+          }
         : null,
     };
+  }
+
+  async updateMemberReentryPreference(input: {
+    userId: string;
+    enabled: boolean;
+  }) {
+    return this.updateMemberAutoOrderPreference(input);
   }
 
   private async processAccumulationForBeneficiary(input: {
@@ -919,13 +1022,19 @@ export class MatrixService implements MatrixServiceContract {
   }): Promise<{
     payoutCount: number;
     completedCycleCount: number;
+    openedAutoOrders: MatrixOrderProcessingResult["openedAutoOrders"];
     openedReentries: MatrixOrderProcessingResult["openedReentries"];
   }> {
     const cycle = await this.getActiveCycle(
       input.beneficiaryUserId,
     );
     if (!cycle) {
-      return { payoutCount: 0, completedCycleCount: 0, openedReentries: [] };
+      return {
+        payoutCount: 0,
+        completedCycleCount: 0,
+        openedAutoOrders: [],
+        openedReentries: [],
+      };
     }
 
     const boardLevelRates = this.parseBoardLevelRatesSnapshot(
@@ -972,7 +1081,12 @@ export class MatrixService implements MatrixServiceContract {
         });
 
     if (!board) {
-      return { payoutCount: 0, completedCycleCount: 0, openedReentries: [] };
+      return {
+        payoutCount: 0,
+        completedCycleCount: 0,
+        openedAutoOrders: [],
+        openedReentries: [],
+      };
     }
 
     await this.matrixRepository.addAccumulationToCycle(cycleId, creditedPv);
@@ -1001,11 +1115,21 @@ export class MatrixService implements MatrixServiceContract {
     );
 
     if (!targetBoard) {
-      return { payoutCount: 0, completedCycleCount: 0, openedReentries: [] };
+      return {
+        payoutCount: 0,
+        completedCycleCount: 0,
+        openedAutoOrders: [],
+        openedReentries: [],
+      };
     }
 
     if (targetBoard.status !== "open" || targetBoard.filledSlots >= targetBoard.slotCount) {
-      return { payoutCount: 0, completedCycleCount: 0, openedReentries: [] };
+      return {
+        payoutCount: 0,
+        completedCycleCount: 0,
+        openedAutoOrders: [],
+        openedReentries: [],
+      };
     }
 
     return this.flushPendingBoardPlacements({
@@ -1211,8 +1335,11 @@ export class MatrixService implements MatrixServiceContract {
       roundNo: number;
       openThresholdPv: string;
     },
-  ): Promise<MatrixOrderProcessingResult["openedReentries"][number] | null> {
-    const reentrySettings = this.resolveReentryRuntimeSettings(cycle.organizationPvRate, cycle.cwReentryAmount);
+  ): Promise<NonNullable<MatrixOrderProcessingResult["openedAutoOrders"]>[number] | null> {
+    const autoOrderSettings = this.resolveAutoOrderRuntimeSettings(
+      cycle.organizationPvRate,
+      cycle.cwReentryAmount,
+    );
     const nextRoundNo = currentBoard.roundNo + 1;
     const existingNextRound = cycle.boards.find(
       (entry) => entry.boardNo === 1 && entry.roundNo === nextRoundNo,
@@ -1253,15 +1380,15 @@ export class MatrixService implements MatrixServiceContract {
         sourceType: "REENTRY",
         sourceRoundNo: nextRoundNo,
         depthNo: 0,
-        sourcePv: reentrySettings.reentryPvAmount,
-        creditedPv: reentrySettings.reentryPvAmount,
+        sourcePv: autoOrderSettings.reentryPvAmount,
+        creditedPv: autoOrderSettings.reentryPvAmount,
       });
 
-      if (compareDecimalStrings(reentrySettings.reentryFirmAmount, "0") > 0) {
-        await this.walletsService.creditFirmWalletFromMatrixReentry({
+      if (compareDecimalStrings(autoOrderSettings.reentryFirmAmount, "0") > 0) {
+        await this.walletsService.creditFirmWalletFromMatrixAutoOrder({
           userId: cycle.userId,
           matrixEventId: reentryEvent.id.toString(),
-          amount: reentrySettings.reentryFirmAmount,
+          amount: autoOrderSettings.reentryFirmAmount,
         });
       }
 
@@ -1271,8 +1398,8 @@ export class MatrixService implements MatrixServiceContract {
         matrixEventId: reentryEvent.id.toString(),
         sourceBoardId: currentBoard.boardId,
         roundNo: nextRoundNo,
-        reentryAmount: reentrySettings.reentryFirmAmount,
-        reentryPvAmount: reentrySettings.reentryPvAmount,
+        autoOrderAmount: autoOrderSettings.reentryFirmAmount,
+        autoOrderPvAmount: autoOrderSettings.reentryPvAmount,
       };
     }
 
@@ -1281,7 +1408,7 @@ export class MatrixService implements MatrixServiceContract {
       return null;
     }
 
-    await this.walletsService.debitWithdrawableForMatrixReentry({
+    await this.walletsService.debitWithdrawableForMatrixAutoOrder({
       userId: cycle.userId,
       sourceBoardId: currentBoard.boardId,
       amount: cycle.cwReentryAmount,
@@ -1310,15 +1437,15 @@ export class MatrixService implements MatrixServiceContract {
       sourceType: "REENTRY",
       sourceRoundNo: nextRoundNo,
       depthNo: 0,
-      sourcePv: reentrySettings.reentryPvAmount,
-      creditedPv: reentrySettings.reentryPvAmount,
+      sourcePv: autoOrderSettings.reentryPvAmount,
+      creditedPv: autoOrderSettings.reentryPvAmount,
     });
 
-    if (compareDecimalStrings(reentrySettings.reentryFirmAmount, "0") > 0) {
-      await this.walletsService.creditFirmWalletFromMatrixReentry({
+    if (compareDecimalStrings(autoOrderSettings.reentryFirmAmount, "0") > 0) {
+      await this.walletsService.creditFirmWalletFromMatrixAutoOrder({
         userId: cycle.userId,
         matrixEventId: reentryEvent.id.toString(),
-        amount: reentrySettings.reentryFirmAmount,
+        amount: autoOrderSettings.reentryFirmAmount,
       });
     }
 
@@ -1328,14 +1455,14 @@ export class MatrixService implements MatrixServiceContract {
       matrixEventId: reentryEvent.id.toString(),
       sourceBoardId: currentBoard.boardId,
       roundNo: nextRoundNo,
-      reentryAmount: cycle.cwReentryAmount,
-      reentryPvAmount: reentrySettings.reentryPvAmount,
+      autoOrderAmount: cycle.cwReentryAmount,
+      autoOrderPvAmount: autoOrderSettings.reentryPvAmount,
     };
   }
 
   private async maybeOpenEligibleBoardOneNextRound(
     userId: string,
-  ): Promise<MatrixOrderProcessingResult["openedReentries"][number] | null> {
+  ): Promise<NonNullable<MatrixOrderProcessingResult["openedAutoOrders"]>[number] | null> {
     const reentryEnabled = await this.membersService.getMatrixReentryPreference(userId);
     if (!reentryEnabled) {
       return null;
@@ -1680,15 +1807,21 @@ export class MatrixService implements MatrixServiceContract {
     throw new Error("Matrix cycle id not found.");
   }
 
-  private resolveReentryRuntimeSettings(
+  private resolveAutoOrderRuntimeSettings(
     organizationPvRate: string,
     cwReentryAmount: string,
   ): { reentryFirmAmount: string; reentryPvAmount: string } {
     const runtimeSettings = readMatrixSettings();
 
     return {
-      reentryFirmAmount: runtimeSettings.reentryFirmAmount || cwReentryAmount,
-      reentryPvAmount: runtimeSettings.reentryPvAmount || organizationPvRate,
+      reentryFirmAmount:
+        runtimeSettings.autoOrderFirmAmount ||
+        runtimeSettings.reentryFirmAmount ||
+        cwReentryAmount,
+      reentryPvAmount:
+        runtimeSettings.autoOrderPvAmount ||
+        runtimeSettings.reentryPvAmount ||
+        organizationPvRate,
     };
   }
 }

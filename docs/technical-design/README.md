@@ -3,7 +3,11 @@
 Minimal design binding for the current scaffold.
 
 Source of truth:
-- [design_update_locked_decisions.md](/Users/macbook/poolproject/docs/web3-ecommerce-design/design_update_locked_decisions.md)
+- [commission_main_plan_spec.md](/Users/macbook/poolproject/docs/technical-design/commission_main_plan_spec.md)
+
+Current rule status:
+- `commission_main_plan_spec.md` is the primary business and implementation source of truth
+- supporting docs may provide context, but they must not override the main plan unless a later approved revision explicitly replaces it
 
 ## Design Binding
 
@@ -22,8 +26,11 @@ Supporting infrastructure:
 - worker app shell: `apps/worker`
 
 Current feature specs:
+- [commission_main_plan_spec.md](/Users/macbook/poolproject/docs/technical-design/commission_main_plan_spec.md)
+- [commission_main_implementation_plan.md](/Users/macbook/poolproject/docs/technical-design/commission_main_implementation_plan.md)
+- [commission_main_test_plan.md](/Users/macbook/poolproject/docs/technical-design/commission_main_test_plan.md)
 - [firm_wallet_spec.md](/Users/macbook/poolproject/docs/technical-design/firm_wallet_spec.md)
-- [matrix_runtime_reentry_spec.md](/Users/macbook/poolproject/docs/technical-design/matrix_runtime_reentry_spec.md)
+- [matrix_runtime_reentry_spec.md](/Users/macbook/poolproject/docs/technical-design/matrix_runtime_reentry_spec.md) `legacy runtime reference only`
 
 ## Bonus-to-Cycle Allocation (Draft Rule)
 

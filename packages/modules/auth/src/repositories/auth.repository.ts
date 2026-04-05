@@ -116,6 +116,7 @@ export class PrismaAuthRepository implements AuthRepository {
           name: user.name,
           email: user.email,
           phone: user.phone,
+          matrixAutoOrderEnabled: user.matrixReentryEnabled,
           matrixReentryEnabled: user.matrixReentryEnabled,
         }
       : null;
@@ -169,6 +170,7 @@ export class PrismaAuthRepository implements AuthRepository {
           name: user.name,
           email: user.email,
           phone: user.phone,
+          matrixAutoOrderEnabled: user.matrixReentryEnabled,
           matrixReentryEnabled: user.matrixReentryEnabled,
         }
       : null;
@@ -194,6 +196,7 @@ export class PrismaAuthRepository implements AuthRepository {
           name: user.name,
           email: user.email,
           phone: user.phone,
+          matrixAutoOrderEnabled: user.matrixReentryEnabled,
           matrixReentryEnabled: user.matrixReentryEnabled,
         }
       : null;

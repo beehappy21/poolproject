@@ -289,8 +289,9 @@ state.matrixSettings = {
   boardDepth: 3,
   boardDepths: [3, 2, 2],
   boardCount: 3,
-  organizationPvRate: "700",
-  cwReentryAmount: "700",
+  organizationPvRate: "500",
+  autoOrderAmount: "500",
+  cwReentryAmount: "500",
   levelRates: ["0.15", "0.15", "0.15"],
   boardLevelRates: [
     ["0.15", "0.15", "0.15"],
@@ -1937,7 +1938,8 @@ function renderMatrixSettings() {
   }
 
   matrixOrganizationPvRateInput.value = state.matrixSettings.organizationPvRate || "0";
-  matrixCwReentryAmountInput.value = state.matrixSettings.cwReentryAmount || "0";
+  matrixCwReentryAmountInput.value =
+    state.matrixSettings.autoOrderAmount || state.matrixSettings.cwReentryAmount || "0";
   renderMatrixBoardLevelRateRows(
     matrixLevelRatesList,
     (state.matrixSettings.boardLevelRates || []).map((rates) =>
@@ -1979,6 +1981,7 @@ async function loadMatrixSettings() {
     boardDepths: settings.boardDepths || [3, 2, 2],
     boardCount: settings.boardCount,
     organizationPvRate: settings.organizationPvRate,
+    autoOrderAmount: settings.autoOrderAmount || settings.cwReentryAmount,
     cwReentryAmount: settings.cwReentryAmount,
     levelRates: settings.levelRates,
     boardLevelRates:
@@ -2070,6 +2073,7 @@ async function saveMatrixSettings() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       organizationPvRate: matrixOrganizationPvRateInput.value.trim(),
+      autoOrderAmount: matrixCwReentryAmountInput.value.trim(),
       cwReentryAmount: matrixCwReentryAmountInput.value.trim(),
       levelRates: collectMatrixLevelRates(),
       boardLevelRates: collectMatrixBoardLevelRates(),
@@ -2083,6 +2087,7 @@ async function saveMatrixSettings() {
     boardDepths: result.boardDepths || [3, 2, 2],
     boardCount: result.boardCount,
     organizationPvRate: result.organizationPvRate,
+    autoOrderAmount: result.autoOrderAmount || result.cwReentryAmount,
     cwReentryAmount: result.cwReentryAmount,
     levelRates: result.levelRates,
     boardLevelRates:
@@ -2415,7 +2420,7 @@ async function loadDashboard() {
       <td>${order.orderId}</td>
       <td>${order.orderNo}</td>
       <td>${order.sourceUserId}</td>
-      <td>${order.orderSourceType === "matrix_reentry" ? '<span class="status-badge status-badge--success">REENTRY</span>' : '<span class="status-badge">NORMAL</span>'}</td>
+      <td>${order.orderSourceType === "matrix_reentry" ? '<span class="status-badge status-badge--success">AUTO ORDER</span>' : '<span class="status-badge">NORMAL</span>'}</td>
       <td>${order.approvalStatus}</td>
       <td>${order.totalPv}</td>
       <td>

@@ -1,4 +1,5 @@
 import { Inject, Injectable, forwardRef } from "@nestjs/common";
+import { BadRequestException } from "@nestjs/common";
 
 import {
   DailyPoolFlowResult,
@@ -29,6 +30,15 @@ const BANGKOK_UTC_OFFSET_HOURS = 7;
 function parseDateOnlyParts(dateOnly: string) {
   const [year, month, day] = dateOnly.split("-").map((part) => Number(part));
   return { year, month, day };
+}
+
+function getBangkokDayOfWeek(dateOnly: string) {
+  const { year, month, day } = parseDateOnlyParts(dateOnly);
+  const bangkokMiddayUtc = new Date(
+    Date.UTC(year, month - 1, day, 12 - BANGKOK_UTC_OFFSET_HOURS, 0, 0, 0),
+  );
+
+  return bangkokMiddayUtc.getUTCDay();
 }
 
 export interface PoolServiceContract {
@@ -172,6 +182,12 @@ export class PoolService implements PoolServiceContract {
   }
 
   async closePool(poolDate: string): Promise<PoolCloseResult> {
+    if (getBangkokDayOfWeek(poolDate) !== 0) {
+      throw new BadRequestException(
+        "poolDate must be a Sunday in Asia/Bangkok timezone.",
+      );
+    }
+
     const existingCycle = await this.poolRepository.getPoolCycle(poolDate);
 
     if (existingCycle) {

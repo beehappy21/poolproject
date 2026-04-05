@@ -5,6 +5,7 @@ import {
   CommissionToShoppingConversionResult,
   DiscountWalletCreditResult,
   FirmWalletCreditResult,
+  MatrixAutoOrderDebitResult,
   MatrixReentryDebitResult,
   ShoppingWalletTopupResult,
   ShoppingWalletTransferResult,
@@ -81,6 +82,18 @@ export interface WalletsServiceContract {
   creditDiscountWalletFromApprovedOrder(input: {
     orderId: string;
   }): Promise<DiscountWalletCreditResult | null>;
+
+  creditFirmWalletFromMatrixAutoOrder(input: {
+    userId: string;
+    matrixEventId: string;
+    amount: string;
+  }): Promise<FirmWalletCreditResult>;
+
+  debitWithdrawableForMatrixAutoOrder(input: {
+    userId: string;
+    sourceBoardId: string;
+    amount: string;
+  }): Promise<MatrixAutoOrderDebitResult>;
 
   creditFirmWalletFromMatrixReentry(input: {
     userId: string;
@@ -479,12 +492,34 @@ export class WalletsService implements WalletsServiceContract {
     return this.walletsRepository.creditDiscountWalletFromApprovedOrder(input);
   }
 
+  async creditFirmWalletFromMatrixAutoOrder(input: {
+    userId: string;
+    matrixEventId: string;
+    amount: string;
+  }): Promise<FirmWalletCreditResult> {
+    return this.walletsRepository.creditFirmWalletFromMatrixAutoOrder(input);
+  }
+
+  async debitWithdrawableForMatrixAutoOrder(input: {
+    userId: string;
+    sourceBoardId: string;
+    amount: string;
+  }): Promise<MatrixAutoOrderDebitResult> {
+    const wallet = await this.walletsRepository.getWalletSummary(input.userId);
+
+    if (compareDecimalStrings(wallet.withdrawableBalance, input.amount) < 0) {
+      throw new Error("Insufficient balance for matrix auto order.");
+    }
+
+    return this.walletsRepository.debitWithdrawableForMatrixAutoOrder(input);
+  }
+
   async creditFirmWalletFromMatrixReentry(input: {
     userId: string;
     matrixEventId: string;
     amount: string;
   }): Promise<FirmWalletCreditResult> {
-    return this.walletsRepository.creditFirmWalletFromMatrixReentry(input);
+    return this.creditFirmWalletFromMatrixAutoOrder(input);
   }
 
   async debitWithdrawableForMatrixReentry(input: {
@@ -492,13 +527,7 @@ export class WalletsService implements WalletsServiceContract {
     sourceBoardId: string;
     amount: string;
   }): Promise<MatrixReentryDebitResult> {
-    const wallet = await this.walletsRepository.getWalletSummary(input.userId);
-
-    if (compareDecimalStrings(wallet.withdrawableBalance, input.amount) < 0) {
-      throw new Error("Insufficient CW balance for matrix reentry.");
-    }
-
-    return this.walletsRepository.debitWithdrawableForMatrixReentry(input);
+    return this.debitWithdrawableForMatrixAutoOrder(input);
   }
 
   async requestWalletTopup(input: {

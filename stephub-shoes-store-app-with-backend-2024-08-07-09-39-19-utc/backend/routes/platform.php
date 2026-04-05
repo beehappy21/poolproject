@@ -51,6 +51,7 @@ use App\Orchid\Screens\Supplier\SupplierListScreen;
 use App\Orchid\Screens\Supplier\SupplierEditScreen;
 use App\Orchid\Screens\Commission\CommissionSettingsScreen;
 use App\Orchid\Screens\Commission\CommissionReportScreen;
+use App\Orchid\Screens\Commission\CommissionMainPlanReportScreen;
 use App\Http\Controllers\Platform\CommissionReportController;
 use App\Http\Controllers\Platform\OrderReportController;
 use App\Http\Controllers\Platform\WithdrawReportController;
@@ -158,6 +159,9 @@ Route::middleware('admin.access:'.AdminPermissions::COMMISSIONS_MANAGE)->group(f
   Route::screen('commission/report', CommissionReportScreen::class)
     ->defaults('reportMode', 'overview')
     ->name('platform.commission.report');
+
+  Route::screen('commission-main-plan/report', CommissionMainPlanReportScreen::class)
+    ->name('platform.commission-main-plan.report');
 
   Route::screen('commission/report/direct', CommissionReportScreen::class)
     ->defaults('reportMode', 'direct')

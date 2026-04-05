@@ -100,9 +100,9 @@
     $poolRate = old('poolRate', $commissionSettings['poolRate'] ?? '0.5');
     $cashbackRate = old('cashbackRate', $commissionSettings['cashbackRate'] ?? '0');
     $matrixOrgRate = old('organizationPvRate', $matrixSettings['organizationPvRate'] ?? '0.1');
-    $matrixCwReentryAmount = old('cwReentryAmount', $matrixSettings['cwReentryAmount'] ?? ($matrixSettings['organizationPvRate'] ?? '0.1'));
-    $matrixReentryFirmAmount = old('reentryFirmAmount', $matrixSettings['reentryFirmAmount'] ?? ($matrixSettings['cwReentryAmount'] ?? '0.1'));
-    $matrixReentryPvAmount = old('reentryPvAmount', $matrixSettings['reentryPvAmount'] ?? ($matrixSettings['organizationPvRate'] ?? '0.1'));
+    $matrixAutoOrderAmount = old('autoOrderAmount', $matrixSettings['autoOrderAmount'] ?? ($matrixSettings['cwReentryAmount'] ?? ($matrixSettings['organizationPvRate'] ?? '0.1')));
+    $matrixAutoOrderFirmAmount = old('autoOrderFirmAmount', $matrixSettings['autoOrderFirmAmount'] ?? ($matrixSettings['reentryFirmAmount'] ?? ($matrixSettings['cwReentryAmount'] ?? '0.1')));
+    $matrixAutoOrderPvAmount = old('autoOrderPvAmount', $matrixSettings['autoOrderPvAmount'] ?? ($matrixSettings['reentryPvAmount'] ?? ($matrixSettings['organizationPvRate'] ?? '0.1')));
     $matrixBoardWidth = old('boardWidth', $matrixSettings['boardWidth'] ?? 2);
     $matrixThresholds = old('boardOpenPvThresholds', $matrixSettings['boardOpenPvThresholds'] ?? ['100', '100', '100']);
     $matrixBoardLevelRates = old('boardLevelRates', $matrixSettings['boardLevelRates'] ?? []);
@@ -164,9 +164,9 @@
             'note' => 'ค่า PV ส่วนตัวขั้นต่ำล่าสุดที่ใช้เป็นเกณฑ์เปิดบอร์ด',
         ],
         [
-            'label' => 'Reentry rule',
-            'value' => 'ยอด Reentry ' . ($matrixSettings['cwReentryAmount'] ?? '0') . ' | Firm ' . ($matrixSettings['reentryFirmAmount'] ?? ($matrixSettings['cwReentryAmount'] ?? '0')) . ' | PV ' . ($matrixSettings['reentryPvAmount'] ?? ($matrixSettings['organizationPvRate'] ?? '0')),
-            'note' => 'เมื่อเข้าเงื่อนไข reentry ระบบจะตัดยอดแล้วจ่าย Firm และ PV ตามค่านี้ทันที',
+            'label' => 'Auto order rule',
+            'value' => 'ยอด Auto Order ' . ($matrixSettings['autoOrderAmount'] ?? ($matrixSettings['cwReentryAmount'] ?? '0')) . ' | Firm ' . ($matrixSettings['autoOrderFirmAmount'] ?? ($matrixSettings['reentryFirmAmount'] ?? ($matrixSettings['cwReentryAmount'] ?? '0'))) . ' | PV ' . ($matrixSettings['autoOrderPvAmount'] ?? ($matrixSettings['reentryPvAmount'] ?? ($matrixSettings['organizationPvRate'] ?? '0'))),
+            'note' => 'เมื่อเข้าเงื่อนไข auto order ระบบจะสร้างออเดอร์และใช้ Firm/PV ตามค่านี้ทันที',
         ],
         [
             'label' => 'อัตราแต่ละบอร์ด',
@@ -393,8 +393,8 @@
                         <input name="organizationPvRate" value="{{ $matrixOrgRate }}" required>
                     </div>
                     <div class="commission-field">
-                        <label>CW สำหรับ Reentry</label>
-                        <input name="cwReentryAmount" value="{{ $matrixCwReentryAmount }}" required>
+                        <label>ยอด Auto Order</label>
+                        <input name="autoOrderAmount" value="{{ $matrixAutoOrderAmount }}" required>
                     </div>
                 </div>
                 <div class="commission-toolbar">
@@ -449,22 +449,22 @@
                         <input type="hidden" name="boardLevelRates[{{ $boardIndex }}][]" value="{{ $rateValue }}">
                     @endforeach
                 @endforeach
-                <div class="commission-eyebrow">Reentry Settings</div>
+                <div class="commission-eyebrow">Auto Order Settings</div>
                 <div class="commission-form-grid">
                     <div class="commission-field">
-                        <label>ยอด Reentry</label>
-                        <input name="cwReentryAmount" value="{{ $matrixCwReentryAmount }}" required>
+                        <label>ยอด Auto Order</label>
+                        <input name="autoOrderAmount" value="{{ $matrixAutoOrderAmount }}" required>
                     </div>
                     <div class="commission-field">
-                        <label>จำนวน Firm ที่ได้</label>
-                        <input name="reentryFirmAmount" value="{{ $matrixReentryFirmAmount }}" required>
+                        <label>จำนวน Firm ของ Auto Order</label>
+                        <input name="autoOrderFirmAmount" value="{{ $matrixAutoOrderFirmAmount }}" required>
                     </div>
                     <div class="commission-field">
-                        <label>จำนวน PV ที่ได้</label>
-                        <input name="reentryPvAmount" value="{{ $matrixReentryPvAmount }}" required>
+                        <label>จำนวน PV ของ Auto Order</label>
+                        <input name="autoOrderPvAmount" value="{{ $matrixAutoOrderPvAmount }}" required>
                     </div>
                 </div>
-                <button type="submit" class="commission-save">Save Reentry Settings</button>
+                <button type="submit" class="commission-save">Save Auto Order Settings</button>
                 </form>
             </div>
 
@@ -763,14 +763,14 @@
                         <label>PV ส่วนตัวขั้นต่ำเพื่อเปิดบอร์ด</label>
                         <input name="organizationPvRate" value="{{ $matrixOrgRate }}" required>
                         <div class="commission-helper">
-                            ตัวอย่าง: ถ้าตั้ง 700 หมายถึงสมาชิกต้องมี PV ส่วนตัว 700 ก่อน จึงจะเปิดบอร์ด 1 ได้
+                            ตัวอย่าง: ถ้าตั้ง 500 หมายถึงสมาชิกต้องมี PV ส่วนตัว 500 ก่อน จึงจะเปิดบอร์ด 1 ได้
                         </div>
                     </div>
                     <div class="commission-field">
-                        <label>CW สำหรับ Reentry</label>
-                        <input name="cwReentryAmount" value="{{ $matrixCwReentryAmount }}" required>
+                        <label>ยอด Auto Order</label>
+                        <input name="autoOrderAmount" value="{{ $matrixAutoOrderAmount }}" required>
                         <div class="commission-helper">
-                            กำหนดค่า CW ที่ต้องมีเพื่อเปิด Board 1 รอบถัดไปแยกจากค่า PV เปิดบอร์ด
+                            กำหนดค่ายอดที่ระบบใช้กับ auto order ของ Board 1 รอบถัดไป
                         </div>
                     </div>
                 </div>
@@ -858,7 +858,7 @@
             <div class="commission-panel">
                 <form action="{{ route('platform.commission.saveMatrix') }}" method="POST">
                 @csrf
-                <div class="commission-eyebrow">Live Reentry Settings</div>
+                <div class="commission-eyebrow">Live Auto Order Settings</div>
                 <input type="hidden" name="redirectSection" value="reentry">
                 <input type="hidden" name="boardWidth" value="{{ $matrixBoardWidth }}">
                 <input type="hidden" name="organizationPvRate" value="{{ $matrixOrgRate }}">
@@ -873,24 +873,24 @@
 
                 <div class="commission-form-grid">
                     <div class="commission-field">
-                        <label>ยอด Reentry</label>
-                        <input name="cwReentryAmount" value="{{ $matrixCwReentryAmount }}" required>
+                        <label>ยอด Auto Order</label>
+                        <input name="autoOrderAmount" value="{{ $matrixAutoOrderAmount }}" required>
                         <div class="commission-helper">
-                            ยอดที่ระบบใช้ตัดเมื่อสมาชิกเข้าเงื่อนไข reentry
+                            ยอดที่ระบบใช้สร้าง auto order เมื่อสมาชิกเข้าเงื่อนไข
                         </div>
                     </div>
                     <div class="commission-field">
                         <label>จำนวน Firm ที่ได้</label>
-                        <input name="reentryFirmAmount" value="{{ $matrixReentryFirmAmount }}" required>
+                        <input name="autoOrderFirmAmount" value="{{ $matrixAutoOrderFirmAmount }}" required>
                         <div class="commission-helper">
-                            เมื่อถึงกติกา reentry ระบบจะโอน Firm wallet ให้ทันทีตามจำนวนนี้
+                            เมื่อถึงกติกา auto order ระบบจะใช้จำนวน Firm นี้ในออเดอร์อัตโนมัติ
                         </div>
                     </div>
                     <div class="commission-field">
                         <label>จำนวน PV ที่ได้</label>
-                        <input name="reentryPvAmount" value="{{ $matrixReentryPvAmount }}" required>
+                        <input name="autoOrderPvAmount" value="{{ $matrixAutoOrderPvAmount }}" required>
                         <div class="commission-helper">
-                            ใช้เป็น PV ของ event reentry ทันทีเมื่อสมาชิกเข้าเงื่อนไข
+                            ใช้เป็น PV ของ auto order event เมื่อสมาชิกเข้าเงื่อนไข
                         </div>
                     </div>
                 </div>
@@ -900,7 +900,7 @@
                     class="commission-save"
                     data-turbo="false"
                 >
-                    Save Reentry Settings
+                    Save Auto Order Settings
                 </button>
                 </form>
             </div>

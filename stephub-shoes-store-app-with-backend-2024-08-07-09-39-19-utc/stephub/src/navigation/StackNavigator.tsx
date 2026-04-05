@@ -85,6 +85,14 @@ const stack = createBrowserRouter([
         ),
       },
       {
+        path: 'CommissionMainPlan',
+        element: (
+          <RequireAuth>
+            <screens.CommissionMainPlan />
+          </RequireAuth>
+        ),
+      },
+      {
         path: 'Firm',
         element: (
           <RequireAuth>

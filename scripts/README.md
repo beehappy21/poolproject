@@ -24,6 +24,8 @@ Smoke helpers:
   Runs a focused direct + unilevel runtime smoke against the local API and Postgres by creating a three-member sponsor chain, processing one approved order, and verifying commission ledger plus wallet-credit rows end to end.
 - `npm run smoke:pool:rules`
   Resets local state and verifies custom-rate, disabled, and all-commissions pool-cap behavior, including rerun idempotency for repeated pool close calls on the same date.
+- `npm run smoke:pool:weekly`
+  Resets local state and verifies the weekly pool rule set: only Sunday close is allowed, the funding window covers the full Bangkok week, pool fund uses 30% of weekly PV, and an eligible member with 2 directs plus recent B1 completion receives the payout.
 - `npm run smoke:bao:cashback`
   Verifies Stephub BAO cashback settings, report page, and CSV/XLSX/PDF export against live local data.
 - `npm run smoke:bao:shipment`

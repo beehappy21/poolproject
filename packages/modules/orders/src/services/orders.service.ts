@@ -104,6 +104,19 @@ export interface OrdersServiceContract {
     pickupBranchName: string | null;
     pickupBranchNote: string | null;
     createdAt: string;
+    autoOrderAudit?: {
+      matrixEventId: string;
+      sourceBoardId: string | null;
+      sourceBoardNo: number | null;
+      sourceBoardRoundNo: number | null;
+      generatedBoardId: string | null;
+      generatedBoardNo: number | null;
+      generatedRoundNo: number | null;
+      sourcePv: string;
+      creditedPv: string;
+      firmCreditAmount: string | null;
+      eventCreatedAt: string;
+    } | null;
     reentryAudit: {
       matrixEventId: string;
       sourceBoardId: string | null;
@@ -243,6 +256,7 @@ export interface OrdersServiceContract {
       payoutCount: number;
       completedCycleCount: number;
       skipped: boolean;
+      openedAutoOrderCount: number;
       openedReentryCount: number;
     };
     walletPostingInputs: Array<{
@@ -428,7 +442,15 @@ export class OrdersService implements OrdersServiceContract {
     return this.ordersRepository.cancelOrder(input);
   }
 
-  async createMatrixReentryAuditArtifacts(input: {
+  async createMatrixAutoOrderAuditArtifacts(input: {
+    openedAutoOrders?: Array<{
+      userId: string;
+      matrixEventId: string;
+      sourceBoardId: string;
+      roundNo: number;
+      autoOrderAmount: string;
+      autoOrderPvAmount: string;
+    }>;
     openedReentries?: Array<{
       userId: string;
       matrixEventId: string;
@@ -438,10 +460,31 @@ export class OrdersService implements OrdersServiceContract {
       reentryPvAmount: string;
     }>;
   }) {
-    await this.createMatrixReentryAuditOrders(input);
+    await this.createMatrixAutoOrderAuditOrders(input);
     return {
-      createdCount: input.openedReentries?.length ?? 0,
+      createdCount: input.openedAutoOrders?.length ?? input.openedReentries?.length ?? 0,
     };
+  }
+
+  async createMatrixReentryAuditArtifacts(input: {
+    openedAutoOrders?: Array<{
+      userId: string;
+      matrixEventId: string;
+      sourceBoardId: string;
+      roundNo: number;
+      autoOrderAmount: string;
+      autoOrderPvAmount: string;
+    }>;
+    openedReentries?: Array<{
+      userId: string;
+      matrixEventId: string;
+      sourceBoardId: string;
+      roundNo: number;
+      reentryAmount: string;
+      reentryPvAmount: string;
+    }>;
+  }) {
+    return this.createMatrixAutoOrderAuditArtifacts(input);
   }
 
   async getApprovedOrder(orderId: string): Promise<{
@@ -546,7 +589,7 @@ export class OrdersService implements OrdersServiceContract {
                 totalPv: approvedOrder.totalPv,
                 matrixSettingsSnapshot: approvedOrder.matrixSettingsSnapshot,
               });
-        await this.createMatrixReentryAuditOrders(matrixFlow);
+        await this.createMatrixAutoOrderAuditOrders(matrixFlow);
         const walletPostingInputs = await this.postCommissionWalletEntries(orderId);
         await this.walletsService.creditDiscountWalletFromApprovedOrder({ orderId });
 
@@ -578,7 +621,7 @@ export class OrdersService implements OrdersServiceContract {
               totalPv: approvedOrder.totalPv,
               matrixSettingsSnapshot: approvedOrder.matrixSettingsSnapshot,
             });
-      await this.createMatrixReentryAuditOrders(matrixFlow);
+      await this.createMatrixAutoOrderAuditOrders(matrixFlow);
 
       if (commissionSettings.appVisibility.pool !== false) {
         await this.poolService.loadApprovedOrderFunding(
@@ -635,11 +678,20 @@ export class OrdersService implements OrdersServiceContract {
       payoutCount: 0,
       completedCycleCount: 0,
       skipped: true,
+      openedAutoOrders: [],
       openedReentries: [],
     };
   }
 
-  private async createMatrixReentryAuditOrders(matrixFlow: {
+  private async createMatrixAutoOrderAuditOrders(matrixFlow: {
+    openedAutoOrders?: Array<{
+      userId: string;
+      matrixEventId: string;
+      sourceBoardId: string;
+      roundNo: number;
+      autoOrderAmount: string;
+      autoOrderPvAmount: string;
+    }>;
     openedReentries?: Array<{
       userId: string;
       matrixEventId: string;
@@ -649,20 +701,29 @@ export class OrdersService implements OrdersServiceContract {
       reentryPvAmount: string;
     }>;
   }) {
-    for (const openedReentry of matrixFlow.openedReentries ?? []) {
-      const reentryOrder = await this.ordersRepository.createMatrixReentryAuditOrder({
-        userId: openedReentry.userId,
-        matrixEventId: openedReentry.matrixEventId,
-        sourceBoardId: openedReentry.sourceBoardId,
-        roundNo: openedReentry.roundNo,
-        amount: openedReentry.reentryAmount,
-        pv: openedReentry.reentryPvAmount,
+    const openedAutoOrders =
+      matrixFlow.openedAutoOrders ??
+      matrixFlow.openedReentries?.map((entry) => ({
+        ...entry,
+        autoOrderAmount: entry.reentryAmount,
+        autoOrderPvAmount: entry.reentryPvAmount,
+      })) ??
+      [];
+
+    for (const openedAutoOrder of openedAutoOrders) {
+      const autoOrder = await this.ordersRepository.createMatrixAutoOrderAuditOrder({
+        userId: openedAutoOrder.userId,
+        matrixEventId: openedAutoOrder.matrixEventId,
+        sourceBoardId: openedAutoOrder.sourceBoardId,
+        roundNo: openedAutoOrder.roundNo,
+        amount: openedAutoOrder.autoOrderAmount,
+        pv: openedAutoOrder.autoOrderPvAmount,
       });
 
-      // Newly-created reentry orders must be fully settled before the next
+      // Newly-created auto orders must be fully settled before the next
       // normal invoice is processed, otherwise matrix/commission state drifts.
-      if (!reentryOrder.alreadyExists) {
-        await this.handleApprovedOrder(reentryOrder.orderId);
+      if (!autoOrder.alreadyExists) {
+        await this.handleApprovedOrder(autoOrder.orderId);
       }
     }
   }
@@ -696,6 +757,9 @@ export class OrdersService implements OrdersServiceContract {
       payoutCount: number;
       completedCycleCount: number;
       skipped: boolean;
+      openedAutoOrders?: Array<{
+        matrixEventId: string;
+      }>;
       openedReentries?: Array<{
         matrixEventId: string;
       }>;
@@ -742,6 +806,8 @@ export class OrdersService implements OrdersServiceContract {
         payoutCount: matrixFlow?.payoutCount ?? 0,
         completedCycleCount: matrixFlow?.completedCycleCount ?? 0,
         skipped: matrixFlow?.skipped ?? false,
+        openedAutoOrderCount:
+          matrixFlow?.openedAutoOrders?.length ?? matrixFlow?.openedReentries?.length ?? 0,
         openedReentryCount: matrixFlow?.openedReentries?.length ?? 0,
       },
       walletPostingInputs,
