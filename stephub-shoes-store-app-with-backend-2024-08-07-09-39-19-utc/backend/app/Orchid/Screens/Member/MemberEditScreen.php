@@ -5,6 +5,7 @@ namespace App\Orchid\Screens\Member;
 use App\Models\Member;
 use App\Models\MemberProfileRecord;
 use App\Models\MemberUserRecord;
+use App\Models\WalletRecord;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Orchid\Screen\Actions\Button;
@@ -20,12 +21,45 @@ use App\Support\BaoAdminApiClient;
 class MemberEditScreen extends Screen
 {
     public ?Member $memberRecord = null;
+    /** @var array<string, string> */
+    public array $walletSummary = [];
 
     public function query(Member $member): iterable
     {
         $this->memberRecord = Member::member003()
             ->with(['memberProfile', 'sponsor'])
             ->findOrFail($member->id);
+
+        $walletSummary = [
+            'approvedBalance' => '0',
+            'heldBalance' => '0',
+            'withdrawableBalance' => '0',
+            'shoppingBalance' => '0',
+            'discountBalance' => '0',
+            'firmBalance' => '0',
+            'negativeOffsetBalance' => '0',
+        ];
+
+        $walletRecord = WalletRecord::query()
+            ->where('userId', $this->memberRecord->id)
+            ->first();
+
+        if ($walletRecord !== null) {
+            $walletSummary = array_merge($walletSummary, [
+                'approvedBalance' => (string) ($walletRecord->approvedBalance ?? '0'),
+                'heldBalance' => (string) ($walletRecord->heldBalance ?? '0'),
+                'withdrawableBalance' => (string) ($walletRecord->withdrawableBalance ?? '0'),
+                'shoppingBalance' => (string) ($walletRecord->shoppingBalance ?? '0'),
+                'discountBalance' => (string) ($walletRecord->discountBalance ?? '0'),
+                'firmBalance' => (string) ($walletRecord->firmBalance ?? '0'),
+                'negativeOffsetBalance' => (string) ($walletRecord->negativeOffsetBalance ?? '0'),
+            ]);
+        }
+
+        $this->walletSummary = array_map(
+            static fn ($value) => is_scalar($value) ? (string) $value : '0',
+            $walletSummary,
+        );
 
         return [
             'member' => [
@@ -45,6 +79,7 @@ class MemberEditScreen extends Screen
                 'mobile_center' => $this->memberRecord->mobile_center,
                 'status' => $this->memberRecord->status,
             ],
+            'walletSummary' => $this->walletSummary,
         ];
     }
 
@@ -131,6 +166,22 @@ class MemberEditScreen extends Screen
                     ->title('Status:')
                     ->readonly(),
             ])->title('Member profile'),
+            Layout::legend('walletSummary', [
+                \Orchid\Screen\Sight::make('firmBalance', 'Firm balance:')
+                    ->render(fn () => number_format((float) ($this->walletSummary['firmBalance'] ?? '0'), 2)),
+                \Orchid\Screen\Sight::make('withdrawableBalance', 'Withdrawable balance:')
+                    ->render(fn () => number_format((float) ($this->walletSummary['withdrawableBalance'] ?? '0'), 2)),
+                \Orchid\Screen\Sight::make('shoppingBalance', 'Shopping balance:')
+                    ->render(fn () => number_format((float) ($this->walletSummary['shoppingBalance'] ?? '0'), 2)),
+                \Orchid\Screen\Sight::make('discountBalance', 'Discount balance:')
+                    ->render(fn () => number_format((float) ($this->walletSummary['discountBalance'] ?? '0'), 2)),
+                \Orchid\Screen\Sight::make('approvedBalance', 'Approved balance:')
+                    ->render(fn () => number_format((float) ($this->walletSummary['approvedBalance'] ?? '0'), 2)),
+                \Orchid\Screen\Sight::make('heldBalance', 'Held balance:')
+                    ->render(fn () => number_format((float) ($this->walletSummary['heldBalance'] ?? '0'), 2)),
+                \Orchid\Screen\Sight::make('negativeOffsetBalance', 'Negative offset balance:')
+                    ->render(fn () => number_format((float) ($this->walletSummary['negativeOffsetBalance'] ?? '0'), 2)),
+            ])->title('Wallet summary'),
         ];
     }
 
