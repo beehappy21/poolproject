@@ -67,6 +67,7 @@ function loadLegacyBoardTwoBenchmarks(): LegacyBenchmarkMap {
 }
 
 const LEGACY_BOARD_TWO_BENCHMARKS = loadLegacyBoardTwoBenchmarks();
+const MAX_MATRIX_UPLINE_PROPAGATION_DEPTH = 2;
 
 export interface MatrixServiceContract {
   handleApprovedOrderMatrixSource(input: {
@@ -264,7 +265,9 @@ export class MatrixService implements MatrixServiceContract {
     approvedAt: string,
     uplineUserIds: string[],
   ) {
-    const sponsorChain = await this.getSponsorChainIds(sourceUserId);
+    const sponsorChain = (
+      await this.getSponsorChainIds(sourceUserId)
+    ).slice(0, MAX_MATRIX_UPLINE_PROPAGATION_DEPTH);
     const benchmarkBeneficiaryIds =
       await this.resolveLegacyBenchmarkBeneficiaryIds(sourceUserId);
     const beneficiaryUserIds: string[] = [
@@ -272,7 +275,10 @@ export class MatrixService implements MatrixServiceContract {
       ...benchmarkBeneficiaryIds,
     ];
 
-    for (const ancestorUserId of uplineUserIds) {
+    for (const ancestorUserId of uplineUserIds.slice(
+      0,
+      MAX_MATRIX_UPLINE_PROPAGATION_DEPTH,
+    )) {
       const activeChildBeneficiaryId = await this.resolveActiveChildNodeBeneficiaryId({
         sourceUserId,
         sponsorChain,
@@ -390,6 +396,13 @@ export class MatrixService implements MatrixServiceContract {
       return null;
     }
 
+    const effectivePendingEvents =
+      input.board.boardNo === 1 && input.board.roundNo > 1
+        ? pendingEvents.some((event) => !event.sourceOrderId)
+          ? pendingEvents.filter((event) => !event.sourceOrderId)
+          : pendingEvents
+        : pendingEvents;
+
     if (input.board.boardNo === 1 && input.board.roundNo === 1) {
       const beneficiary = await this.membersService.getMember(input.beneficiaryUserId);
       const feeders = beneficiary?.memberCode
@@ -403,7 +416,7 @@ export class MatrixService implements MatrixServiceContract {
         }
 
         const matchingPendingEvent =
-          pendingEvents.find(
+          effectivePendingEvents.find(
             (event) => event.sourceUser?.memberCode === nextExpectedSourceCode,
           ) || null;
         if (matchingPendingEvent) {
@@ -510,7 +523,7 @@ export class MatrixService implements MatrixServiceContract {
       );
 
       const mappedPendingEvents = await Promise.all(
-        pendingEvents.map(async (event) => {
+        effectivePendingEvents.map(async (event) => {
           const sourceCode = event.sourceUser?.memberCode ?? "";
           const targetSlotNo = previousSlotPriority.get(sourceCode) ?? null;
           if (!targetSlotNo || occupiedSlots.has(targetSlotNo)) {
@@ -562,7 +575,7 @@ export class MatrixService implements MatrixServiceContract {
       };
     }
 
-    return pendingEvents[0] ? { event: pendingEvents[0] } : null;
+    return effectivePendingEvents[0] ? { event: effectivePendingEvents[0] } : null;
   }
 
   private async finalizeBoardAfterPlacement(input: {
@@ -629,6 +642,12 @@ export class MatrixService implements MatrixServiceContract {
       if (deferredOpenedReentry) {
         openedReentries.push(deferredOpenedReentry);
       }
+
+      await this.maybePropagateCompletedBoardOneToAncestorNextRound({
+        sourceUserId: input.beneficiaryUserId,
+        completedRoundNo: targetBoard.roundNo,
+        creditedPv: latestCycle.organizationPvRate,
+      });
     }
 
     return {
@@ -912,13 +931,43 @@ export class MatrixService implements MatrixServiceContract {
     const levelRates = this.parseLevelRatesSnapshot(cycle.levelRatesSnapshot);
     const creditedPv = input.sourcePv;
     const cycleId = cycle.id.toString();
-    const board =
-      this.resolveOrderTargetBoard(cycle.boards) ??
-      this.resolveCurrentBoard(cycle.boards, cycle.currentBoardNo, cycle.currentBoardRoundNo) ??
-      this.resolveHighestPriorityOpenBoard(cycle.boards);
+    const sourceMember = await this.membersService.getMember(input.sourceUserId);
+    const immediateSponsorId = sourceMember?.sponsorId?.toString() ?? null;
+    const immediateSponsorCycle = immediateSponsorId
+      ? await this.getActiveCycle(immediateSponsorId)
+      : null;
+    const immediateSponsorHasOwnNextRound =
+      immediateSponsorId !== null &&
+      immediateSponsorId !== input.beneficiaryUserId &&
+      (immediateSponsorCycle?.boards || []).some(
+        (entry) =>
+          entry.boardNo === 1 &&
+          entry.roundNo > 1 &&
+          this.normalizeBoardStatus(entry.status) !== "locked",
+      );
+    const isSourceMemberBoard = input.beneficiaryUserId === input.sourceUserId;
+    const nearestAncestorWithOpenBoardOneNextRound =
+      await this.resolveNearestAncestorWithOpenBoardOneNextRound(
+        input.sourceUserId,
+      );
+    const shouldUseLatestBoardOneRound =
+      (isSourceMemberBoard ||
+        nearestAncestorWithOpenBoardOneNextRound === input.beneficiaryUserId) &&
+      !immediateSponsorHasOwnNextRound;
+    const board = isSourceMemberBoard
+      ? this.resolveOrderTargetBoard(cycle.boards, { allowLatestRound: true }) ??
+        this.resolveCurrentBoard(
+          cycle.boards,
+          cycle.currentBoardNo,
+          cycle.currentBoardRoundNo,
+        ) ??
+        this.resolveHighestPriorityOpenBoard(cycle.boards)
+      : this.resolveOrderTargetBoard(cycle.boards, {
+          allowLatestRound: shouldUseLatestBoardOneRound,
+        });
 
     if (!board) {
-      throw new Error("Matrix board not found.");
+      return { payoutCount: 0, completedCycleCount: 0, openedReentries: [] };
     }
 
     await this.matrixRepository.addAccumulationToCycle(cycleId, creditedPv);
@@ -1073,16 +1122,51 @@ export class MatrixService implements MatrixServiceContract {
       })[0];
   }
 
-  private resolveOrderTargetBoard(boards: MatrixBoardLike[]) {
+  private resolveOrderTargetBoard(
+    boards: MatrixBoardLike[],
+    options?: {
+      allowLatestRound?: boolean;
+    },
+  ) {
     return [...boards]
       .filter(
         (entry) =>
           entry.boardNo === 1 &&
+          (options?.allowLatestRound ? true : entry.roundNo === 1) &&
           this.normalizeBoardStatus(entry.status) === "open",
       )
       .sort((left, right) => {
         return right.roundNo - left.roundNo;
       })[0];
+  }
+
+  private async resolveNearestAncestorWithOpenBoardOneNextRound(
+    sourceUserId: string,
+  ) {
+    const sponsorChain = (
+      await this.getSponsorChainIds(sourceUserId)
+    ).slice(0, MAX_MATRIX_UPLINE_PROPAGATION_DEPTH);
+
+    for (const ancestorUserId of sponsorChain) {
+      const ancestorCycle = await this.getActiveCycle(ancestorUserId);
+      if (!ancestorCycle) {
+        continue;
+      }
+
+      const hasOpenBoardOneNextRound = ancestorCycle.boards.some(
+        (entry) =>
+          entry.boardNo === 1 &&
+          entry.roundNo > 1 &&
+          this.normalizeBoardStatus(entry.status) === "open" &&
+          entry.filledSlots < entry.slotCount,
+      );
+
+      if (hasOpenBoardOneNextRound) {
+        return ancestorUserId;
+      }
+    }
+
+    return null;
   }
 
   private getBoardId(board: MatrixBoardLike): string {
@@ -1297,7 +1381,9 @@ export class MatrixService implements MatrixServiceContract {
       return;
     }
 
-    const sponsorChain = await this.getSponsorChainIds(input.sourceUserId);
+    const sponsorChain = (
+      await this.getSponsorChainIds(input.sourceUserId)
+    ).slice(0, MAX_MATRIX_UPLINE_PROPAGATION_DEPTH);
     if (sponsorChain.length === 0) {
       return;
     }
@@ -1328,6 +1414,89 @@ export class MatrixService implements MatrixServiceContract {
         creditedPv: input.creditedPv,
         sourceType: "ORDER",
         sourceRoundNo: 1,
+        sourceOrderId: null,
+      });
+
+      await this.flushPendingBoardPlacements({
+        beneficiaryUserId: sponsorUserId,
+        cycle: {
+          cycleId: this.getCycleId(sponsorCycle),
+          userId: sponsorCycle.userId.toString(),
+          cycleNo: 1,
+          boardWidth: sponsorCycle.boardWidth,
+          boardDepth: sponsorCycle.boardDepth,
+          boardCount: sponsorCycle.boardCount,
+          organizationPvRate: sponsorCycle.organizationPvRate.toString(),
+          cwReentryAmount: sponsorCycle.cwReentryAmount.toString(),
+          personalCarryPv: "0",
+          levelRatesSnapshot: Array.isArray(sponsorCycle.levelRatesSnapshot)
+            ? sponsorCycle.levelRatesSnapshot
+            : [],
+          totalAccumulatedPv: "0",
+          currentBoardNo: targetBoard.boardNo,
+          currentBoardRoundNo: targetBoard.roundNo,
+          status: "active",
+          startedAt: new Date().toISOString(),
+          completedAt: null,
+          boards: [],
+        },
+        boardId: this.getBoardId(targetBoard),
+      });
+    }
+  }
+
+  private async maybePropagateCompletedBoardOneToAncestorNextRound(input: {
+    sourceUserId: string;
+    completedRoundNo: number;
+    creditedPv: string;
+  }) {
+    const sponsorChain = (
+      await this.getSponsorChainIds(input.sourceUserId)
+    ).slice(0, MAX_MATRIX_UPLINE_PROPAGATION_DEPTH);
+    if (sponsorChain.length === 0) {
+      return;
+    }
+
+    for (const sponsorUserId of sponsorChain) {
+      const sponsorCycle = await this.getActiveCycle(sponsorUserId);
+      if (!sponsorCycle) {
+        continue;
+      }
+
+      const boardOneRoundOne = sponsorCycle.boards.find(
+        (entry) => entry.boardNo === 1 && entry.roundNo === 1,
+      );
+      const sourceAlreadyInAncestorBoardOne =
+        (boardOneRoundOne?.positions || []).some(
+          (position) =>
+            position.sourceUserId?.toString() === input.sourceUserId,
+        ) ?? false;
+
+      if (!sourceAlreadyInAncestorBoardOne) {
+        continue;
+      }
+
+      const targetBoard = [...sponsorCycle.boards]
+        .filter(
+          (entry) =>
+            entry.boardNo === 1 &&
+            this.normalizeBoardStatus(entry.status) === "open" &&
+            entry.filledSlots < entry.slotCount,
+        )
+        .sort((left, right) => right.roundNo - left.roundNo)[0];
+
+      if (!targetBoard) {
+        continue;
+      }
+
+      await this.enqueueSyntheticPointIntoBoard({
+        cycle: sponsorCycle,
+        board: targetBoard,
+        sourceUserId: input.sourceUserId,
+        sourcePv: input.creditedPv,
+        creditedPv: input.creditedPv,
+        sourceType: "ORDER",
+        sourceRoundNo: input.completedRoundNo,
         sourceOrderId: null,
       });
 
