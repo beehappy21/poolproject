@@ -394,7 +394,6 @@ class ProductEditScreen extends Screen
             $product['member_price'] = $product['firm_amount_paid'] ?? $product['member_price'] ?? 0;
             $product['cost_price'] = 0;
             $product['retail_price'] = $product['member_price'];
-            $product['pv'] = 0;
             $product['pool_rate'] = 0;
             $product['active_days'] = 1;
             $product['earning_cap_amount'] = $product['member_price'];
