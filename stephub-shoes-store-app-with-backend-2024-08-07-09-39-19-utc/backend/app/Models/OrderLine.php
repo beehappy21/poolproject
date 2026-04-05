@@ -35,9 +35,18 @@ class OrderLine extends Model
 
         $productId = $this->attributes['product_id'] ?? null;
         if ($productId !== null && $productId !== '') {
-            $detailName = ProductDetailRecord::query()
-                ->whereKey((int) $productId)
-                ->value('name');
+            $detailQuery = ProductDetailRecord::query();
+
+            if (ctype_digit((string) $productId)) {
+                $detailQuery->whereKey((int) $productId);
+            } else {
+                $detailQuery->where(function ($query) use ($productId) {
+                    $query->where('code', (string) $productId)
+                        ->orWhere('slug', (string) $productId);
+                });
+            }
+
+            $detailName = $detailQuery->value('name');
 
             if (is_string($detailName) && trim($detailName) !== '') {
                 return trim($detailName);
