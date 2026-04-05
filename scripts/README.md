@@ -32,6 +32,18 @@ Smoke helpers:
 - `npm run smoke:bao:all`
   Runs the cashback smoke plus the BAO cashback and shipment browser checks in one pass.
   This helper is intentionally destructive for local state: it kills listeners on `:3000` and `:8001`, resets the local Postgres schema, reseeds dev data, reapplies compat views, and normalizes the local BAO sqlite admin password to `Admin123`.
+- `npm run seed:members:random-referrals -- --apply`
+  Plans or creates enough members to reach `RANDOM_MEMBER_TARGET_TOTAL` (default `1000`) while keeping a mixed direct-referral shape across `0 / 1 / 2 / >2`.
+  Dry-run is the default; pass `--apply` to insert rows. Supports `RANDOM_MEMBER_PASSWORD`, `RANDOM_MEMBER_CODE_PREFIX`, and bucket weights such as `RANDOM_MEMBER_WEIGHT_ZERO`.
+- `npm run seed:members:random-referrals:rebalance -- --apply`
+  Repairs or rebalances sponsor links for a generated member range, useful when a previous bulk insert left too many new members without sponsors.
+  The default range is `TH0000211` to `TH0001000`.
+- `npm run test:commissions:summary`
+  Reads live commission runtime data directly through Prisma and prints one summary for `CommissionLedger`, `MatrixPayout`, `DailyPoolPayout`, and `CompanyBonusLedger`.
+  Supports `MEMBER_CODE`, `DATE_FROM`, `DATE_TO`, `POOL_DATE`, `LIMIT_ROWS`, and `OUTPUT=json`.
+- `npm run test:commissions:real`
+  Runs a reusable real-data commission test flow for the new main plan: optional binary-tree member seeding, runtime order seeding through the live API, weekly pool close, then beneficiary and all-member summaries.
+  Useful env vars include `REAL_TEST_SEED_TREE=1`, `MAIN_PLAN_BENEFICIARY=TH0000023`, `MAIN_PLAN_POOL_DATE=2026-04-05`, `DATE_FROM`, `DATE_TO`, and `LIMIT_ROWS`.
 - `npm run smoke:wallet:mixed`
   Resets the local Postgres schema, reseeds dev data, and verifies the new CW/SW commerce flow end to end: direct commission credit, CW-to-SW conversion with fee, downline transfer with fee, admin SW top-up, member SW top-up request plus admin approval, and mixed wallet + cash order creation with configured payment methods.
 - `npm run cleanup:cashback-smoke -- --apply`

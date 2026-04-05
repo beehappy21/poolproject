@@ -446,7 +446,7 @@
             @enderror
         </div>
 
-        <div class="pool-field" data-firm-hide="1">
+        <div class="pool-field">
             <label for="product_pv">PV</label>
             <input id="product_pv" name="product[pv]" type="number" step="0.00000001" min="0" value="{{ old('product.pv', $product['pv'] ?? '0') }}" class="@if($fieldHasError('product.pv')) pool-input-error @endif">
             @error('product.pv')
@@ -455,6 +455,9 @@
             <div class="pool-note">
                 ค่าเริ่มต้นคำนวณจากสูตร `(ราคาสมาชิก - ต้นทุน) x 80%`
                 ได้ <strong id="productPvFormulaValue">{{ $product['pv_formula'] ?? '0.00000000' }}</strong>
+            </div>
+            <div class="pool-note" id="productPvModeNote">
+                สินค้า Firm ก็สามารถกำหนด PV เองได้ โดยเปิดตัวเลือกตั้งค่า PV เองด้านล่าง
             </div>
             <input type="hidden" name="product[pv_manual_override]" value="0">
             <label style="display:flex;align-items:center;gap:0.5rem;font-weight:500;">
@@ -605,9 +608,8 @@
     </div>
 
     <div class="product-firm-mode" id="productFirmModeSummary" @if ((string) ($product['firm_enabled'] ?? '0') !== '1') style="display:none" @endif>
-        โหมด Firm-to-DCW จะใช้แค่ 2 ค่า:
-        ยอด Firm ที่จ่าย และจำนวน DCW ที่ได้รับ
-        ระบบจะตั้งค่าอื่นให้อัตโนมัติ เช่น cost = 0, retail = ยอด Firm, PV = 0, pool rate = 0, active days = 1, earning cap = ยอด Firm, และปิด DCW spend
+        โหมด Firm-to-DCW จะตั้งค่าให้อัตโนมัติบางส่วน เช่น cost = 0, retail = ยอด Firm, pool rate = 0, active days = 1, earning cap = ยอด Firm, และปิด DCW spend
+        แต่ตอนนี้ admin สามารถกำหนด PV เองได้แล้ว หากต้องการใช้ค่าที่ต่างจากสูตรอัตโนมัติ
     </div>
 </div>
 
@@ -708,6 +710,7 @@
         const pvInput = document.getElementById('product_pv');
         const pvManualOverrideInput = document.getElementById('product_pv_manual_override');
         const pvFormulaValue = document.getElementById('productPvFormulaValue');
+        const pvModeNote = document.getElementById('productPvModeNote');
         const pvWarning = document.getElementById('productPvWarning');
         const dcwSpendEnabledInput = document.getElementById('product_dcw_spend_enabled');
         const dcwUsageInput = document.getElementById('product_dcw_usage_amount');
@@ -1122,13 +1125,18 @@
                 }
                 costPriceInput.value = '0';
                 retailPriceInput.value = memberPriceInput.value || '0';
-                pvInput.value = '0';
                 poolRateInput.value = '0';
                 activeDaysInput.value = '1';
                 earningCapInput.value = memberPriceInput.value || '0';
                 dcwSpendEnabledInput.value = '0';
                 dcwUsageInput.value = '0';
                 dcwRewardRateInput.value = '0';
+            }
+
+            if (pvModeNote) {
+                pvModeNote.textContent = isFirmCategory
+                    ? 'สินค้า Firm สามารถกำหนด PV เองได้ ถ้าไม่เปิด override ระบบจะใช้สูตรจากยอด Firm อัตโนมัติ'
+                    : 'สินค้า Firm ก็สามารถกำหนด PV เองได้ โดยเปิดตัวเลือกตั้งค่า PV เองด้านล่าง';
             }
 
             if (isFirmCategory) {

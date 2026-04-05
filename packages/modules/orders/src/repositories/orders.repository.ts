@@ -3,7 +3,6 @@ import { Prisma } from "@prisma/client";
 
 import { PrismaService } from "../../../../infrastructure/src/prisma/prisma.service";
 import {
-  buildUtcDayRange,
   toDecimalString,
   toIdString,
   toIsoString,
@@ -30,28 +29,43 @@ import { readWalletSettings } from "../../../../shared/utils/src/wallet-settings
 const BRANCH_PICKUP_LABEL = "branch_pickup";
 const ORDER_NUMBER_WIDTH = 7;
 const ORDER_NUMBER_PATTERN = "^[0-9]{7}$";
-const MATRIX_REENTRY_AUDIT_PREFIX = "matrix-reentry";
+const MATRIX_AUTO_ORDER_AUDIT_PREFIX = "matrix-auto-order";
 
-function buildMatrixReentryAuditRef(matrixEventId: string) {
-  return `${MATRIX_REENTRY_AUDIT_PREFIX}:${matrixEventId}`;
+function buildMatrixAutoOrderAuditRef(matrixEventId: string) {
+  return `${MATRIX_AUTO_ORDER_AUDIT_PREFIX}:${matrixEventId}`;
 }
 
-function parseMatrixReentryAuditRef(approvalBatchRef?: string | null): string | null {
-  if (!approvalBatchRef?.startsWith(`${MATRIX_REENTRY_AUDIT_PREFIX}:`)) {
+function buildMatrixReentryAuditRef(matrixEventId: string) {
+  return buildMatrixAutoOrderAuditRef(matrixEventId);
+}
+
+function parseMatrixAutoOrderAuditRef(approvalBatchRef?: string | null): string | null {
+  if (!approvalBatchRef?.startsWith(`${MATRIX_AUTO_ORDER_AUDIT_PREFIX}:`)) {
     return null;
   }
 
-  return approvalBatchRef.slice(`${MATRIX_REENTRY_AUDIT_PREFIX}:`.length) || null;
+  return approvalBatchRef.slice(`${MATRIX_AUTO_ORDER_AUDIT_PREFIX}:`.length) || null;
+}
+
+function parseMatrixReentryAuditRef(approvalBatchRef?: string | null): string | null {
+  return parseMatrixAutoOrderAuditRef(approvalBatchRef);
+}
+
+function isMatrixAutoOrder(input: {
+  orderSourceType?: string | null;
+  approvalBatchRef?: string | null;
+}) {
+  return (
+    input.orderSourceType === "MATRIX_REENTRY" ||
+    parseMatrixAutoOrderAuditRef(input.approvalBatchRef) !== null
+  );
 }
 
 function isMatrixReentryOrder(input: {
   orderSourceType?: string | null;
   approvalBatchRef?: string | null;
 }) {
-  return (
-    input.orderSourceType === "MATRIX_REENTRY" ||
-    input.approvalBatchRef?.startsWith(`${MATRIX_REENTRY_AUDIT_PREFIX}:`) === true
-  );
+  return isMatrixAutoOrder(input);
 }
 
 function mapOrderSourceType(input: {
@@ -115,6 +129,62 @@ function canCancelOrderStatus(input: {
 
 function formatSequentialOrderNo(sequence: number) {
   return String(sequence).padStart(ORDER_NUMBER_WIDTH, "0");
+}
+
+const BANGKOK_UTC_OFFSET_HOURS = 7;
+
+function parseDateOnlyParts(dateOnly: string) {
+  const [year, month, day] = dateOnly.split("-").map((part) => Number(part));
+  return { year, month, day };
+}
+
+function toBangkokUtcDate(input: {
+  year: number;
+  month: number;
+  day: number;
+  hour?: number;
+  minute?: number;
+  second?: number;
+  millisecond?: number;
+}) {
+  return new Date(
+    Date.UTC(
+      input.year,
+      input.month - 1,
+      input.day,
+      (input.hour ?? 0) - BANGKOK_UTC_OFFSET_HOURS,
+      input.minute ?? 0,
+      input.second ?? 0,
+      input.millisecond ?? 0,
+    ),
+  );
+}
+
+function buildBangkokWeeklyRange(poolDate: string) {
+  const { year, month, day } = parseDateOnlyParts(poolDate);
+  const closeDayUtc = Date.UTC(year, month - 1, day);
+  const startDay = new Date(closeDayUtc - 6 * 24 * 60 * 60 * 1000);
+
+  return {
+    gte: toBangkokUtcDate({
+      year: startDay.getUTCFullYear(),
+      month: startDay.getUTCMonth() + 1,
+      day: startDay.getUTCDate(),
+      hour: 0,
+      minute: 0,
+      second: 0,
+      millisecond: 0,
+    }),
+    lte: toBangkokUtcDate({
+      year,
+      month,
+      day,
+      hour: 23,
+      minute: 59,
+      second: 59,
+      millisecond: 999,
+    }),
+  } satisfies Prisma.DateTimeFilter;
 }
 
 export interface OrdersRepository {
@@ -225,6 +295,19 @@ export interface OrdersRepository {
     pickupBranchName: string | null;
     pickupBranchNote: string | null;
     createdAt: string;
+    autoOrderAudit?: {
+      matrixEventId: string;
+      sourceBoardId: string | null;
+      sourceBoardNo: number | null;
+      sourceBoardRoundNo: number | null;
+      generatedBoardId: string | null;
+      generatedBoardNo: number | null;
+      generatedRoundNo: number | null;
+      sourcePv: string;
+      creditedPv: string;
+      firmCreditAmount: string | null;
+      eventCreatedAt: string;
+    } | null;
     reentryAudit: {
       matrixEventId: string;
       sourceBoardId: string | null;
@@ -296,6 +379,23 @@ export interface OrdersRepository {
     walletAppliedUsdt: string;
     cashDueUsdt: string;
     cashPaymentMethod: string | null;
+  }>;
+
+  createMatrixAutoOrderAuditOrder(input: {
+    userId: string;
+    matrixEventId: string;
+    sourceBoardId: string;
+    roundNo: number;
+    amount: string;
+    pv: string;
+  }): Promise<{
+    orderId: string;
+    orderNo: string;
+    status: string;
+    approvalStatus: string;
+    totalUsdt: string;
+    totalPv: string;
+    cashDueUsdt: string;
   }>;
 
   createMatrixReentryAuditOrder(input: {
@@ -902,7 +1002,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
       };
     });
 
-    const matrixEventId = parseMatrixReentryAuditRef(order.approvalBatchRef);
+    const matrixEventId = parseMatrixAutoOrderAuditRef(order.approvalBatchRef);
     const reentryEvent =
       matrixEventId && isMatrixReentryOrder(order)
         ? await this.prisma.matrixAccumulationEvent.findUnique({
@@ -969,6 +1069,22 @@ export class PrismaOrdersRepository implements OrdersRepository {
           shipmentNote: order.shipmentNote ?? null,
           orderSourceType: mapOrderSourceType(order),
           createdAt: order.createdAt.toISOString(),
+          autoOrderAudit:
+            reentryEvent && isMatrixReentryOrder(order)
+              ? {
+                  matrixEventId: reentryEvent.id.toString(),
+                  sourceBoardId: reentryEvent.board?.reentrySourceBoard?.id?.toString() ?? null,
+                  sourceBoardNo: reentryEvent.board?.reentrySourceBoard?.boardNo ?? null,
+                  sourceBoardRoundNo: reentryEvent.board?.reentrySourceBoard?.roundNo ?? null,
+                  generatedBoardId: reentryEvent.board?.id?.toString() ?? null,
+                  generatedBoardNo: reentryEvent.board?.boardNo ?? null,
+                  generatedRoundNo: reentryEvent.board?.roundNo ?? null,
+                  sourcePv: reentryEvent.sourcePv.toString(),
+                  creditedPv: reentryEvent.creditedPv.toString(),
+                  firmCreditAmount: firmCredit?.amount?.toString() ?? null,
+                  eventCreatedAt: reentryEvent.createdAt.toISOString(),
+                }
+              : null,
           reentryAudit:
             reentryEvent && isMatrixReentryOrder(order)
               ? {
@@ -1768,7 +1884,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
     };
   }
 
-  async createMatrixReentryAuditOrder(input: {
+  async createMatrixAutoOrderAuditOrder(input: {
     userId: string;
     matrixEventId: string;
     sourceBoardId: string;
@@ -1776,7 +1892,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
     amount: string;
     pv: string;
   }) {
-    const approvalBatchRef = buildMatrixReentryAuditRef(input.matrixEventId);
+    const approvalBatchRef = buildMatrixAutoOrderAuditRef(input.matrixEventId);
     const existing = await this.prisma.order.findFirst({
       where: {
         approvalBatchRef,
@@ -1805,20 +1921,62 @@ export class PrismaOrdersRepository implements OrdersRepository {
       };
     }
 
-    const note = `system-generated reentry from board ${input.sourceBoardId} round ${input.roundNo}`;
+    const note = `system-generated auto order from board ${input.sourceBoardId} round ${input.roundNo}`;
     const order = await this.prisma.$transaction(async (tx) => {
+      const firmProductDetail = await tx.productDetail.findFirst({
+        where: {
+          code: "FIR001",
+          status: "ACTIVE",
+          firmEnabled: true,
+          product: {
+            category: {
+              code: "FIRM",
+            },
+          },
+        },
+        select: {
+          id: true,
+          memberPriceUsdt: true,
+          pv: true,
+          poolRateMode: true,
+          poolRate: true,
+          dcwSpendEnabled: true,
+          dcwUsageAmount: true,
+          dcwCashRewardRate: true,
+          dcwShoppingRewardRate: true,
+        },
+        orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+      });
+
+      if (!firmProductDetail) {
+        throw new BadRequestException(
+          "Active Firm product detail FIR001 not found for matrix auto order.",
+        );
+      }
+
+      if (
+        compareDecimalStrings(
+          firmProductDetail.memberPriceUsdt.toString(),
+          input.amount,
+        ) !== 0
+      ) {
+        throw new BadRequestException(
+          `Firm product detail FIR001 price ${firmProductDetail.memberPriceUsdt.toString()} does not match auto order amount ${input.amount}.`,
+        );
+      }
+
       return tx.order.create({
         data: {
           orderNo: await this.generateNextOrderNo(tx),
           userId: BigInt(input.userId),
           shippingLabel: BRANCH_PICKUP_LABEL,
           shippingAddressLine: "MATRIX_REENTRY",
-          shippingAddressNote: "system-generated reentry",
-          subtotalUsdt: input.amount,
-          totalUsdt: input.amount,
-          totalPv: input.pv,
+          shippingAddressNote: "system-generated auto order",
+          subtotalUsdt: firmProductDetail.memberPriceUsdt,
+          totalUsdt: firmProductDetail.memberPriceUsdt,
+          totalPv: firmProductDetail.pv,
           dcwAppliedUsdt: "0",
-          walletAppliedUsdt: input.amount,
+          walletAppliedUsdt: firmProductDetail.memberPriceUsdt,
           cashDueUsdt: "0",
           cashPaymentMethod: null,
           paidAt: new Date(),
@@ -1830,6 +1988,23 @@ export class PrismaOrdersRepository implements OrdersRepository {
           shipmentNote: note,
           transferSlipNote: note,
           matrixSettingsSnapshot: serializeMatrixSettingsSnapshot(readMatrixSettings()),
+          orderItems: {
+            create: {
+              productId: firmProductDetail.id.toString(),
+              qty: 1,
+              unitPriceUsdt: firmProductDetail.memberPriceUsdt,
+              unitPv: firmProductDetail.pv,
+              poolRateMode: firmProductDetail.poolRateMode,
+              unitPoolRate: firmProductDetail.poolRate,
+              dcwSpendEnabled: firmProductDetail.dcwSpendEnabled,
+              unitDcwUsageAmount: firmProductDetail.dcwUsageAmount,
+              unitDcwCashRewardRate: firmProductDetail.dcwCashRewardRate,
+              unitDcwShoppingRewardRate:
+                firmProductDetail.dcwShoppingRewardRate,
+              lineTotalUsdt: firmProductDetail.memberPriceUsdt,
+              lineTotalPv: firmProductDetail.pv,
+            },
+          },
         },
         select: {
           id: true,
@@ -1853,6 +2028,17 @@ export class PrismaOrdersRepository implements OrdersRepository {
       cashDueUsdt: order.cashDueUsdt.toString(),
       alreadyExists: false,
     };
+  }
+
+  async createMatrixReentryAuditOrder(input: {
+    userId: string;
+    matrixEventId: string;
+    sourceBoardId: string;
+    roundNo: number;
+    amount: string;
+    pv: string;
+  }) {
+    return this.createMatrixAutoOrderAuditOrder(input);
   }
 
   async submitTransferSlip(input: {
@@ -2054,7 +2240,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
       }
 
       if (isMatrixReentryOrder(existingOrder)) {
-        throw new BadRequestException("Matrix reentry audit orders cannot be cancelled.");
+        throw new BadRequestException("Matrix auto order audit orders cannot be cancelled.");
       }
 
       if (
@@ -2174,7 +2360,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
       }>;
     }>
   > {
-    const range = buildUtcDayRange(poolDate);
+    const range = buildBangkokWeeklyRange(poolDate);
     const orderItemSelect = {
       lineTotalPv: true,
       poolRateMode: true,
