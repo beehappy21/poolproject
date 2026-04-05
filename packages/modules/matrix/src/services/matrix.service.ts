@@ -1,6 +1,4 @@
 import { Injectable } from "@nestjs/common";
-import fs from "node:fs";
-import path from "node:path";
 
 import { MembersService } from "../../../members/src/services/members.service";
 import { MembersServiceContract } from "../../../members/src/services/members.service";
@@ -34,40 +32,7 @@ type MatrixBoardLike = {
   }>;
 };
 
-type LegacyBenchmarkMap = Record<string, Array<string | null>>;
-
-function loadLegacyBoardOneBenchmarks(): LegacyBenchmarkMap {
-  try {
-    const filePath = path.resolve(
-      process.cwd(),
-      "scripts",
-      "member003-matrix-legacy-benchmarks.json",
-    );
-    const payload = JSON.parse(fs.readFileSync(filePath, "utf8"));
-    return payload?.board1Round1Feeders ?? {};
-  } catch {
-    return {};
-  }
-}
-
-const LEGACY_BOARD_ONE_BENCHMARKS = loadLegacyBoardOneBenchmarks();
-
-function loadLegacyBoardTwoBenchmarks(): LegacyBenchmarkMap {
-  try {
-    const filePath = path.resolve(
-      process.cwd(),
-      "scripts",
-      "member003-matrix-legacy-benchmarks.json",
-    );
-    const payload = JSON.parse(fs.readFileSync(filePath, "utf8"));
-    return payload?.board2Round1Feeders ?? {};
-  } catch {
-    return {};
-  }
-}
-
-const LEGACY_BOARD_TWO_BENCHMARKS = loadLegacyBoardTwoBenchmarks();
-const MAX_MATRIX_UPLINE_PROPAGATION_DEPTH = 2;
+const MAX_MATRIX_UPLINE_PROPAGATION_DEPTH = 3;
 
 export interface MatrixServiceContract {
   handleApprovedOrderMatrixSource(input: {
@@ -183,6 +148,11 @@ export interface MatrixServiceContract {
       reentryPvAmount: string;
     } | null;
   }>;
+
+  completeMatrixReorder(input: {
+    reorderId: string;
+    orderId: string;
+  }): Promise<void>;
 }
 
 type MatrixCycleLike = {
@@ -274,14 +244,8 @@ export class MatrixService implements MatrixServiceContract {
       };
     }
 
-    const uplineUserIds = await this.membersService.getUplineCandidateIds(
-      input.sourceUserId,
-      input.approvedAt,
-    );
     const beneficiaryUserIds = await this.buildBeneficiaryUserIdsForSourceOrder(
       input.sourceUserId,
-      input.approvedAt,
-      uplineUserIds,
     );
 
     let affectedMemberCount = 0;
@@ -323,98 +287,12 @@ export class MatrixService implements MatrixServiceContract {
 
   private async buildBeneficiaryUserIdsForSourceOrder(
     sourceUserId: string,
-    approvedAt: string,
-    uplineUserIds: string[],
   ) {
-    const sponsorChain = (
-      await this.getSponsorChainIds(sourceUserId)
-    ).slice(0, MAX_MATRIX_UPLINE_PROPAGATION_DEPTH);
-    const benchmarkBeneficiaryIds =
-      await this.resolveLegacyBenchmarkBeneficiaryIds(sourceUserId);
-    const beneficiaryUserIds: string[] = [
-      sourceUserId,
-      ...benchmarkBeneficiaryIds,
-    ];
+    const sponsorChain = await this.getSponsorChainIds(sourceUserId);
 
-    for (const ancestorUserId of uplineUserIds.slice(
-      0,
-      MAX_MATRIX_UPLINE_PROPAGATION_DEPTH,
-    )) {
-      const activeChildBeneficiaryId = await this.resolveActiveChildNodeBeneficiaryId({
-        sourceUserId,
-        sponsorChain,
-        ancestorUserId,
-      });
-
-      if (activeChildBeneficiaryId) {
-        beneficiaryUserIds.push(activeChildBeneficiaryId);
-      }
-
-      beneficiaryUserIds.push(ancestorUserId);
-    }
-
-    return beneficiaryUserIds.filter(
-      (memberId, index, arr) => arr.indexOf(memberId) === index,
-    );
-  }
-
-  private async resolveLegacyBenchmarkBeneficiaryIds(sourceUserId: string) {
-    const sourceMember = await this.membersService.getMember(sourceUserId);
-    const sourceCode = sourceMember?.memberCode ?? null;
-    if (!sourceCode) {
-      return [];
-    }
-
-    const beneficiaryIds: string[] = [];
-
-    for (const [beneficiaryCode, feeders] of Object.entries(LEGACY_BOARD_ONE_BENCHMARKS)) {
-      const beneficiary = await this.membersService.getMemberByCode(beneficiaryCode);
-      if (!beneficiary) {
-        continue;
-      }
-
-      const cycle = await this.getActiveCycle(beneficiary.memberId);
-      const boardOneRoundOne = cycle?.boards.find(
-        (board) => board.boardNo === 1 && board.roundNo === 1,
-      );
-      if (!boardOneRoundOne || boardOneRoundOne.filledSlots >= boardOneRoundOne.slotCount) {
-        continue;
-      }
-
-      const expectedSourceCode = feeders[boardOneRoundOne.filledSlots] ?? null;
-      if (expectedSourceCode && expectedSourceCode === sourceCode) {
-        beneficiaryIds.push(beneficiary.memberId);
-      }
-    }
-
-    return beneficiaryIds;
-  }
-
-  private async legacyBenchmarkAllowsPlacement(input: {
-    beneficiaryUserId: string;
-    sourceUserId: string;
-    board: MatrixBoardLike;
-  }) {
-    if (input.board.boardNo !== 1 || input.board.roundNo !== 1) {
-      return true;
-    }
-
-    const beneficiary = await this.membersService.getMember(input.beneficiaryUserId);
-    const sourceMember = await this.membersService.getMember(input.sourceUserId);
-    const beneficiaryCode = beneficiary?.memberCode ?? null;
-    const sourceCode = sourceMember?.memberCode ?? null;
-
-    if (!beneficiaryCode || !sourceCode) {
-      return true;
-    }
-
-    const feeders = LEGACY_BOARD_ONE_BENCHMARKS[beneficiaryCode];
-    if (!feeders || feeders.length === 0) {
-      return true;
-    }
-
-    const nextExpectedSourceCode = feeders[input.board.filledSlots] ?? null;
-    return nextExpectedSourceCode !== null && nextExpectedSourceCode === sourceCode;
+    return [sourceUserId, ...sponsorChain]
+      .slice(0, MAX_MATRIX_UPLINE_PROPAGATION_DEPTH + 1)
+      .filter((memberId, index, arr) => arr.indexOf(memberId) === index);
   }
 
   private async resolveNextPendingBoardEvent(input: {
@@ -463,102 +341,88 @@ export class MatrixService implements MatrixServiceContract {
           ? pendingEvents.filter((event) => !event.sourceOrderId)
           : pendingEvents
         : pendingEvents;
+    const rankedPendingEvents = await this.rankPendingEventsForBeneficiary(
+      input.beneficiaryUserId,
+      effectivePendingEvents,
+    );
 
-    if (input.board.boardNo === 1 && input.board.roundNo === 1) {
-      const beneficiary = await this.membersService.getMember(input.beneficiaryUserId);
-      const feeders = beneficiary?.memberCode
-        ? LEGACY_BOARD_ONE_BENCHMARKS[beneficiary.memberCode]
-        : null;
-
-      if (feeders && feeders.length > 0) {
-        const nextExpectedSourceCode = feeders[input.board.filledSlots] ?? null;
-        if (!nextExpectedSourceCode) {
-          return null;
+    if (input.board.boardNo === 1) {
+      const placedSlotByUserId = new Map<string, number>();
+      for (const position of input.board.positions || []) {
+        if (!position.sourceUserId || position.slotNo === undefined) {
+          continue;
         }
-
-        const matchingPendingEvent =
-          effectivePendingEvents.find(
-            (event) => event.sourceUser?.memberCode === nextExpectedSourceCode,
-          ) || null;
-        if (matchingPendingEvent) {
-          return { event: matchingPendingEvent };
+        const sourceUserId = position.sourceUserId.toString();
+        if (!placedSlotByUserId.has(sourceUserId)) {
+          placedSlotByUserId.set(sourceUserId, position.slotNo);
         }
+      }
 
-        const historicalEvent =
-          events.find((event) => event.sourceUser?.memberCode === nextExpectedSourceCode) || null;
-        if (historicalEvent) {
-          return { event: historicalEvent };
-        }
+      const occupiedSlots = new Set(
+        (input.board.positions || [])
+          .map((position) => position.slotNo)
+          .filter((slotNo): slotNo is number => typeof slotNo === "number"),
+      );
 
-        return null;
+      const slotCount = input.board.slotCount;
+      const placementCandidates = await Promise.all(
+        rankedPendingEvents.map(async (event, index) => {
+          const targetSlotNo = await this.resolveBoardOneTargetSlot({
+            beneficiaryUserId: input.beneficiaryUserId,
+            sourceUserId: event.sourceUserId.toString(),
+            placedSlotByUserId,
+            occupiedSlots,
+            slotCount,
+          });
+
+          if (!targetSlotNo) {
+            return null;
+          }
+
+          const levelNo = this.resolveLevelNo(targetSlotNo, 2, this.resolveBoardDepthFromSlotCount(slotCount));
+          const parentSlotNo = this.resolveParentSlotNo(
+            targetSlotNo,
+            2,
+            this.resolveBoardDepthFromSlotCount(slotCount),
+          );
+
+          return {
+            event,
+            index,
+            slotNo: targetSlotNo,
+            levelNo,
+            parentSlotNo,
+          };
+        }),
+      );
+
+      const selected = placementCandidates
+        .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+        .sort((left, right) => {
+          if (left.slotNo !== right.slotNo) {
+            return left.slotNo - right.slotNo;
+          }
+
+          const leftId = Number(left.event.id);
+          const rightId = Number(right.event.id);
+          if (leftId !== rightId) {
+            return leftId - rightId;
+          }
+
+          return left.index - right.index;
+        })[0];
+
+      if (selected) {
+        return {
+          event: selected.event,
+          slotNo: selected.slotNo,
+          levelNo: selected.levelNo,
+          parentSlotNo: selected.parentSlotNo,
+        };
       }
     }
 
     if (input.board.roundNo === 1 && input.board.boardNo > 1) {
-      const beneficiary = await this.membersService.getMember(input.beneficiaryUserId);
-      const benchmarkFeeders =
-        input.board.boardNo === 2 && beneficiary?.memberCode
-          ? LEGACY_BOARD_TWO_BENCHMARKS[beneficiary.memberCode]
-          : null;
-
-      if (benchmarkFeeders && benchmarkFeeders.length > 0) {
-        const occupiedSlots = new Set(
-          (input.board.positions || [])
-            .map((position) => position.slotNo)
-            .filter((slotNo): slotNo is number => typeof slotNo === "number"),
-        );
-
-        const benchmarkPendingEvents = pendingEvents
-          .map((event) => {
-            const sourceCode = event.sourceUser?.memberCode ?? "";
-            const targetSlotIndex = benchmarkFeeders.findIndex(
-              (memberCode) => memberCode === sourceCode,
-            );
-            if (targetSlotIndex < 0) {
-              return null;
-            }
-
-            const targetSlotNo = targetSlotIndex + 1;
-            if (occupiedSlots.has(targetSlotNo)) {
-              return null;
-            }
-
-            return {
-              event,
-              targetSlotNo,
-            };
-          })
-          .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
-          .sort((left, right) => Number(left.event.id) - Number(right.event.id));
-
-        const selected = benchmarkPendingEvents[0];
-        if (selected) {
-          const cycles = await this.matrixRepository.getMemberMatrixCycles(
-            input.beneficiaryUserId,
-          );
-          const latestCycle = cycles[0];
-
-          return {
-            event: selected.event,
-            slotNo: selected.targetSlotNo,
-            levelNo: latestCycle
-              ? this.resolveLevelNo(
-                  selected.targetSlotNo,
-                  latestCycle.boardWidth,
-                  latestCycle.boardDepth,
-                )
-              : 1,
-            parentSlotNo: latestCycle
-              ? this.resolveParentSlotNo(
-                  selected.targetSlotNo,
-                  latestCycle.boardWidth,
-                  latestCycle.boardDepth,
-                )
-              : null,
-          };
-        }
-      }
-
       const cycles = await this.matrixRepository.getMemberMatrixCycles(
         input.beneficiaryUserId,
       );
@@ -584,7 +448,7 @@ export class MatrixService implements MatrixServiceContract {
       );
 
       const mappedPendingEvents = await Promise.all(
-        effectivePendingEvents.map(async (event) => {
+        rankedPendingEvents.map(async (event) => {
           const sourceCode = event.sourceUser?.memberCode ?? "";
           const targetSlotNo = previousSlotPriority.get(sourceCode) ?? null;
           if (!targetSlotNo || occupiedSlots.has(targetSlotNo)) {
@@ -601,7 +465,7 @@ export class MatrixService implements MatrixServiceContract {
         }),
       );
 
-      const rankedPendingEvents = mappedPendingEvents
+      const rankedMappedPendingEvents = mappedPendingEvents
         .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
         .sort((left, right) => {
           if (left.sponsorDepth !== right.sponsorDepth) {
@@ -611,7 +475,7 @@ export class MatrixService implements MatrixServiceContract {
           return Number(left.event.id) - Number(right.event.id);
         });
 
-      const selected = rankedPendingEvents[0];
+      const selected = rankedMappedPendingEvents[0];
       if (!selected) {
         return null;
       }
@@ -636,7 +500,84 @@ export class MatrixService implements MatrixServiceContract {
       };
     }
 
-    return effectivePendingEvents[0] ? { event: effectivePendingEvents[0] } : null;
+    return rankedPendingEvents[0] ? { event: rankedPendingEvents[0] } : null;
+  }
+
+  private async resolveBoardOneTargetSlot(input: {
+    beneficiaryUserId: string;
+    sourceUserId: string;
+    placedSlotByUserId: Map<string, number>;
+    occupiedSlots: Set<number>;
+    slotCount: number;
+  }): Promise<number | null> {
+    const sponsorChain = await this.getSponsorChainIds(input.sourceUserId);
+    const relevantAncestors = sponsorChain.filter(
+      (ancestorId) =>
+        ancestorId === input.beneficiaryUserId || input.placedSlotByUserId.has(ancestorId),
+    );
+
+    for (const ancestorId of relevantAncestors) {
+      const anchorSlotNo =
+        ancestorId === input.beneficiaryUserId
+          ? null
+          : (input.placedSlotByUserId.get(ancestorId) ?? null);
+      const candidateSlotNo = this.findFirstAvailableDescendantSlot({
+        anchorSlotNo,
+        occupiedSlots: input.occupiedSlots,
+        slotCount: input.slotCount,
+      });
+
+      if (candidateSlotNo !== null) {
+        return candidateSlotNo;
+      }
+    }
+
+    return this.findFirstAvailableDescendantSlot({
+      anchorSlotNo: null,
+      occupiedSlots: input.occupiedSlots,
+      slotCount: input.slotCount,
+    });
+  }
+
+  private findFirstAvailableDescendantSlot(input: {
+    anchorSlotNo: number | null;
+    occupiedSlots: Set<number>;
+    slotCount: number;
+  }): number | null {
+    for (const candidateSlotNo of this.listSubtreeSlots(input.anchorSlotNo, input.slotCount)) {
+      if (!input.occupiedSlots.has(candidateSlotNo)) {
+        return candidateSlotNo;
+      }
+    }
+
+    return null;
+  }
+
+  private listSubtreeSlots(anchorSlotNo: number | null, slotCount: number): number[] {
+    const slots: number[] = [];
+    const queue = anchorSlotNo === null ? this.getRootChildSlots(slotCount) : this.getChildSlots(anchorSlotNo, slotCount);
+
+    while (queue.length > 0) {
+      const slotNo = queue.shift();
+      if (!slotNo) {
+        continue;
+      }
+      slots.push(slotNo);
+      queue.push(...this.getChildSlots(slotNo, slotCount));
+    }
+
+    return slots;
+  }
+
+  private getRootChildSlots(slotCount: number): number[] {
+    return [1, 2].filter((slotNo) => slotNo <= slotCount);
+  }
+
+  private getChildSlots(slotNo: number, slotCount: number): number[] {
+    const leftChild = slotNo * 2 + 1;
+    const rightChild = leftChild + 1;
+
+    return [leftChild, rightChild].filter((childSlotNo) => childSlotNo <= slotCount);
   }
 
   private async finalizeBoardAfterPlacement(input: {
@@ -690,11 +631,6 @@ export class MatrixService implements MatrixServiceContract {
           await this.matrixRepository.openBoard(existingNextBoard.boardId);
         }
 
-        await this.maybePropagateCompletedBoardToAncestorNextBoard({
-          sourceUserId: input.beneficiaryUserId,
-          completedBoardNo: targetBoard.boardNo,
-          creditedPv: latestCycle.organizationPvRate,
-        });
       } else {
         await this.matrixRepository.markCycleCompleted(latestCycle.cycleId);
         completedCycleCount = 1;
@@ -713,11 +649,6 @@ export class MatrixService implements MatrixServiceContract {
         openedAutoOrders.push(deferredOpenedReentry);
       }
 
-      await this.maybePropagateCompletedBoardOneToAncestorNextRound({
-        sourceUserId: input.beneficiaryUserId,
-        completedRoundNo: targetBoard.roundNo,
-        creditedPv: latestCycle.organizationPvRate,
-      });
     }
 
     return {
@@ -791,6 +722,16 @@ export class MatrixService implements MatrixServiceContract {
         latestCycle.organizationPvRate,
         rate,
       );
+      const holdbackDecision = await this.resolveHoldbackPosting({
+        beneficiaryUserId: input.beneficiaryUserId,
+        boardNo: targetBoard.boardNo,
+        roundNo: targetBoard.roundNo,
+        grossPayoutAmount: payoutAmount,
+        targetAmount: this.resolveAutoOrderRuntimeSettings(
+          latestCycle.organizationPvRate,
+          latestCycle.cwReentryAmount,
+        ).reentryFirmAmount,
+      });
 
       const payout = await this.matrixRepository.createPositionAndPayout({
         cycleId: latestCycle.cycleId,
@@ -807,16 +748,20 @@ export class MatrixService implements MatrixServiceContract {
         creditedPv: nextEvent.creditedPv.toString(),
         rate,
         payoutAmount,
+        paidAmount: holdbackDecision.paidAmount,
+        holdbackAmount: holdbackDecision.holdbackAmount,
       });
 
-      await this.walletsService.postApprovedEarning({
-        userId: input.beneficiaryUserId,
-        refType: "matrix",
-        refId: payout.payoutId,
-        amount: payout.payoutAmount,
-        holdRequired: false,
-        earningType: "matrix",
-      });
+      if (compareDecimalStrings(holdbackDecision.paidAmount, "0") > 0) {
+        await this.walletsService.postApprovedEarning({
+          userId: input.beneficiaryUserId,
+          refType: "matrix",
+          refId: payout.payoutId,
+          amount: holdbackDecision.paidAmount,
+          holdRequired: false,
+          earningType: "matrix",
+        });
+      }
 
       payoutCount += 1;
       const finalized = await this.finalizeBoardAfterPlacement({
@@ -858,54 +803,63 @@ export class MatrixService implements MatrixServiceContract {
     return chain;
   }
 
-  private async resolveActiveChildNodeBeneficiaryId(input: {
-    sourceUserId: string;
-    sponsorChain: string[];
-    ancestorUserId: string;
-  }) {
-    const ancestor = await this.membersService.getMember(input.ancestorUserId);
-    if (!ancestor) {
-      return null;
+  private async isWithinPlacementSubtree(ownerUserId: string, sourceUserId: string) {
+    if (ownerUserId === sourceUserId) {
+      return true;
     }
 
-    const directReferrals =
-      await this.membersService.getDirectReferralsByMemberCode(ancestor.memberCode);
-    if (!directReferrals) {
-      return null;
-    }
+    let currentMemberId: string | null = sourceUserId;
+    const seen = new Set<string>();
 
-    const activeChildren: Array<{ memberId: string; memberCode: string }> = [];
-    for (const child of directReferrals.directReferrals) {
-      const cycle = await this.getActiveCycle(child.memberId);
-      const boardOneRoundOne = cycle?.boards.find(
-        (board) => board.boardNo === 1 && board.roundNo === 1,
-      );
-      if (
-        boardOneRoundOne &&
-        boardOneRoundOne.filledSlots > 0 &&
-        boardOneRoundOne.status !== "LOCKED"
-      ) {
-        activeChildren.push({
-          memberId: child.memberId,
-          memberCode: child.memberCode,
-        });
+    while (currentMemberId && !seen.has(currentMemberId)) {
+      seen.add(currentMemberId);
+      const member = await this.membersService.getMember(currentMemberId);
+      const uplineUserId = member?.uplineUserId ?? null;
+      if (!uplineUserId) {
+        return false;
       }
+      if (uplineUserId === ownerUserId) {
+        return true;
+      }
+      currentMemberId = uplineUserId;
     }
 
-    if (activeChildren.length === 0) {
-      return null;
-    }
+    return false;
+  }
 
-    const descendantChild = activeChildren.find((child) =>
-      input.sponsorChain.includes(child.memberId),
+  private async rankPendingEventsForBeneficiary<
+    T extends {
+      id: string | bigint;
+      sourceUserId: string | bigint;
+      sourceOrderId?: string | bigint | null;
+    },
+  >(beneficiaryUserId: string, events: T[]) {
+    const annotated = await Promise.all(
+      events.map(async (event, index) => ({
+        event,
+        index,
+        inLineage: await this.isWithinPlacementSubtree(
+          beneficiaryUserId,
+          event.sourceUserId.toString(),
+        ),
+      })),
     );
-    if (descendantChild) {
-      return descendantChild.memberId;
-    }
 
-    return [...activeChildren].sort((left, right) =>
-      left.memberCode.localeCompare(right.memberCode),
-    )[0]?.memberId ?? null;
+    return annotated
+      .sort((left, right) => {
+        if (left.inLineage !== right.inLineage) {
+          return left.inLineage ? -1 : 1;
+        }
+
+        const leftId = Number(left.event.id);
+        const rightId = Number(right.event.id);
+        if (leftId !== rightId) {
+          return leftId - rightId;
+        }
+
+        return left.index - right.index;
+      })
+      .map((entry) => entry.event);
   }
 
   async getMemberMatrixCycles(userId: string): Promise<MatrixCycleSummary[]> {
@@ -925,49 +879,38 @@ export class MatrixService implements MatrixServiceContract {
     return this.matrixRepository.listMatrixPayouts(filters);
   }
 
-  async requestMemberAutoOrder(userId: string) {
-    const cycles = await this.matrixRepository.getMemberMatrixCycles(userId);
-    const cycle = cycles[0];
-
-    if (!cycle || cycle.status !== "active") {
-      throw new Error("ยังไม่มี matrix cycle ที่เปิดใช้งานสำหรับสมาชิกนี้");
-    }
-
-    const candidateBoard = [...(cycle.boards || [])]
-      .filter((board) => board.boardNo === 1 && board.status === "completed")
-      .sort((left, right) => right.roundNo - left.roundNo)
-      .find((board) => {
-        const nextRoundNo = board.roundNo + 1;
-        return !(cycle.boards || []).some(
-          (entry) => entry.boardNo === 1 && entry.roundNo === nextRoundNo,
-        );
-      });
-
-    if (!candidateBoard) {
-      throw new Error("ยังไม่ถึงเงื่อนไขเปิด auto order รอบถัดไป");
-    }
-
-    const openedAutoOrder = await this.maybeOpenBoardOneNextRound(cycle, {
-      boardId: this.getBoardId(candidateBoard),
-      boardNo: candidateBoard.boardNo,
-      roundNo: candidateBoard.roundNo,
-      openThresholdPv: candidateBoard.openThresholdPv.toString(),
-    });
-
-    if (!openedAutoOrder) {
-      throw new Error(
-        `ยอดไม่พอสำหรับเปิด auto order ต้องมีอย่างน้อย ${cycle.cwReentryAmount.toString()}`,
-      );
-    }
-
-    return {
-      ...openedAutoOrder,
-      reentryAmount: openedAutoOrder.autoOrderAmount,
-      reentryPvAmount: openedAutoOrder.autoOrderPvAmount,
-    };
+  async requestMemberAutoOrder(
+    userId: string,
+  ): Promise<{
+    cycleId: string;
+    userId: string;
+    matrixEventId: string;
+    sourceBoardId: string;
+    roundNo: number;
+    autoOrderAmount: string;
+    autoOrderPvAmount: string;
+    reentryAmount?: string;
+    reentryPvAmount?: string;
+  }> {
+    void userId;
+    throw new Error(
+      "ปิด auto order/reentry แบบเดิมไว้ก่อน จนกว่าจะรองรับ holdback และ pending_next_round_requirement ตามกติกาใหม่",
+    );
   }
 
-  async requestMemberReentry(userId: string) {
+  async requestMemberReentry(
+    userId: string,
+  ): Promise<{
+    cycleId: string;
+    userId: string;
+    matrixEventId: string;
+    sourceBoardId: string;
+    roundNo: number;
+    autoOrderAmount: string;
+    autoOrderPvAmount: string;
+    reentryAmount?: string;
+    reentryPvAmount?: string;
+  }> {
     return this.requestMemberAutoOrder(userId);
   }
 
@@ -1045,29 +988,7 @@ export class MatrixService implements MatrixServiceContract {
     const levelRates = this.parseLevelRatesSnapshot(cycle.levelRatesSnapshot);
     const creditedPv = input.sourcePv;
     const cycleId = cycle.id.toString();
-    const sourceMember = await this.membersService.getMember(input.sourceUserId);
-    const immediateSponsorId = sourceMember?.sponsorId?.toString() ?? null;
-    const immediateSponsorCycle = immediateSponsorId
-      ? await this.getActiveCycle(immediateSponsorId)
-      : null;
-    const immediateSponsorHasOwnNextRound =
-      immediateSponsorId !== null &&
-      immediateSponsorId !== input.beneficiaryUserId &&
-      (immediateSponsorCycle?.boards || []).some(
-        (entry) =>
-          entry.boardNo === 1 &&
-          entry.roundNo > 1 &&
-          this.normalizeBoardStatus(entry.status) !== "locked",
-      );
     const isSourceMemberBoard = input.beneficiaryUserId === input.sourceUserId;
-    const nearestAncestorWithOpenBoardOneNextRound =
-      await this.resolveNearestAncestorWithOpenBoardOneNextRound(
-        input.sourceUserId,
-      );
-    const shouldUseLatestBoardOneRound =
-      (isSourceMemberBoard ||
-        nearestAncestorWithOpenBoardOneNextRound === input.beneficiaryUserId) &&
-      !immediateSponsorHasOwnNextRound;
     const board = isSourceMemberBoard
       ? this.resolveOrderTargetBoard(cycle.boards, { allowLatestRound: true }) ??
         this.resolveCurrentBoard(
@@ -1076,9 +997,7 @@ export class MatrixService implements MatrixServiceContract {
           cycle.currentBoardRoundNo,
         ) ??
         this.resolveHighestPriorityOpenBoard(cycle.boards)
-      : this.resolveOrderTargetBoard(cycle.boards, {
-          allowLatestRound: shouldUseLatestBoardOneRound,
-        });
+      : this.resolveOrderTargetBoard(cycle.boards);
 
     if (!board) {
       return {
@@ -1094,6 +1013,16 @@ export class MatrixService implements MatrixServiceContract {
       this.getBoardId(board),
       creditedPv,
     );
+
+    if (isSourceMemberBoard) {
+      return {
+        payoutCount: 0,
+        completedCycleCount: 0,
+        openedAutoOrders: [],
+        openedReentries: [],
+      };
+    }
+
     await this.matrixRepository.createAccumulationEvent({
       cycleId,
       boardId: this.getBoardId(board),
@@ -1286,35 +1215,6 @@ export class MatrixService implements MatrixServiceContract {
       })[0];
   }
 
-  private async resolveNearestAncestorWithOpenBoardOneNextRound(
-    sourceUserId: string,
-  ) {
-    const sponsorChain = (
-      await this.getSponsorChainIds(sourceUserId)
-    ).slice(0, MAX_MATRIX_UPLINE_PROPAGATION_DEPTH);
-
-    for (const ancestorUserId of sponsorChain) {
-      const ancestorCycle = await this.getActiveCycle(ancestorUserId);
-      if (!ancestorCycle) {
-        continue;
-      }
-
-      const hasOpenBoardOneNextRound = ancestorCycle.boards.some(
-        (entry) =>
-          entry.boardNo === 1 &&
-          entry.roundNo > 1 &&
-          this.normalizeBoardStatus(entry.status) === "open" &&
-          entry.filledSlots < entry.slotCount,
-      );
-
-      if (hasOpenBoardOneNextRound) {
-        return ancestorUserId;
-      }
-    }
-
-    return null;
-  }
-
   private getBoardId(board: MatrixBoardLike): string {
     if (board.boardId) {
       return board.boardId;
@@ -1336,111 +1236,57 @@ export class MatrixService implements MatrixServiceContract {
       openThresholdPv: string;
     },
   ): Promise<NonNullable<MatrixOrderProcessingResult["openedAutoOrders"]>[number] | null> {
-    const autoOrderSettings = this.resolveAutoOrderRuntimeSettings(
+    const runtimeSettings = this.resolveAutoOrderRuntimeSettings(
       cycle.organizationPvRate,
       cycle.cwReentryAmount,
     );
-    const nextRoundNo = currentBoard.roundNo + 1;
-    const existingNextRound = cycle.boards.find(
-      (entry) => entry.boardNo === 1 && entry.roundNo === nextRoundNo,
-    );
+    const targetRoundNo = currentBoard.roundNo + 1;
+    const holdbackAccount = await this.matrixRepository.getHoldbackAccount({
+      userId: cycle.userId,
+      boardNo: currentBoard.boardNo,
+      targetRoundNo,
+    });
 
-    if (existingNextRound) {
+    if (!holdbackAccount) {
       return null;
     }
 
     if (
-      compareDecimalStrings(cycle.personalCarryPv, cycle.organizationPvRate) >= 0
+      compareDecimalStrings(
+        holdbackAccount.accumulatedAmount.toString(),
+        holdbackAccount.targetAmount.toString(),
+      ) < 0
     ) {
-      await this.matrixRepository.consumePersonalCarryPv(
-        cycle.cycleId,
-        cycle.organizationPvRate,
-      );
-
-      const nextBoard = await this.matrixRepository.createBoardRound({
-        cycleId: cycle.cycleId,
-        boardNo: 1,
-        roundNo: nextRoundNo,
-        openThresholdPv: currentBoard.openThresholdPv,
-        boardWidth: cycle.boardWidth,
-        boardDepth: cycle.boardDepth,
-        boardDepths: this.resolveBoardDepthsFromSnapshot(
-          cycle.levelRatesSnapshot,
-          cycle.boardCount,
-          cycle.boardDepth,
-        ),
-        reentrySourceBoardId: currentBoard.boardId,
-      });
-      await this.matrixRepository.updateCurrentBoard(cycle.cycleId, 1, nextRoundNo);
-
-      const reentryEvent = await this.matrixRepository.createAccumulationEvent({
-        cycleId: cycle.cycleId,
-        boardId: null,
-        sourceUserId: cycle.userId,
-        sourceType: "REENTRY",
-        sourceRoundNo: nextRoundNo,
-        depthNo: 0,
-        sourcePv: autoOrderSettings.reentryPvAmount,
-        creditedPv: autoOrderSettings.reentryPvAmount,
-      });
-
-      return {
-        cycleId: cycle.cycleId,
-        userId: cycle.userId,
-        matrixEventId: reentryEvent.id.toString(),
-        sourceBoardId: currentBoard.boardId,
-        roundNo: nextRoundNo,
-        autoOrderAmount: autoOrderSettings.reentryFirmAmount,
-        autoOrderPvAmount: autoOrderSettings.reentryPvAmount,
-      };
-    }
-
-    const wallet = await this.walletsService.getWalletSummary(cycle.userId);
-    if (compareDecimalStrings(wallet.withdrawableBalance, cycle.cwReentryAmount) < 0) {
       return null;
     }
 
-    await this.walletsService.debitWithdrawableForMatrixAutoOrder({
+    if (holdbackAccount.status !== "CONSUMED") {
+      await this.matrixRepository.markHoldbackAccountStatus(
+        holdbackAccount.id.toString(),
+        "TARGET_REACHED",
+      );
+    }
+
+    const reorder = await this.matrixRepository.createOrGetPendingReorder({
       userId: cycle.userId,
-      sourceBoardId: currentBoard.boardId,
-      amount: cycle.cwReentryAmount,
+      triggerBoardId: currentBoard.boardId,
+      holdbackAccountId: holdbackAccount.id.toString(),
+      requiredPv: runtimeSettings.reentryPvAmount,
     });
 
-    const nextBoard = await this.matrixRepository.createBoardRound({
-      cycleId: cycle.cycleId,
-      boardNo: 1,
-      roundNo: nextRoundNo,
-      openThresholdPv: currentBoard.openThresholdPv,
-      boardWidth: cycle.boardWidth,
-      boardDepth: cycle.boardDepth,
-      boardDepths: this.resolveBoardDepthsFromSnapshot(
-        cycle.levelRatesSnapshot,
-        cycle.boardCount,
-        cycle.boardDepth,
-      ),
-      reentrySourceBoardId: currentBoard.boardId,
-    });
-    await this.matrixRepository.updateCurrentBoard(cycle.cycleId, 1, nextRoundNo);
-
-    const reentryEvent = await this.matrixRepository.createAccumulationEvent({
-      cycleId: cycle.cycleId,
-      boardId: null,
-      sourceUserId: cycle.userId,
-      sourceType: "REENTRY",
-      sourceRoundNo: nextRoundNo,
-      depthNo: 0,
-      sourcePv: autoOrderSettings.reentryPvAmount,
-      creditedPv: autoOrderSettings.reentryPvAmount,
-    });
+    if (reorder.status === "COMPLETED") {
+      return null;
+    }
 
     return {
       cycleId: cycle.cycleId,
       userId: cycle.userId,
-      matrixEventId: reentryEvent.id.toString(),
+      matrixEventId: reorder.id.toString(),
+      reorderId: reorder.id.toString(),
       sourceBoardId: currentBoard.boardId,
-      roundNo: nextRoundNo,
-      autoOrderAmount: cycle.cwReentryAmount,
-      autoOrderPvAmount: autoOrderSettings.reentryPvAmount,
+      roundNo: targetRoundNo,
+      autoOrderAmount: runtimeSettings.reentryFirmAmount,
+      autoOrderPvAmount: runtimeSettings.reentryPvAmount,
     };
   }
 
@@ -1479,196 +1325,6 @@ export class MatrixService implements MatrixServiceContract {
       roundNo: candidateBoard.roundNo,
       openThresholdPv: candidateBoard.openThresholdPv.toString(),
     });
-  }
-
-  private async enqueueSyntheticPointIntoBoard(input: {
-    cycle: MatrixCycleLike;
-    board: MatrixBoardLike;
-    sourceUserId: string;
-    sourcePv: string;
-    creditedPv: string;
-    sourceType: "ORDER" | "REENTRY";
-    sourceRoundNo: number;
-    sourceOrderId: string | null;
-  }) {
-    const cycleId = this.getCycleId(input.cycle);
-    await this.matrixRepository.addAccumulationToCycle(cycleId, input.creditedPv);
-    await this.matrixRepository.addAccumulationToBoard(
-      this.getBoardId(input.board),
-      input.creditedPv,
-    );
-    await this.matrixRepository.createAccumulationEvent({
-      cycleId,
-      boardId: this.getBoardId(input.board),
-      sourceUserId: input.sourceUserId,
-      sourceOrderId: input.sourceOrderId,
-      sourceType: input.sourceType,
-      sourceRoundNo: input.sourceRoundNo,
-      depthNo: 0,
-      sourcePv: input.sourcePv,
-      creditedPv: input.creditedPv,
-    });
-  }
-
-  private async maybePropagateCompletedBoardToAncestorNextBoard(input: {
-    sourceUserId: string;
-    completedBoardNo: number;
-    creditedPv: string;
-  }) {
-    if (input.completedBoardNo !== 1 && input.completedBoardNo !== 2) {
-      return;
-    }
-
-    const targetBoardNo = input.completedBoardNo + 1;
-    if (targetBoardNo > 3) {
-      return;
-    }
-
-    const sponsorChain = (
-      await this.getSponsorChainIds(input.sourceUserId)
-    ).slice(0, MAX_MATRIX_UPLINE_PROPAGATION_DEPTH);
-    if (sponsorChain.length === 0) {
-      return;
-    }
-
-    for (const sponsorUserId of sponsorChain) {
-      const sponsorCycle = await this.getActiveCycle(sponsorUserId);
-      if (!sponsorCycle) {
-        continue;
-      }
-
-      const targetBoard = sponsorCycle.boards.find(
-        (entry) =>
-          entry.boardNo === targetBoardNo &&
-          entry.roundNo === 1 &&
-          entry.status === "OPEN" &&
-          entry.filledSlots < entry.slotCount,
-      );
-
-      if (!targetBoard) {
-        continue;
-      }
-
-      await this.enqueueSyntheticPointIntoBoard({
-        cycle: sponsorCycle,
-        board: targetBoard,
-        sourceUserId: input.sourceUserId,
-        sourcePv: input.creditedPv,
-        creditedPv: input.creditedPv,
-        sourceType: "ORDER",
-        sourceRoundNo: 1,
-        sourceOrderId: null,
-      });
-
-      await this.flushPendingBoardPlacements({
-        beneficiaryUserId: sponsorUserId,
-        cycle: {
-          cycleId: this.getCycleId(sponsorCycle),
-          userId: sponsorCycle.userId.toString(),
-          cycleNo: 1,
-          boardWidth: sponsorCycle.boardWidth,
-          boardDepth: sponsorCycle.boardDepth,
-          boardCount: sponsorCycle.boardCount,
-          organizationPvRate: sponsorCycle.organizationPvRate.toString(),
-          cwReentryAmount: sponsorCycle.cwReentryAmount.toString(),
-          personalCarryPv: "0",
-          levelRatesSnapshot: Array.isArray(sponsorCycle.levelRatesSnapshot)
-            ? sponsorCycle.levelRatesSnapshot
-            : [],
-          totalAccumulatedPv: "0",
-          currentBoardNo: targetBoard.boardNo,
-          currentBoardRoundNo: targetBoard.roundNo,
-          status: "active",
-          startedAt: new Date().toISOString(),
-          completedAt: null,
-          boards: [],
-        },
-        boardId: this.getBoardId(targetBoard),
-      });
-    }
-  }
-
-  private async maybePropagateCompletedBoardOneToAncestorNextRound(input: {
-    sourceUserId: string;
-    completedRoundNo: number;
-    creditedPv: string;
-  }) {
-    const sponsorChain = (
-      await this.getSponsorChainIds(input.sourceUserId)
-    ).slice(0, MAX_MATRIX_UPLINE_PROPAGATION_DEPTH);
-    if (sponsorChain.length === 0) {
-      return;
-    }
-
-    for (const sponsorUserId of sponsorChain) {
-      const sponsorCycle = await this.getActiveCycle(sponsorUserId);
-      if (!sponsorCycle) {
-        continue;
-      }
-
-      const boardOneRoundOne = sponsorCycle.boards.find(
-        (entry) => entry.boardNo === 1 && entry.roundNo === 1,
-      );
-      const sourceAlreadyInAncestorBoardOne =
-        (boardOneRoundOne?.positions || []).some(
-          (position) =>
-            position.sourceUserId?.toString() === input.sourceUserId,
-        ) ?? false;
-
-      if (!sourceAlreadyInAncestorBoardOne) {
-        continue;
-      }
-
-      const targetBoard = [...sponsorCycle.boards]
-        .filter(
-          (entry) =>
-            entry.boardNo === 1 &&
-            this.normalizeBoardStatus(entry.status) === "open" &&
-            entry.filledSlots < entry.slotCount,
-        )
-        .sort((left, right) => right.roundNo - left.roundNo)[0];
-
-      if (!targetBoard) {
-        continue;
-      }
-
-      await this.enqueueSyntheticPointIntoBoard({
-        cycle: sponsorCycle,
-        board: targetBoard,
-        sourceUserId: input.sourceUserId,
-        sourcePv: input.creditedPv,
-        creditedPv: input.creditedPv,
-        sourceType: "ORDER",
-        sourceRoundNo: input.completedRoundNo,
-        sourceOrderId: null,
-      });
-
-      await this.flushPendingBoardPlacements({
-        beneficiaryUserId: sponsorUserId,
-        cycle: {
-          cycleId: this.getCycleId(sponsorCycle),
-          userId: sponsorCycle.userId.toString(),
-          cycleNo: 1,
-          boardWidth: sponsorCycle.boardWidth,
-          boardDepth: sponsorCycle.boardDepth,
-          boardCount: sponsorCycle.boardCount,
-          organizationPvRate: sponsorCycle.organizationPvRate.toString(),
-          cwReentryAmount: sponsorCycle.cwReentryAmount.toString(),
-          personalCarryPv: "0",
-          levelRatesSnapshot: Array.isArray(sponsorCycle.levelRatesSnapshot)
-            ? sponsorCycle.levelRatesSnapshot
-            : [],
-          totalAccumulatedPv: "0",
-          currentBoardNo: targetBoard.boardNo,
-          currentBoardRoundNo: targetBoard.roundNo,
-          status: "active",
-          startedAt: new Date().toISOString(),
-          completedAt: null,
-          boards: [],
-        },
-        boardId: this.getBoardId(targetBoard),
-      });
-    }
   }
 
   private async placeSyntheticPointIntoBoard(input: {
@@ -1730,16 +1386,100 @@ export class MatrixService implements MatrixServiceContract {
       creditedPv: input.creditedPv,
       rate,
       payoutAmount,
+      paidAmount: payoutAmount,
+      holdbackAmount: "0",
     });
 
     await this.walletsService.postApprovedEarning({
       userId: input.beneficiaryUserId,
       refType: "matrix",
       refId: payout.payoutId,
-      amount: payout.payoutAmount,
+      amount: payout.paidAmount,
       holdRequired: false,
       earningType: "matrix",
     });
+  }
+
+  private async resolveHoldbackPosting(input: {
+    beneficiaryUserId: string;
+    boardNo: number;
+    roundNo: number;
+    grossPayoutAmount: string;
+    targetAmount: string;
+  }): Promise<{
+    paidAmount: string;
+    holdbackAmount: string;
+    holdbackAccountId: string | null;
+  }> {
+    if (input.boardNo !== 1) {
+      return {
+        paidAmount: input.grossPayoutAmount,
+        holdbackAmount: "0",
+        holdbackAccountId: null,
+      };
+    }
+
+    const targetRoundNo = input.roundNo + 1;
+    const account = await this.matrixRepository.getOrCreateHoldbackAccount({
+      userId: input.beneficiaryUserId,
+      boardNo: input.boardNo,
+      targetRoundNo,
+      targetAmount: input.targetAmount,
+    });
+
+    const currentAmount = account.accumulatedAmount.toString();
+    const targetAmount = account.targetAmount.toString();
+    const remainingAmount =
+      compareDecimalStrings(targetAmount, currentAmount) > 0
+        ? subtractDecimalStrings(targetAmount, currentAmount)
+        : "0";
+
+    if (compareDecimalStrings(remainingAmount, "0") <= 0) {
+      if (account.status !== "TARGET_REACHED" && account.status !== "CONSUMED") {
+        await this.matrixRepository.markHoldbackAccountStatus(
+          account.id.toString(),
+          "TARGET_REACHED",
+        );
+      }
+
+      return {
+        paidAmount: input.grossPayoutAmount,
+        holdbackAmount: "0",
+        holdbackAccountId: account.id.toString(),
+      };
+    }
+
+    const halfAmount = multiplyDecimalStrings(input.grossPayoutAmount, "0.5");
+    const holdbackAmount =
+      compareDecimalStrings(halfAmount, remainingAmount) > 0 ? remainingAmount : halfAmount;
+    const paidAmount = subtractDecimalStrings(input.grossPayoutAmount, holdbackAmount);
+
+    if (compareDecimalStrings(holdbackAmount, "0") > 0) {
+      const updated = await this.matrixRepository.applyHoldbackAmount(
+        account.id.toString(),
+        holdbackAmount,
+      );
+
+      if (
+        compareDecimalStrings(
+          updated.accumulatedAmount.toString(),
+          updated.targetAmount.toString(),
+        ) >= 0 &&
+        updated.status !== "TARGET_REACHED" &&
+        updated.status !== "CONSUMED"
+      ) {
+        await this.matrixRepository.markHoldbackAccountStatus(
+          account.id.toString(),
+          "TARGET_REACHED",
+        );
+      }
+    }
+
+    return {
+      paidAmount,
+      holdbackAmount,
+      holdbackAccountId: account.id.toString(),
+    };
   }
 
   private resolveLevelNo(slotNo: number, width: number, depth: number): number {
@@ -1779,6 +1519,18 @@ export class MatrixService implements MatrixServiceContract {
     return total;
   }
 
+  private resolveBoardDepthFromSlotCount(slotCount: number, width = 2): number {
+    let total = 0;
+    let depth = 0;
+
+    while (total < slotCount) {
+      depth += 1;
+      total += width ** depth;
+    }
+
+    return depth;
+  }
+
   private getCycleId(cycle: MatrixCycleLike): string {
     if (cycle.cycleId) {
       return cycle.cycleId;
@@ -1807,5 +1559,52 @@ export class MatrixService implements MatrixServiceContract {
         runtimeSettings.reentryPvAmount ||
         organizationPvRate,
     };
+  }
+
+  async completeMatrixReorder(input: { reorderId: string; orderId: string }): Promise<void> {
+    const reorder = await this.matrixRepository.getMatrixReorder(input.reorderId);
+    if (!reorder) {
+      throw new Error("Matrix reorder not found.");
+    }
+
+    await this.matrixRepository.markReorderOrderCreated({
+      reorderId: input.reorderId,
+      orderId: input.orderId,
+    });
+
+    const nextRoundNo = reorder.holdbackAccount.targetRoundNo;
+    const latestCycle = await this.matrixRepository.getLatestCycle(reorder.userId.toString());
+
+    if (!latestCycle) {
+      throw new Error("Matrix cycle not found for reorder completion.");
+    }
+
+    const existingNextBoard = latestCycle.boards.find(
+      (board) => board.boardNo === 1 && board.roundNo === nextRoundNo,
+    );
+
+    if (!existingNextBoard) {
+      await this.matrixRepository.createBoardRound({
+        cycleId: latestCycle.id.toString(),
+        boardNo: 1,
+        roundNo: nextRoundNo,
+        openThresholdPv: reorder.triggerBoard.openThresholdPv.toString(),
+        boardWidth: latestCycle.boardWidth,
+        boardDepth: latestCycle.boardDepth,
+        boardDepths: this.resolveBoardDepthsFromSnapshot(
+          latestCycle.levelRatesSnapshot,
+          latestCycle.boardCount,
+          latestCycle.boardDepth,
+        ),
+        reentrySourceBoardId: reorder.triggerBoardId.toString(),
+      });
+    }
+
+    await this.matrixRepository.updateCurrentBoard(latestCycle.id.toString(), 1, nextRoundNo);
+    await this.matrixRepository.markReorderCompleted(input.reorderId);
+    await this.matrixRepository.markHoldbackAccountStatus(
+      reorder.holdbackAccountId.toString(),
+      "CONSUMED",
+    );
   }
 }

@@ -250,6 +250,19 @@ enum MatrixAccumulationSourceType {
   REENTRY
 }
 
+enum MatrixHoldbackAccountStatus {
+  ACCUMULATING
+  TARGET_REACHED
+  CONSUMED
+}
+
+enum MatrixReorderStatus {
+  PENDING
+  ORDER_CREATED
+  COMPLETED
+  CANCELLED
+}
+
 enum RiskFlagSeverity {
   LOW
   MEDIUM
@@ -388,6 +401,8 @@ model User {
   matrixBeneficiaryPayouts       MatrixPayout[]                 @relation("MatrixPayoutBeneficiaryUser")
   matrixSourcePayouts            MatrixPayout[]                 @relation("MatrixPayoutSourceUser")
   matrixAccumulationEvents       MatrixAccumulationEvent[]      @relation("MatrixAccumulationSourceUser")
+  matrixHoldbackAccounts         MatrixHoldbackAccount[]
+  matrixReorders                 MatrixReorder[]
   lineBinding                    LineBinding?
   productReviews                 ProductReview[]
 }
@@ -739,6 +754,7 @@ model Order {
   matrixSourcePositions    MatrixPosition[]          @relation("MatrixPositionSourceOrder")
   matrixPayouts            MatrixPayout[]            @relation("MatrixPayoutSourceOrder")
   matrixAccumulationEvents MatrixAccumulationEvent[] @relation("MatrixAccumulationSourceOrder")
+  generatedMatrixReorders  MatrixReorder[]
 
   @@index([userId, status])
   @@index([shippingAddressId])
@@ -1077,6 +1093,7 @@ model MatrixBoard {
   positions           MatrixPosition[]
   payouts             MatrixPayout[]
   accumulationEvents  MatrixAccumulationEvent[]
+  triggeredReorders   MatrixReorder[]
   reentrySourceBoard  MatrixBoard?              @relation("MatrixBoardReentrySource", fields: [reentrySourceBoardId], references: [id])
   reentryChildBoards  MatrixBoard[]             @relation("MatrixBoardReentrySource")
 
@@ -1126,6 +1143,8 @@ model MatrixPayout {
   rate              Decimal            @default(0) @db.Decimal(10, 8)
   basePv            Decimal            @default(0) @db.Decimal(18, 8)
   payoutAmount      Decimal            @default(0) @db.Decimal(18, 8)
+  paidAmount        Decimal            @default(0) @db.Decimal(18, 8)
+  holdbackAmount    Decimal            @default(0) @db.Decimal(18, 8)
   status            MatrixPayoutStatus @default(PENDING)
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
@@ -1141,6 +1160,46 @@ model MatrixPayout {
   @@index([boardId, levelNo])
   @@index([beneficiaryUserId, status])
   @@index([sourceOrderId])
+}
+
+model MatrixHoldbackAccount {
+  id                BigInt                      @id @default(autoincrement())
+  userId            BigInt
+  boardNo           Int
+  targetRoundNo     Int
+  accumulatedAmount Decimal                     @default(0) @db.Decimal(18, 8)
+  targetAmount      Decimal                     @default(0) @db.Decimal(18, 8)
+  status            MatrixHoldbackAccountStatus @default(ACCUMULATING)
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @updatedAt
+
+  user     User            @relation(fields: [userId], references: [id])
+  reorders MatrixReorder[]
+
+  @@unique([userId, boardNo, targetRoundNo])
+  @@index([userId, status])
+}
+
+model MatrixReorder {
+  id                BigInt              @id @default(autoincrement())
+  userId            BigInt
+  triggerBoardId    BigInt
+  holdbackAccountId BigInt
+  generatedOrderId  BigInt?
+  requiredPv        Decimal             @default(0) @db.Decimal(18, 8)
+  status            MatrixReorderStatus @default(PENDING)
+  triggeredAt       DateTime            @default(now())
+  completedAt       DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  user            User                  @relation(fields: [userId], references: [id])
+  triggerBoard    MatrixBoard           @relation(fields: [triggerBoardId], references: [id])
+  holdbackAccount MatrixHoldbackAccount @relation(fields: [holdbackAccountId], references: [id])
+  generatedOrder  Order?                @relation(fields: [generatedOrderId], references: [id])
+
+  @@unique([triggerBoardId, holdbackAccountId])
+  @@index([userId, status])
 }
 
 model MatrixAccumulationEvent {

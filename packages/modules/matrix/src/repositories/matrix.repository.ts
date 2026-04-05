@@ -315,6 +315,8 @@ export class PrismaMatrixRepository {
     creditedPv: string;
     rate: string;
     payoutAmount: string;
+    paidAmount: string;
+    holdbackAmount: string;
   }) {
     return this.prisma.$transaction(async (tx) => {
       const position = await tx.matrixPosition.create({
@@ -356,6 +358,8 @@ export class PrismaMatrixRepository {
           rate: input.rate,
           basePv: input.sourcePv,
           payoutAmount: input.payoutAmount,
+          paidAmount: input.paidAmount,
+          holdbackAmount: input.holdbackAmount,
           status: "APPROVED",
         },
         select: { id: true },
@@ -365,7 +369,135 @@ export class PrismaMatrixRepository {
         positionId: toIdString(position.id),
         payoutId: toIdString(payout.id),
         payoutAmount: input.payoutAmount,
+        paidAmount: input.paidAmount,
+        holdbackAmount: input.holdbackAmount,
       };
+    });
+  }
+
+  async getOrCreateHoldbackAccount(input: {
+    userId: string;
+    boardNo: number;
+    targetRoundNo: number;
+    targetAmount: string;
+  }) {
+    return this.prisma.matrixHoldbackAccount.upsert({
+      where: {
+        userId_boardNo_targetRoundNo: {
+          userId: BigInt(input.userId),
+          boardNo: input.boardNo,
+          targetRoundNo: input.targetRoundNo,
+        },
+      },
+      update: {},
+      create: {
+        userId: BigInt(input.userId),
+        boardNo: input.boardNo,
+        targetRoundNo: input.targetRoundNo,
+        targetAmount: input.targetAmount,
+      },
+    });
+  }
+
+  async getHoldbackAccount(input: {
+    userId: string;
+    boardNo: number;
+    targetRoundNo: number;
+  }) {
+    return this.prisma.matrixHoldbackAccount.findUnique({
+      where: {
+        userId_boardNo_targetRoundNo: {
+          userId: BigInt(input.userId),
+          boardNo: input.boardNo,
+          targetRoundNo: input.targetRoundNo,
+        },
+      },
+    });
+  }
+
+  async applyHoldbackAmount(accountId: string, amount: string) {
+    return this.prisma.matrixHoldbackAccount.update({
+      where: { id: BigInt(accountId) },
+      data: {
+        accumulatedAmount: {
+          increment: amount,
+        },
+      },
+    });
+  }
+
+  async markHoldbackAccountStatus(accountId: string, status: "ACCUMULATING" | "TARGET_REACHED" | "CONSUMED") {
+    return this.prisma.matrixHoldbackAccount.update({
+      where: { id: BigInt(accountId) },
+      data: { status },
+    });
+  }
+
+  async createOrGetPendingReorder(input: {
+    userId: string;
+    triggerBoardId: string;
+    holdbackAccountId: string;
+    requiredPv: string;
+  }) {
+    const existing = await this.prisma.matrixReorder.findFirst({
+      where: {
+        triggerBoardId: BigInt(input.triggerBoardId),
+        holdbackAccountId: BigInt(input.holdbackAccountId),
+        status: {
+          in: ["PENDING", "ORDER_CREATED", "COMPLETED"],
+        },
+      },
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    return this.prisma.matrixReorder.create({
+      data: {
+        userId: BigInt(input.userId),
+        triggerBoardId: BigInt(input.triggerBoardId),
+        holdbackAccountId: BigInt(input.holdbackAccountId),
+        requiredPv: input.requiredPv,
+        status: "PENDING",
+      },
+    });
+  }
+
+  async getMatrixReorder(reorderId: string) {
+    return this.prisma.matrixReorder.findUnique({
+      where: { id: BigInt(reorderId) },
+      include: {
+        triggerBoard: {
+          include: {
+            cycle: true,
+          },
+        },
+        holdbackAccount: true,
+      },
+    });
+  }
+
+  async markReorderOrderCreated(input: {
+    reorderId: string;
+    orderId: string;
+  }) {
+    return this.prisma.matrixReorder.update({
+      where: { id: BigInt(input.reorderId) },
+      data: {
+        generatedOrderId: BigInt(input.orderId),
+        status: "ORDER_CREATED",
+      },
+    });
+  }
+
+  async markReorderCompleted(reorderId: string) {
+    return this.prisma.matrixReorder.update({
+      where: { id: BigInt(reorderId) },
+      data: {
+        status: "COMPLETED",
+        completedAt: new Date(),
+      },
     });
   }
 

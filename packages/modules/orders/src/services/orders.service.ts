@@ -446,6 +446,7 @@ export class OrdersService implements OrdersServiceContract {
     openedAutoOrders?: Array<{
       userId: string;
       matrixEventId: string;
+      reorderId?: string;
       sourceBoardId: string;
       roundNo: number;
       autoOrderAmount: string;
@@ -454,6 +455,7 @@ export class OrdersService implements OrdersServiceContract {
     openedReentries?: Array<{
       userId: string;
       matrixEventId: string;
+      reorderId?: string;
       sourceBoardId: string;
       roundNo: number;
       reentryAmount: string;
@@ -470,6 +472,7 @@ export class OrdersService implements OrdersServiceContract {
     openedAutoOrders?: Array<{
       userId: string;
       matrixEventId: string;
+      reorderId?: string;
       sourceBoardId: string;
       roundNo: number;
       autoOrderAmount: string;
@@ -478,6 +481,7 @@ export class OrdersService implements OrdersServiceContract {
     openedReentries?: Array<{
       userId: string;
       matrixEventId: string;
+      reorderId?: string;
       sourceBoardId: string;
       roundNo: number;
       reentryAmount: string;
@@ -687,6 +691,7 @@ export class OrdersService implements OrdersServiceContract {
     openedAutoOrders?: Array<{
       userId: string;
       matrixEventId: string;
+      reorderId?: string;
       sourceBoardId: string;
       roundNo: number;
       autoOrderAmount: string;
@@ -695,6 +700,7 @@ export class OrdersService implements OrdersServiceContract {
     openedReentries?: Array<{
       userId: string;
       matrixEventId: string;
+      reorderId?: string;
       sourceBoardId: string;
       roundNo: number;
       reentryAmount: string;
@@ -713,7 +719,7 @@ export class OrdersService implements OrdersServiceContract {
     for (const openedAutoOrder of openedAutoOrders) {
       const autoOrder = await this.ordersRepository.createMatrixAutoOrderAuditOrder({
         userId: openedAutoOrder.userId,
-        matrixEventId: openedAutoOrder.matrixEventId,
+        matrixEventId: openedAutoOrder.reorderId ?? openedAutoOrder.matrixEventId,
         sourceBoardId: openedAutoOrder.sourceBoardId,
         roundNo: openedAutoOrder.roundNo,
         amount: openedAutoOrder.autoOrderAmount,
@@ -722,9 +728,16 @@ export class OrdersService implements OrdersServiceContract {
 
       await this.walletsService.creditFirmWalletFromMatrixAutoOrder({
         userId: openedAutoOrder.userId,
-        matrixEventId: openedAutoOrder.matrixEventId,
+        matrixEventId: openedAutoOrder.reorderId ?? openedAutoOrder.matrixEventId,
         amount: openedAutoOrder.autoOrderAmount,
       });
+
+      if (openedAutoOrder.reorderId) {
+        await this.matrixService.completeMatrixReorder({
+          reorderId: openedAutoOrder.reorderId,
+          orderId: autoOrder.orderId,
+        });
+      }
 
       // Newly-created auto orders must be fully settled before the next
       // normal invoice is processed, otherwise matrix/commission state drifts.
