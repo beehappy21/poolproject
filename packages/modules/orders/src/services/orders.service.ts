@@ -449,6 +449,7 @@ export class OrdersService implements OrdersServiceContract {
     sourceUserId: string;
     approvedAt: string;
     totalPv: string;
+    orderSourceType: "normal" | "matrix_reentry";
     commissionSettingsSnapshot: string | null;
     matrixSettingsSnapshot: string | null;
     items: Array<{
@@ -487,6 +488,7 @@ export class OrdersService implements OrdersServiceContract {
     sourceUserId: string;
     approvedAt: string;
     totalPv: string;
+    orderSourceType: "normal" | "matrix_reentry";
     commissionSettingsSnapshot: string | null;
     matrixSettingsSnapshot: string | null;
     items: Array<{
@@ -517,6 +519,15 @@ export class OrdersService implements OrdersServiceContract {
   ): Promise<ApprovedOrderOrchestrationResult> {
     return this.withApprovedOrderLock(orderId, async () => {
       const approvedOrder = await this.handleApprovedOrderEvent(orderId);
+      if (approvedOrder.orderSourceType === "matrix_reentry") {
+        return this.buildApprovedOrderResultFromEntries(
+          approvedOrder,
+          [],
+          [],
+          this.buildSkippedMatrixFlow(approvedOrder),
+        );
+      }
+
       const commissionSettings = parseCommissionSettingsSnapshot(
         approvedOrder.commissionSettingsSnapshot,
       );
@@ -639,7 +650,7 @@ export class OrdersService implements OrdersServiceContract {
     }>;
   }) {
     for (const openedReentry of matrixFlow.openedReentries ?? []) {
-      await this.ordersRepository.createMatrixReentryAuditOrder({
+      const reentryOrder = await this.ordersRepository.createMatrixReentryAuditOrder({
         userId: openedReentry.userId,
         matrixEventId: openedReentry.matrixEventId,
         sourceBoardId: openedReentry.sourceBoardId,
@@ -647,6 +658,12 @@ export class OrdersService implements OrdersServiceContract {
         amount: openedReentry.reentryAmount,
         pv: openedReentry.reentryPvAmount,
       });
+
+      // Newly-created reentry orders must be fully settled before the next
+      // normal invoice is processed, otherwise matrix/commission state drifts.
+      if (!reentryOrder.alreadyExists) {
+        await this.handleApprovedOrder(reentryOrder.orderId);
+      }
     }
   }
 

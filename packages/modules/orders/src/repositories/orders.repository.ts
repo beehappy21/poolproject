@@ -379,6 +379,7 @@ export interface OrdersRepository {
     sourceUserId: string;
     approvedAt: string;
     totalPv: string;
+    orderSourceType: "normal" | "matrix_reentry";
     commissionSettingsSnapshot: string | null;
     matrixSettingsSnapshot: string | null;
     items: Array<{
@@ -1800,6 +1801,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
         totalUsdt: existing.totalUsdt.toString(),
         totalPv: existing.totalPv.toString(),
         cashDueUsdt: existing.cashDueUsdt.toString(),
+        alreadyExists: true,
       };
     }
 
@@ -1849,6 +1851,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
       totalUsdt: order.totalUsdt.toString(),
       totalPv: order.totalPv.toString(),
       cashDueUsdt: order.cashDueUsdt.toString(),
+      alreadyExists: false,
     };
   }
 
@@ -2104,6 +2107,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
     sourceUserId: string;
     approvedAt: string;
     totalPv: string;
+    orderSourceType: "normal" | "matrix_reentry";
     commissionSettingsSnapshot: string | null;
     matrixSettingsSnapshot: string | null;
     items: Array<{
@@ -2117,13 +2121,14 @@ export class PrismaOrdersRepository implements OrdersRepository {
         id: BigInt(orderId),
         approvalStatus: "APPROVED",
         approvedAt: { not: null },
-        orderSourceType: "NORMAL",
+        orderSourceType: { in: ["NORMAL", "MATRIX_REENTRY"] },
       },
       select: {
         id: true,
         userId: true,
         approvedAt: true,
         totalPv: true,
+        orderSourceType: true,
         commissionSettingsSnapshot: true,
         matrixSettingsSnapshot: true,
         orderItems: {
@@ -2142,6 +2147,8 @@ export class PrismaOrdersRepository implements OrdersRepository {
           sourceUserId: order.userId.toString(),
           approvedAt: order.approvedAt?.toISOString() ?? "",
           totalPv: order.totalPv.toString(),
+          orderSourceType:
+            order.orderSourceType === "MATRIX_REENTRY" ? "matrix_reentry" : "normal",
           commissionSettingsSnapshot: order.commissionSettingsSnapshot,
           matrixSettingsSnapshot: order.matrixSettingsSnapshot,
           items: order.orderItems.map((item) => ({
