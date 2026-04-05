@@ -4,6 +4,7 @@ import { join } from "node:path";
 export interface MatrixSettings {
   boardWidth: number;
   boardDepth: number;
+  boardDepths: number[];
   boardCount: number;
   organizationPvRate: string;
   cwReentryAmount: string;
@@ -19,6 +20,7 @@ const SETTINGS_PATH = join(process.cwd(), "runtime", "matrix-settings.json");
 const DEFAULT_SETTINGS: MatrixSettings = {
   boardWidth: 2,
   boardDepth: 3,
+  boardDepths: [3, 2, 2],
   boardCount: 3,
   organizationPvRate: "700",
   cwReentryAmount: "700",
@@ -27,27 +29,37 @@ const DEFAULT_SETTINGS: MatrixSettings = {
   levelRates: ["0.15", "0.15", "0.15"],
   boardLevelRates: [
     ["0.15", "0.15", "0.15"],
-    ["0.1", "0.1", "0.1"],
-    ["0.2", "0.2", "0.2"],
+    ["0.1", "0.1"],
+    ["0.2", "0.2"],
   ],
   boardOpenPvThresholds: ["700", "700", "700"],
 };
 
 function normalizeBoardLevelRates(
   value: unknown,
-  boardCount: number,
+  boardDepths: number[],
   fallbackRates: string[],
 ): string[][] {
   if (!Array.isArray(value)) {
-    return Array.from({ length: boardCount }, () => [...fallbackRates]);
+    return boardDepths.map((depth, index) => {
+      const defaultRow = DEFAULT_SETTINGS.boardLevelRates[index] ?? fallbackRates.slice(0, depth);
+      return [...defaultRow];
+    });
   }
 
-  const normalizedBoards = value.map((boardRates) =>
-    normalizeDecimalArray(boardRates, fallbackRates),
+  const normalizedBoards = value.map((boardRates, index) =>
+    normalizeDecimalArray(
+      boardRates,
+      DEFAULT_SETTINGS.boardLevelRates[index] ?? fallbackRates.slice(0, boardDepths[index] ?? 0),
+      boardDepths[index],
+    ),
   );
 
-  if (normalizedBoards.length !== boardCount) {
-    return Array.from({ length: boardCount }, () => [...fallbackRates]);
+  if (normalizedBoards.length !== boardDepths.length) {
+    return boardDepths.map((depth, index) => {
+      const defaultRow = DEFAULT_SETTINGS.boardLevelRates[index] ?? fallbackRates.slice(0, depth);
+      return [...defaultRow];
+    });
   }
 
   return normalizedBoards;
@@ -90,6 +102,30 @@ function normalizePositiveInteger(value: unknown, fallback: number): number {
   return value;
 }
 
+function normalizePositiveIntegerArray(
+  value: unknown,
+  fallback: number[],
+  expectedLength?: number,
+): number[] {
+  if (!Array.isArray(value)) {
+    return [...fallback];
+  }
+
+  const normalized = value.filter(
+    (item): item is number =>
+      typeof item === "number" &&
+      Number.isInteger(item) &&
+      !Number.isNaN(item) &&
+      item > 0,
+  );
+
+  if (expectedLength && normalized.length !== expectedLength) {
+    return [...fallback];
+  }
+
+  return normalized.length > 0 ? normalized : [...fallback];
+}
+
 export function normalizeMatrixSettings(input: unknown): MatrixSettings {
   const candidate =
     input && typeof input === "object" ? (input as Record<string, unknown>) : {};
@@ -101,6 +137,11 @@ export function normalizeMatrixSettings(input: unknown): MatrixSettings {
     candidate.boardCount,
     DEFAULT_SETTINGS.boardCount,
   );
+  const boardDepths = normalizePositiveIntegerArray(
+    candidate.boardDepths,
+    DEFAULT_SETTINGS.boardDepths,
+    boardCount,
+  );
 
   return {
     boardWidth: normalizePositiveInteger(
@@ -108,6 +149,7 @@ export function normalizeMatrixSettings(input: unknown): MatrixSettings {
       DEFAULT_SETTINGS.boardWidth,
     ),
     boardDepth,
+    boardDepths,
     boardCount,
     organizationPvRate: isNonNegativeDecimalString(candidate.organizationPvRate)
       ? candidate.organizationPvRate.trim()
@@ -136,7 +178,7 @@ export function normalizeMatrixSettings(input: unknown): MatrixSettings {
     ),
     boardLevelRates: normalizeBoardLevelRates(
       candidate.boardLevelRates,
-      boardCount,
+      boardDepths,
       normalizeDecimalArray(
         candidate.levelRates,
         DEFAULT_SETTINGS.levelRates,
@@ -155,6 +197,7 @@ export function getDefaultMatrixSettings(): MatrixSettings {
   return {
     boardWidth: DEFAULT_SETTINGS.boardWidth,
     boardDepth: DEFAULT_SETTINGS.boardDepth,
+    boardDepths: [...DEFAULT_SETTINGS.boardDepths],
     boardCount: DEFAULT_SETTINGS.boardCount,
     organizationPvRate: DEFAULT_SETTINGS.organizationPvRate,
     cwReentryAmount: DEFAULT_SETTINGS.cwReentryAmount,

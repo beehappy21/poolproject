@@ -50,6 +50,7 @@ export class PrismaMatrixRepository {
     cycleNo: number;
     boardWidth: number;
     boardDepth: number;
+    boardDepths?: number[];
     boardCount: number;
     organizationPvRate: string;
     cwReentryAmount: string;
@@ -75,7 +76,10 @@ export class PrismaMatrixRepository {
             boardNo: index + 1,
             roundNo: 1,
             openThresholdPv: threshold,
-            slotCount: this.getSlotCountPerBoard(input.boardWidth, input.boardDepth),
+            slotCount: this.getSlotCountPerBoard(
+              input.boardWidth,
+              input.boardDepths?.[index] ?? input.boardDepth,
+            ),
             status: index === 0 ? "OPEN" : "LOCKED",
             openedAt: index === 0 ? new Date() : null,
           })),
@@ -208,6 +212,7 @@ export class PrismaMatrixRepository {
     openThresholdPv: string;
     boardWidth: number;
     boardDepth: number;
+    boardDepths?: number[];
     reentrySourceBoardId?: string | null;
   }) {
     return this.prisma.matrixBoard.create({
@@ -216,7 +221,10 @@ export class PrismaMatrixRepository {
         boardNo: input.boardNo,
         roundNo: input.roundNo,
         openThresholdPv: input.openThresholdPv,
-        slotCount: this.getSlotCountPerBoard(input.boardWidth, input.boardDepth),
+        slotCount: this.getSlotCountPerBoard(
+          input.boardWidth,
+          input.boardDepths?.[input.boardNo - 1] ?? input.boardDepth,
+        ),
         status: "OPEN",
         openedAt: new Date(),
         reentrySourceBoardId: input.reentrySourceBoardId

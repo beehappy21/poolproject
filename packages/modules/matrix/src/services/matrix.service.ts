@@ -615,6 +615,11 @@ export class MatrixService implements MatrixServiceContract {
               latestCycle.organizationPvRate,
             boardWidth: latestCycle.boardWidth,
             boardDepth: latestCycle.boardDepth,
+            boardDepths: this.resolveBoardDepthsFromSnapshot(
+              latestCycle.levelRatesSnapshot,
+              latestCycle.boardCount,
+              latestCycle.boardDepth,
+            ),
           });
         } else if (existingNextBoard.status === "locked") {
           await this.matrixRepository.openBoard(existingNextBoard.boardId);
@@ -1027,6 +1032,7 @@ export class MatrixService implements MatrixServiceContract {
       cycleNo: ((await this.matrixRepository.getLatestCycle(userId))?.cycleNo || 0) + 1,
       boardWidth: settings.boardWidth,
       boardDepth: settings.boardDepth,
+      boardDepths: settings.boardDepths,
       boardCount: settings.boardCount,
       organizationPvRate: settings.organizationPvRate,
       cwReentryAmount: settings.cwReentryAmount,
@@ -1094,6 +1100,22 @@ export class MatrixService implements MatrixServiceContract {
         Array.from({ length: boardDepth }, () => "0"),
       );
     }
+  }
+
+  private resolveBoardDepthsFromSnapshot(
+    snapshot: string | string[],
+    boardCount: number,
+    fallbackDepth: number,
+  ) {
+    const boardLevelRates = this.parseBoardLevelRatesSnapshot(
+      snapshot,
+      boardCount,
+      fallbackDepth,
+    );
+
+    return Array.from({ length: boardCount }, (_, index) =>
+      boardLevelRates[index]?.length || fallbackDepth,
+    );
   }
 
   private resolveCurrentBoard(
@@ -1215,6 +1237,11 @@ export class MatrixService implements MatrixServiceContract {
         openThresholdPv: currentBoard.openThresholdPv,
         boardWidth: cycle.boardWidth,
         boardDepth: cycle.boardDepth,
+        boardDepths: this.resolveBoardDepthsFromSnapshot(
+          cycle.levelRatesSnapshot,
+          cycle.boardCount,
+          cycle.boardDepth,
+        ),
         reentrySourceBoardId: currentBoard.boardId,
       });
       await this.matrixRepository.updateCurrentBoard(cycle.cycleId, 1, nextRoundNo);
@@ -1267,6 +1294,11 @@ export class MatrixService implements MatrixServiceContract {
       openThresholdPv: currentBoard.openThresholdPv,
       boardWidth: cycle.boardWidth,
       boardDepth: cycle.boardDepth,
+      boardDepths: this.resolveBoardDepthsFromSnapshot(
+        cycle.levelRatesSnapshot,
+        cycle.boardCount,
+        cycle.boardDepth,
+      ),
       reentrySourceBoardId: currentBoard.boardId,
     });
     await this.matrixRepository.updateCurrentBoard(cycle.cycleId, 1, nextRoundNo);

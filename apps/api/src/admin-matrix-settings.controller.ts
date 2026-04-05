@@ -21,7 +21,9 @@ export class AdminMatrixSettingsController {
 
     return {
       ...settings,
-      slotCountPerBoard: this.getSlotCountPerBoard(settings.boardWidth, settings.boardDepth),
+      slotCountPerBoard: settings.boardDepths.map((depth) =>
+        this.getSlotCountPerBoard(settings.boardWidth, depth),
+      ),
     };
   }
 
@@ -31,6 +33,7 @@ export class AdminMatrixSettingsController {
     const current = readMatrixSettings();
     const boardWidth = current.boardWidth ?? FIXED_BOARD_WIDTH;
     const boardDepth = current.boardDepth ?? FIXED_BOARD_DEPTH;
+    const boardDepths = current.boardDepths ?? [3, 2, 2];
     const boardCount = current.boardCount ?? FIXED_BOARD_COUNT;
 
     if (boardWidth !== FIXED_BOARD_WIDTH) {
@@ -38,11 +41,15 @@ export class AdminMatrixSettingsController {
     }
 
     if (boardDepth !== FIXED_BOARD_DEPTH) {
-      throw new BadRequestException("matrix boardDepth must remain fixed at 3.");
+      throw new BadRequestException("matrix max boardDepth must remain fixed at 3.");
     }
 
     if (boardCount !== FIXED_BOARD_COUNT) {
       throw new BadRequestException("matrix boardCount must remain fixed at 3.");
+    }
+
+    if (boardDepths.length !== boardCount || boardDepths.join(",") !== "3,2,2") {
+      throw new BadRequestException("matrix boardDepths must remain fixed at [3,2,2].");
     }
 
     if (!Array.isArray(payload.levelRates) || payload.levelRates.length !== boardDepth) {
@@ -55,11 +62,11 @@ export class AdminMatrixSettingsController {
       !Array.isArray(payload.boardLevelRates) ||
       payload.boardLevelRates.length !== boardCount ||
       payload.boardLevelRates.some(
-        (rates) => !Array.isArray(rates) || rates.length !== boardDepth,
+        (rates, index) => !Array.isArray(rates) || rates.length !== boardDepths[index],
       )
     ) {
       throw new BadRequestException(
-        `boardLevelRates must contain exactly ${boardCount} rows with ${boardDepth} entries each.`,
+        "boardLevelRates must match board depths [3,2,2].",
       );
     }
 
@@ -75,6 +82,7 @@ export class AdminMatrixSettingsController {
     const settings = writeMatrixSettings({
       boardWidth,
       boardDepth,
+      boardDepths,
       boardCount,
       organizationPvRate: requireDecimalString(
         payload.organizationPvRate,
@@ -110,7 +118,9 @@ export class AdminMatrixSettingsController {
 
     return {
       ...settings,
-      slotCountPerBoard: this.getSlotCountPerBoard(settings.boardWidth, settings.boardDepth),
+      slotCountPerBoard: settings.boardDepths.map((depth) =>
+        this.getSlotCountPerBoard(settings.boardWidth, depth),
+      ),
     };
   }
 

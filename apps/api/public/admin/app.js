@@ -287,14 +287,15 @@ state.settings = {
 state.matrixSettings = {
   boardWidth: 2,
   boardDepth: 3,
+  boardDepths: [3, 2, 2],
   boardCount: 3,
   organizationPvRate: "700",
   cwReentryAmount: "700",
   levelRates: ["0.15", "0.15", "0.15"],
   boardLevelRates: [
     ["0.15", "0.15", "0.15"],
-    ["0.1", "0.1", "0.1"],
-    ["0.2", "0.2", "0.2"],
+    ["0.1", "0.1"],
+    ["0.2", "0.2"],
   ],
   boardOpenPvThresholds: ["700", "700", "700"],
 };
@@ -1957,7 +1958,7 @@ function collectMatrixLevelRates() {
 
 function collectMatrixBoardLevelRates() {
   return Array.from({ length: state.matrixSettings.boardCount || 0 }, (_, boardIndex) =>
-    Array.from({ length: state.matrixSettings.boardDepth || 0 }, (_, levelIndex) => {
+    Array.from({ length: state.matrixSettings.boardDepths?.[boardIndex] || 0 }, (_, levelIndex) => {
       const input = document.querySelector(
         `[data-matrix-board-level-rate="${boardIndex}-${levelIndex}"]`,
       );
@@ -1975,6 +1976,7 @@ async function loadMatrixSettings() {
   state.matrixSettings = {
     boardWidth: settings.boardWidth,
     boardDepth: settings.boardDepth,
+    boardDepths: settings.boardDepths || [3, 2, 2],
     boardCount: settings.boardCount,
     organizationPvRate: settings.organizationPvRate,
     cwReentryAmount: settings.cwReentryAmount,
@@ -2078,6 +2080,7 @@ async function saveMatrixSettings() {
   state.matrixSettings = {
     boardWidth: result.boardWidth,
     boardDepth: result.boardDepth,
+    boardDepths: result.boardDepths || [3, 2, 2],
     boardCount: result.boardCount,
     organizationPvRate: result.organizationPvRate,
     cwReentryAmount: result.cwReentryAmount,
