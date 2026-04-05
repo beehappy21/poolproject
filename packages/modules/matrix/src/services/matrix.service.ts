@@ -1384,14 +1384,6 @@ export class MatrixService implements MatrixServiceContract {
         creditedPv: autoOrderSettings.reentryPvAmount,
       });
 
-      if (compareDecimalStrings(autoOrderSettings.reentryFirmAmount, "0") > 0) {
-        await this.walletsService.creditFirmWalletFromMatrixAutoOrder({
-          userId: cycle.userId,
-          matrixEventId: reentryEvent.id.toString(),
-          amount: autoOrderSettings.reentryFirmAmount,
-        });
-      }
-
       return {
         cycleId: cycle.cycleId,
         userId: cycle.userId,
@@ -1440,14 +1432,6 @@ export class MatrixService implements MatrixServiceContract {
       sourcePv: autoOrderSettings.reentryPvAmount,
       creditedPv: autoOrderSettings.reentryPvAmount,
     });
-
-    if (compareDecimalStrings(autoOrderSettings.reentryFirmAmount, "0") > 0) {
-      await this.walletsService.creditFirmWalletFromMatrixAutoOrder({
-        userId: cycle.userId,
-        matrixEventId: reentryEvent.id.toString(),
-        amount: autoOrderSettings.reentryFirmAmount,
-      });
-    }
 
     return {
       cycleId: cycle.cycleId,

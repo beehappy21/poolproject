@@ -723,6 +723,11 @@ export class OrdersService implements OrdersServiceContract {
       // Newly-created auto orders must be fully settled before the next
       // normal invoice is processed, otherwise matrix/commission state drifts.
       if (!autoOrder.alreadyExists) {
+        await this.walletsService.creditFirmWalletFromMatrixAutoOrder({
+          userId: openedAutoOrder.userId,
+          matrixEventId: openedAutoOrder.matrixEventId,
+          amount: openedAutoOrder.autoOrderAmount,
+        });
         await this.handleApprovedOrder(autoOrder.orderId);
       }
     }

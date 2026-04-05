@@ -1923,6 +1923,48 @@ export class PrismaOrdersRepository implements OrdersRepository {
 
     const note = `system-generated auto order from board ${input.sourceBoardId} round ${input.roundNo}`;
     const order = await this.prisma.$transaction(async (tx) => {
+      const firmProductDetail = await tx.productDetail.findFirst({
+        where: {
+          code: "FIR001",
+          status: "ACTIVE",
+          firmEnabled: true,
+          product: {
+            category: {
+              code: "FIRM",
+            },
+          },
+        },
+        select: {
+          id: true,
+          memberPriceUsdt: true,
+          pv: true,
+          poolRateMode: true,
+          poolRate: true,
+          dcwSpendEnabled: true,
+          dcwUsageAmount: true,
+          dcwCashRewardRate: true,
+          dcwShoppingRewardRate: true,
+        },
+        orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+      });
+
+      if (!firmProductDetail) {
+        throw new BadRequestException(
+          "Active Firm product detail FIR001 not found for matrix auto order.",
+        );
+      }
+
+      if (
+        compareDecimalStrings(
+          firmProductDetail.memberPriceUsdt.toString(),
+          input.amount,
+        ) !== 0
+      ) {
+        throw new BadRequestException(
+          `Firm product detail FIR001 price ${firmProductDetail.memberPriceUsdt.toString()} does not match auto order amount ${input.amount}.`,
+        );
+      }
+
       return tx.order.create({
         data: {
           orderNo: await this.generateNextOrderNo(tx),
@@ -1930,11 +1972,11 @@ export class PrismaOrdersRepository implements OrdersRepository {
           shippingLabel: BRANCH_PICKUP_LABEL,
           shippingAddressLine: "MATRIX_REENTRY",
           shippingAddressNote: "system-generated auto order",
-          subtotalUsdt: input.amount,
-          totalUsdt: input.amount,
-          totalPv: input.pv,
+          subtotalUsdt: firmProductDetail.memberPriceUsdt,
+          totalUsdt: firmProductDetail.memberPriceUsdt,
+          totalPv: firmProductDetail.pv,
           dcwAppliedUsdt: "0",
-          walletAppliedUsdt: input.amount,
+          walletAppliedUsdt: firmProductDetail.memberPriceUsdt,
           cashDueUsdt: "0",
           cashPaymentMethod: null,
           paidAt: new Date(),
@@ -1946,6 +1988,23 @@ export class PrismaOrdersRepository implements OrdersRepository {
           shipmentNote: note,
           transferSlipNote: note,
           matrixSettingsSnapshot: serializeMatrixSettingsSnapshot(readMatrixSettings()),
+          orderItems: {
+            create: {
+              productId: firmProductDetail.id.toString(),
+              qty: 1,
+              unitPriceUsdt: firmProductDetail.memberPriceUsdt,
+              unitPv: firmProductDetail.pv,
+              poolRateMode: firmProductDetail.poolRateMode,
+              unitPoolRate: firmProductDetail.poolRate,
+              dcwSpendEnabled: firmProductDetail.dcwSpendEnabled,
+              unitDcwUsageAmount: firmProductDetail.dcwUsageAmount,
+              unitDcwCashRewardRate: firmProductDetail.dcwCashRewardRate,
+              unitDcwShoppingRewardRate:
+                firmProductDetail.dcwShoppingRewardRate,
+              lineTotalUsdt: firmProductDetail.memberPriceUsdt,
+              lineTotalPv: firmProductDetail.pv,
+            },
+          },
         },
         select: {
           id: true,
