@@ -22,14 +22,14 @@ const SETTINGS_PATH = join(
 );
 
 const DEFAULT_SETTINGS: CommissionSettings = {
-  directLevelRates: ["0.2"],
-  uniLevelRates: ["0.05", "0.05", "0.05", "0.05", "0.05"],
-  poolRate: "0.5",
+  directLevelRates: ["0.05", "0.03", "0.02"],
+  uniLevelRates: ["0"],
+  poolRate: "0",
   cashbackRate: "0",
   appVisibility: {
-    cashback: true,
+    cashback: false,
     direct: true,
-    unilevel: true,
+    unilevel: false,
     matrix: true,
     pool: true,
   },

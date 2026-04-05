@@ -52,6 +52,18 @@ export class AdminMatrixSettingsController {
     }
 
     if (
+      !Array.isArray(payload.boardLevelRates) ||
+      payload.boardLevelRates.length !== boardCount ||
+      payload.boardLevelRates.some(
+        (rates) => !Array.isArray(rates) || rates.length !== boardDepth,
+      )
+    ) {
+      throw new BadRequestException(
+        `boardLevelRates must contain exactly ${boardCount} rows with ${boardDepth} entries each.`,
+      );
+    }
+
+    if (
       !Array.isArray(payload.boardOpenPvThresholds) ||
       payload.boardOpenPvThresholds.length !== boardCount
     ) {
@@ -83,7 +95,14 @@ export class AdminMatrixSettingsController {
       levelRates: payload.levelRates.map((value, index) =>
         requireDecimalRateString(value, `levelRates[${index}]`),
       ),
-      boardLevelRates: current.boardLevelRates,
+      boardLevelRates: payload.boardLevelRates.map((rates, boardIndex) =>
+        (rates as unknown[]).map((value, levelIndex) =>
+          requireDecimalRateString(
+            value,
+            `boardLevelRates[${boardIndex}][${levelIndex}]`,
+          ),
+        ),
+      ),
       boardOpenPvThresholds: payload.boardOpenPvThresholds.map((value, index) =>
         requireDecimalString(value, `boardOpenPvThresholds[${index}]`),
       ),

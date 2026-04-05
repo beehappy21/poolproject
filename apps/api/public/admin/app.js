@@ -279,18 +279,24 @@ state.memberSort = "created_desc";
 state.orderSort = "created_desc";
 state.actionHistory = JSON.parse(localStorage.getItem("adminActionHistory") || "[]");
 state.settings = {
-  directLevelRates: ["0.2"],
-  uniLevelRates: ["0.05", "0.05", "0.05", "0.05", "0.05"],
-  poolRate: "0.5",
+  directLevelRates: ["0.05", "0.03", "0.02"],
+  uniLevelRates: ["0"],
+  poolRate: "0",
   cashbackRate: "0",
 };
 state.matrixSettings = {
   boardWidth: 2,
   boardDepth: 3,
   boardCount: 3,
-  organizationPvRate: "0.1",
-  levelRates: ["0.1", "0.05", "0.03"],
-  boardOpenPvThresholds: ["100", "100", "100"],
+  organizationPvRate: "700",
+  cwReentryAmount: "700",
+  levelRates: ["0.15", "0.15", "0.15"],
+  boardLevelRates: [
+    ["0.15", "0.15", "0.15"],
+    ["0.1", "0.1", "0.1"],
+    ["0.2", "0.2", "0.2"],
+  ],
+  boardOpenPvThresholds: ["700", "700", "700"],
 };
 state.walletSettings = {
   commissionToShoppingEnabled: true,
@@ -1605,6 +1611,33 @@ function renderSimpleValueRows(listElement, values, inputKey, labelPrefix) {
     .join("");
 }
 
+function renderMatrixBoardLevelRateRows(listElement, boardLevelRates) {
+  if (!listElement) {
+    return;
+  }
+
+  listElement.innerHTML = boardLevelRates
+    .map(
+      (rates, boardIndex) => `<div class="stack-list">
+        <strong>B${boardIndex + 1}</strong>
+        ${rates
+          .map(
+            (rate, levelIndex) => `<label class="settings-level-row">
+              <span>L${levelIndex + 1}</span>
+              <input
+                type="text"
+                data-matrix-board-level-rate="${boardIndex}-${levelIndex}"
+                value="${rate}"
+                required
+              />
+            </label>`,
+          )
+          .join("")}
+      </div>`,
+    )
+    .join("");
+}
+
 function renderCommissionSettings() {
   if (
     !poolRateSettingsInput ||
@@ -1713,7 +1746,7 @@ async function loadCommissionSettings() {
         ? settings.directLevelRates
         : settings.directRate
           ? [settings.directRate]
-          : ["0.2"],
+          : ["0.05", "0.03", "0.02"],
     uniLevelRates: settings.uniLevelRates,
     poolRate: settings.poolRate,
     cashbackRate: settings.cashbackRate || "0",
@@ -1904,11 +1937,11 @@ function renderMatrixSettings() {
 
   matrixOrganizationPvRateInput.value = state.matrixSettings.organizationPvRate || "0";
   matrixCwReentryAmountInput.value = state.matrixSettings.cwReentryAmount || "0";
-  renderSimpleValueRows(
+  renderMatrixBoardLevelRateRows(
     matrixLevelRatesList,
-    state.matrixSettings.levelRates.map(decimalToPercentString),
-    "matrix-level-rate",
-    "Level",
+    (state.matrixSettings.boardLevelRates || []).map((rates) =>
+      rates.map(decimalToPercentString),
+    ),
   );
   renderSimpleValueRows(
     matrixBoardThresholdsList,
@@ -1919,7 +1952,18 @@ function renderMatrixSettings() {
 }
 
 function collectMatrixLevelRates() {
-  return collectRateInputs("[data-matrix-level-rate]").map(percentToDecimalString);
+  return collectMatrixBoardLevelRates()[0] || [];
+}
+
+function collectMatrixBoardLevelRates() {
+  return Array.from({ length: state.matrixSettings.boardCount || 0 }, (_, boardIndex) =>
+    Array.from({ length: state.matrixSettings.boardDepth || 0 }, (_, levelIndex) => {
+      const input = document.querySelector(
+        `[data-matrix-board-level-rate="${boardIndex}-${levelIndex}"]`,
+      );
+      return percentToDecimalString(input?.value?.trim?.() || "0");
+    }),
+  );
 }
 
 function collectMatrixBoardThresholds() {
@@ -1935,6 +1979,10 @@ async function loadMatrixSettings() {
     organizationPvRate: settings.organizationPvRate,
     cwReentryAmount: settings.cwReentryAmount,
     levelRates: settings.levelRates,
+    boardLevelRates:
+      settings.boardLevelRates && settings.boardLevelRates.length > 0
+        ? settings.boardLevelRates
+        : [settings.levelRates, settings.levelRates, settings.levelRates],
     boardOpenPvThresholds: settings.boardOpenPvThresholds,
   };
   renderMatrixSettings();
@@ -2022,6 +2070,7 @@ async function saveMatrixSettings() {
       organizationPvRate: matrixOrganizationPvRateInput.value.trim(),
       cwReentryAmount: matrixCwReentryAmountInput.value.trim(),
       levelRates: collectMatrixLevelRates(),
+      boardLevelRates: collectMatrixBoardLevelRates(),
       boardOpenPvThresholds: collectMatrixBoardThresholds(),
     }),
   });
@@ -2033,6 +2082,10 @@ async function saveMatrixSettings() {
     organizationPvRate: result.organizationPvRate,
     cwReentryAmount: result.cwReentryAmount,
     levelRates: result.levelRates,
+    boardLevelRates:
+      result.boardLevelRates && result.boardLevelRates.length > 0
+        ? result.boardLevelRates
+        : [result.levelRates, result.levelRates, result.levelRates],
     boardOpenPvThresholds: result.boardOpenPvThresholds,
   };
   renderMatrixSettings();

@@ -20,17 +20,17 @@ const DEFAULT_SETTINGS: MatrixSettings = {
   boardWidth: 2,
   boardDepth: 3,
   boardCount: 3,
-  organizationPvRate: "0.1",
-  cwReentryAmount: "0.1",
-  reentryFirmAmount: "0.1",
-  reentryPvAmount: "0.1",
-  levelRates: ["0.1", "0.05", "0.03"],
+  organizationPvRate: "700",
+  cwReentryAmount: "700",
+  reentryFirmAmount: "700",
+  reentryPvAmount: "700",
+  levelRates: ["0.15", "0.15", "0.15"],
   boardLevelRates: [
-    ["0.1", "0.05", "0.03"],
-    ["0.1", "0.05", "0.03"],
-    ["0.1", "0.05", "0.03"],
+    ["0.15", "0.15", "0.15"],
+    ["0.1", "0.1", "0.1"],
+    ["0.2", "0.2", "0.2"],
   ],
-  boardOpenPvThresholds: ["100", "100", "100"],
+  boardOpenPvThresholds: ["700", "700", "700"],
 };
 
 function normalizeBoardLevelRates(
