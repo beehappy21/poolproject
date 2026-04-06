@@ -508,6 +508,9 @@ async function main() {
         pickupBranchNote: importTag,
         pickupRecipientName: "Sale Test Import",
         pickupPhone: "0800000000",
+        discountWalletAmount: "0",
+        shoppingWalletAmount: "0",
+        firmWalletAmount: "0",
         cashPaymentMethod: "bank_transfer",
       },
     });
