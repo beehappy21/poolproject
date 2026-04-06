@@ -62,8 +62,6 @@ type MemberSummaryResponse = {
 
 const DEFAULT_SIGNUP_SUCCESS_MESSAGE =
   'ส่งข้อมูลนี้เก็บไว้สำหรับเข้าใช้งานครั้งแรก และเปลี่ยนรหัสผ่านหลังเข้าสู่ระบบทันที';
-const SIGNUP_LINE_LOGIN_ATTEMPT_KEY = 'stephub-signup-line-login-attempted';
-
 const renderHeader = (): JSX.Element => {
   return <components.Header goBack={true} />;
 };
@@ -147,9 +145,6 @@ export const SignUp: FC = (): JSX.Element => {
       }
 
       if (result.profile?.displayName) {
-        if (typeof window !== 'undefined') {
-          window.sessionStorage.removeItem(SIGNUP_LINE_LOGIN_ATTEMPT_KEY);
-        }
         setLineUserId(result.profile.userId);
         setLineIdToken(result.profile.idToken || '');
         setLineDisplayName(result.profile.displayName);
@@ -158,33 +153,13 @@ export const SignUp: FC = (): JSX.Element => {
         return;
       }
 
-      if (
-        result.isReady &&
-        !result.isLoggedIn &&
-        typeof window !== 'undefined'
-      ) {
-        const attempted = window.sessionStorage.getItem(
-          SIGNUP_LINE_LOGIN_ATTEMPT_KEY,
-        );
-
-        if (!attempted) {
-          window.sessionStorage.setItem(
-            SIGNUP_LINE_LOGIN_ATTEMPT_KEY,
-            'true',
-          );
-          startLineLogin(
-            buildLineLoginCallbackUrl({
-              sponsorCode,
-              mode: 'signup',
-              returnTo: buildSignUpPath(sponsorCode),
-            }),
-          );
-          return;
-        }
-      }
-
       if (result.errorMessage) {
         setLineStatus(result.errorMessage);
+        return;
+      }
+
+      if (result.isReady && !result.isLoggedIn) {
+        setLineStatus('กรุณากดปุ่มเชื่อม LINE ก่อนสมัครสมาชิก');
       }
     };
 
@@ -200,6 +175,22 @@ export const SignUp: FC = (): JSX.Element => {
       mounted = false;
     };
   }, []);
+
+  const handleConnectLine = (): void => {
+    const started = startLineLogin(
+      buildLineLoginCallbackUrl({
+        sponsorCode,
+        mode: 'signup',
+        returnTo: buildSignUpPath(sponsorCode),
+      }),
+    );
+
+    if (!started) {
+      setErrorMessage(
+        'ยังไม่สามารถเปิด LINE login ได้ กรุณาตรวจสอบการตั้งค่า LIFF แล้วลองอีกครั้ง',
+      );
+    }
+  };
 
   const shareText = useMemo(() => {
     if (!createdAccount) {
@@ -683,22 +674,40 @@ export const SignUp: FC = (): JSX.Element => {
           containerStyle={{marginBottom: 20, backgroundColor: '#F8FAFC'}}
         />
         {!lineUserId ? (
-          <div
-            style={{
-              margin: '0 0 20px 0',
-              borderRadius: 14,
-              backgroundColor: '#FFF7ED',
-              border: '1px solid #FED7AA',
-              padding: '14px 16px',
-              color: '#9A3412',
-              lineHeight: 1.7,
-            }}
-          >
-            ตอนนี้ยังไม่พบ LINE profile บนอุปกรณ์นี้ จึงยังสมัครสมาชิกไม่ได้
-            <div style={{marginTop: 8, fontSize: 13, opacity: 0.9}}>
-              กรุณาเปิดลิงก์สมัครจาก LINE อีกครั้งเพื่อให้ระบบดึง LINE profile ก่อนสร้างบัญชี
+          <>
+            <div
+              style={{
+                margin: '0 0 20px 0',
+                borderRadius: 14,
+                backgroundColor: '#FFF7ED',
+                border: '1px solid #FED7AA',
+                padding: '14px 16px',
+                color: '#9A3412',
+                lineHeight: 1.7,
+              }}
+            >
+              ตอนนี้ยังไม่พบ LINE profile บนอุปกรณ์นี้ จึงยังสมัครสมาชิกไม่ได้
+              <div style={{marginTop: 8, fontSize: 13, opacity: 0.9}}>
+                กดปุ่มด้านล่างเพื่อเชื่อม LINE ก่อน แล้วระบบจะพากลับมาหน้านี้พร้อมรหัสผู้แนะนำเดิม
+              </div>
             </div>
-          </div>
+            <button
+              onClick={handleConnectLine}
+              style={{
+                width: '100%',
+                padding: '14px 18px',
+                borderRadius: 14,
+                border: '1px solid #C7E8CF',
+                backgroundColor: '#06C755',
+                color: '#FFFFFF',
+                fontSize: 16,
+                marginBottom: 20,
+                boxShadow: '0 14px 30px rgba(6, 199, 85, 0.18)',
+              }}
+            >
+              เชื่อม LINE เพื่อสมัครสมาชิก
+            </button>
+          </>
         ) : null}
         {errorMessage ? (
           <p
@@ -717,7 +726,7 @@ export const SignUp: FC = (): JSX.Element => {
           style={{marginBottom: 16}}
         />
         <button
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/SignIn')}
           style={{
             width: '100%',
             padding: '14px 18px',

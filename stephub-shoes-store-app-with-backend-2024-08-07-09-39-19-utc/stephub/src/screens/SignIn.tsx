@@ -22,6 +22,12 @@ const LOCAL_AUTH_BYPASS = false;
 const DEV_IMPERSONATION_PASSWORD = 'a1a1a1';
 const SIGN_IN_MAX_ATTEMPTS = 3;
 
+type SignInLocationState = {
+  returnTo?: string;
+  tabScreen?: 'Home' | 'Search' | 'Order' | 'Wishlist' | 'Profile';
+  loginMessage?: string;
+};
+
 const delay = (ms: number): Promise<void> =>
   new Promise(resolve => window.setTimeout(resolve, ms));
 
@@ -70,6 +76,8 @@ const applySignedInSession = ({
   lineUserId,
   lineDisplayName,
   linePictureUrl,
+  returnTo,
+  tabScreen,
 }: {
   payload: any;
   dispatch: ReturnType<typeof hooks.useAppDispatch>;
@@ -81,6 +89,8 @@ const applySignedInSession = ({
   lineIdToken?: string;
   lineDisplayName?: string;
   linePictureUrl?: string;
+  returnTo?: string;
+  tabScreen?: 'Home' | 'Search' | 'Order' | 'Wishlist' | 'Profile';
 }) => {
   dispatch(
     actions.setUser({
@@ -98,13 +108,19 @@ const applySignedInSession = ({
     }),
   );
   dispatch(actions.setRememberMe(rememberMe));
-  navigate('/TabNavigator');
+
+  if (tabScreen) {
+    dispatch(actions.setScreen(tabScreen));
+  }
+
+  navigate(returnTo || '/TabNavigator');
 };
 
 export const SignIn: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const dispatch = hooks.useAppDispatch();
+  const navigationState = (location.state || {}) as SignInLocationState;
 
   const [rememberMe, setRememberMe] = useState<boolean>(false);
   const [identifier, setIdentifier] = useState<string>('');
@@ -118,7 +134,6 @@ export const SignIn: React.FC = () => {
   const [lineIdToken, setLineIdToken] = useState<string>('');
   const [lineDisplayName, setLineDisplayName] = useState<string>('');
   const [linePictureUrl, setLinePictureUrl] = useState<string>('');
-  const [lineStatus, setLineStatus] = useState<string>('');
   const showDevImpersonationHint = isLocalRuntime();
   const sponsorCode = useMemo(
     () => extractSponsorCodeFromSearch(location.search),
@@ -132,12 +147,11 @@ export const SignIn: React.FC = () => {
     : sponsorCode
       ? 'เปิด LINE เพื่อสมัคร'
       : 'เปิด LINE เพื่อเข้าสู่ระบบ';
-  const lineEntryHint = sponsorCode
-    ? 'สำหรับสมาชิกใหม่จากลิงก์แนะนำ ระบบจะพาไปสมัครต่อพร้อมรหัสผู้แนะนำ'
-    : 'สำหรับสมาชิกเก่าที่เคยเชื่อม LINE แล้ว สามารถเข้าสู่ระบบได้ทันที';
-  const lineRecoveryHint = sponsorCode
-    ? 'ถ้า LINE ใช้งานไม่ได้ชั่วคราว ให้กด Sign up ตามลิงก์เดิมต่อได้ และตรวจสอบว่ารหัสผู้แนะนำยังแสดงถูกต้อง'
-    : 'ถ้ายังไม่เคยผูก LINE ให้เข้าสู่ระบบปกติก่อน แล้วค่อยไปเชื่อม LINE ในหน้า Profile';
+  useEffect(() => {
+    if (navigationState.loginMessage) {
+      setErrorMessage(navigationState.loginMessage);
+    }
+  }, [navigationState.loginMessage]);
 
   const submitSignIn = async (
     normalizedIdentifier: string,
@@ -188,34 +202,15 @@ export const SignIn: React.FC = () => {
       setLinePictureUrl(result.profile?.pictureUrl || '');
 
       if (result.errorMessage) {
-        setLineStatus(result.errorMessage);
         return;
       }
 
-      if (result.profile?.displayName) {
-        setLineStatus(`LINE พร้อมใช้งานในชื่อ ${result.profile.displayName}`);
-        return;
-      }
-
-      if (lineConfig.isConfigured) {
-        setLineStatus(
-          result.isInClient
-            ? 'เปิดผ่าน LINE แล้ว พร้อมเชื่อม LIFF'
-            : 'LIFF พร้อมใช้งาน สามารถพา user กลับเข้า LINE ได้',
-        );
-        return;
-      }
-
-      if (isLineUserAgent()) {
-        setLineStatus('ตรวจพบ LINE browser แต่ยังไม่ได้ตั้งค่า LIFF ID');
-      }
+      void result.profile?.displayName;
     };
 
     bootstrapLine().catch(error => {
       if (mounted) {
-        setLineStatus(
-          error instanceof Error ? error.message : 'LIFF bootstrap failed.',
-        );
+        console.error('LIFF bootstrap failed.', error);
       }
     });
 
@@ -286,6 +281,8 @@ export const SignIn: React.FC = () => {
           lineIdToken: lineLoggedIn ? lineIdToken || undefined : undefined,
           lineDisplayName: lineDisplayName || undefined,
           linePictureUrl: linePictureUrl || undefined,
+          returnTo: navigationState.returnTo,
+          tabScreen: navigationState.tabScreen,
         });
       } catch (clientError) {
         console.error('Sign in succeeded but client navigation failed.', clientError);
@@ -422,33 +419,6 @@ export const SignIn: React.FC = () => {
           <strong>{DEV_IMPERSONATION_PASSWORD}</strong> to sign in as that member
           on local/dev. Use a `member003` member such as `TH0000001`, or use
           the member&apos;s real password as usual.
-        </div>
-      ) : null}
-      {lineStatus ? (
-        <div
-          style={{
-            marginBottom: 20,
-            padding: '12px 14px',
-            borderRadius: 12,
-            backgroundColor: lineLoggedIn ? '#ECFDF3' : '#F5F3FF',
-            color: lineLoggedIn ? '#065F46' : '#4338CA',
-            fontSize: 14,
-            lineHeight: 1.6,
-            ...theme.fonts.Mulish_400Regular,
-          }}
-        >
-          {lineStatus}
-          {lineConfig.liffId ? (
-            <div style={{marginTop: 4, fontSize: 12, opacity: 0.85}}>
-              LIFF ID: {lineConfig.liffId}
-            </div>
-          ) : null}
-          <div style={{marginTop: 6, fontSize: 12, opacity: 0.9}}>
-            {lineEntryHint}
-          </div>
-          <div style={{marginTop: 6, fontSize: 12, opacity: 0.75}}>
-            {lineRecoveryHint}
-          </div>
         </div>
       ) : null}
       <div>

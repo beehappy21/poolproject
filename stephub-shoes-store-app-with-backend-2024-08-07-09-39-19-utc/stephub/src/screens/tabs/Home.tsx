@@ -64,7 +64,10 @@ const INLINE_IMAGE_PLACEHOLDER =
 
 const isBrowser = typeof window !== 'undefined';
 const isPublicWapRuntime = (): boolean =>
-  isBrowser && window.location.hostname.toLowerCase() === 'wap.blifehealthy.com';
+  isBrowser &&
+  ['wap.blifehealthy.com', 'www.blifehealthy.com'].includes(
+    window.location.hostname.toLowerCase(),
+  );
 const isTouchDevice = (): boolean =>
   isBrowser &&
   ('ontouchstart' in window ||
@@ -80,7 +83,9 @@ const resolvePublicStorageUrl = (path: string): string => {
 
   if (
     isBrowser &&
-    window.location.hostname.toLowerCase() === 'wap.blifehealthy.com'
+    ['wap.blifehealthy.com', 'www.blifehealthy.com'].includes(
+      window.location.hostname.toLowerCase(),
+    )
   ) {
     return `${window.location.origin}/storage/${normalizedPath}`;
   }
@@ -109,7 +114,8 @@ const normalizeBaoMediaUrl = (value: unknown): string | undefined => {
       parsed.hostname === '127.0.0.1' ||
       parsed.hostname === 'localhost' ||
       parsed.hostname === 'bao.blifehealthy.com' ||
-      parsed.hostname === 'wap.blifehealthy.com'
+      parsed.hostname === 'wap.blifehealthy.com' ||
+      parsed.hostname === 'www.blifehealthy.com'
     ) {
       return `${resolvePublicStorageUrl(parsed.pathname)}${parsed.search}`;
     }

@@ -1,6 +1,6 @@
 import axios from 'axios';
 import React, {useEffect} from 'react';
-import {Navigate} from 'react-router-dom';
+import {Navigate, useLocation} from 'react-router-dom';
 
 import {URLS} from '../config';
 import {hooks} from '../hooks';
@@ -18,8 +18,11 @@ const isPublicIosRuntime = (): boolean => {
     return false;
   }
 
+  const hostname = window.location.hostname.toLowerCase();
+
   return (
-    window.location.hostname.toLowerCase() === 'wap.blifehealthy.com' &&
+    (hostname === 'wap.blifehealthy.com' ||
+      hostname === 'www.blifehealthy.com') &&
     /iPad|iPhone|iPod/.test(window.navigator.userAgent || '')
   );
 };
@@ -39,6 +42,7 @@ const shouldKeepSessionOnVerifyFailure = (error: unknown): boolean => {
 };
 
 export const RequireAuth: React.FC<Props> = ({children}) => {
+  const location = useLocation();
   const dispatch = hooks.useAppDispatch();
   const user = hooks.useAppSelector((state: RootState) => state.userSlice.user);
   const accessToken = user?.accessToken?.trim() || '';
@@ -97,7 +101,16 @@ export const RequireAuth: React.FC<Props> = ({children}) => {
   }, [accessToken, dispatch]);
 
   if (!accessToken) {
-    return <Navigate to='/' replace />;
+    return (
+      <Navigate
+        to='/SignIn'
+        replace
+        state={{
+          returnTo: `${location.pathname}${location.search}${location.hash}`,
+          loginMessage: 'กรุณาเข้าสู่ระบบก่อนใช้งานหน้านี้',
+        }}
+      />
+    );
   }
 
   return children;

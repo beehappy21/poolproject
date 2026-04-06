@@ -11,7 +11,8 @@ const stack = createBrowserRouter([
     path: '/',
     element: <AppShell />,
     children: [
-      {index: true, element: <screens.SignIn />},
+      {index: true, element: <screens.Home />},
+      {path: 'SignIn', element: <screens.SignIn />},
       {
         path: 'TabNavigator',
         element: (
@@ -30,35 +31,19 @@ const stack = createBrowserRouter([
       },
       {
         path: 'Product',
-        element: (
-          <RequireAuth>
-            <screens.Product />
-          </RequireAuth>
-        ),
+        element: <screens.Product />,
       },
       {
         path: 'Shop',
-        element: (
-          <RequireAuth>
-            <screens.Shop />
-          </RequireAuth>
-        ),
+        element: <screens.Shop />,
       },
       {
         path: 'Reviews',
-        element: (
-          <RequireAuth>
-            <screens.Reviews />
-          </RequireAuth>
-        ),
+        element: <screens.Reviews />,
       },
       {
         path: 'Description',
-        element: (
-          <RequireAuth>
-            <screens.Description />
-          </RequireAuth>
-        ),
+        element: <screens.Description />,
       },
       {
         path: 'OrderHistory',

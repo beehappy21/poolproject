@@ -59,7 +59,11 @@ const isPublicWapRuntime = (): boolean => {
     return false;
   }
 
-  return window.location.hostname.toLowerCase() === 'wap.blifehealthy.com';
+  const hostname = window.location.hostname.toLowerCase();
+  return (
+    hostname === 'wap.blifehealthy.com' ||
+    hostname === 'www.blifehealthy.com'
+  );
 };
 
 const resolveStorageImageUrl = (path: string): string => {

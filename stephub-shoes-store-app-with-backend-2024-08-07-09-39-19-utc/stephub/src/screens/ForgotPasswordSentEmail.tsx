@@ -62,7 +62,7 @@ export const ForgotPasswordSentEmail: FC = () => {
       <components.Button
         title='กลับไปเข้าสู่ระบบ'
         onClick={() => {
-          navigate('/');
+          navigate('/SignIn');
         }}
       />
     </div>
