@@ -14,6 +14,8 @@ const psqlUser = parsedDatabaseUrl.username || "postgres";
 const clearTables = [
   "PayoutBatchItem",
   "PayoutBatch",
+  "MatrixReorder",
+  "MatrixHoldbackAccount",
   "MatrixAccumulationEvent",
   "MatrixPayout",
   "MatrixPosition",
@@ -54,12 +56,28 @@ const resetEntities = [
 ];
 
 function buildSequenceResetSql(tableName) {
-  return `select setval(pg_get_serial_sequence('public."${tableName}"', 'id'), 1, false);`;
+  return `
+do $$
+begin
+  if to_regclass('public."${tableName}"') is not null then
+    perform setval(pg_get_serial_sequence('public."${tableName}"', 'id'), 1, false);
+  end if;
+end $$;`.trim();
+}
+
+function buildConditionalDeleteSql(tableName) {
+  return `
+do $$
+begin
+  if to_regclass('public."${tableName}"') is not null then
+    execute 'delete from public."${tableName}"';
+  end if;
+end $$;`.trim();
 }
 
 function buildSql() {
   const deleteSql = clearTables
-    .map((tableName) => `delete from public."${tableName}";`)
+    .map(buildConditionalDeleteSql)
     .join("\n");
   const sequenceSql = clearTables.map(buildSequenceResetSql).join("\n");
 

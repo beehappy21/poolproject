@@ -773,6 +773,9 @@ export const Commission: React.FC = () => {
       cwAvailableForDisplay >= autoOrderAmount
     );
   }, [autoOrderAmount, cwAvailableForDisplay, reentryEligible]);
+  const matrixPvHoldAmount = useMemo(() => {
+    return Math.max(parseDecimal(activeCycle?.personalCarryPv), 0);
+  }, [activeCycle?.personalCarryPv]);
 
   const cwRecentEntries = useMemo(() => {
     return commissionEntries
@@ -2368,7 +2371,65 @@ const getBoardStatusLabel = (board: MatrixBoardSummary) => {
           </>
         ) : null}
 
-        {selectedCard?.key === 'matrix' ? renderMatrixBoards() : null}
+        {selectedCard?.key === 'matrix' ? (
+          <>
+            <section
+              style={{
+                marginBottom: 14,
+                padding: '14px 16px',
+                borderRadius: 18,
+                background: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)',
+                border: '1px solid #BFDBFE',
+                boxShadow: '0 12px 24px rgba(59, 130, 246, 0.10)',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 12,
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      color: '#1E3A8A',
+                      fontSize: 12,
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      ...theme.fonts.Mulish_700Bold,
+                    }}
+                  >
+                    PV Hold
+                  </div>
+                  <div
+                    style={{
+                      marginTop: 4,
+                      color: theme.colors.textColor,
+                      fontSize: 12,
+                      lineHeight: 1.5,
+                      ...theme.fonts.Mulish_400Regular,
+                    }}
+                  >
+                    PV สะสมที่รอใช้เปิดจุดถัดไปตามกติกา matrix
+                  </div>
+                </div>
+                <div
+                  style={{
+                    color: '#1D4ED8',
+                    fontSize: 26,
+                    lineHeight: 1,
+                    ...theme.fonts.Mulish_700Bold,
+                  }}
+                >
+                  {formatDecimal(matrixPvHoldAmount)}
+                </div>
+              </div>
+            </section>
+            {renderMatrixBoards()}
+          </>
+        ) : null}
 
         {selectedCard && selectedCard.key !== 'matrix'
           ? renderCommissionSummaryCard()
