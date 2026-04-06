@@ -6,7 +6,7 @@ export interface MatrixSettings {
   boardDepth: number;
   boardDepths: number[];
   boardCount: number;
-  organizationPvRate: string;
+  organizationBasePv: string;
   autoOrderAmount: string;
   autoOrderFirmAmount: string;
   autoOrderPvAmount: string;
@@ -25,7 +25,7 @@ const DEFAULT_SETTINGS: MatrixSettings = {
   boardDepth: 3,
   boardDepths: [3, 2, 2],
   boardCount: 3,
-  organizationPvRate: "500",
+  organizationBasePv: "500",
   autoOrderAmount: "500",
   autoOrderFirmAmount: "500",
   autoOrderPvAmount: "500",
@@ -148,6 +148,12 @@ export function normalizeMatrixSettings(input: unknown): MatrixSettings {
     DEFAULT_SETTINGS.boardDepths,
     boardCount,
   );
+  const organizationBasePv =
+    isNonNegativeDecimalString(candidate.organizationBasePv)
+      ? candidate.organizationBasePv.trim()
+      : isNonNegativeDecimalString(candidate.organizationPvRate)
+        ? candidate.organizationPvRate.trim()
+        : DEFAULT_SETTINGS.organizationBasePv;
 
   return {
     boardWidth: normalizePositiveInteger(
@@ -157,15 +163,13 @@ export function normalizeMatrixSettings(input: unknown): MatrixSettings {
     boardDepth,
     boardDepths,
     boardCount,
-    organizationPvRate: isNonNegativeDecimalString(candidate.organizationPvRate)
-      ? candidate.organizationPvRate.trim()
-      : DEFAULT_SETTINGS.organizationPvRate,
+    organizationBasePv,
     autoOrderAmount: isNonNegativeDecimalString(candidate.autoOrderAmount)
       ? candidate.autoOrderAmount.trim()
       : isNonNegativeDecimalString(candidate.cwReentryAmount)
         ? candidate.cwReentryAmount.trim()
-        : isNonNegativeDecimalString(candidate.organizationPvRate)
-          ? candidate.organizationPvRate.trim()
+        : organizationBasePv
+          ? organizationBasePv
           : DEFAULT_SETTINGS.autoOrderAmount,
     autoOrderFirmAmount: isNonNegativeDecimalString(candidate.autoOrderFirmAmount)
       ? candidate.autoOrderFirmAmount.trim()
@@ -175,22 +179,22 @@ export function normalizeMatrixSettings(input: unknown): MatrixSettings {
           ? candidate.autoOrderAmount.trim()
           : isNonNegativeDecimalString(candidate.cwReentryAmount)
             ? candidate.cwReentryAmount.trim()
-            : isNonNegativeDecimalString(candidate.organizationPvRate)
-              ? candidate.organizationPvRate.trim()
+            : organizationBasePv
+              ? organizationBasePv
               : DEFAULT_SETTINGS.autoOrderFirmAmount,
     autoOrderPvAmount: isNonNegativeDecimalString(candidate.autoOrderPvAmount)
       ? candidate.autoOrderPvAmount.trim()
       : isNonNegativeDecimalString(candidate.reentryPvAmount)
         ? candidate.reentryPvAmount.trim()
-        : isNonNegativeDecimalString(candidate.organizationPvRate)
-          ? candidate.organizationPvRate.trim()
+        : organizationBasePv
+          ? organizationBasePv
           : DEFAULT_SETTINGS.autoOrderPvAmount,
     cwReentryAmount: isNonNegativeDecimalString(candidate.autoOrderAmount)
       ? candidate.autoOrderAmount.trim()
       : isNonNegativeDecimalString(candidate.cwReentryAmount)
         ? candidate.cwReentryAmount.trim()
-      : isNonNegativeDecimalString(candidate.organizationPvRate)
-        ? candidate.organizationPvRate.trim()
+      : organizationBasePv
+        ? organizationBasePv
         : DEFAULT_SETTINGS.cwReentryAmount,
     reentryFirmAmount: isNonNegativeDecimalString(candidate.autoOrderFirmAmount)
       ? candidate.autoOrderFirmAmount.trim()
@@ -198,15 +202,15 @@ export function normalizeMatrixSettings(input: unknown): MatrixSettings {
         ? candidate.reentryFirmAmount.trim()
       : isNonNegativeDecimalString(candidate.cwReentryAmount)
         ? candidate.cwReentryAmount.trim()
-        : isNonNegativeDecimalString(candidate.organizationPvRate)
-          ? candidate.organizationPvRate.trim()
+        : organizationBasePv
+          ? organizationBasePv
           : DEFAULT_SETTINGS.reentryFirmAmount,
     reentryPvAmount: isNonNegativeDecimalString(candidate.autoOrderPvAmount)
       ? candidate.autoOrderPvAmount.trim()
       : isNonNegativeDecimalString(candidate.reentryPvAmount)
         ? candidate.reentryPvAmount.trim()
-      : isNonNegativeDecimalString(candidate.organizationPvRate)
-        ? candidate.organizationPvRate.trim()
+      : organizationBasePv
+        ? organizationBasePv
         : DEFAULT_SETTINGS.reentryPvAmount,
     levelRates: normalizeDecimalArray(
       candidate.levelRates,
@@ -236,7 +240,7 @@ export function getDefaultMatrixSettings(): MatrixSettings {
     boardDepth: DEFAULT_SETTINGS.boardDepth,
     boardDepths: [...DEFAULT_SETTINGS.boardDepths],
     boardCount: DEFAULT_SETTINGS.boardCount,
-    organizationPvRate: DEFAULT_SETTINGS.organizationPvRate,
+    organizationBasePv: DEFAULT_SETTINGS.organizationBasePv,
     autoOrderAmount: DEFAULT_SETTINGS.autoOrderAmount,
     autoOrderFirmAmount: DEFAULT_SETTINGS.autoOrderFirmAmount,
     autoOrderPvAmount: DEFAULT_SETTINGS.autoOrderPvAmount,

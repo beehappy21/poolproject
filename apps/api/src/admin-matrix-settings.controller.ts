@@ -84,16 +84,16 @@ export class AdminMatrixSettingsController {
       boardDepth,
       boardDepths,
       boardCount,
-      organizationPvRate: requireDecimalString(
-        payload.organizationPvRate,
-        "organizationPvRate",
+      organizationBasePv: requireDecimalString(
+        payload.organizationBasePv ?? payload.organizationPvRate,
+        "organizationBasePv",
       ),
       autoOrderAmount: requireDecimalString(
         payload.autoOrderAmount ??
           payload.cwReentryAmount ??
           current.autoOrderAmount ??
           current.cwReentryAmount ??
-          current.organizationPvRate,
+          current.organizationBasePv,
         "autoOrderAmount",
       ),
       autoOrderFirmAmount: requireDecimalString(
@@ -110,7 +110,7 @@ export class AdminMatrixSettingsController {
           payload.reentryPvAmount ??
           current.autoOrderPvAmount ??
           current.reentryPvAmount ??
-          current.organizationPvRate,
+          current.organizationBasePv,
         "autoOrderPvAmount",
       ),
       cwReentryAmount: requireDecimalString(
@@ -118,7 +118,7 @@ export class AdminMatrixSettingsController {
           payload.cwReentryAmount ??
           current.autoOrderAmount ??
           current.cwReentryAmount ??
-          current.organizationPvRate,
+          current.organizationBasePv,
         "cwReentryAmount",
       ),
       reentryFirmAmount: requireDecimalString(
@@ -135,7 +135,7 @@ export class AdminMatrixSettingsController {
           payload.reentryPvAmount ??
           current.autoOrderPvAmount ??
           current.reentryPvAmount ??
-          current.organizationPvRate,
+          current.organizationBasePv,
         "reentryPvAmount",
       ),
       levelRates: payload.levelRates.map((value, index) =>

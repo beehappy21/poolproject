@@ -289,7 +289,7 @@ state.matrixSettings = {
   boardDepth: 3,
   boardDepths: [3, 2, 2],
   boardCount: 3,
-  organizationPvRate: "500",
+  organizationBasePv: "500",
   autoOrderAmount: "500",
   cwReentryAmount: "500",
   levelRates: ["0.15", "0.15", "0.15"],
@@ -1937,7 +1937,7 @@ function renderMatrixSettings() {
     return;
   }
 
-  matrixOrganizationPvRateInput.value = state.matrixSettings.organizationPvRate || "0";
+  matrixOrganizationPvRateInput.value = state.matrixSettings.organizationBasePv || "0";
   matrixCwReentryAmountInput.value =
     state.matrixSettings.autoOrderAmount || state.matrixSettings.cwReentryAmount || "0";
   renderMatrixBoardLevelRateRows(
@@ -1980,7 +1980,7 @@ async function loadMatrixSettings() {
     boardDepth: settings.boardDepth,
     boardDepths: settings.boardDepths || [3, 2, 2],
     boardCount: settings.boardCount,
-    organizationPvRate: settings.organizationPvRate,
+    organizationBasePv: settings.organizationBasePv || settings.organizationPvRate,
     autoOrderAmount: settings.autoOrderAmount || settings.cwReentryAmount,
     cwReentryAmount: settings.cwReentryAmount,
     levelRates: settings.levelRates,
@@ -2072,7 +2072,7 @@ async function saveMatrixSettings() {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      organizationPvRate: matrixOrganizationPvRateInput.value.trim(),
+      organizationBasePv: matrixOrganizationPvRateInput.value.trim(),
       autoOrderAmount: matrixCwReentryAmountInput.value.trim(),
       cwReentryAmount: matrixCwReentryAmountInput.value.trim(),
       levelRates: collectMatrixLevelRates(),
@@ -2086,7 +2086,7 @@ async function saveMatrixSettings() {
     boardDepth: result.boardDepth,
     boardDepths: result.boardDepths || [3, 2, 2],
     boardCount: result.boardCount,
-    organizationPvRate: result.organizationPvRate,
+    organizationBasePv: result.organizationBasePv || result.organizationPvRate,
     autoOrderAmount: result.autoOrderAmount || result.cwReentryAmount,
     cwReentryAmount: result.cwReentryAmount,
     levelRates: result.levelRates,

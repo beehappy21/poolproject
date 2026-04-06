@@ -207,7 +207,7 @@ export class MatrixService implements MatrixServiceContract {
       if (
         compareDecimalStrings(
           updatedSource.matrixPersonalPv.toString(),
-          settings.organizationPvRate,
+          settings.organizationBasePv,
         ) < 0
       ) {
         return {
@@ -225,7 +225,7 @@ export class MatrixService implements MatrixServiceContract {
       sourceCycle = await this.ensureQualifiedSourceCycle(input.sourceUserId, settings, {
         personalCarryPv: subtractDecimalStrings(
           updatedSource.matrixPersonalPv.toString(),
-          settings.organizationPvRate,
+          settings.organizationBasePv,
         ),
       });
       await this.matrixRepository.resetUserMatrixPersonalPv(input.sourceUserId);
@@ -731,7 +731,7 @@ export class MatrixService implements MatrixServiceContract {
         levelRates[levelNo - 1] ||
         "0";
       const payoutAmount = multiplyDecimalStrings(
-        latestCycle.organizationPvRate,
+        nextEvent.creditedPv.toString(),
         rate,
       );
       const holdbackDecision = await this.resolveHoldbackPosting({
@@ -1099,7 +1099,7 @@ export class MatrixService implements MatrixServiceContract {
       boardDepth: settings.boardDepth,
       boardDepths: settings.boardDepths,
       boardCount: settings.boardCount,
-      organizationPvRate: settings.organizationPvRate,
+      organizationPvRate: settings.organizationBasePv,
       cwReentryAmount: settings.cwReentryAmount,
       personalCarryPv: options?.personalCarryPv ?? "0",
       levelRatesSnapshot: JSON.stringify(settings.boardLevelRates),
@@ -1561,7 +1561,7 @@ export class MatrixService implements MatrixServiceContract {
   }
 
   private resolveAutoOrderRuntimeSettings(
-    organizationPvRate: string,
+    organizationBasePv: string,
     cwReentryAmount: string,
   ): { reentryFirmAmount: string; reentryPvAmount: string } {
     const runtimeSettings = readMatrixSettings();
@@ -1574,7 +1574,7 @@ export class MatrixService implements MatrixServiceContract {
       reentryPvAmount:
         runtimeSettings.autoOrderPvAmount ||
         runtimeSettings.reentryPvAmount ||
-        organizationPvRate,
+        organizationBasePv,
     };
   }
 
