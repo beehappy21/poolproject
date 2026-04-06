@@ -5,6 +5,8 @@ namespace App\Orchid\Screens\Category;
 use App\Models\Category;
 use App\Models\Supplier;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Orchid\Screen\Actions\Button;
@@ -76,8 +78,13 @@ class CategoryEditScreen extends Screen
                     ->required(!$this->category->exists),
                 Input::make('category.slug')
                     ->title('Slug:'),
+                Input::make('category.image_file')
+                    ->title('Image file:')
+                    ->type('file')
+                    ->accept('image/*'),
                 Input::make('category.image_url')
-                    ->title('Image URL:'),
+                    ->title('Image URL:')
+                    ->help('อัปโหลดรูป 1 รูป หรือวางลิงก์รูปจากภายนอก'),
                 Input::make('category.description')
                     ->title('Description:'),
                 Input::make('category.sort_order')
@@ -159,6 +166,7 @@ class CategoryEditScreen extends Screen
                 'max:255',
                 Rule::unique('poolproject.ProductCategory', 'slug')->ignore($ignoreId, 'id'),
             ],
+            'category.image_file' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp'],
             'category.description' => ['nullable', 'string'],
             'category.image_url' => ['nullable', 'string', 'max:500'],
             'category.sort_order' => ['nullable', 'integer'],
@@ -176,18 +184,80 @@ class CategoryEditScreen extends Screen
             $category['status'] = 'ACTIVE';
         }
 
+        $resolvedImageUrl = $this->resolveImageUrl(
+            $request,
+            $category['image_url'] ?? null,
+            $this->category->imageUrl ?? null,
+            'categories'
+        );
+
         $data = [
             'supplierId' => (int) $category['supplier_id'],
             'name' => $category['name'],
             'code' => $category['code'],
             'slug' => $category['slug'] ?? null,
             'description' => $category['description'] ?? null,
-            'imageUrl' => $category['image_url'] ?? null,
+            'imageUrl' => $resolvedImageUrl,
             'sortOrder' => (int) ($category['sort_order'] ?? 0),
             'isFeatured' => filter_var($category['is_featured'] ?? false, FILTER_VALIDATE_BOOLEAN),
             'status' => $category['status'],
         ];
 
         return $data;
+    }
+
+    private function resolveImageUrl(
+        Request $request,
+        ?string $submittedImageUrl,
+        ?string $existingImageUrl,
+        string $directory
+    ): ?string {
+        $file = $request->file('category.image_file');
+
+        if ($file instanceof UploadedFile) {
+            return $this->storeUploadedImage($file, $directory);
+        }
+
+        $normalizedSubmitted = $this->normalizeStoredImageReference($submittedImageUrl);
+        if ($normalizedSubmitted !== null) {
+            return $normalizedSubmitted;
+        }
+
+        return $this->normalizeStoredImageReference($existingImageUrl);
+    }
+
+    private function storeUploadedImage(UploadedFile $file, string $directory): string
+    {
+        $extension = strtolower($file->getClientOriginalExtension() ?: $file->extension() ?: 'jpg');
+        $path = $file->storeAs(
+            $directory,
+            Str::uuid()->toString() . '.' . $extension,
+            'public'
+        );
+
+        return $path;
+    }
+
+    private function normalizeStoredImageReference(?string $value): ?string
+    {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return null;
+        }
+
+        if (Str::startsWith($value, ['http://', 'https://', 'data:image/'])) {
+            return $value;
+        }
+
+        if (Str::startsWith($value, '/storage/')) {
+            return ltrim(substr($value, 9), '/');
+        }
+
+        $disk = Storage::disk('public');
+        if ($disk->exists($value)) {
+            return ltrim($value, '/');
+        }
+
+        return $value;
     }
 }

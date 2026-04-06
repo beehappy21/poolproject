@@ -52,6 +52,7 @@ use App\Orchid\Screens\Supplier\SupplierEditScreen;
 use App\Orchid\Screens\Commission\CommissionSettingsScreen;
 use App\Orchid\Screens\Commission\CommissionReportScreen;
 use App\Orchid\Screens\Commission\CommissionMainPlanReportScreen;
+use App\Orchid\Screens\Finance\MemberBankAccountListScreen;
 use App\Http\Controllers\Platform\CommissionReportController;
 use App\Http\Controllers\Platform\OrderReportController;
 use App\Http\Controllers\Platform\WithdrawReportController;
@@ -147,6 +148,10 @@ Route::middleware('admin.access:'.AdminPermissions::COMMISSIONS_MANAGE)->group(f
   Route::screen('commission/manual-payment', CommissionSettingsScreen::class)
     ->defaults('section', 'manual-payment')
     ->name('platform.commission.manualPayment');
+
+  Route::screen('finance/bank/company-account', CommissionSettingsScreen::class)
+    ->defaults('section', 'manual-payment')
+    ->name('platform.finance.bank.company');
 
   Route::screen('line/status', CommissionSettingsScreen::class)
     ->defaults('section', 'line-status')
@@ -305,6 +310,9 @@ Route::middleware('admin.access:'.AdminPermissions::ORDERS_MANAGE)->group(functi
 Route::middleware('admin.access:'.AdminPermissions::WITHDRAWALS_MANAGE)->group(function (): void {
   Route::screen('withdraw/list', WithdrawRequestListScreen::class)
     ->name('platform.withdraw.list');
+
+  Route::screen('finance/bank/member-account', MemberBankAccountListScreen::class)
+    ->name('platform.finance.bank.member');
 
   Route::screen('withdraw/detail/{withdrawRequest}', WithdrawRequestDetailScreen::class)
     ->name('platform.withdraw.detail');

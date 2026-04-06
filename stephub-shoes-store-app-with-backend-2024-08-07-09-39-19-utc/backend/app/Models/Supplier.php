@@ -64,7 +64,14 @@ class Supplier extends Model
     public function getImageAttribute(): string
     {
         if (!empty($this->imageUrl)) {
-            return (string) $this->imageUrl;
+            $value = trim((string) $this->imageUrl);
+            if (
+                Str::startsWith($value, ['http://', 'https://', 'data:image/'])
+            ) {
+                return $value;
+            }
+
+            return asset('storage/' . ltrim($value, '/'));
         }
 
         $initial = strtoupper(Str::substr($this->name ?? 'S', 0, 1));

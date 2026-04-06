@@ -4,6 +4,8 @@ namespace App\Orchid\Screens\Supplier;
 
 use App\Models\Supplier;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Orchid\Screen\Actions\Button;
 use Orchid\Screen\Fields\Input;
@@ -60,8 +62,13 @@ class SupplierEditScreen extends Screen
                     ->required(!$this->supplier->exists),
                 Input::make('supplier.slug')
                     ->title('Slug:'),
+                Input::make('supplier.image_file')
+                    ->title('Image file:')
+                    ->type('file')
+                    ->accept('image/*'),
                 Input::make('supplier.image_url')
-                    ->title('Image URL:'),
+                    ->title('Image URL:')
+                    ->help('อัปโหลดรูป 1 รูป หรือวางลิงก์รูปจากภายนอก'),
                 Input::make('supplier.description')
                     ->title('Description:'),
                 Input::make('supplier.sort_order')
@@ -130,6 +137,7 @@ class SupplierEditScreen extends Screen
                 'max:255',
                 Rule::unique('poolproject.Supplier', 'slug')->ignore($ignoreId, 'id'),
             ],
+            'supplier.image_file' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp'],
             'supplier.description' => ['nullable', 'string'],
             'supplier.image_url' => ['nullable', 'string', 'max:500'],
             'supplier.sort_order' => ['nullable', 'integer'],
@@ -138,17 +146,78 @@ class SupplierEditScreen extends Screen
         ]);
 
         $supplier = $validated['supplier'];
+        $resolvedImageUrl = $this->resolveImageUrl(
+            $request,
+            $supplier['image_url'] ?? null,
+            $this->supplier->imageUrl ?? null,
+            'suppliers'
+        );
         $data = [
             'name' => $supplier['name'],
             'code' => $supplier['code'],
             'slug' => $supplier['slug'] ?? null,
             'description' => $supplier['description'] ?? null,
-            'imageUrl' => $supplier['image_url'] ?? null,
+            'imageUrl' => $resolvedImageUrl,
             'sortOrder' => (int) ($supplier['sort_order'] ?? 0),
             'isFeatured' => filter_var($supplier['is_featured'] ?? false, FILTER_VALIDATE_BOOLEAN),
             'status' => $supplier['status'],
         ];
 
         return $data;
+    }
+
+    private function resolveImageUrl(
+        Request $request,
+        ?string $submittedImageUrl,
+        ?string $existingImageUrl,
+        string $directory
+    ): ?string {
+        $file = $request->file('supplier.image_file');
+
+        if ($file instanceof UploadedFile) {
+            return $this->storeUploadedImage($file, $directory);
+        }
+
+        $normalizedSubmitted = $this->normalizeStoredImageReference($submittedImageUrl);
+        if ($normalizedSubmitted !== null) {
+            return $normalizedSubmitted;
+        }
+
+        return $this->normalizeStoredImageReference($existingImageUrl);
+    }
+
+    private function storeUploadedImage(UploadedFile $file, string $directory): string
+    {
+        $extension = strtolower($file->getClientOriginalExtension() ?: $file->extension() ?: 'jpg');
+        $path = $file->storeAs(
+            $directory,
+            Str::uuid()->toString() . '.' . $extension,
+            'public'
+        );
+
+        return $path;
+    }
+
+    private function normalizeStoredImageReference(?string $value): ?string
+    {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return null;
+        }
+
+        if (Str::startsWith($value, ['http://', 'https://', 'data:image/'])) {
+            return $value;
+        }
+
+        if (Str::startsWith($value, '/storage/')) {
+            return ltrim(substr($value, 9), '/');
+        }
+
+        $disk = Storage::disk('public');
+        if ($disk->exists($value)) {
+            return ltrim($value, '/');
+        }
+
+        return $value;
     }
 }
