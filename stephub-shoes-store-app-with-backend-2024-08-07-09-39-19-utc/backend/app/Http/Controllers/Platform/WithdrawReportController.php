@@ -6,6 +6,7 @@ use App\Models\WithdrawRequest;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
@@ -134,14 +135,12 @@ class WithdrawReportController extends Controller
             $query->where('status', strtoupper($status));
         }
 
-        $fromDate = trim((string) $request->input('from_date', ''));
-        if ($fromDate !== '') {
-            $query->whereDate('requestedAt', '>=', $fromDate);
-        }
-
-        $toDate = trim((string) $request->input('to_date', ''));
-        if ($toDate !== '') {
-            $query->whereDate('requestedAt', '<=', $toDate);
+        $cycleEnd = trim((string) $request->input('cycle_end', ''));
+        if ($cycleEnd !== '') {
+            $query->whereRaw(
+                'DATE((date_trunc(\'week\', "requestedAt") + interval \'6 days\')) = ?',
+                [$cycleEnd],
+            );
         }
 
         return $query;
@@ -152,19 +151,10 @@ class WithdrawReportController extends Controller
         if ($template === 'bank') {
             return [
                 'ลำดับที่',
-                'วันที่',
                 'รหัสสมาชิก',
-                'ชื่อ',
-                'ชื่อธนาคาร',
-                'สาขา',
-                'เลขที่บัญชี',
                 'ชื่อบัญชี',
-                'ประเภทบัญชี',
+                'เลขที่บัญชี',
                 'จำนวน',
-                'ภาษี',
-                'ออโต้ซิฟ',
-                'ค่าธรรมเนียม',
-                'ยอดรวมธนาคาร',
             ];
         }
 
@@ -204,23 +194,20 @@ class WithdrawReportController extends Controller
         $autoSweepAmount = number_format((float) $withdrawRequest->autoSweepAmount, 2, '.', '');
         $feeAmount = number_format((float) $withdrawRequest->feeAmount, 2, '.', '');
         $netBankAmount = number_format((float) $withdrawRequest->netBankAmount, 2, '.', '');
+        $reportAmount = number_format(
+            max((float) $withdrawRequest->amount - (float) $withdrawRequest->taxAmount, 0),
+            2,
+            '.',
+            '',
+        );
 
         if ($template === 'bank') {
             return [
                 $sequence,
-                $requestedDate,
                 $memberCode,
-                $memberName,
-                $bankName,
-                $bankBranch,
-                $accountNumber,
                 $accountName,
-                $accountType,
-                $amount,
-                $taxAmount,
-                $autoSweepAmount,
-                $feeAmount,
-                $netBankAmount,
+                $accountNumber,
+                $reportAmount,
             ];
         }
 

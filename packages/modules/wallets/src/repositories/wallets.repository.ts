@@ -160,6 +160,8 @@ export interface WalletsRepository {
     note?: string;
   }): Promise<WithdrawRequestSummary>;
 
+  findLatestApprovedKycRequest(userId: string): Promise<KycRequestSummary | null>;
+
   listWithdrawRequests(filters?: {
     userId?: string;
     status?: "pending" | "approved" | "rejected" | "cancelled" | "exported" | "paid";
@@ -174,6 +176,12 @@ export interface WalletsRepository {
     requestId: string;
     actorUserId: string;
     rejectionReason: string;
+  }): Promise<WithdrawRequestSummary>;
+
+  cancelWithdrawRequest(input: {
+    requestId: string;
+    actorUserId: string;
+    reason?: string;
   }): Promise<WithdrawRequestSummary>;
 
   markWithdrawRequestsExported(requestIds: string[]): Promise<WithdrawRequestSummary[]>;
@@ -1516,34 +1524,70 @@ export class PrismaWalletsRepository implements WalletsRepository {
     netBankAmount: string;
     note?: string;
   }): Promise<WithdrawRequestSummary> {
-    const prismaClient = this.prisma as PrismaClient;
-    const request = await prismaClient.withdrawRequest.create({
-      data: {
-        userId: BigInt(input.userId),
-        amount: input.amount,
-        bankName: input.bankName,
-        bankBranch: input.bankBranch ?? null,
-        accountNumber: input.accountNumber,
-        accountName: input.accountName,
-        accountType: input.accountType ?? null,
-        taxAmount: input.taxAmount,
-        autoSweepAmount: input.autoSweepAmount,
-        feeAmount: input.feeAmount,
-        netBankAmount: input.netBankAmount,
-        note: input.note ?? null,
-        status: "PENDING",
-      },
-      include: {
-        user: {
-          select: {
-            memberCode: true,
-            name: true,
+    return this.prisma.$transaction(async (tx) => {
+      const wallet = await tx.wallet.upsert({
+        where: { userId: BigInt(input.userId) },
+        update: {},
+        create: { userId: BigInt(input.userId) },
+        select: { shoppingBalance: true },
+      });
+
+      if (compareDecimalStrings(wallet.shoppingBalance.toString(), input.amount) < 0) {
+        throw new Error("Insufficient SW balance.");
+      }
+
+      const nextShoppingBalance = subtractDecimalStrings(
+        wallet.shoppingBalance.toString(),
+        input.amount,
+      );
+
+      await tx.wallet.update({
+        where: { userId: BigInt(input.userId) },
+        data: { shoppingBalance: nextShoppingBalance },
+      });
+
+      const request = await tx.withdrawRequest.create({
+        data: {
+          userId: BigInt(input.userId),
+          amount: input.amount,
+          bankName: input.bankName,
+          bankBranch: input.bankBranch ?? null,
+          accountNumber: input.accountNumber,
+          accountName: input.accountName,
+          accountType: input.accountType ?? null,
+          taxAmount: input.taxAmount,
+          autoSweepAmount: input.autoSweepAmount,
+          feeAmount: input.feeAmount,
+          netBankAmount: input.netBankAmount,
+          note: input.note ?? null,
+          status: "PENDING",
+        },
+        include: {
+          user: {
+            select: {
+              memberCode: true,
+              name: true,
+            },
           },
         },
-      },
-    });
+      });
 
-    return this.toWithdrawRequestSummary(request);
+      await tx.walletTransaction.create({
+        data: {
+          userId: BigInt(input.userId),
+          txType: "MANUAL_ADJUSTMENT",
+          direction: "DEBIT",
+          balanceBucket: "SHOPPING",
+          refType: "withdraw_request",
+          refId: request.id,
+          amount: input.amount,
+          status: "POSTED",
+          note: "SW reserved for withdraw request",
+        },
+      });
+
+      return this.toWithdrawRequestSummary(request);
+    });
   }
 
   async listWithdrawRequests(filters?: {
@@ -1623,38 +1667,90 @@ export class PrismaWalletsRepository implements WalletsRepository {
     actorUserId: string;
     rejectionReason: string;
   }): Promise<WithdrawRequestSummary> {
-    const prismaClient = this.prisma as PrismaClient;
-    const existingRequest = await prismaClient.withdrawRequest.findUnique({
-      where: { id: BigInt(input.requestId) },
-    });
+    return this.prisma.$transaction(async (tx) => {
+      const existingRequest = await tx.withdrawRequest.findUnique({
+        where: { id: BigInt(input.requestId) },
+      });
 
-    if (!existingRequest) {
-      throw new Error("Withdraw request not found.");
-    }
+      if (!existingRequest) {
+        throw new Error("Withdraw request not found.");
+      }
 
-    if (existingRequest.status !== "PENDING" && existingRequest.status !== "APPROVED") {
-      throw new Error("Withdraw request is not actionable.");
-    }
+      if (
+        existingRequest.status !== "PENDING" &&
+        existingRequest.status !== "APPROVED" &&
+        existingRequest.status !== "EXPORTED"
+      ) {
+        throw new Error("Withdraw request is not actionable.");
+      }
 
-    const rejectedRequest = await prismaClient.withdrawRequest.update({
-      where: { id: existingRequest.id },
-      data: {
-        status: "REJECTED",
-        approvedAt: null,
-        approvedByUserId: BigInt(input.actorUserId),
-        rejectionReason: input.rejectionReason,
-      },
-      include: {
-        user: {
-          select: {
-            memberCode: true,
-            name: true,
+      await this.restoreWithdrawAmountIfReserved(tx as PrismaClient, existingRequest.id, input.actorUserId);
+
+      const rejectedRequest = await tx.withdrawRequest.update({
+        where: { id: existingRequest.id },
+        data: {
+          status: "REJECTED",
+          approvedAt: null,
+          approvedByUserId: BigInt(input.actorUserId),
+          rejectionReason: input.rejectionReason,
+        },
+        include: {
+          user: {
+            select: {
+              memberCode: true,
+              name: true,
+            },
           },
         },
-      },
-    });
+      });
 
-    return this.toWithdrawRequestSummary(rejectedRequest);
+      return this.toWithdrawRequestSummary(rejectedRequest);
+    });
+  }
+
+  async cancelWithdrawRequest(input: {
+    requestId: string;
+    actorUserId: string;
+    reason?: string;
+  }): Promise<WithdrawRequestSummary> {
+    return this.prisma.$transaction(async (tx) => {
+      const existingRequest = await tx.withdrawRequest.findUnique({
+        where: { id: BigInt(input.requestId) },
+      });
+
+      if (!existingRequest) {
+        throw new Error("Withdraw request not found.");
+      }
+
+      if (
+        existingRequest.status !== "PENDING" &&
+        existingRequest.status !== "APPROVED" &&
+        existingRequest.status !== "EXPORTED"
+      ) {
+        throw new Error("Withdraw request is not actionable.");
+      }
+
+      await this.restoreWithdrawAmountIfReserved(tx as PrismaClient, existingRequest.id, input.actorUserId);
+
+      const cancelledRequest = await tx.withdrawRequest.update({
+        where: { id: existingRequest.id },
+        data: {
+          status: "CANCELLED",
+          approvedByUserId: BigInt(input.actorUserId),
+          rejectionReason: input.reason ?? "Cancelled by admin and refunded to wallet",
+        },
+        include: {
+          user: {
+            select: {
+              memberCode: true,
+              name: true,
+            },
+          },
+        },
+      });
+
+      return this.toWithdrawRequestSummary(cancelledRequest);
+    });
   }
 
   async markWithdrawRequestsExported(requestIds: string[]): Promise<WithdrawRequestSummary[]> {
@@ -1800,6 +1896,90 @@ export class PrismaWalletsRepository implements WalletsRepository {
     });
 
     return requests.map((request) => this.toKycRequestSummary(request));
+  }
+
+  async findLatestApprovedKycRequest(userId: string): Promise<KycRequestSummary | null> {
+    const request = await this.prisma.kycRequest.findFirst({
+      where: {
+        userId: BigInt(userId),
+        status: "APPROVED",
+      },
+      include: {
+        user: {
+          select: {
+            memberCode: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: [{ approvedAt: "desc" }, { submittedAt: "desc" }, { id: "desc" }],
+    });
+
+    return request ? this.toKycRequestSummary(request) : null;
+  }
+
+  private async restoreWithdrawAmountIfReserved(
+    tx: PrismaClient,
+    withdrawRequestId: bigint,
+    actorUserId: string,
+  ): Promise<void> {
+    const existingRefund = await tx.walletTransaction.findFirst({
+      where: {
+        refType: "withdraw_request",
+        refId: withdrawRequestId,
+        direction: "CREDIT",
+        balanceBucket: "SHOPPING",
+      },
+    });
+
+    if (existingRefund) {
+      return;
+    }
+
+    const reserveTransaction = await tx.walletTransaction.findFirst({
+      where: {
+        refType: "withdraw_request",
+        refId: withdrawRequestId,
+        direction: "DEBIT",
+        balanceBucket: "SHOPPING",
+      },
+    });
+
+    if (!reserveTransaction) {
+      return;
+    }
+
+    const wallet = await tx.wallet.upsert({
+      where: { userId: reserveTransaction.userId },
+      update: {},
+      create: { userId: reserveTransaction.userId },
+      select: { shoppingBalance: true },
+    });
+
+    const nextShoppingBalance = addDecimalStrings(
+      wallet.shoppingBalance.toString(),
+      reserveTransaction.amount.toString(),
+    );
+
+    await tx.wallet.update({
+      where: { userId: reserveTransaction.userId },
+      data: { shoppingBalance: nextShoppingBalance },
+    });
+
+    await tx.walletTransaction.create({
+      data: {
+        userId: reserveTransaction.userId,
+        txType: "MANUAL_ADJUSTMENT",
+        direction: "CREDIT",
+        balanceBucket: "SHOPPING",
+        refType: "withdraw_request",
+        refId: withdrawRequestId,
+        counterpartyUserId: BigInt(actorUserId),
+        amount: reserveTransaction.amount,
+        status: "POSTED",
+        note: "SW refunded for cancelled withdraw request",
+      },
+    });
   }
 
   async approveKycRequest(input: {

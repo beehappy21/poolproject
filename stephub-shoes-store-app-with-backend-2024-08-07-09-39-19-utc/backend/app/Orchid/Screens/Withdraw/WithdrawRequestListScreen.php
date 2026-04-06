@@ -3,20 +3,53 @@
 namespace App\Orchid\Screens\Withdraw;
 
 use App\Models\WithdrawRequest;
+use App\Support\BaoAdminApiClient;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Orchid\Screen\Actions\Button;
 use Orchid\Screen\Actions\Link;
 use Orchid\Screen\Screen;
 use Orchid\Screen\TD;
+use Orchid\Support\Facades\Alert;
 use Orchid\Support\Facades\Layout;
 
 class WithdrawRequestListScreen extends Screen
 {
+    public function __construct(private readonly BaoAdminApiClient $apiClient)
+    {
+    }
+
     public function query(Request $request): iterable
     {
+        $cycleOptions = WithdrawRequest::query()
+            ->selectRaw('DATE((date_trunc(\'week\', "requestedAt") + interval \'6 days\')) as cycle_end')
+            ->distinct()
+            ->orderByDesc('cycle_end')
+            ->pluck('cycle_end')
+            ->filter()
+            ->map(fn ($cycleEnd) => [
+                'value' => (string) $cycleEnd,
+                'label' => $this->formatCycleLabel((string) $cycleEnd),
+            ])
+            ->values()
+            ->all();
+
+        $selectedCycleEnd = trim((string) $request->input('cycle_end', ''));
+        if ($selectedCycleEnd === '' && count($cycleOptions) > 0) {
+            $selectedCycleEnd = (string) ($cycleOptions[0]['value'] ?? '');
+        }
+
         $baseQuery = WithdrawRequest::query()
             ->with('member')
             ->orderByDesc('requestedAt')
             ->orderByDesc('id');
+
+        if ($selectedCycleEnd !== '') {
+            $baseQuery->whereRaw(
+                'DATE((date_trunc(\'week\', "requestedAt") + interval \'6 days\')) = ?',
+                [$selectedCycleEnd],
+            );
+        }
 
         $search = trim((string) $request->input('search', ''));
         if ($search !== '') {
@@ -38,29 +71,21 @@ class WithdrawRequestListScreen extends Screen
             $baseQuery->where('status', strtoupper($status));
         }
 
-        $fromDate = trim((string) $request->input('from_date', ''));
-        if ($fromDate !== '') {
-            $baseQuery->whereDate('requestedAt', '>=', $fromDate);
-        }
-
-        $toDate = trim((string) $request->input('to_date', ''));
-        if ($toDate !== '') {
-            $baseQuery->whereDate('requestedAt', '<=', $toDate);
-        }
-
         $summaryQuery = clone $baseQuery;
+        $totalAmount = (float) ((clone $summaryQuery)->sum('amount'));
+        $totalTaxAmount = (float) ((clone $baseQuery)->sum('taxAmount'));
 
         return [
             'filters' => [
                 'search' => $search,
                 'status' => $status,
-                'from_date' => $fromDate,
-                'to_date' => $toDate,
+                'cycle_end' => $selectedCycleEnd,
             ],
+            'cycles' => $cycleOptions,
             'summary' => [
                 'totalRequests' => (int) $summaryQuery->count(),
-                'totalAmount' => (float) ((clone $baseQuery)->sum('amount')),
-                'totalNetAmount' => (float) ((clone $baseQuery)->sum('netBankAmount')),
+                'totalAmount' => $totalAmount,
+                'totalNetAmount' => max($totalAmount - $totalTaxAmount, 0),
             ],
             'withdrawRequests' => $baseQuery->paginate(20),
         ];
@@ -103,37 +128,68 @@ class WithdrawRequestListScreen extends Screen
             Layout::table('withdrawRequests', [
                 TD::make('id', 'ลำดับ')
                     ->render(fn (WithdrawRequest $request) => '#' . $request->id),
-                TD::make('requestedAt', 'วันที่')
-                    ->render(fn (WithdrawRequest $request) => optional($request->requestedAt)->format('d/m/Y H:i')),
-                TD::make('member', 'สมาชิก')
+                TD::make('member_code', 'รหัสสมาชิก')
                     ->render(function (WithdrawRequest $request) {
                         $memberCode = (string) optional($request->member)->memberCode;
-                        $memberName = (string) optional($request->member)->name;
-
-                        $label = trim($memberName) !== '' ? $memberName : '-';
                         $url = route('platform.withdraw.detail', $request->id);
 
-                        return '<a href="' . e($url) . '">' . e($label) . '</a><br><small>' . e($memberCode) . '</small>';
+                        return '<a href="' . e($url) . '">' . e($memberCode ?: '-') . '</a>';
                     }),
-                TD::make('bankName', 'บัญชีรับโอน')
-                    ->render(function (WithdrawRequest $request) {
-                        return e($request->bankName) . '<br><small>' . e($request->accountName) . ' / ' . e($request->accountNumber) . '</small>';
-                    }),
-                TD::make('amount', 'จำนวน')
+                TD::make('member_name', 'ชื่อสมาชิก')
+                    ->render(fn (WithdrawRequest $request) => e((string) optional($request->member)->name ?: '-')),
+                TD::make('accountName', 'ชื่อบัญชี')
+                    ->render(fn (WithdrawRequest $request) => e((string) $request->accountName)),
+                TD::make('accountNumber', 'เลขบัญชี')
+                    ->render(fn (WithdrawRequest $request) => e((string) $request->accountNumber)),
+                TD::make('report_amount', 'จำนวนเงิน')
                     ->align(TD::ALIGN_RIGHT)
-                    ->render(fn (WithdrawRequest $request) => number_format((float) $request->amount, 2) . ' บาท'),
-                TD::make('taxAmount', 'ภาษี')
-                    ->align(TD::ALIGN_RIGHT)
-                    ->render(fn (WithdrawRequest $request) => number_format((float) $request->taxAmount, 2) . ' บาท'),
-                TD::make('feeAmount', 'ค่าธรรมเนียม')
-                    ->align(TD::ALIGN_RIGHT)
-                    ->render(fn (WithdrawRequest $request) => number_format((float) $request->feeAmount, 2) . ' บาท'),
-                TD::make('netBankAmount', 'ยอดเข้าธนาคาร')
-                    ->align(TD::ALIGN_RIGHT)
-                    ->render(fn (WithdrawRequest $request) => number_format((float) $request->netBankAmount, 2) . ' บาท'),
+                    ->render(fn (WithdrawRequest $request) => number_format(max((float) $request->amount - (float) $request->taxAmount, 0), 2) . ' บาท'),
                 TD::make('status', 'สถานะ')
                     ->render(fn (WithdrawRequest $request) => e(strtolower((string) $request->status))),
+                TD::make('actions', 'ดำเนินการ')
+                    ->align(TD::ALIGN_CENTER)
+                    ->render(fn (WithdrawRequest $request) => Button::make('ยกเลิกคืนเงิน')
+                        ->icon('bs.arrow-counterclockwise')
+                        ->confirm('ยืนยันยกเลิกรายการถอนนี้และคืนเงินกลับบัญชี SW?')
+                        ->method('cancelRequest')
+                        ->parameters([
+                            'withdrawRequest' => $request->id,
+                        ])
+                        ->canSee(in_array((string) $request->status, ['PENDING', 'APPROVED', 'EXPORTED'], true))),
             ]),
         ];
+    }
+
+    public function cancelRequest(Request $request)
+    {
+        $payload = $request->validate([
+            'withdrawRequest' => ['required'],
+        ]);
+
+        try {
+            $this->apiClient->request('POST', '/wallets/withdraw-requests/'.(string) $payload['withdrawRequest'].'/cancel', [
+                'reason' => 'Cancelled from BAO weekly withdraw report',
+            ]);
+        } catch (\Throwable $exception) {
+            Alert::error($exception->getMessage());
+
+            return redirect()->route('platform.withdraw.list', request()->query());
+        }
+
+        Alert::info('ยกเลิกรายการถอนและคืนเงินกลับบัญชี SW แล้ว');
+
+        return redirect()->route('platform.withdraw.list', request()->query());
+    }
+
+    private function formatCycleLabel(string $cycleEnd): string
+    {
+        $end = Carbon::parse($cycleEnd)->endOfDay();
+        $start = $end->copy()->subDays(6)->startOfDay();
+
+        return sprintf(
+            '%s - %s',
+            $start->locale('th')->translatedFormat('d M Y'),
+            $end->locale('th')->translatedFormat('d M Y'),
+        );
     }
 }

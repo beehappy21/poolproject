@@ -189,6 +189,22 @@ export class WalletsController {
     });
   }
 
+  @Post("withdraw-requests/:requestId/cancel")
+  async cancelWithdrawRequest(
+    @Param("requestId") requestId: string,
+    @Body() body: { reason?: string },
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+  ) {
+    const adminUser = await this.requireAdminSessionUser(authorization, cookieHeader);
+
+    return this.walletsService.cancelWithdrawRequest({
+      requestId: requirePositiveIntegerString(requestId, "requestId"),
+      actorUserId: adminUser.userId,
+      reason: optionalString(body.reason),
+    });
+  }
+
   @Post("withdraw-requests/export")
   async markWithdrawRequestsExported(
     @Body() body: { requestIds: string[] },

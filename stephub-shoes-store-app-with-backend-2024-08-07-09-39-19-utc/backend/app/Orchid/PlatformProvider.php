@@ -85,9 +85,6 @@ class PlatformProvider extends OrchidServiceProvider {
           Menu::make('Cash Back')
             ->icon('bs-arrow-repeat')
             ->route('platform.commission.cashback'),
-          Menu::make('Manual Payment')
-            ->icon('bs-bank')
-            ->route('platform.commission.manualPayment'),
         ]),
 
       Menu::make('Commission Report')
@@ -239,11 +236,28 @@ class PlatformProvider extends OrchidServiceProvider {
         ->permission(AdminPermissions::MEMBERS_MANAGE)
         ->route('platform.appuser.list'),
 
-      Menu::make('Withdrawals')
+      Menu::make('Finance')
         ->title('Finance')
         ->icon('bs-bank')
-        ->permission(AdminPermissions::WITHDRAWALS_MANAGE)
-        ->route('platform.withdraw.list'),
+        ->canSee($this->canSeeFinanceMenu())
+        ->list([
+          Menu::make('Withdrawals')
+            ->icon('bs-cash-coin')
+            ->route('platform.withdraw.list')
+            ->permission(AdminPermissions::WITHDRAWALS_MANAGE),
+          Menu::make('ธนาคาร')
+            ->icon('bs-bank2')
+            ->list([
+              Menu::make('บัญชีบริษัท')
+                ->icon('bs-building')
+                ->route('platform.finance.bank.company')
+                ->permission(AdminPermissions::COMMISSIONS_MANAGE),
+              Menu::make('บัญชีสมาชิก')
+                ->icon('bs-person-vcard')
+                ->route('platform.finance.bank.member')
+                ->permission(AdminPermissions::WITHDRAWALS_MANAGE),
+            ]),
+        ]),
 
       Menu::make('Banner')
         ->icon('bs.image')
@@ -314,5 +328,18 @@ class PlatformProvider extends OrchidServiceProvider {
 
     return $user->inRole(AdminPermissions::SUPERADMIN_ROLE)
       || $user->hasAccess(AdminPermissions::WALLETS_MANAGE);
+  }
+
+  private function canSeeFinanceMenu(): bool
+  {
+    $user = Auth::guard(config('platform.guard'))->user();
+
+    if ($user === null) {
+      return false;
+    }
+
+    return $user->inRole(AdminPermissions::SUPERADMIN_ROLE)
+      || $user->hasAccess(AdminPermissions::WITHDRAWALS_MANAGE)
+      || $user->hasAccess(AdminPermissions::COMMISSIONS_MANAGE);
   }
 }

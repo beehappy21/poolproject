@@ -695,11 +695,6 @@ export class AuthController {
     @Body()
     body?: {
       amount?: string;
-      bankName?: string;
-      bankBranch?: string;
-      accountName?: string;
-      accountNumber?: string;
-      accountType?: string;
       note?: string;
     },
   ) {
@@ -708,11 +703,6 @@ export class AuthController {
     return this.walletsService.requestWithdraw({
       userId: user.userId,
       amount: requireDecimalString(body?.amount, "amount"),
-      bankName: requireNonEmptyString(body?.bankName, "bankName"),
-      bankBranch: optionalString(body?.bankBranch),
-      accountName: requireNonEmptyString(body?.accountName, "accountName"),
-      accountNumber: requireNonEmptyString(body?.accountNumber, "accountNumber"),
-      accountType: optionalString(body?.accountType),
       note: optionalString(body?.note),
     });
   }

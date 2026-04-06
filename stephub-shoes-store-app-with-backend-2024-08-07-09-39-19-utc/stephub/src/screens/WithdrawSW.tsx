@@ -23,6 +23,19 @@ type WithdrawRequestSummary = {
   requestedAt: string;
 };
 
+type KycRequestSummary = {
+  requestId: string;
+  nationalId: string | null;
+  bankName: string | null;
+  bankBranch: string | null;
+  bankAccountNumber: string | null;
+  bankAccountName: string | null;
+  bankAccountType: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  approvedAt: string | null;
+  submittedAt: string;
+};
+
 const parseDecimal = (value?: string | null) => {
   const parsed = Number.parseFloat(value || '0');
   return Number.isFinite(parsed) ? parsed : 0;
@@ -41,15 +54,21 @@ export const WithdrawSW: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [maxWithdraw, setMaxWithdraw] = useState(0);
   const [pendingRequests, setPendingRequests] = useState<WithdrawRequestSummary[]>([]);
+  const [kycRequests, setKycRequests] = useState<KycRequestSummary[]>([]);
   const [amount, setAmount] = useState('');
-  const [bankName, setBankName] = useState('');
-  const [bankBranch, setBankBranch] = useState('');
-  const [accountName, setAccountName] = useState('');
-  const [accountNumber, setAccountNumber] = useState('');
-  const [accountType, setAccountType] = useState('');
   const [note, setNote] = useState('');
   const [message, setMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+
+  const latestApprovedKyc = useMemo(
+    () => kycRequests.find(request => request.status === 'approved') || null,
+    [kycRequests],
+  );
+  const canWithdraw =
+    !!latestApprovedKyc?.nationalId?.trim() &&
+    !!latestApprovedKyc?.bankName?.trim() &&
+    !!latestApprovedKyc?.bankAccountName?.trim() &&
+    !!latestApprovedKyc?.bankAccountNumber?.trim();
 
   useEffect(() => {
     const loadWallet = async () => {
@@ -60,13 +79,18 @@ export const WithdrawSW: React.FC = () => {
       }
 
       try {
-        const [dashboardResponse, requestsResponse] = await Promise.all([
+        const [dashboardResponse, requestsResponse, kycRequestsResponse] = await Promise.all([
           axios.get<DashboardResponse>(URLS.AUTH_DASHBOARD, {
             headers: {
               Authorization: `Bearer ${user.accessToken}`,
             },
           }),
           axios.get<WithdrawRequestSummary[]>(URLS.AUTH_WITHDRAW_REQUESTS, {
+            headers: {
+              Authorization: `Bearer ${user.accessToken}`,
+            },
+          }),
+          axios.get<KycRequestSummary[]>(URLS.AUTH_KYC_REQUESTS, {
             headers: {
               Authorization: `Bearer ${user.accessToken}`,
             },
@@ -81,6 +105,7 @@ export const WithdrawSW: React.FC = () => {
               request.status === 'exported',
           ),
         );
+        setKycRequests(Array.isArray(kycRequestsResponse.data) ? kycRequestsResponse.data : []);
       } catch (error) {
         console.error(error);
         setErrorMessage('ไม่สามารถโหลดข้อมูลยอด SW ปัจจุบันได้');
@@ -116,8 +141,8 @@ export const WithdrawSW: React.FC = () => {
       return;
     }
 
-    if (!bankName.trim() || !accountName.trim() || !accountNumber.trim()) {
-      setErrorMessage('กรุณากรอกข้อมูลบัญชีธนาคารให้ครบ');
+    if (!canWithdraw) {
+      setErrorMessage('ต้องทำ KYC บัตรประชาชนและบัญชีธนาคารให้อนุมัติก่อนจึงจะถอน SW ได้');
       return;
     }
 
@@ -126,15 +151,10 @@ export const WithdrawSW: React.FC = () => {
     setMessage('');
 
     try {
-      await axios.post(
+      const response = await axios.post<WithdrawRequestSummary>(
         URLS.AUTH_WITHDRAW_REQUESTS,
         {
           amount: amountNumber.toFixed(2),
-          bankName: bankName.trim(),
-          bankBranch: bankBranch.trim(),
-          accountName: accountName.trim(),
-          accountNumber: accountNumber.trim(),
-          accountType: accountType.trim(),
           note: note.trim(),
         },
         {
@@ -145,22 +165,9 @@ export const WithdrawSW: React.FC = () => {
       );
 
       setAmount('');
-      setBankName('');
-      setBankBranch('');
-      setAccountName('');
-      setAccountNumber('');
-      setAccountType('');
       setNote('');
       setPendingRequests(current => [
-        {
-          requestId: `local-${Date.now()}`,
-          amount: amountNumber.toFixed(2),
-          netBankAmount: amountNumber.toFixed(2),
-          bankName: bankName.trim(),
-          accountName: accountName.trim(),
-          status: 'pending',
-          requestedAt: new Date().toISOString(),
-        },
+        response.data,
         ...current,
       ]);
       setMessage(
@@ -283,71 +290,43 @@ export const WithdrawSW: React.FC = () => {
                 ...theme.fonts.Mulish_400Regular,
               }}
             />
-            <input
-              value={bankName}
-              onChange={event => setBankName(event.target.value)}
-              placeholder='ธนาคาร'
+            <div
               style={{
-                height: 48,
-                borderRadius: 12,
-                border: `1px solid ${theme.colors.aliceBlue2}`,
-                padding: '0 14px',
-                color: theme.colors.mainColor,
-                ...theme.fonts.Mulish_400Regular,
+                padding: 16,
+                borderRadius: 14,
+                backgroundColor: canWithdraw ? '#F8FAFC' : '#FEF2F2',
+                border: `1px solid ${canWithdraw ? '#CBD5E1' : '#FECACA'}`,
               }}
-            />
-            <input
-              value={bankBranch}
-              onChange={event => setBankBranch(event.target.value)}
-              placeholder='สาขา'
-              style={{
-                height: 48,
-                borderRadius: 12,
-                border: `1px solid ${theme.colors.aliceBlue2}`,
-                padding: '0 14px',
-                color: theme.colors.mainColor,
-                ...theme.fonts.Mulish_400Regular,
-              }}
-            />
-            <input
-              value={accountName}
-              onChange={event => setAccountName(event.target.value)}
-              placeholder='ชื่อบัญชี'
-              style={{
-                height: 48,
-                borderRadius: 12,
-                border: `1px solid ${theme.colors.aliceBlue2}`,
-                padding: '0 14px',
-                color: theme.colors.mainColor,
-                ...theme.fonts.Mulish_400Regular,
-              }}
-            />
-            <input
-              value={accountType}
-              onChange={event => setAccountType(event.target.value)}
-              placeholder='ประเภทบัญชี'
-              style={{
-                height: 48,
-                borderRadius: 12,
-                border: `1px solid ${theme.colors.aliceBlue2}`,
-                padding: '0 14px',
-                color: theme.colors.mainColor,
-                ...theme.fonts.Mulish_400Regular,
-              }}
-            />
-            <input
-              value={accountNumber}
-              onChange={event => setAccountNumber(event.target.value)}
-              placeholder='เลขบัญชี'
-              style={{
-                height: 48,
-                borderRadius: 12,
-                border: `1px solid ${theme.colors.aliceBlue2}`,
-                padding: '0 14px',
-                color: theme.colors.mainColor,
-                ...theme.fonts.Mulish_400Regular,
-              }}
-            />
+            >
+              <div
+                style={{
+                  marginBottom: 10,
+                  color: theme.colors.mainColor,
+                  ...theme.fonts.Mulish_700Bold,
+                }}
+              >
+                บัญชีรับโอนจาก KYC
+              </div>
+              <div style={{display: 'grid', gap: 6, color: theme.colors.textColor}}>
+                <div>เลขบัตรประชาชน: {latestApprovedKyc?.nationalId || '-'}</div>
+                <div>ธนาคาร: {latestApprovedKyc?.bankName || '-'}</div>
+                <div>สาขา: {latestApprovedKyc?.bankBranch || '-'}</div>
+                <div>ชื่อบัญชี: {latestApprovedKyc?.bankAccountName || '-'}</div>
+                <div>ประเภทบัญชี: {latestApprovedKyc?.bankAccountType || '-'}</div>
+                <div>เลขบัญชี: {latestApprovedKyc?.bankAccountNumber || '-'}</div>
+              </div>
+              {!canWithdraw ? (
+                <div
+                  style={{
+                    marginTop: 10,
+                    color: theme.colors.coralRed,
+                    ...theme.fonts.Mulish_400Regular,
+                  }}
+                >
+                  ต้องทำ KYC บัตรประชาชนและบัญชีธนาคารให้อนุมัติก่อน จึงจะกดถอน SW ได้
+                </div>
+              ) : null}
+            </div>
             <textarea
               value={note}
               onChange={event => setNote(event.target.value)}
@@ -390,15 +369,16 @@ export const WithdrawSW: React.FC = () => {
 
           <button
             onClick={handleSubmit}
-            disabled={loading || submitting}
+            disabled={loading || submitting || !canWithdraw}
             style={{
               marginTop: 18,
               width: '100%',
               height: 50,
               border: 'none',
               borderRadius: 14,
-              cursor: loading || submitting ? 'not-allowed' : 'pointer',
-              backgroundColor: theme.colors.mainColor,
+              cursor: loading || submitting || !canWithdraw ? 'not-allowed' : 'pointer',
+              backgroundColor:
+                loading || submitting || !canWithdraw ? '#94A3B8' : theme.colors.mainColor,
               color: theme.colors.mainYellow,
               ...theme.fonts.Mulish_700Bold,
             }}
