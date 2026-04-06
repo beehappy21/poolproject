@@ -139,11 +139,6 @@ export interface WalletsServiceContract {
   requestWithdraw(input: {
     userId: string;
     amount: string;
-    bankName: string;
-    bankBranch?: string;
-    accountNumber: string;
-    accountName: string;
-    accountType?: string;
     note?: string;
   }): Promise<WithdrawRequestSummary>;
 
@@ -161,6 +156,12 @@ export interface WalletsServiceContract {
     requestId: string;
     actorUserId: string;
     rejectionReason: string;
+  }): Promise<WithdrawRequestSummary>;
+
+  cancelWithdrawRequest(input: {
+    requestId: string;
+    actorUserId: string;
+    reason?: string;
   }): Promise<WithdrawRequestSummary>;
 
   markWithdrawRequestExported(input: {
@@ -588,11 +589,6 @@ export class WalletsService implements WalletsServiceContract {
   async requestWithdraw(input: {
     userId: string;
     amount: string;
-    bankName: string;
-    bankBranch?: string;
-    accountNumber: string;
-    accountName: string;
-    accountType?: string;
     note?: string;
   }): Promise<WithdrawRequestSummary> {
     const settings = readWithdrawSettings();
@@ -610,6 +606,23 @@ export class WalletsService implements WalletsServiceContract {
       throw new Error("Insufficient SW balance.");
     }
 
+    const approvedKyc = await this.walletsRepository.findLatestApprovedKycRequest(
+      input.userId,
+    );
+
+    if (!approvedKyc) {
+      throw new Error("KYC approval is required before requesting withdraw.");
+    }
+
+    if (
+      !approvedKyc.nationalId?.trim() ||
+      !approvedKyc.bankName?.trim() ||
+      !approvedKyc.bankAccountName?.trim() ||
+      !approvedKyc.bankAccountNumber?.trim()
+    ) {
+      throw new Error("Approved KYC with national ID and bank account is required.");
+    }
+
     const taxAmount = multiplyDecimalStrings(input.amount, settings.withholdingTaxRate);
     const autoSweepAmount = multiplyDecimalStrings(input.amount, settings.autoSweepRate);
     const feeAmount = settings.feeFlatAmount;
@@ -625,7 +638,14 @@ export class WalletsService implements WalletsServiceContract {
     );
 
     return this.walletsRepository.createWithdrawRequest({
-      ...input,
+      userId: input.userId,
+      amount: input.amount,
+      bankName: approvedKyc.bankName,
+      bankBranch: approvedKyc.bankBranch ?? undefined,
+      accountNumber: approvedKyc.bankAccountNumber,
+      accountName: approvedKyc.bankAccountName,
+      accountType: approvedKyc.bankAccountType ?? undefined,
+      note: input.note,
       taxAmount,
       autoSweepAmount,
       feeAmount,
@@ -653,6 +673,14 @@ export class WalletsService implements WalletsServiceContract {
     rejectionReason: string;
   }): Promise<WithdrawRequestSummary> {
     return this.walletsRepository.rejectWithdrawRequest(input);
+  }
+
+  async cancelWithdrawRequest(input: {
+    requestId: string;
+    actorUserId: string;
+    reason?: string;
+  }): Promise<WithdrawRequestSummary> {
+    return this.walletsRepository.cancelWithdrawRequest(input);
   }
 
   async markWithdrawRequestExported(input: {
