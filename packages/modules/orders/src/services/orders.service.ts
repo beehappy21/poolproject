@@ -380,7 +380,13 @@ export class OrdersService implements OrdersServiceContract {
     firmWalletAmount?: string;
     cashPaymentMethod?: string;
   }) {
-    return this.ordersRepository.createOrder(input);
+    const order = await this.ordersRepository.createOrder(input);
+
+    if (order.approvalStatus === "approved") {
+      await this.handleApprovedOrder(order.orderId);
+    }
+
+    return order;
   }
 
   async submitTransferSlip(input: {
@@ -595,6 +601,7 @@ export class OrdersService implements OrdersServiceContract {
               });
         await this.createMatrixAutoOrderAuditOrders(matrixFlow);
         const walletPostingInputs = await this.postCommissionWalletEntries(orderId);
+        await this.walletsService.creditFirmWalletFromApprovedOrder({ orderId });
         await this.walletsService.creditDiscountWalletFromApprovedOrder({ orderId });
 
         return this.buildApprovedOrderResultFromEntries(
@@ -613,8 +620,7 @@ export class OrdersService implements OrdersServiceContract {
         cycles: [],
       });
 
-      const commissionFlow =
-        await this.commissionsService.handleApprovedOrderCommissionSource(orderId);
+      await this.commissionsService.handleApprovedOrderCommissionSource(orderId);
       const matrixFlow =
         commissionSettings.appVisibility.matrix === false
           ? this.buildSkippedMatrixFlow(approvedOrder)
@@ -634,6 +640,7 @@ export class OrdersService implements OrdersServiceContract {
       }
 
       const walletPostingInputs = await this.postCommissionWalletEntries(orderId);
+      await this.walletsService.creditFirmWalletFromApprovedOrder({ orderId });
       await this.walletsService.creditDiscountWalletFromApprovedOrder({ orderId });
 
       return this.buildApprovedOrderResultFromEntries(

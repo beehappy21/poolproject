@@ -125,6 +125,13 @@ export interface FirmWalletCreditResult {
   sourceMatrixEventId: string;
 }
 
+export interface FirmOrderWalletCreditResult {
+  userId: string;
+  amount: string;
+  firmBalance: string;
+  sourceOrderId: string;
+}
+
 export interface MatrixAutoOrderDebitResult {
   userId: string;
   amount: string;

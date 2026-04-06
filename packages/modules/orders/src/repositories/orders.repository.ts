@@ -582,6 +582,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
             "DCW_PURCHASE_DEBIT",
             "ORDER_PURCHASE_DEBIT",
             "FIRM_PRODUCT_DEBIT",
+            "FIRM_ORDER_CREDIT",
             "FIRM_DCW_CREDIT",
           ],
         },
@@ -664,6 +665,30 @@ export class PrismaOrdersRepository implements OrdersRepository {
             amount,
             status: "POSTED",
             note: `Order cancellation refund: firm wallet restored${noteSuffix}`,
+          },
+        });
+        continue;
+      }
+
+      if (entry.txType === "FIRM_ORDER_CREDIT") {
+        if (compareDecimalStrings(nextFirmBalance, amount) < 0) {
+          throw new Error(
+            "Cannot cancel this order because the Firm wallet credit from approved order has already been used.",
+          );
+        }
+
+        nextFirmBalance = subtractDecimalStrings(nextFirmBalance, amount);
+        await tx.walletTransaction.create({
+          data: {
+            userId: input.userId,
+            txType: "MANUAL_ADJUSTMENT",
+            direction: "DEBIT",
+            balanceBucket: "FIRM",
+            refType: "order",
+            refId: input.orderId,
+            amount,
+            status: "POSTED",
+            note: `Order cancellation reversal: Firm wallet credit removed${noteSuffix}`,
           },
         });
         continue;
@@ -1620,7 +1645,13 @@ export class PrismaOrdersRepository implements OrdersRepository {
     const cashDueUsdt = firmOrderRequested
       ? "0"
       : subtractDecimalStrings(remainingAfterDiscount, walletAppliedUsdt);
-    const autoApproveFirmOrder = firmOrderRequested && compareDecimalStrings(cashDueUsdt, "0") <= 0;
+    const autoApproveFirmOrder =
+      firmOrderRequested && compareDecimalStrings(cashDueUsdt, "0") <= 0;
+    const autoApproveShoppingWalletOrder =
+      !firmOrderRequested &&
+      compareDecimalStrings(walletAppliedUsdt, "0") > 0 &&
+      compareDecimalStrings(cashDueUsdt, "0") <= 0;
+    const autoApproveOrder = autoApproveFirmOrder || autoApproveShoppingWalletOrder;
     const normalizedCashPaymentMethod = input.cashPaymentMethod?.trim().toLowerCase();
 
     if (compareDecimalStrings(cashDueUsdt, "0") > 0) {
@@ -1704,9 +1735,9 @@ export class PrismaOrdersRepository implements OrdersRepository {
               : null,
           paidAt:
             compareDecimalStrings(cashDueUsdt, "0") <= 0 ? new Date() : null,
-          approvedAt: autoApproveFirmOrder ? new Date() : null,
-          approvalStatus: autoApproveFirmOrder ? "APPROVED" : "PENDING",
-          status: autoApproveFirmOrder
+          approvedAt: autoApproveOrder ? new Date() : null,
+          approvalStatus: autoApproveOrder ? "APPROVED" : "PENDING",
+          status: autoApproveOrder
             ? "APPROVED"
             : compareDecimalStrings(cashDueUsdt, "0") <= 0
               ? "PAID"

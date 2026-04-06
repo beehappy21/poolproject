@@ -1449,9 +1449,14 @@ export class MatrixService implements MatrixServiceContract {
       };
     }
 
-    const halfAmount = multiplyDecimalStrings(input.grossPayoutAmount, "0.5");
+    const holdbackCandidateAmount = multiplyDecimalStrings(
+      input.grossPayoutAmount,
+      "0.6",
+    );
     const holdbackAmount =
-      compareDecimalStrings(halfAmount, remainingAmount) > 0 ? remainingAmount : halfAmount;
+      compareDecimalStrings(holdbackCandidateAmount, remainingAmount) > 0
+        ? remainingAmount
+        : holdbackCandidateAmount;
     const paidAmount = subtractDecimalStrings(input.grossPayoutAmount, holdbackAmount);
 
     if (compareDecimalStrings(holdbackAmount, "0") > 0) {

@@ -5,6 +5,7 @@ import {
   CommissionToShoppingConversionResult,
   DiscountWalletCreditResult,
   FirmWalletCreditResult,
+  FirmOrderWalletCreditResult,
   MatrixAutoOrderDebitResult,
   MatrixReentryDebitResult,
   ShoppingWalletTopupResult,
@@ -82,6 +83,10 @@ export interface WalletsServiceContract {
   creditDiscountWalletFromApprovedOrder(input: {
     orderId: string;
   }): Promise<DiscountWalletCreditResult | null>;
+
+  creditFirmWalletFromApprovedOrder(input: {
+    orderId: string;
+  }): Promise<FirmOrderWalletCreditResult | null>;
 
   creditFirmWalletFromMatrixAutoOrder(input: {
     userId: string;
@@ -490,6 +495,12 @@ export class WalletsService implements WalletsServiceContract {
     orderId: string;
   }): Promise<DiscountWalletCreditResult | null> {
     return this.walletsRepository.creditDiscountWalletFromApprovedOrder(input);
+  }
+
+  async creditFirmWalletFromApprovedOrder(input: {
+    orderId: string;
+  }): Promise<FirmOrderWalletCreditResult | null> {
+    return this.walletsRepository.creditFirmWalletFromApprovedOrder(input);
   }
 
   async creditFirmWalletFromMatrixAutoOrder(input: {

@@ -3,6 +3,7 @@ import {
   CommissionToShoppingConversionResult,
   DiscountWalletCreditResult,
   FirmWalletCreditResult,
+  FirmOrderWalletCreditResult,
   MatrixAutoOrderDebitResult,
   MatrixReentryDebitResult,
   ShoppingWalletTopupResult,
@@ -77,6 +78,10 @@ export interface WalletsRepository {
   creditDiscountWalletFromApprovedOrder(input: {
     orderId: string;
   }): Promise<DiscountWalletCreditResult | null>;
+
+  creditFirmWalletFromApprovedOrder(input: {
+    orderId: string;
+  }): Promise<FirmOrderWalletCreditResult | null>;
 
   creditFirmWalletFromMatrixAutoOrder(input: {
     userId: string;
@@ -868,6 +873,246 @@ export class PrismaWalletsRepository implements WalletsRepository {
         userId: order.userId.toString(),
         amount: rewardAmount,
         discountBalance: nextDiscountBalance,
+        sourceOrderId: order.id.toString(),
+      };
+    });
+  }
+
+  async creditFirmWalletFromApprovedOrder(input: {
+    orderId: string;
+  }): Promise<FirmOrderWalletCreditResult | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({
+        where: { id: BigInt(input.orderId) },
+        select: {
+          id: true,
+          userId: true,
+          approvalStatus: true,
+          orderItems: {
+            select: {
+              qty: true,
+              productId: true,
+              packageId: true,
+              unitPriceUsdt: true,
+            },
+          },
+        },
+      });
+
+      if (!order || order.approvalStatus !== "APPROVED") {
+        return null;
+      }
+
+      const wallet = await tx.wallet.upsert({
+        where: { userId: order.userId },
+        update: {},
+        create: { userId: order.userId },
+        select: { firmBalance: true },
+      });
+
+      const existingCredit = await tx.walletTransaction.findFirst({
+        where: {
+          userId: order.userId,
+          txType: "FIRM_ORDER_CREDIT",
+          refType: "order",
+          refId: order.id,
+          status: "POSTED",
+        },
+        select: { id: true },
+      });
+
+      if (existingCredit) {
+        return {
+          userId: order.userId.toString(),
+          amount: "0",
+          firmBalance: wallet.firmBalance.toString(),
+          sourceOrderId: order.id.toString(),
+        };
+      }
+
+      const productDetailIds = Array.from(
+        new Set(
+          order.orderItems
+            .map((item) => item.productId)
+            .filter((value): value is string => Boolean(value)),
+        ),
+      );
+      const packageIds = Array.from(
+        new Set(
+          order.orderItems
+            .map((item) => item.packageId)
+            .filter((value): value is bigint => value !== null),
+        ),
+      );
+      const productDetails = productDetailIds.length > 0
+        ? ((await tx.productDetail.findMany({
+            where: {
+              id: {
+                in: productDetailIds.map((value) => BigInt(value)),
+              },
+            },
+            select: {
+              id: true,
+              firmEnabled: true,
+              product: {
+                select: {
+                  category: {
+                    select: {
+                      code: true,
+                    },
+                  },
+                },
+              },
+            },
+          })) as Array<{
+            id: bigint;
+            firmEnabled: boolean;
+            product: {
+              category: {
+                code: string;
+              };
+            };
+          }>)
+        : [];
+      const packages = packageIds.length > 0
+        ? ((await tx.package.findMany({
+            where: {
+              id: {
+                in: packageIds,
+              },
+            },
+            select: {
+              id: true,
+              packageItems: {
+                select: {
+                  qty: true,
+                  unitMemberPriceUsdt: true,
+                  productDetail: {
+                    select: {
+                      firmEnabled: true,
+                      product: {
+                        select: {
+                          category: {
+                            select: {
+                              code: true,
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          })) as Array<{
+            id: bigint;
+            packageItems: Array<{
+              qty: number;
+              unitMemberPriceUsdt: { toString(): string };
+              productDetail: {
+                firmEnabled: boolean;
+                product: {
+                  category: {
+                    code: string;
+                  };
+                };
+              };
+            }>;
+          }>)
+        : [];
+
+      const productDetailRewardMap = new Map(
+        productDetails.map((detail) => [detail.id.toString(), detail]),
+      );
+      const packageRewardMap = new Map(
+        packages.map((pkg) => [pkg.id.toString(), pkg]),
+      );
+      const rewardAmount = order.orderItems.reduce((total, item) => {
+        if (item.productId) {
+          const detail = productDetailRewardMap.get(item.productId);
+          const categoryCode = detail?.product.category.code?.trim().toLowerCase() ?? "";
+
+          if (!detail?.firmEnabled || categoryCode !== "firm") {
+            return total;
+          }
+
+          return addDecimalStrings(
+            total,
+            multiplyDecimalStrings(
+              item.unitPriceUsdt.toString(),
+              item.qty.toString(),
+            ),
+          );
+        }
+
+        if (!item.packageId) {
+          return total;
+        }
+
+        const pkg = packageRewardMap.get(item.packageId.toString());
+        if (!pkg) {
+          return total;
+        }
+
+        const packageReward = pkg.packageItems.reduce((packageTotal, packageItem) => {
+          const categoryCode =
+            packageItem.productDetail.product.category.code?.trim().toLowerCase() ?? "";
+          if (!packageItem.productDetail.firmEnabled || categoryCode !== "firm") {
+            return packageTotal;
+          }
+
+          return addDecimalStrings(
+            packageTotal,
+            multiplyDecimalStrings(
+              packageItem.unitMemberPriceUsdt.toString(),
+              packageItem.qty.toString(),
+            ),
+          );
+        }, "0");
+
+        return addDecimalStrings(
+          total,
+          multiplyDecimalStrings(packageReward, item.qty.toString()),
+        );
+      }, "0");
+
+      if (compareDecimalStrings(rewardAmount, "0") <= 0) {
+        return {
+          userId: order.userId.toString(),
+          amount: "0",
+          firmBalance: wallet.firmBalance.toString(),
+          sourceOrderId: order.id.toString(),
+        };
+      }
+
+      const nextFirmBalance = addDecimalStrings(
+        wallet.firmBalance.toString(),
+        rewardAmount,
+      );
+
+      await tx.wallet.update({
+        where: { userId: order.userId },
+        data: { firmBalance: nextFirmBalance },
+      });
+
+      await tx.walletTransaction.create({
+        data: {
+          userId: order.userId,
+          txType: "FIRM_ORDER_CREDIT",
+          direction: "CREDIT",
+          balanceBucket: "FIRM",
+          refType: "order",
+          refId: order.id,
+          amount: rewardAmount,
+          status: "POSTED",
+          note: "Firm wallet credit from approved order",
+        },
+      });
+
+      return {
+        userId: order.userId.toString(),
+        amount: rewardAmount,
+        firmBalance: nextFirmBalance,
         sourceOrderId: order.id.toString(),
       };
     });
