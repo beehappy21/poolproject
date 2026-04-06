@@ -42,6 +42,7 @@ export const Header: React.FC<Props> = ({
   });
 
   const dispatch = hooks.useAppDispatch();
+  const user = hooks.useAppSelector((state: RootState) => state.userSlice.user);
 
   useEffect(() => {
     if (modal) {
@@ -61,10 +62,33 @@ export const Header: React.FC<Props> = ({
     (state: RootState) => state.cartSlice.total,
   );
 
+  const openProtectedTab = (
+    screen: 'Order' | 'Profile',
+    loginMessage: string,
+  ) => {
+    if (!user?.accessToken) {
+      navigate('/SignIn', {
+        state: {
+          returnTo: '/TabNavigator',
+          tabScreen: screen,
+          loginMessage,
+        },
+      });
+      return;
+    }
+
+    dispatch(actions.setScreen(screen));
+    navigate('/TabNavigator');
+  };
+
   const handleOnClick = () => {
+    if (!user?.accessToken) {
+      openProtectedTab('Order', 'กรุณาเข้าสู่ระบบก่อนสั่งซื้อสินค้า');
+      return;
+    }
+
     if (cart.length > 0) {
-      dispatch(actions.setScreen('Order'));
-      navigate('/TabNavigator');
+      openProtectedTab('Order', 'กรุณาเข้าสู่ระบบก่อนสั่งซื้อสินค้า');
       return;
     }
 
@@ -226,9 +250,17 @@ export const Header: React.FC<Props> = ({
     const quickLinks = [
       {label: 'หน้าแรก', onClick: () => dispatch(actions.setScreen('Home'))},
       {label: 'สินค้า', onClick: () => dispatch(actions.setScreen('Search'))},
-      {label: 'ตะกร้า', onClick: () => dispatch(actions.setScreen('Order'))},
+      {
+        label: 'ตะกร้า',
+        onClick: () =>
+          openProtectedTab('Order', 'กรุณาเข้าสู่ระบบก่อนสั่งซื้อสินค้า'),
+      },
       {label: 'ประวัติคำสั่งซื้อ', onClick: () => navigate('/OrderHistory')},
-      {label: 'โปรไฟล์', onClick: () => dispatch(actions.setScreen('Profile'))},
+      {
+        label: 'โปรไฟล์',
+        onClick: () =>
+          openProtectedTab('Profile', 'กรุณาเข้าสู่ระบบก่อนเข้าใช้งานโปรไฟล์'),
+      },
       {label: 'ออกจากระบบ', onClick: () => navigate('/SignOut')},
     ];
 
@@ -279,7 +311,12 @@ export const Header: React.FC<Props> = ({
                   link.label === 'ตะกร้า' ||
                   link.label === 'โปรไฟล์'
                 ) {
-                  navigate('/TabNavigator');
+                  if (link.label === 'หน้าแรก') {
+                    navigate('/');
+                  } else if (link.label === 'สินค้า') {
+                    dispatch(actions.setScreen('Search'));
+                    navigate('/TabNavigator');
+                  }
                 }
               }}
               style={{

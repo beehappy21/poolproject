@@ -1,10 +1,11 @@
 import React from 'react';
-import {useNavigate} from 'react-router-dom';
+import {useLocation, useNavigate} from 'react-router-dom';
 
 import {hooks} from '../hooks';
 import {svg} from '../assets/svg';
 import {theme} from '../constants';
 import {actions} from '../store/actions';
+import {RootState} from '../store';
 
 const tabs = [
   {
@@ -42,8 +43,65 @@ const tabs = [
 export const BottomTabBar: React.FC = () => {
   const dispatch = hooks.useAppDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
+  const user = hooks.useAppSelector((state: RootState) => state.userSlice.user);
 
   const currentTabScreen = hooks.useAppSelector(state => state.tabSlice.screen);
+  const isAuthenticated = Boolean(user?.accessToken);
+  const isPublicCatalogRoute =
+    location.pathname === '/' ||
+    location.pathname === '/Product' ||
+    location.pathname === '/Shop' ||
+    location.pathname === '/Reviews' ||
+    location.pathname === '/Description';
+
+  const activeTabName = (() => {
+    if (!isAuthenticated && isPublicCatalogRoute) {
+      return location.pathname === '/Shop' ? 'Search' : 'Home';
+    }
+
+    return currentTabScreen;
+  })();
+
+  const openProtectedTab = (
+    tabName: 'Order' | 'Wishlist' | 'Profile',
+    loginMessage: string,
+  ) => {
+    navigate('/SignIn', {
+      state: {
+        returnTo: '/TabNavigator',
+        tabScreen: tabName,
+        loginMessage,
+      },
+    });
+  };
+
+  const handleTabClick = (tabName: string) => {
+    if (!isAuthenticated) {
+      if (tabName === 'Home' || tabName === 'Search') {
+        navigate('/');
+        return;
+      }
+
+      if (tabName === 'Order') {
+        openProtectedTab('Order', 'กรุณาเข้าสู่ระบบก่อนสั่งซื้อสินค้า');
+        return;
+      }
+
+      if (tabName === 'Wishlist') {
+        openProtectedTab('Wishlist', 'กรุณาเข้าสู่ระบบก่อนดูรายการโปรด');
+        return;
+      }
+
+      if (tabName === 'Profile') {
+        openProtectedTab('Profile', 'กรุณาเข้าสู่ระบบก่อนเข้าใช้งานโปรไฟล์');
+        return;
+      }
+    }
+
+    dispatch(actions.setScreen(tabName));
+    navigate('/TabNavigator');
+  };
 
   return (
     <nav
@@ -73,10 +131,7 @@ export const BottomTabBar: React.FC = () => {
           <button
             key={tab.id}
             type='button'
-            onClick={() => {
-              dispatch(actions.setScreen(tab.name));
-              navigate('/TabNavigator');
-            }}
+            onClick={() => handleTabClick(tab.name)}
             style={{
               display: 'flex',
               flexDirection: 'column',
@@ -94,7 +149,7 @@ export const BottomTabBar: React.FC = () => {
           >
             <tab.icon
               color={
-                currentTabScreen === tab.name
+                activeTabName === tab.name
                   ? theme.colors.mainYellow
                   : '#8C99B1'
               }
@@ -104,7 +159,7 @@ export const BottomTabBar: React.FC = () => {
                 fontSize: 11,
                 lineHeight: 1.2,
                 color:
-                  currentTabScreen === tab.name
+                  activeTabName === tab.name
                     ? theme.colors.mainYellow
                     : '#8C99B1',
                 ...theme.fonts.Mulish_700Bold,
