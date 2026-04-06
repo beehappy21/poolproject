@@ -36,7 +36,6 @@ const PRODUCT_BATCH_SIZE = 20;
 const BANNER_INSERT_INTERVAL = 8;
 const MOBILE_BREAKPOINT = 768;
 const CATEGORY_VISIBLE_COUNT = 5;
-const HOME_HEADER_HEIGHT = 64;
 const HOME_CACHE_KEY = 'stephub-home-cache-v1';
 const HOME_REQUEST_TIMEOUT_MS = 10000;
 const HOME_SLIDE_INTERVAL_MS = 3000;
@@ -468,7 +467,7 @@ export const Home: FC = () => {
 
   const renderCarousel = (): JSX.Element | null => {
     if (!carouselData.length) {
-      return null;
+      return lightweightPublicMode ? renderBannerBlock(0) : null;
     }
 
     const safeActiveSlideIndex =
@@ -479,7 +478,7 @@ export const Home: FC = () => {
     const imageUrl = activeSlide?.image;
 
     if (!imageUrl) {
-      return null;
+      return lightweightPublicMode ? renderBannerBlock(0) : null;
     }
 
     return (
@@ -874,7 +873,7 @@ export const Home: FC = () => {
     return (
       <main
         style={{
-          paddingTop: HOME_HEADER_HEIGHT + 16,
+          paddingTop: 0,
           paddingBottom: 96,
           paddingLeft: 20,
           paddingRight: 20,
@@ -898,7 +897,7 @@ export const Home: FC = () => {
     return (
       <main
         style={{
-          paddingTop: HOME_HEADER_HEIGHT + 16,
+          paddingTop: 0,
           paddingBottom: 96,
           paddingLeft: 20,
           paddingRight: 20,
@@ -949,7 +948,7 @@ export const Home: FC = () => {
     return (
       <main
         style={{
-          paddingTop: HOME_HEADER_HEIGHT + 14,
+          paddingTop: 0,
           paddingBottom: 92,
           paddingLeft: 20,
           paddingRight: 20,
@@ -987,7 +986,7 @@ export const Home: FC = () => {
         ) : null}
         {renderCarousel()}
         {renderCategories()}
-        {!lightweightPublicMode ? renderBannerBlock(0) : null}
+        {renderBannerBlock(0)}
         {renderProductGrid()}
       </main>
     );

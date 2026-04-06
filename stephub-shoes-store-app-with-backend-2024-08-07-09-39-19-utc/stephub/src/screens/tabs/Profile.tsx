@@ -429,6 +429,15 @@ export const Profile: React.FC = () => {
   };
 
   const renderUserInfo = (): JSX.Element => {
+    const connectedName =
+      lineBinding?.displayName || user?.lineDisplayName || lineProfile?.displayName || '';
+    const isConnected = Boolean(lineBinding?.lineUserId);
+    const buttonLabel = !lineProfile?.userId
+      ? 'เชื่อมต่อ LINE'
+      : isConnected
+        ? 'เชื่อมใหม่'
+        : 'ยืนยันการเชื่อม';
+
     return (
       <div
         style={{
@@ -465,18 +474,49 @@ export const Profile: React.FC = () => {
             }}
           />
         </div>
-        <div style={{minWidth: 0, display: 'flex', flexDirection: 'column'}}>
-          <h3
+        <div style={{minWidth: 0, display: 'flex', flexDirection: 'column', flex: 1}}>
+          <div
             style={{
-              fontSize: 20,
-              marginBottom: 4,
-              fontWeight: 'bold',
-              ...theme.fonts.Mulish_700Bold,
-              color: theme.colors.mainColor,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
             }}
           >
-            {user?.name || 'Stephub Member'}
-          </h3>
+            <h3
+              style={{
+                fontSize: 20,
+                marginBottom: 4,
+                fontWeight: 'bold',
+                ...theme.fonts.Mulish_700Bold,
+                color: theme.colors.mainColor,
+                minWidth: 0,
+                flex: 1,
+              }}
+            >
+              {user?.name || 'Stephub Member'}
+            </h3>
+            <button
+              onClick={handleConnectLine}
+              disabled={lineLoading}
+              style={{
+                border: 'none',
+                minWidth: 66,
+                height: 24,
+                borderRadius: 999,
+                cursor: 'pointer',
+                backgroundColor: '#06C755',
+                color: '#FFFFFF',
+                padding: '0 8px',
+                flexShrink: 0,
+                opacity: lineLoading ? 0.7 : 1,
+                fontSize: 11,
+                ...theme.fonts.Mulish_700Bold,
+              }}
+            >
+              {lineLoading ? 'กำลังเชื่อม...' : buttonLabel}
+            </button>
+          </div>
           <span
             style={{
               fontSize: 14,
@@ -487,6 +527,33 @@ export const Profile: React.FC = () => {
           >
             {user?.email || user?.memberCode || 'Sign in to view your account'}
           </span>
+          {lineStatusMessage ? (
+            <span
+              style={{
+                marginTop: 6,
+                fontSize: 12,
+                lineHeight: 1.5,
+                color: lineStatusMessage.includes('ไม่สำเร็จ')
+                  ? theme.colors.coralRed
+                  : '#15803D',
+                ...theme.fonts.Mulish_400Regular,
+              }}
+            >
+              {lineStatusMessage}
+            </span>
+          ) : connectedName ? (
+            <span
+              style={{
+                marginTop: 6,
+                fontSize: 12,
+                lineHeight: 1.5,
+                color: '#64748B',
+                ...theme.fonts.Mulish_400Regular,
+              }}
+            >
+              LINE: {connectedName}
+            </span>
+          ) : null}
         </div>
       </div>
     );
@@ -499,6 +566,32 @@ export const Profile: React.FC = () => {
           title='Personal info'
           icon={<svg.UserSvg />}
           onClick={() => navigate('/EditProfile')}
+        />
+        <items.ProfileItem
+          title='คอมมิชชั่น / Commission'
+          onClick={() => {
+            navigate('/Commission');
+          }}
+          goNavigation={true}
+          icon={
+            <svg.MailSvg
+              circleColor='#E8EFF4'
+              iconColor='#60708E'
+            />
+          }
+        />
+        <items.ProfileItem
+          title='ทีมงาน / Team member'
+          onClick={() => {
+            navigate('/TeamMember');
+          }}
+          goNavigation={true}
+          icon={
+            <svg.SmartPhoneSvg
+              circleColor='#E8EFF4'
+              iconColor='#60708E'
+            />
+          }
         />
         <items.ProfileItem
           title='เติม Wallet / Top up wallet'
@@ -524,32 +617,6 @@ export const Profile: React.FC = () => {
             navigate('/MyPromocodes');
             // navigate('/MyPromocodesEmpty');
           }}
-        />
-        <items.ProfileItem
-          title='ทีมงาน / Team member'
-          onClick={() => {
-            navigate('/TeamMember');
-          }}
-          goNavigation={true}
-          icon={
-            <svg.SmartPhoneSvg
-              circleColor='#E8EFF4'
-              iconColor='#60708E'
-            />
-          }
-        />
-        <items.ProfileItem
-          title='คอมมิชชั่น / Commission'
-          onClick={() => {
-            navigate('/Commission');
-          }}
-          goNavigation={true}
-          icon={
-            <svg.MailSvg
-              circleColor='#E8EFF4'
-              iconColor='#60708E'
-            />
-          }
         />
         <items.ProfileItem
           title='เปลี่ยนรหัสผ่าน / Change password'
@@ -581,8 +648,8 @@ export const Profile: React.FC = () => {
           marginBottom: 24,
           marginLeft: 20,
           marginRight: 20,
-          padding: 12,
-          borderRadius: 16,
+          padding: 7,
+          borderRadius: 10,
           backgroundColor: '#F4F7FB',
           border: `1px solid ${theme.colors.aliceBlue2}`,
         }}
@@ -590,7 +657,7 @@ export const Profile: React.FC = () => {
         <div
           style={{
             display: 'grid',
-            gap: 12,
+            gap: 7,
             minWidth: 0,
             gridTemplateColumns: 'minmax(0, 1fr) auto auto auto',
           }}
@@ -599,14 +666,15 @@ export const Profile: React.FC = () => {
             style={{
               flex: 1,
               minWidth: 0,
-              padding: '10px 12px',
-              borderRadius: 12,
+              padding: '6px 8px',
+              borderRadius: 7,
               backgroundColor: theme.colors.white,
               border: `1px solid ${theme.colors.aliceBlue2}`,
               color: theme.colors.mainColor,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
+              fontSize: 11,
               ...theme.fonts.Mulish_600SemiBold,
             }}
             title={referralLink}
@@ -617,15 +685,16 @@ export const Profile: React.FC = () => {
             onClick={handleCopyReferralLink}
             style={{
               border: 'none',
-              width: 42,
-              height: 42,
-              borderRadius: 12,
+              width: 25,
+              height: 25,
+              borderRadius: 7,
               cursor: 'pointer',
               backgroundColor: theme.colors.mainColor,
               color: theme.colors.mainYellow,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              fontSize: 11,
               ...theme.fonts.Mulish_700Bold,
             }}
             title='Copy'
@@ -636,17 +705,17 @@ export const Profile: React.FC = () => {
             onClick={handleShareViaLine}
             style={{
               border: 'none',
-              minWidth: 58,
-              height: 42,
-              borderRadius: 12,
+              minWidth: 35,
+              height: 25,
+              borderRadius: 7,
               cursor: 'pointer',
               backgroundColor: '#06C755',
               color: '#FFFFFF',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: 13,
-              padding: '0 12px',
+              fontSize: 10,
+              padding: '0 7px',
               ...theme.fonts.Mulish_700Bold,
             }}
             title='Share via LINE'
@@ -657,16 +726,16 @@ export const Profile: React.FC = () => {
             onClick={handleShareReferralLink}
             style={{
               border: 'none',
-              width: 42,
-              height: 42,
-              borderRadius: 12,
+              width: 25,
+              height: 25,
+              borderRadius: 7,
               cursor: 'pointer',
               backgroundColor: '#F59E0B',
               color: '#1F2937',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: 18,
+              fontSize: 11,
               ...theme.fonts.Mulish_700Bold,
             }}
             title='Share'
@@ -692,141 +761,10 @@ export const Profile: React.FC = () => {
     );
   };
 
-  const renderLineBindingCard = (): JSX.Element => {
-    const connectedName =
-      lineBinding?.displayName || user?.lineDisplayName || lineProfile?.displayName || '';
-    const isConnected = Boolean(lineBinding?.lineUserId);
-    const buttonLabel = !lineProfile?.userId
-      ? 'เชื่อมต่อ LINE'
-      : isConnected
-        ? 'เชื่อมใหม่'
-        : 'ยืนยันการเชื่อม';
-    const helperMessage = isConnected
-      ? 'ถ้าเปลี่ยนบัญชี LINE หรืออยากอัปเดตโปรไฟล์ ให้กดเชื่อมใหม่'
-      : lineProfile?.displayName
-        ? 'ตรวจพบ LINE profile แล้ว กดยืนยันการเชื่อมเพื่อผูกกับบัญชีสมาชิกนี้'
-        : 'ถ้ายังไม่เคยผูก LINE ให้กดเชื่อมต่อ LINE ระบบจะพากลับไป LINE แล้วเชื่อมให้';
-    const recoveryMessage = isConnected
-      ? 'ถ้าเชื่อมใหม่ไม่สำเร็จ ให้ปิดหน้า LINE แล้วลองกดอีกครั้งจาก Profile'
-      : lineProfile?.displayName
-        ? 'ขั้นตอนถัดไป: 1. กดยืนยันการเชื่อม 2. รอข้อความสำเร็จ 3. ครั้งหน้าจะใช้ LINE login ได้ทันที'
-        : 'ขั้นตอนถัดไป: 1. กดเชื่อมต่อ LINE 2. login LINE ถ้าระบบถาม 3. กลับมาที่ Profile แล้วกดยืนยันอีกครั้งถ้ายังไม่ผูกอัตโนมัติ';
-
-    return (
-      <div
-        style={{
-          marginBottom: 24,
-          marginLeft: 20,
-          marginRight: 20,
-          padding: 16,
-          borderRadius: 16,
-          backgroundColor: '#F8FAFC',
-          border: '1px solid #E2E8F0',
-        }}
-      >
-        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12}}>
-          <div style={{minWidth: 0}}>
-            <div
-              style={{
-                color: theme.colors.mainColor,
-                fontSize: 18,
-                marginBottom: 4,
-                ...theme.fonts.Mulish_700Bold,
-              }}
-            >
-              LINE account
-            </div>
-            <div
-              style={{
-                color: theme.colors.textColor,
-                fontSize: 14,
-                lineHeight: 1.6,
-                ...theme.fonts.Mulish_400Regular,
-              }}
-            >
-              {isConnected
-                ? `เชื่อมแล้วกับ LINE: ${connectedName || lineBinding?.lineUserId}`
-                : lineProfile?.displayName
-                  ? `พบ LINE profile: ${lineProfile.displayName}`
-                  : 'ยังไม่ได้เชื่อม LINE กับบัญชีนี้'}
-            </div>
-            <div
-              style={{
-                marginTop: 4,
-                color: '#64748B',
-                fontSize: 12,
-                lineHeight: 1.6,
-                ...theme.fonts.Mulish_400Regular,
-              }}
-            >
-              {helperMessage}
-            </div>
-            <div
-              style={{
-                marginTop: 4,
-                color: '#94A3B8',
-                fontSize: 12,
-                lineHeight: 1.6,
-                ...theme.fonts.Mulish_400Regular,
-              }}
-            >
-              {recoveryMessage}
-            </div>
-          </div>
-          <button
-            onClick={handleConnectLine}
-            disabled={lineLoading}
-            style={{
-              border: 'none',
-              minWidth: 116,
-              height: 42,
-              borderRadius: 12,
-              cursor: 'pointer',
-              backgroundColor: '#06C755',
-              color: '#FFFFFF',
-              padding: '0 14px',
-              opacity: lineLoading ? 0.7 : 1,
-              ...theme.fonts.Mulish_700Bold,
-            }}
-          >
-            {lineLoading ? 'กำลังเชื่อม...' : buttonLabel}
-          </button>
-        </div>
-        {lineBinding?.boundAt ? (
-          <div
-            style={{
-              marginTop: 10,
-              color: '#64748B',
-              fontSize: 12,
-              ...theme.fonts.Mulish_400Regular,
-            }}
-          >
-            เชื่อมล่าสุด: {lineBinding.lastSyncedAt || lineBinding.boundAt}
-          </div>
-        ) : null}
-        {lineStatusMessage ? (
-          <div
-            style={{
-              marginTop: 10,
-              color: lineStatusMessage.includes('ไม่สำเร็จ')
-                ? theme.colors.coralRed
-                : '#15803D',
-              fontSize: 12,
-              ...theme.fonts.Mulish_400Regular,
-            }}
-          >
-            {lineStatusMessage}
-          </div>
-        ) : null}
-      </div>
-    );
-  };
-
   const renderContent = () => {
     return (
       <div style={{paddingTop: 40, paddingBottom: 64 + 30}}>
         {renderUserInfo()}
-        {renderLineBindingCard()}
         {renderReferralCard()}
         {renderMenu()}
       </div>

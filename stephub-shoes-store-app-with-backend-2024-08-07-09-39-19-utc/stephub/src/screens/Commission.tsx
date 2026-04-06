@@ -436,9 +436,6 @@ export const Commission: React.FC = () => {
   const [convertError, setConvertError] = useState('');
   const [metrics, setMetrics] = useState<DashboardMetrics>(defaultMetrics);
   const [matrixData, setMatrixData] = useState<MatrixResponse>({cycles: []});
-  const [reentrySubmitting, setReentrySubmitting] = useState(false);
-  const [reentryMessage, setReentryMessage] = useState('');
-  const [reentryError, setReentryError] = useState('');
   const [viewportWidth, setViewportWidth] = useState<number>(() =>
     typeof window === 'undefined' ? 1440 : window.innerWidth,
   );
@@ -756,12 +753,11 @@ export const Commission: React.FC = () => {
     () => resolveActiveMatrixCycle(matrixData),
     [matrixData],
   );
-  const reentryEnabled = matrixData.reentryEnabled !== false;
   const reentryEligible = useMemo(
     () => canRequestManualReentry(activeCycle),
     [activeCycle],
   );
-  const reentryCwAmount = useMemo(
+  const autoOrderAmount = useMemo(
     () => parseDecimal(activeCycle?.cwReentryAmount || metrics.swReentryTarget),
     [activeCycle?.cwReentryAmount, metrics.swReentryTarget],
   );
@@ -770,14 +766,13 @@ export const Commission: React.FC = () => {
     return Math.max(parseDecimal(metrics.cwTotal), 0);
   }, [metrics.cwTotal]);
 
-  const reentryReady = useMemo(() => {
+  const autoOrderReady = useMemo(() => {
     return (
-      reentryEnabled &&
       reentryEligible &&
-      reentryCwAmount > 0 &&
-      cwAvailableForDisplay >= reentryCwAmount
+      autoOrderAmount > 0 &&
+      cwAvailableForDisplay >= autoOrderAmount
     );
-  }, [cwAvailableForDisplay, reentryCwAmount, reentryEligible, reentryEnabled]);
+  }, [autoOrderAmount, cwAvailableForDisplay, reentryEligible]);
 
   const cwRecentEntries = useMemo(() => {
     return commissionEntries
@@ -1221,47 +1216,6 @@ export const Commission: React.FC = () => {
       );
     } finally {
       setConvertSubmitting(false);
-    }
-  };
-
-  const handleToggleMatrixReentry = async () => {
-    if (!user?.accessToken) {
-      setReentryError('ต้องมี session ก่อนจึงจะตั้งค่า reentry ได้');
-      return;
-    }
-
-    setReentrySubmitting(true);
-    setReentryMessage('');
-    setReentryError('');
-
-    try {
-      const response = await axios.post(
-        URLS.AUTH_MATRIX_REENTRY_PREFERENCE,
-        {enabled: !reentryEnabled},
-        {
-          headers: {
-            Authorization: `Bearer ${user.accessToken}`,
-          },
-          withCredentials: true,
-        },
-      );
-
-      const nextRoundNo = response.data?.openedReentry?.roundNo;
-      const enabled = response.data?.enabled !== false;
-      setReentryMessage(
-        enabled
-          ? nextRoundNo
-            ? `เปิดใช้งาน reentry แล้ว และระบบเปิดรอบ ${nextRoundNo} ให้ทันที`
-            : 'เปิดใช้งาน reentry แล้ว'
-          : 'ปิดใช้งาน reentry แล้ว',
-      );
-      await loadCommissionPage();
-    } catch (error: any) {
-      setReentryError(
-        error?.response?.data?.message || 'ยังไม่สามารถเปลี่ยนสถานะ reentry ได้ในขณะนี้',
-      );
-    } finally {
-      setReentrySubmitting(false);
     }
   };
 
@@ -1809,17 +1763,11 @@ const getBoardStatusLabel = (board: MatrixBoardSummary) => {
             >
               {formatDecimal(cwAvailableForDisplay)}
             </div>
-            {reentryEnabled ? (
-              <div style={{marginTop: 8, color: theme.colors.textColor}}>
-                {reentryReady
-                  ? `ครบเงื่อนไขแล้ว ระบบจะใช้ CW ${formatDecimal(reentryCwAmount)} เปิดรอบถัดไป`
-                  : `เปิด reentry ไว้แล้ว ระบบจะใช้ CW ${formatDecimal(reentryCwAmount)} เมื่อ Board 1 ครบ 6 จุด`}
-              </div>
-            ) : (
-              <div style={{marginTop: 8, color: theme.colors.textColor}}>
-                ปิด reentry อยู่ ระบบจะยังไม่ดึง CW ไปเปิดรอบถัดไป
-              </div>
-            )}
+            <div style={{marginTop: 8, color: theme.colors.textColor}}>
+              {autoOrderReady
+                ? `ครบเงื่อนไขแล้ว ระบบจะใช้ CW ${formatDecimal(autoOrderAmount)} สำหรับ Auto Order รอบถัดไป`
+                : `ระบบเตรียม Auto Order ไว้ที่ CW ${formatDecimal(autoOrderAmount)} และจะใช้เมื่อ Board 1 ครบตามกติกา`}
+            </div>
             <div
               style={{
                 marginTop: 8,
@@ -1828,7 +1776,7 @@ const getBoardStatusLabel = (board: MatrixBoardSummary) => {
                 lineHeight: 1.5,
               }}
             >
-              CW สำหรับ reentry คือยอดคงเหลือจากทุกแผนคอมที่เข้า CW และยังไม่ถูกแปลงเป็น SW
+              CW ก้อนนี้คือยอดคงเหลือที่ระบบจะใช้สำหรับ Auto Order ตามกติกา matrix
             </div>
           </div>
 
@@ -2301,64 +2249,36 @@ const getBoardStatusLabel = (board: MatrixBoardSummary) => {
                       ...theme.fonts.Mulish_700Bold,
                     }}
                   >
-                    Reentry
+                    Auto Order
                   </span>
-                  <button
-                    type='button'
-                    disabled={reentrySubmitting}
-                    onClick={event => {
-                      event.stopPropagation();
-                      handleToggleMatrixReentry();
-                    }}
+                  <div
                     style={{
-                      border: 'none',
+                      display: 'grid',
+                      gap: 2,
+                      justifyItems: 'center',
                       borderRadius: 999,
                       padding: '8px 14px',
-                      cursor: reentrySubmitting ? 'not-allowed' : 'pointer',
-                      backgroundColor: reentryEnabled ? '#16A34A' : '#94A3B8',
-                      color: '#FFFFFF',
-                      minWidth: 88,
-                      opacity: reentrySubmitting ? 0.8 : 1,
+                      backgroundColor: autoOrderReady ? '#16A34A' : '#E2E8F0',
+                      color: autoOrderReady ? '#FFFFFF' : '#334155',
+                      minWidth: 112,
                       ...theme.fonts.Mulish_700Bold,
                     }}
                   >
-                    {reentrySubmitting
-                      ? '...'
-                      : reentryEnabled
-                        ? 'ON'
-                        : 'OFF'}
-                  </button>
+                    <span>CW {formatDecimal(autoOrderAmount)}</span>
+                    <span
+                      style={{
+                        fontSize: 10,
+                        lineHeight: 1.1,
+                        opacity: autoOrderReady ? 0.86 : 0.72,
+                        ...theme.fonts.Mulish_400Regular,
+                      }}
+                    >
+                      {autoOrderReady ? 'พร้อมใช้' : 'รอครบเงื่อนไข'}
+                    </span>
+                  </div>
                 </div>
               </div>
             </section>
-
-            {reentryMessage ? (
-              <section
-                style={{
-                  marginBottom: 16,
-                  padding: '12px 14px',
-                  borderRadius: 14,
-                  backgroundColor: '#DCFCE7',
-                  color: '#166534',
-                }}
-              >
-                {reentryMessage}
-              </section>
-            ) : null}
-
-            {reentryError ? (
-              <section
-                style={{
-                  marginBottom: 16,
-                  padding: '12px 14px',
-                  borderRadius: 14,
-                  backgroundColor: '#FEE2E2',
-                  color: '#B91C1C',
-                }}
-              >
-                {reentryError}
-              </section>
-            ) : null}
 
             <section
               style={{
