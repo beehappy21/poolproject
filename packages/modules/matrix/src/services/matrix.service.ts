@@ -420,6 +420,8 @@ export class MatrixService implements MatrixServiceContract {
           parentSlotNo: selected.parentSlotNo,
         };
       }
+
+      return null;
     }
 
     if (input.board.roundNo === 1 && input.board.boardNo > 1) {
@@ -511,6 +513,16 @@ export class MatrixService implements MatrixServiceContract {
     slotCount: number;
   }): Promise<number | null> {
     const sponsorChain = await this.getSponsorChainIds(input.sourceUserId);
+    const directSponsorId = sponsorChain[0] ?? null;
+
+    if (directSponsorId && input.placedSlotByUserId.has(directSponsorId)) {
+      return this.findFirstAvailableDescendantSlot({
+        anchorSlotNo: input.placedSlotByUserId.get(directSponsorId) ?? null,
+        occupiedSlots: input.occupiedSlots,
+        slotCount: input.slotCount,
+      });
+    }
+
     const relevantAncestors = sponsorChain.filter(
       (ancestorId) =>
         ancestorId === input.beneficiaryUserId || input.placedSlotByUserId.has(ancestorId),

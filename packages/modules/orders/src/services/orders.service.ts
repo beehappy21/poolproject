@@ -573,11 +573,20 @@ export class OrdersService implements OrdersServiceContract {
     return this.withApprovedOrderLock(orderId, async () => {
       const approvedOrder = await this.handleApprovedOrderEvent(orderId);
       if (approvedOrder.orderSourceType === "matrix_reentry") {
+        const matrixFlow = await this.matrixService.handleApprovedOrderMatrixSource({
+          orderId: approvedOrder.orderId,
+          sourceUserId: approvedOrder.sourceUserId,
+          approvedAt: approvedOrder.approvedAt,
+          totalPv: approvedOrder.totalPv,
+          matrixSettingsSnapshot: approvedOrder.matrixSettingsSnapshot,
+        });
+        await this.createMatrixAutoOrderAuditOrders(matrixFlow);
+
         return this.buildApprovedOrderResultFromEntries(
           approvedOrder,
           [],
           [],
-          this.buildSkippedMatrixFlow(approvedOrder),
+          matrixFlow,
         );
       }
 

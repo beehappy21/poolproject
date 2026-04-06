@@ -34,7 +34,7 @@ const DEFAULT_SETTINGS: MatrixSettings = {
   reentryPvAmount: "500",
   levelRates: ["0.15", "0.15", "0.15"],
   boardLevelRates: [
-    ["0.15", "0.15", "0.15"],
+    ["0.20", "0.20", "0.20"],
     ["0.1", "0.1"],
     ["0.2", "0.2"],
   ],
