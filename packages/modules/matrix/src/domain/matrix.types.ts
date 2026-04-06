@@ -59,6 +59,7 @@ export interface MatrixOrderProcessingResult {
     cycleId: string;
     userId: string;
     matrixEventId: string;
+    reorderId?: string;
     sourceBoardId: string;
     roundNo: number;
     autoOrderAmount: string;

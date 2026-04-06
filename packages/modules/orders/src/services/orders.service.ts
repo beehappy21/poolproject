@@ -380,7 +380,13 @@ export class OrdersService implements OrdersServiceContract {
     firmWalletAmount?: string;
     cashPaymentMethod?: string;
   }) {
-    return this.ordersRepository.createOrder(input);
+    const order = await this.ordersRepository.createOrder(input);
+
+    if (order.approvalStatus === "approved") {
+      await this.handleApprovedOrder(order.orderId);
+    }
+
+    return order;
   }
 
   async submitTransferSlip(input: {
@@ -446,6 +452,7 @@ export class OrdersService implements OrdersServiceContract {
     openedAutoOrders?: Array<{
       userId: string;
       matrixEventId: string;
+      reorderId?: string;
       sourceBoardId: string;
       roundNo: number;
       autoOrderAmount: string;
@@ -454,6 +461,7 @@ export class OrdersService implements OrdersServiceContract {
     openedReentries?: Array<{
       userId: string;
       matrixEventId: string;
+      reorderId?: string;
       sourceBoardId: string;
       roundNo: number;
       reentryAmount: string;
@@ -470,6 +478,7 @@ export class OrdersService implements OrdersServiceContract {
     openedAutoOrders?: Array<{
       userId: string;
       matrixEventId: string;
+      reorderId?: string;
       sourceBoardId: string;
       roundNo: number;
       autoOrderAmount: string;
@@ -478,6 +487,7 @@ export class OrdersService implements OrdersServiceContract {
     openedReentries?: Array<{
       userId: string;
       matrixEventId: string;
+      reorderId?: string;
       sourceBoardId: string;
       roundNo: number;
       reentryAmount: string;
@@ -563,11 +573,20 @@ export class OrdersService implements OrdersServiceContract {
     return this.withApprovedOrderLock(orderId, async () => {
       const approvedOrder = await this.handleApprovedOrderEvent(orderId);
       if (approvedOrder.orderSourceType === "matrix_reentry") {
+        const matrixFlow = await this.matrixService.handleApprovedOrderMatrixSource({
+          orderId: approvedOrder.orderId,
+          sourceUserId: approvedOrder.sourceUserId,
+          approvedAt: approvedOrder.approvedAt,
+          totalPv: approvedOrder.totalPv,
+          matrixSettingsSnapshot: approvedOrder.matrixSettingsSnapshot,
+        });
+        await this.createMatrixAutoOrderAuditOrders(matrixFlow);
+
         return this.buildApprovedOrderResultFromEntries(
           approvedOrder,
           [],
           [],
-          this.buildSkippedMatrixFlow(approvedOrder),
+          matrixFlow,
         );
       }
 
@@ -591,6 +610,7 @@ export class OrdersService implements OrdersServiceContract {
               });
         await this.createMatrixAutoOrderAuditOrders(matrixFlow);
         const walletPostingInputs = await this.postCommissionWalletEntries(orderId);
+        await this.walletsService.creditFirmWalletFromApprovedOrder({ orderId });
         await this.walletsService.creditDiscountWalletFromApprovedOrder({ orderId });
 
         return this.buildApprovedOrderResultFromEntries(
@@ -609,8 +629,7 @@ export class OrdersService implements OrdersServiceContract {
         cycles: [],
       });
 
-      const commissionFlow =
-        await this.commissionsService.handleApprovedOrderCommissionSource(orderId);
+      await this.commissionsService.handleApprovedOrderCommissionSource(orderId);
       const matrixFlow =
         commissionSettings.appVisibility.matrix === false
           ? this.buildSkippedMatrixFlow(approvedOrder)
@@ -630,6 +649,7 @@ export class OrdersService implements OrdersServiceContract {
       }
 
       const walletPostingInputs = await this.postCommissionWalletEntries(orderId);
+      await this.walletsService.creditFirmWalletFromApprovedOrder({ orderId });
       await this.walletsService.creditDiscountWalletFromApprovedOrder({ orderId });
 
       return this.buildApprovedOrderResultFromEntries(
@@ -687,6 +707,7 @@ export class OrdersService implements OrdersServiceContract {
     openedAutoOrders?: Array<{
       userId: string;
       matrixEventId: string;
+      reorderId?: string;
       sourceBoardId: string;
       roundNo: number;
       autoOrderAmount: string;
@@ -695,6 +716,7 @@ export class OrdersService implements OrdersServiceContract {
     openedReentries?: Array<{
       userId: string;
       matrixEventId: string;
+      reorderId?: string;
       sourceBoardId: string;
       roundNo: number;
       reentryAmount: string;
@@ -713,7 +735,7 @@ export class OrdersService implements OrdersServiceContract {
     for (const openedAutoOrder of openedAutoOrders) {
       const autoOrder = await this.ordersRepository.createMatrixAutoOrderAuditOrder({
         userId: openedAutoOrder.userId,
-        matrixEventId: openedAutoOrder.matrixEventId,
+        matrixEventId: openedAutoOrder.reorderId ?? openedAutoOrder.matrixEventId,
         sourceBoardId: openedAutoOrder.sourceBoardId,
         roundNo: openedAutoOrder.roundNo,
         amount: openedAutoOrder.autoOrderAmount,
@@ -722,9 +744,16 @@ export class OrdersService implements OrdersServiceContract {
 
       await this.walletsService.creditFirmWalletFromMatrixAutoOrder({
         userId: openedAutoOrder.userId,
-        matrixEventId: openedAutoOrder.matrixEventId,
+        matrixEventId: openedAutoOrder.reorderId ?? openedAutoOrder.matrixEventId,
         amount: openedAutoOrder.autoOrderAmount,
       });
+
+      if (openedAutoOrder.reorderId) {
+        await this.matrixService.completeMatrixReorder({
+          reorderId: openedAutoOrder.reorderId,
+          orderId: autoOrder.orderId,
+        });
+      }
 
       // Newly-created auto orders must be fully settled before the next
       // normal invoice is processed, otherwise matrix/commission state drifts.

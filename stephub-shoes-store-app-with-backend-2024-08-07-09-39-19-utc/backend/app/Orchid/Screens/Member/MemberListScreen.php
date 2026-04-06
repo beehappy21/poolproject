@@ -4,6 +4,7 @@ namespace App\Orchid\Screens\Member;
 
 use App\Models\Member;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Orchid\Screen\Actions\Link;
 use Orchid\Screen\Fields\Input;
 use Orchid\Screen\Screen;
@@ -16,6 +17,16 @@ class MemberListScreen extends Screen
     {
         $search = trim((string) $request->query('search', ''));
         $members = Member::member003()
+            ->select('User.*')
+            ->selectSub(
+                DB::connection('poolproject')
+                    ->table('MatrixCycle')
+                    ->selectRaw('COALESCE("personalCarryPv", 0)')
+                    ->whereColumn('MatrixCycle.userId', 'User.id')
+                    ->orderByDesc('cycleNo')
+                    ->limit(1),
+                'pv_hold'
+            )
             ->with(['memberProfile', 'sponsor'])
             ->orderBy('id');
 
@@ -99,10 +110,21 @@ class MemberListScreen extends Screen
                 TD::make('side', 'ด้าน')
                     ->render(fn (Member $member) => $member->side ?: '-'),
 
-                TD::make('full_name', 'ชื่อเต็ม')
+                TD::make('full_name', 'ชื่อธุรกิจ')
                     ->sort()
                     ->filter(Input::make())
                     ->render(fn (Member $member) => e($member->full_name ?: '-')),
+
+                TD::make('pv_hold', 'PV HOLD')
+                    ->render(function (Member $member) {
+                        $pvHold = $member->pv_hold;
+
+                        if ($pvHold === null || $pvHold === '') {
+                            return '0.00';
+                        }
+
+                        return number_format((float) $pvHold, 2);
+                    }),
 
                 TD::make('rank_code', 'ตำแหน่ง')
                     ->render(fn (Member $member) => $member->rank_code ?: '-'),
