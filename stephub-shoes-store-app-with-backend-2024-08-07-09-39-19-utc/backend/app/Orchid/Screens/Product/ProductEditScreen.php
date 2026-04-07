@@ -344,6 +344,8 @@ class ProductEditScreen extends Screen
             'product.youtube_url' => ['nullable', 'string', 'max:2048'],
             'product.gallery_files' => ['nullable', 'array', 'max:10'],
             'product.gallery_files.*' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp'],
+            'product.existing_image_urls' => ['nullable', 'array', 'max:10'],
+            'product.existing_image_urls.*' => ['nullable', 'string', 'max:2048'],
             'product.home_card_file' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp'],
             'product.cost_price' => ['nullable', 'numeric', 'min:0'],
             'product.member_price' => ['nullable', 'numeric', 'min:0'],
@@ -417,9 +419,10 @@ class ProductEditScreen extends Screen
         $resolvedDetailCode = $this->resolveDetailCode($product, $ignoreId);
         $normalizedYoutubeUrl = $this->normalizeYoutubeUrl($product['youtube_url'] ?? null);
         $uploadedImageUrls = $this->resolveGalleryImageUrls($request);
+        $retainedImageUrls = $this->normalizeExistingImageUrls($product['existing_image_urls'] ?? []);
         $imageUrls = $this->mergeUploadedImageUrls(
             $uploadedImageUrls,
-            $this->productDetailRecord?->imageUrls ?? []
+            $retainedImageUrls
         );
         $primaryImageUrl = $imageUrls[0] ?? null;
         $homeCardImageUrl = $this->resolveHomeCardImageUrl(
@@ -628,6 +631,20 @@ class ProductEditScreen extends Screen
         }
 
         return array_values(array_filter(array_unique(array_filter($resolvedUrls))));
+    }
+
+    private function normalizeExistingImageUrls(array $existingImageUrls): array
+    {
+        $storedUrls = array_values(array_filter(array_map(
+            static fn ($value) => is_string($value) ? trim($value) : null,
+            $this->productDetailRecord?->imageUrls ?? []
+        )));
+        $requestedUrls = array_values(array_filter(array_map(
+            static fn ($value) => is_string($value) ? trim($value) : null,
+            $existingImageUrls
+        )));
+
+        return array_values(array_intersect($requestedUrls, $storedUrls));
     }
 
     private function mergeUploadedImageUrls(array $uploadedImageUrls, array $existingImageUrls): array

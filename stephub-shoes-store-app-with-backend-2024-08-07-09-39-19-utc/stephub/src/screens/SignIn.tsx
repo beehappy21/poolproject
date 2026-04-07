@@ -336,34 +336,51 @@ export const SignIn: React.FC = () => {
     window.location.assign(entryUrl);
   };
 
-  const renderHeader = () => <components.Header title='Sign in' />;
+  const renderHeader = () => <components.Header title='Sign in' hideSearch={true} />;
 
   const renderContent = (): JSX.Element => (
-    <div style={{padding: '50px 20px 20px 20px'}}>
-      <components.Line style={{marginBottom: 14}} />
-      <h1
+    <div style={{padding: '10px 20px 20px 20px'}}>
+      <div
         style={{
-          margin: 0,
-          textAlign: 'center',
-          ...theme.fonts.Mulish_700Bold,
-          color: theme.colors.mainColor,
-          fontSize: 32,
-          lineHeight: 1.2,
-          textTransform: 'capitalize',
-          marginBottom: 14,
+          display: 'flex',
+          justifyContent: 'center',
+          marginBottom: 8,
         }}
       >
-        Welcome back!
-      </h1>
+        <div
+          style={{
+            width: 204,
+            maxWidth: '72vw',
+            height: 156,
+            overflow: 'hidden',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <img
+            src='/5.png'
+            alt='Blife Healthy'
+            style={{
+              display: 'block',
+              width: '124%',
+              maxWidth: 'none',
+              height: '124%',
+              objectFit: 'cover',
+              objectPosition: 'center',
+            }}
+          />
+        </div>
+      </div>
       <p
         style={{
           margin: 0,
           color: theme.colors.textColor,
           fontSize: 16,
-          lineHeight: 1.6,
+          lineHeight: 1.28,
           textAlign: 'center',
           marginTop: 0,
-          marginBottom: 40,
+          marginBottom: 22,
           ...theme.fonts.Mulish_400Regular,
         }}
       >

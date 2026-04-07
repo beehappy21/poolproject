@@ -48,11 +48,15 @@ type BasicProduct = {
   status?: string;
 };
 
-const PRODUCT_PLACEHOLDER_IMAGES = [
-  'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=80',
-  'https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=900&q=80',
-  'https://images.unsplash.com/photo-1600185365483-26d7a4cc7519?auto=format&fit=crop&w=900&q=80',
-];
+type CatalogCategory = {
+  id?: string | number;
+  code?: string;
+  name?: string;
+  image?: string;
+  imageUrl?: string;
+};
+
+const DEFAULT_CATALOG_IMAGE = '/16.png';
 
 const isPublicWapRuntime = (): boolean => {
   if (typeof window === 'undefined') {
@@ -122,10 +126,8 @@ const toProductNumber = (value: unknown): number => {
 
 export const mapStorefrontProductToProduct = (
   item: StorefrontProduct,
-  index: number,
+  _index: number,
 ): ProductType => {
-  const fallbackImage =
-    PRODUCT_PLACEHOLDER_IMAGES[index % PRODUCT_PLACEHOLDER_IMAGES.length];
   const gallery = [
     resolveCatalogImageUrl(item.primaryImageUrl),
     ...(Array.isArray(item.imageUrls)
@@ -134,7 +136,7 @@ export const mapStorefrontProductToProduct = (
   ].filter((value, imageIndex, array): value is string => {
     return Boolean(value) && array.indexOf(value) === imageIndex;
   });
-  const image = gallery[0] || fallbackImage;
+  const image = gallery[0] || DEFAULT_CATALOG_IMAGE;
   const homeImage = resolveCatalogImageUrl(item.homeCardImageUrl) || image;
   const categoryCode = safeString(item.categoryCode, 'uncategorized');
   const supplierCode = safeString(item.supplierCode, 'catalog');
@@ -198,8 +200,6 @@ const mapBasicProductToProduct = (
   item: BasicProduct,
   index: number,
 ): ProductType => {
-  const fallbackImage =
-    PRODUCT_PLACEHOLDER_IMAGES[index % PRODUCT_PLACEHOLDER_IMAGES.length];
   const id = safeString(item.productId, String(index + 1));
   const categoryCode = safeString(item.categoryCode, 'catalog');
   const supplierCode = safeString(item.supplierCode, 'catalog');
@@ -219,9 +219,9 @@ const mapBasicProductToProduct = (
     rating: 5,
     ratingCount: 0,
     status: safeString(item.status, 'active'),
-    image: fallbackImage,
-    homeImage: fallbackImage,
-    images: [fallbackImage],
+    image: DEFAULT_CATALOG_IMAGE,
+    homeImage: DEFAULT_CATALOG_IMAGE,
+    images: [DEFAULT_CATALOG_IMAGE],
     sizes: ['standard'],
     size: 'standard',
     colors: [{name: 'default', code: '#1F2937'}],
@@ -259,6 +259,32 @@ const getListPayload = <T,>(value: unknown): T[] => {
   }
 
   return [];
+};
+
+export const fetchCategoryImageMap = async (): Promise<Record<string, string>> => {
+  try {
+    const response = await axios.get(URLS.GET_CATEGORIES, {
+      timeout: 15000,
+    });
+    const categories = getListPayload<CatalogCategory>(response.data);
+
+    return categories.reduce<Record<string, string>>((result, category) => {
+      const categoryCode = safeString(category.code).toLowerCase();
+      const image =
+        resolveCatalogImageUrl(category.imageUrl) ||
+        resolveCatalogImageUrl(category.image) ||
+        '';
+
+      if (categoryCode && image) {
+        result[categoryCode] = image;
+      }
+
+      return result;
+    }, {});
+  } catch (error) {
+    console.error('Unable to load category images, using default image fallback.', error);
+    return {};
+  }
 };
 
 export const fetchLiveProducts = async (): Promise<ProductType[]> => {
@@ -306,7 +332,10 @@ export const fetchLiveProducts = async (): Promise<ProductType[]> => {
   throw storefrontError || new Error('Unable to load products from storefront or fallback catalog.');
 };
 
-export const getProductCollections = (products: ProductType[]) => {
+export const getProductCollections = (
+  products: ProductType[],
+  categoryImageMap: Record<string, string> = {},
+) => {
   const normalizeCollectionId = (product: ProductType): string => {
     const categoryCode = String(product.categoryCode || '').trim().toLowerCase();
     if (categoryCode === 'firm' || product.firmRedemptionEligible) {
@@ -355,7 +384,7 @@ export const getProductCollections = (products: ProductType[]) => {
     groupedCollections.set(collectionId, {
       id: collectionId,
       name: resolveCollectionName(product),
-      image: product.image,
+      image: categoryImageMap[collectionId] || product.image || DEFAULT_CATALOG_IMAGE,
       products: [product],
     });
   });
@@ -367,13 +396,16 @@ export const getProductCollections = (products: ProductType[]) => {
     {
       id: 'all',
       name: 'All products',
-      image: products[0]?.image || '',
+      image: products[0]?.image || DEFAULT_CATALOG_IMAGE,
       products,
     },
   ].filter(collection => collection.products.length > 0);
 };
 
 export const fetchProductCollections = async () => {
-  const products = await fetchLiveProducts();
-  return getProductCollections(products);
+  const [products, categoryImageMap] = await Promise.all([
+    fetchLiveProducts(),
+    fetchCategoryImageMap(),
+  ]);
+  return getProductCollections(products, categoryImageMap);
 };

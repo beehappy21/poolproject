@@ -11,11 +11,7 @@ export const ImageBackground: React.FC<Props> = ({
   imageUrl,
   style,
 }) => {
-  const fallbackImage =
-    'data:image/svg+xml;base64,' +
-    btoa(
-      '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320"><rect width="100%" height="100%" fill="#F4F6F8"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" fill="#94A3B8">No Image</text></svg>',
-    );
+  const fallbackImage = '/16.png';
 
   return (
     <div

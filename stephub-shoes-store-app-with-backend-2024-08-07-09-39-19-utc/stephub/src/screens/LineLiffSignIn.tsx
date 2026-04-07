@@ -17,6 +17,7 @@ import {
   getLineConfig,
   initializeLineLiff,
   normalizeSponsorCode,
+  resolveSignupSponsorCode,
   parseLineCallbackSearch,
   resolveSafeReturnTo,
   type LineEntryMode,
@@ -178,11 +179,18 @@ export const LineLiffSignIn: React.FC = () => {
     () => parseLineCallbackSearch(location.search),
     [location.search],
   );
-  const sponsorCode = useMemo(
-    () => normalizeSponsorCode(query.get('sponsorCode') || extractSponsorCodeFromSearch(location.search)),
+  const rawSponsorCode = useMemo(
+    () => query.get('sponsorCode') || extractSponsorCodeFromSearch(location.search),
     [location.search, query],
   );
   const mode = useMemo(() => parseMode(query.get('mode')), [query]);
+  const sponsorCode = useMemo(
+    () =>
+      mode === 'signup'
+        ? resolveSignupSponsorCode(rawSponsorCode)
+        : normalizeSponsorCode(rawSponsorCode),
+    [mode, rawSponsorCode],
+  );
   const returnTo = useMemo(
     () =>
       resolveSafeReturnTo(
