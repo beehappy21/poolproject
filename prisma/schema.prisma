@@ -579,6 +579,7 @@ model ProductDetail {
   firmDcwRewardAmount Decimal     @default(0) @db.Decimal(18, 8)
   firmRedeemStockLimit Int?
   stockQuantity     Int?
+  salesChannelMode  String        @default("WAP_CATALOG") @db.VarChar(30)
   status           CatalogStatus @default(ACTIVE)
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt

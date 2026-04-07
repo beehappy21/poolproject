@@ -45,6 +45,7 @@ class OrderCreateScreen extends Screen
 
         $productDetails = ProductDetailRecord::query()
             ->where('status', 'ACTIVE')
+            ->where('salesChannelMode', 'BAO_ONLY')
             ->orderBy('name')
             ->get([
                 'id',

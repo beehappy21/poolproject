@@ -34,6 +34,7 @@ type StorefrontProduct = {
   isTop?: boolean;
   isFeatured?: boolean;
   isBestSeller?: boolean;
+  salesChannelMode?: string;
   status: string;
 };
 
@@ -167,6 +168,10 @@ export const mapStorefrontProductToProduct = (
   const productName = safeString(item.name || item.productName, 'Product');
   const categoryName = safeString(item.categoryName, 'Products');
   const supplierName = safeString(item.supplierName, 'Catalog');
+  const salesChannelMode = safeString(
+    item.salesChannelMode,
+    'WAP_CATALOG',
+  ).toUpperCase();
 
   return {
     id: toProductNumber(item.productDetailId || item.productId),
@@ -180,6 +185,8 @@ export const mapStorefrontProductToProduct = (
     price: toProductNumber(item.memberPriceUsdt),
     pv: toProductNumber(item.pv),
     firmRedemptionEligible: Boolean(item.firmRedemptionEligible),
+    salesChannelMode,
+    showOnHome: salesChannelMode === 'WAP_CATALOG',
     dcwSpendEnabled: Boolean(item.dcwSpendEnabled),
     dcwUsageAmount: toProductNumber(item.dcwUsageAmount),
     dcwRewardRate: Number(

@@ -15,6 +15,8 @@ export type ProductType = {
   dcwUsageAmount?: number;
   dcwRewardRate?: number;
   firmRedemptionEligible?: boolean;
+  salesChannelMode?: string;
+  showOnHome?: boolean;
   activeDays?: number;
   status?: string;
   itemCount?: number;

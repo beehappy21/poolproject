@@ -262,7 +262,8 @@ export const Home: FC = () => {
         fetchLiveProducts(),
         fetchCategoryImageMap().catch(() => ({})),
       ]);
-      const collections = getProductCollections(products, categoryImageMap);
+      const homeProducts = products.filter(item => item.showOnHome !== false);
+      const collections = getProductCollections(homeProducts, categoryImageMap);
       const visibleCollections = collections.filter(item => item.id !== 'all');
 
       setProductsData(products);
@@ -392,13 +393,14 @@ export const Home: FC = () => {
   }, [carouselData, publicIosMode]);
 
   const filteredProducts = useMemo(() => {
+    const homeVisibleProducts = productsData.filter(item => item.showOnHome !== false);
     const keyword = searchValue.trim().toLowerCase();
 
     if (!keyword) {
-      return productsData;
+      return homeVisibleProducts;
     }
 
-    return productsData.filter(item => {
+    return homeVisibleProducts.filter(item => {
       const haystack = [
         item.name,
         item.shortDescription,

@@ -25,6 +25,12 @@ class ProductEditScreen extends Screen
     private const RATE_DB_MAX = '99.99999999';
     private const IMAGE_MAX_DIMENSION = 1600;
     private const IMAGE_JPEG_QUALITY = 82;
+    private const SALES_CHANNEL_MODES = [
+        'OFF',
+        'WAP_CATALOG',
+        'CATALOG_ONLY',
+        'BAO_ONLY',
+    ];
 
     public $product;
 
@@ -164,6 +170,7 @@ class ProductEditScreen extends Screen
             'is_top' => old('product.is_top', $this->boolAsFormValue($this->productDetailRecord->isTop ?? ($this->product->is_top ?? false))),
             'is_featured' => old('product.is_featured', $this->boolAsFormValue($this->productDetailRecord->isFeatured ?? ($this->product->is_featured ?? false))),
             'is_best_seller' => old('product.is_best_seller', $this->boolAsFormValue($this->productDetailRecord->isBestSeller ?? ($this->product->is_best_seller ?? false))),
+            'sales_channel_mode' => old('product.sales_channel_mode', $this->normalizeSalesChannelMode($this->productDetailRecord->salesChannelMode ?? null)),
             'status' => old('product.status', $this->productDetailRecord->status ?? ($this->product->status ?? 'ACTIVE')),
             'product_name' => $this->product->product_name ?? ($this->productMetadata[$selectedProductId]['product_name'] ?? ''),
             'product_code' => $this->product->product_code ?? ($this->productMetadata[$selectedProductId]['product_code'] ?? ''),
@@ -372,12 +379,14 @@ class ProductEditScreen extends Screen
             'product.is_top' => ['nullable'],
             'product.is_featured' => ['nullable'],
             'product.is_best_seller' => ['nullable'],
+            'product.sales_channel_mode' => ['required', Rule::in(self::SALES_CHANNEL_MODES)],
             'product.status' => ['required', 'in:ACTIVE,INACTIVE'],
         ], [
             'product.code.required' => 'Please enter an SKU code.',
             'product.code.unique' => 'This SKU code already exists. Please use a different code.',
             'product.pool_rate.lte' => 'Pool rate must be 100 or less.',
             'product.dcw_reward_rate.lte' => 'DCW reward rate must be 100 or less.',
+            'product.sales_channel_mode.required' => 'Please select how this product should be sold.',
         ]);
 
         $product = $validated['product'];
@@ -479,8 +488,18 @@ class ProductEditScreen extends Screen
             'isTop' => $this->truthy($product['is_top'] ?? false),
             'isFeatured' => $this->truthy($product['is_featured'] ?? false),
             'isBestSeller' => $this->truthy($product['is_best_seller'] ?? false),
+            'salesChannelMode' => $this->normalizeSalesChannelMode($product['sales_channel_mode'] ?? null),
             'status' => $product['status'],
         ];
+    }
+
+    private function normalizeSalesChannelMode(?string $value): string
+    {
+        $normalized = Str::upper(trim((string) $value));
+
+        return in_array($normalized, self::SALES_CHANNEL_MODES, true)
+            ? $normalized
+            : 'WAP_CATALOG';
     }
 
     private function resolveProductId(array $product): int

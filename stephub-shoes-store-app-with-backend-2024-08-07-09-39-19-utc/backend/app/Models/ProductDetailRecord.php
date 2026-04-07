@@ -57,6 +57,7 @@ class ProductDetailRecord extends Model
         'dcwUsageAmountOverridden',
         'dcwCashRewardRate',
         'dcwShoppingRewardRate',
+        'salesChannelMode',
         'status',
     ];
 
