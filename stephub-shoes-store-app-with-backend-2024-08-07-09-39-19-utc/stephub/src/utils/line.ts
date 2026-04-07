@@ -1,5 +1,7 @@
 import {URLS} from '../config';
 
+export const DEFAULT_SIGNUP_SPONSOR_CODE = 'TH0000001';
+
 export type LineProfile = {
   userId: string;
   displayName: string;
@@ -50,6 +52,10 @@ type WindowWithLiff = Window & {
 export const normalizeSponsorCode = (rawValue?: string | null): string => {
   const normalized = rawValue?.trim().toUpperCase() || '';
   return normalized || '';
+};
+
+export const resolveSignupSponsorCode = (rawValue?: string | null): string => {
+  return normalizeSponsorCode(rawValue) || DEFAULT_SIGNUP_SPONSOR_CODE;
 };
 
 export const extractSponsorCodeFromSearch = (search: string): string => {

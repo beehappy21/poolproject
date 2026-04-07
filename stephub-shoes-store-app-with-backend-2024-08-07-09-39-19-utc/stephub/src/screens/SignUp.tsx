@@ -13,7 +13,7 @@ import {
   buildSignUpPath,
   extractSponsorCodeFromSearch,
   initializeLineLiff,
-  normalizeSponsorCode,
+  resolveSignupSponsorCode,
   startLineLogin,
 } from '../utils/line';
 
@@ -63,7 +63,7 @@ type MemberSummaryResponse = {
 const DEFAULT_SIGNUP_SUCCESS_MESSAGE =
   'ส่งข้อมูลนี้เก็บไว้สำหรับเข้าใช้งานครั้งแรก และเปลี่ยนรหัสผ่านหลังเข้าสู่ระบบทันที';
 const renderHeader = (): JSX.Element => {
-  return <components.Header goBack={true} />;
+  return <components.Header goBack={true} hideSearch={true} />;
 };
 
 export const SignUp: FC = (): JSX.Element => {
@@ -89,12 +89,11 @@ export const SignUp: FC = (): JSX.Element => {
   const [lineIdToken, setLineIdToken] = useState('');
   const [lineDisplayName, setLineDisplayName] = useState('');
   const [linePictureUrl, setLinePictureUrl] = useState('');
-  const [lineStatus, setLineStatus] = useState('');
 
   const sponsorCode = useMemo(() => {
     const state = (location.state || {}) as LocationState;
 
-    return normalizeSponsorCode(
+    return resolveSignupSponsorCode(
       extractSponsorCodeFromSearch(location.search) || state.sponsorCode || '',
     );
   }, [location.search, location.state]);
@@ -149,23 +148,13 @@ export const SignUp: FC = (): JSX.Element => {
         setLineIdToken(result.profile.idToken || '');
         setLineDisplayName(result.profile.displayName);
         setLinePictureUrl(result.profile.pictureUrl || '');
-        setLineStatus(`ดึงชื่อจาก LINE ได้แล้ว: ${result.profile.displayName}`);
         return;
-      }
-
-      if (result.errorMessage) {
-        setLineStatus(result.errorMessage);
-        return;
-      }
-
-      if (result.isReady && !result.isLoggedIn) {
-        setLineStatus('กรุณากดปุ่มเชื่อม LINE ก่อนสมัครสมาชิก');
       }
     };
 
     bootstrapLine().catch(error => {
       if (mounted) {
-        setLineStatus(
+        setErrorMessage(
           error instanceof Error ? error.message : 'LIFF bootstrap failed.',
         );
       }
@@ -207,11 +196,6 @@ export const SignUp: FC = (): JSX.Element => {
   }, [createdAccount, signupSuccessMessage]);
 
   const handleCreateAccount = async (): Promise<void> => {
-    if (!sponsorCode) {
-      setErrorMessage('ไม่พบรหัสผู้แนะนำจากลิงก์สมัครสมาชิก');
-      return;
-    }
-
     if (!lineUserId) {
       setErrorMessage(
         'กรุณาเปิดลิงก์สมัครผ่าน LINE เพื่อดึง LINE profile ก่อนสมัครสมาชิก',
@@ -600,28 +584,59 @@ export const SignUp: FC = (): JSX.Element => {
 
   const renderContent = (): JSX.Element => {
     return (
-      <div style={{padding: '50px 20px 20px 20px'}}>
-        <components.Line style={{marginBottom: 14}} />
-        <h1
+      <div style={{padding: '10px 20px 20px 20px'}}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          marginBottom: 8,
+        }}
+      >
+        <div
           style={{
-            margin: 0,
+            width: 204,
+            maxWidth: '72vw',
+            height: 156,
+            overflow: 'hidden',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <img
+            src='/5.png'
+            alt='Blife Healthy'
+            style={{
+              display: 'block',
+              width: '124%',
+              maxWidth: 'none',
+              height: '124%',
+              objectFit: 'cover',
+              objectPosition: 'center',
+            }}
+          />
+        </div>
+      </div>
+      <h1
+        style={{
+          margin: 0,
             textAlign: 'center',
             ...theme.fonts.Mulish_700Bold,
             color: theme.colors.mainColor,
             fontSize: 32,
-            lineHeight: 1.2,
+            lineHeight: 1.08,
             textTransform: 'capitalize',
-            marginBottom: 14,
+            marginBottom: 4,
           }}
         >
           Sign up
         </h1>
         <p
           style={{
-            margin: '0 0 28px 0',
+            margin: '0 0 18px 0',
             textAlign: 'center',
             color: theme.colors.textColor,
-            lineHeight: 1.7,
+            lineHeight: 1.32,
           }}
         >
           สมัครสมาชิกผ่านรหัสผู้แนะนำจากลิงก์นี้ ระบบจะสร้างรหัสสมาชิกและพาสเวิร์ดให้โดยอัตโนมัติ
@@ -641,26 +656,6 @@ export const SignUp: FC = (): JSX.Element => {
             ผู้แนะนำ: <strong>{sponsorName}</strong> ({sponsorCode})
           </div>
         ) : null}
-        {lineStatus ? (
-          <div
-            style={{
-              marginBottom: 16,
-              borderRadius: 14,
-              backgroundColor: lineUserId ? '#F0FDF4' : '#FFF7ED',
-              border: lineUserId ? '1px solid #C7E8CF' : '1px solid #FED7AA',
-              padding: '14px 16px',
-              color: lineUserId ? '#166534' : '#9A3412',
-              lineHeight: 1.6,
-            }}
-          >
-            {lineStatus}
-            <div style={{marginTop: 6, fontSize: 12, opacity: 0.9}}>
-              {lineUserId
-                ? 'ระบบจะใช้ชื่อจาก LINE มาช่วยกรอกตอนสร้างสมาชิก และจะเชื่อม LINE ให้หลังสมัครสำเร็จ'
-                : 'ถ้า LIFF ยังไม่พร้อม ให้กลับไปเปิดลิงก์สมัครจาก LINE อีกครั้ง หรือใช้ลิงก์ invite เดิมซ้ำเพื่อให้ระบบดึง LINE profile ใหม่'}
-            </div>
-          </div>
-        ) : null}
         <custom.InputField
           label='รหัสผู้แนะนำ'
           value={sponsorCode}
@@ -675,22 +670,6 @@ export const SignUp: FC = (): JSX.Element => {
         />
         {!lineUserId ? (
           <>
-            <div
-              style={{
-                margin: '0 0 20px 0',
-                borderRadius: 14,
-                backgroundColor: '#FFF7ED',
-                border: '1px solid #FED7AA',
-                padding: '14px 16px',
-                color: '#9A3412',
-                lineHeight: 1.7,
-              }}
-            >
-              ตอนนี้ยังไม่พบ LINE profile บนอุปกรณ์นี้ จึงยังสมัครสมาชิกไม่ได้
-              <div style={{marginTop: 8, fontSize: 13, opacity: 0.9}}>
-                กดปุ่มด้านล่างเพื่อเชื่อม LINE ก่อน แล้วระบบจะพากลับมาหน้านี้พร้อมรหัสผู้แนะนำเดิม
-              </div>
-            </div>
             <button
               onClick={handleConnectLine}
               style={{

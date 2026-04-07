@@ -1,5 +1,5 @@
 import axios from 'axios';
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {useNavigate} from 'react-router-dom';
 
 import {hooks} from '../../hooks';
@@ -72,8 +72,33 @@ type WindowWithSharePicker = Window & {
   };
 };
 
-const COMPANY_LOGO_FALLBACK = `${URLS.BAO_BASE_URL}/favicon.ico`;
+const DEFAULT_PROFILE_AVATAR = '/16.png';
 const DEFAULT_LINE_SHARE_MESSAGE = 'สมัครผ่านลิงก์แนะนำนี้ได้เลย';
+const PROFILE_AVATAR_STORAGE_KEY = 'blifehealthy_profile_avatar';
+
+const getStoredProfileAvatar = () => {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+
+  try {
+    return window.localStorage.getItem(PROFILE_AVATAR_STORAGE_KEY) || '';
+  } catch (error) {
+    console.error(error);
+    return '';
+  }
+};
+
+const getPreferredAvatar = (
+  user?: RootState['userSlice']['user'] & {photoUrl?: string; avatarUrl?: string},
+) => {
+  return (
+    getStoredProfileAvatar() ||
+    user?.photoUrl ||
+    user?.avatarUrl ||
+    DEFAULT_PROFILE_AVATAR
+  );
+};
 
 const normalizeMemberCode = (code?: string | null) => {
   const normalizedCode = code?.trim().toUpperCase() || '';
@@ -135,6 +160,7 @@ const buildBaoAlignedReferralLink = (payload?: {
 export const Profile: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = hooks.useAppDispatch();
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
   const user = hooks.useAppSelector((state: RootState) => state.userSlice.user);
   const [referralLink, setReferralLink] = useState('');
@@ -145,10 +171,11 @@ export const Profile: React.FC = () => {
   const [lineStatusMessage, setLineStatusMessage] = useState('');
   const [lineLoading, setLineLoading] = useState(false);
   const [avatarSrc, setAvatarSrc] = useState(
-    ((user as RootState['userSlice']['user'] & {photoUrl?: string; avatarUrl?: string})?.photoUrl ||
-      (user as RootState['userSlice']['user'] & {photoUrl?: string; avatarUrl?: string})?.avatarUrl ||
-      COMPANY_LOGO_FALLBACK) as string,
+    getPreferredAvatar(
+      user as RootState['userSlice']['user'] & {photoUrl?: string; avatarUrl?: string},
+    ) as string,
   );
+  const [avatarMessage, setAvatarMessage] = useState('');
   const showLineStatus = (message: string) => {
     setLineStatusMessage(message);
     window.setTimeout(() => setLineStatusMessage(''), 6000);
@@ -159,15 +186,61 @@ export const Profile: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const nextAvatar =
-      ((user as RootState['userSlice']['user'] & {photoUrl?: string; avatarUrl?: string})
-        ?.photoUrl ||
-        (user as RootState['userSlice']['user'] & {photoUrl?: string; avatarUrl?: string})
-          ?.avatarUrl ||
-        COMPANY_LOGO_FALLBACK) as string;
+    const nextAvatar = getPreferredAvatar(
+      user as RootState['userSlice']['user'] & {photoUrl?: string; avatarUrl?: string},
+    ) as string;
 
     setAvatarSrc(nextAvatar);
   }, [user]);
+
+  const handleAvatarPick = () => {
+    avatarInputRef.current?.click();
+  };
+
+  const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      setAvatarMessage('กรุณาเลือกรูปภาพจากอุปกรณ์เท่านั้น');
+      window.setTimeout(() => setAvatarMessage(''), 2500);
+      event.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const nextAvatar = typeof reader.result === 'string' ? reader.result : '';
+
+      if (!nextAvatar) {
+        setAvatarMessage('ไม่สามารถอ่านรูปที่เลือกได้');
+        window.setTimeout(() => setAvatarMessage(''), 2500);
+        return;
+      }
+
+      try {
+        window.localStorage.setItem(PROFILE_AVATAR_STORAGE_KEY, nextAvatar);
+      } catch (error) {
+        console.error(error);
+      }
+
+      setAvatarSrc(nextAvatar);
+      setAvatarMessage('อัปเดตรูปโปรไฟล์แล้ว');
+      window.setTimeout(() => setAvatarMessage(''), 2500);
+    };
+
+    reader.onerror = () => {
+      setAvatarMessage('ไม่สามารถอ่านรูปที่เลือกได้');
+      window.setTimeout(() => setAvatarMessage(''), 2500);
+    };
+
+    reader.readAsDataURL(file);
+    event.target.value = '';
+  };
 
   useEffect(() => {
     const bootstrapLine = async () => {
@@ -449,6 +522,15 @@ export const Profile: React.FC = () => {
         }}
       >
         <div
+          onClick={handleAvatarPick}
+          role='button'
+          tabIndex={0}
+          onKeyDown={event => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              handleAvatarPick();
+            }
+          }}
           style={{
             width: 68,
             height: 68,
@@ -461,18 +543,44 @@ export const Profile: React.FC = () => {
             alignItems: 'center',
             justifyContent: 'center',
             boxShadow: '0 12px 24px rgba(31, 41, 55, 0.08)',
+            cursor: 'pointer',
+            position: 'relative',
           }}
         >
+          <input
+            ref={avatarInputRef}
+            type='file'
+            accept='image/*'
+            onChange={handleAvatarChange}
+            style={{display: 'none'}}
+          />
           <img
             src={avatarSrc}
             alt='Profile'
-            onError={() => setAvatarSrc(COMPANY_LOGO_FALLBACK)}
+            onError={() => setAvatarSrc(DEFAULT_PROFILE_AVATAR)}
             style={{
               width: '100%',
               height: '100%',
               objectFit: 'cover',
             }}
           />
+          <div
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(15, 23, 42, 0.62)',
+              color: '#fff',
+              fontSize: 9,
+              lineHeight: 1.4,
+              textAlign: 'center',
+              padding: '3px 4px',
+              ...theme.fonts.Mulish_700Bold,
+            }}
+          >
+            เปลี่ยนรูป
+          </div>
         </div>
         <div style={{minWidth: 0, display: 'flex', flexDirection: 'column', flex: 1}}>
           <div
@@ -540,6 +648,18 @@ export const Profile: React.FC = () => {
               }}
             >
               {lineStatusMessage}
+            </span>
+          ) : avatarMessage ? (
+            <span
+              style={{
+                marginTop: 6,
+                fontSize: 12,
+                lineHeight: 1.5,
+                color: '#15803D',
+                ...theme.fonts.Mulish_400Regular,
+              }}
+            >
+              {avatarMessage}
             </span>
           ) : connectedName ? (
             <span
