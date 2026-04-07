@@ -17,6 +17,7 @@ type Props = {
   goBack?: boolean;
   basket?: boolean;
   fixed?: boolean;
+  hideSearch?: boolean;
   searchValue?: string;
   searchPlaceholder?: string;
   onSearchChange?: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -28,6 +29,7 @@ export const Header: React.FC<Props> = ({
   line,
   goBack,
   fixed,
+  hideSearch,
   searchValue,
   searchPlaceholder,
   onSearchChange,
@@ -406,7 +408,7 @@ export const Header: React.FC<Props> = ({
       >
         {burger ? renderBurger() : null}
         {renderGoBack()}
-        {renderSearch()}
+        {hideSearch ? null : renderSearch()}
         {basket ? renderBasket() : null}
       </header>
     </>
