@@ -10,6 +10,7 @@ prisma/dev.db
 .vscode
 logs
 runtime
+picture/
 !apps/
 !apps/api/
 !apps/api/src/
