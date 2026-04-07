@@ -51,6 +51,7 @@ type BasicProduct = {
 type CatalogCategory = {
   code?: string;
   image?: string | null;
+  imageUrl?: string | null;
 };
 
 const DEFAULT_CATALOG_IMAGE = '/16.png';
@@ -95,7 +96,18 @@ const resolveCatalogImageUrl = (value?: string | null): string => {
 
       if (
         isPublicWapRuntime() &&
-        /(^|\.)(bao\.blifehealthy\.com)$/i.test(parsedUrl.hostname) &&
+        /(^|\.)(bao\.blifehealthy\.com|wap\.blifehealthy\.com|www\.blifehealthy\.com|blifehealthy\.com)$/i.test(
+          parsedUrl.hostname,
+        ) &&
+        parsedUrl.pathname.startsWith('/storage/')
+      ) {
+        return `${window.location.origin}${parsedUrl.pathname}`;
+      }
+
+      if (
+        isPublicWapRuntime() &&
+        (parsedUrl.hostname === '127.0.0.1' ||
+          parsedUrl.hostname === 'localhost') &&
         parsedUrl.pathname.startsWith('/storage/')
       ) {
         return `${window.location.origin}${parsedUrl.pathname}`;
@@ -327,7 +339,7 @@ export const fetchCategoryImageMap = async (): Promise<Record<string, string>> =
 
   return items.reduce<Record<string, string>>((result, item) => {
     const code = safeString(item.code).toLowerCase();
-    const rawImage = safeString(item.image);
+    const rawImage = safeString(item.image) || safeString(item.imageUrl);
     const image =
       rawImage.startsWith('data:image/')
         ? ''
