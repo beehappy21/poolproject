@@ -13,7 +13,7 @@ import {
   buildSignUpPath,
   extractSponsorCodeFromSearch,
   initializeLineLiff,
-  resolveSignupSponsorCode,
+  normalizeSponsorCode,
   startLineLogin,
 } from '../utils/line';
 
@@ -93,7 +93,7 @@ export const SignUp: FC = (): JSX.Element => {
   const sponsorCode = useMemo(() => {
     const state = (location.state || {}) as LocationState;
 
-    return resolveSignupSponsorCode(
+    return normalizeSponsorCode(
       extractSponsorCodeFromSearch(location.search) || state.sponsorCode || '',
     );
   }, [location.search, location.state]);
@@ -150,6 +150,11 @@ export const SignUp: FC = (): JSX.Element => {
         setLinePictureUrl(result.profile.pictureUrl || '');
         return;
       }
+
+      if (result.errorMessage) {
+        setErrorMessage(result.errorMessage);
+        return;
+      }
     };
 
     bootstrapLine().catch(error => {
@@ -196,6 +201,11 @@ export const SignUp: FC = (): JSX.Element => {
   }, [createdAccount, signupSuccessMessage]);
 
   const handleCreateAccount = async (): Promise<void> => {
+    if (!sponsorCode) {
+      setErrorMessage('ไม่พบรหัสผู้แนะนำจากลิงก์สมัครสมาชิก');
+      return;
+    }
+
     if (!lineUserId) {
       setErrorMessage(
         'กรุณาเปิดลิงก์สมัครผ่าน LINE เพื่อดึง LINE profile ก่อนสมัครสมาชิก',
@@ -585,48 +595,48 @@ export const SignUp: FC = (): JSX.Element => {
   const renderContent = (): JSX.Element => {
     return (
       <div style={{padding: '10px 20px 20px 20px'}}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          marginBottom: 8,
-        }}
-      >
         <div
           style={{
-            width: 204,
-            maxWidth: '72vw',
-            height: 156,
-            overflow: 'hidden',
             display: 'flex',
-            alignItems: 'center',
             justifyContent: 'center',
+            marginBottom: 8,
           }}
         >
-          <img
-            src='/5.png'
-            alt='Blife Healthy'
+          <div
             style={{
-              display: 'block',
-              width: '124%',
-              maxWidth: 'none',
-              height: '124%',
-              objectFit: 'cover',
-              objectPosition: 'center',
+              width: 204,
+              maxWidth: '72vw',
+              height: 156,
+              overflow: 'hidden',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
-          />
+          >
+            <img
+              src='/5.png'
+              alt='Blife Healthy'
+              style={{
+                display: 'block',
+                width: '124%',
+                maxWidth: 'none',
+                height: '124%',
+                objectFit: 'cover',
+                objectPosition: 'center',
+              }}
+            />
+          </div>
         </div>
-      </div>
-      <h1
-        style={{
-          margin: 0,
-            textAlign: 'center',
-            ...theme.fonts.Mulish_700Bold,
-            color: theme.colors.mainColor,
-            fontSize: 32,
-            lineHeight: 1.08,
-            textTransform: 'capitalize',
-            marginBottom: 4,
+        <h1
+          style={{
+            margin: 0,
+              textAlign: 'center',
+              ...theme.fonts.Mulish_700Bold,
+              color: theme.colors.mainColor,
+              fontSize: 32,
+              lineHeight: 1.08,
+              textTransform: 'capitalize',
+              marginBottom: 4,
           }}
         >
           Sign up

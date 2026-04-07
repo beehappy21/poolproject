@@ -408,7 +408,7 @@ export const Header: React.FC<Props> = ({
       >
         {burger ? renderBurger() : null}
         {renderGoBack()}
-        {hideSearch ? null : renderSearch()}
+        {hideSearch ? <div style={{flex: 1}} /> : renderSearch()}
         {basket ? renderBasket() : null}
       </header>
     </>

@@ -336,7 +336,9 @@ export const SignIn: React.FC = () => {
     window.location.assign(entryUrl);
   };
 
-  const renderHeader = () => <components.Header title='Sign in' hideSearch={true} />;
+  const renderHeader = () => (
+    <components.Header title='Sign in' hideSearch={true} />
+  );
 
   const renderContent = (): JSX.Element => (
     <div style={{padding: '10px 20px 20px 20px'}}>

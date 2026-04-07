@@ -1,6 +1,5 @@
 import axios from 'axios';
 import React, {useEffect, useRef, useState} from 'react';
-import {Carousel} from 'react-responsive-carousel';
 import {useLocation, useNavigate} from 'react-router-dom';
 
 import {items} from '../items';
@@ -91,6 +90,7 @@ export const Product: React.FC = () => {
   );
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
   const videoFrameRef = useRef<HTMLIFrameElement | null>(null);
+  const mediaScrollerRef = useRef<HTMLDivElement | null>(null);
 
   const modifiedItem = {
     ...item,
@@ -137,6 +137,11 @@ export const Product: React.FC = () => {
     window.scrollTo(0, 0);
     getReviews();
   }, []);
+
+  useEffect(() => {
+    setActiveMediaIndex(0);
+    mediaScrollerRef.current?.scrollTo({left: 0, behavior: 'auto'});
+  }, [item?.productDetailId, item?.id]);
 
   useEffect(() => {
     if (!hasLeadingVideo || !videoFrameRef.current) {
@@ -202,6 +207,7 @@ export const Product: React.FC = () => {
         <div
           key={`video-${index}`}
           style={{
+            flex: '0 0 100%',
             width: '100%',
             aspectRatio: '16 / 9',
             backgroundColor: '#000',
@@ -209,6 +215,7 @@ export const Product: React.FC = () => {
             display: 'flex',
             alignItems: 'stretch',
             justifyContent: 'stretch',
+            scrollSnapAlign: 'start',
           }}
         >
           <iframe
@@ -233,6 +240,7 @@ export const Product: React.FC = () => {
       <div
         key={`image-${index}`}
         style={{
+          flex: '0 0 100%',
           width: '100%',
           aspectRatio: '16 / 9',
           backgroundColor: '#000',
@@ -240,6 +248,7 @@ export const Product: React.FC = () => {
           display: 'flex',
           alignItems: 'stretch',
           justifyContent: 'stretch',
+          scrollSnapAlign: 'start',
         }}
       >
         <img
@@ -259,6 +268,34 @@ export const Product: React.FC = () => {
   };
 
   const renderMediaGallery = (): JSX.Element => {
+    const scrollToMedia = (index: number) => {
+      const scroller = mediaScrollerRef.current;
+
+      if (!scroller) {
+        return;
+      }
+
+      scroller.scrollTo({
+        left: scroller.clientWidth * index,
+        behavior: 'smooth',
+      });
+      setActiveMediaIndex(index);
+    };
+
+    const handleMediaScroll = () => {
+      const scroller = mediaScrollerRef.current;
+
+      if (!scroller || !scroller.clientWidth) {
+        return;
+      }
+
+      const nextIndex = Math.round(scroller.scrollLeft / scroller.clientWidth);
+
+      if (nextIndex !== activeMediaIndex) {
+        setActiveMediaIndex(nextIndex);
+      }
+    };
+
     return (
       <section style={{marginBottom: 28}}>
         <div
@@ -267,21 +304,62 @@ export const Product: React.FC = () => {
             aspectRatio: '16 / 9',
             backgroundColor: '#000',
             overflow: 'hidden',
+            position: 'relative',
           }}
         >
-          <Carousel
-            infiniteLoop={false}
-            showStatus={false}
-            showThumbs={false}
-            showIndicators={false}
-            showArrows={false}
-            swipeable={true}
-            emulateTouch={true}
-            selectedItem={activeMediaIndex}
-            onChange={index => setActiveMediaIndex(index)}
+          <div
+            ref={mediaScrollerRef}
+            onScroll={handleMediaScroll}
+            style={{
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              overflowX: 'auto',
+              overflowY: 'hidden',
+              scrollSnapType: 'x mandatory',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+            }}
           >
             {mediaItems.map((media, index) => renderMediaSlide(media, index))}
-          </Carousel>
+          </div>
+
+          {mediaItems.length > 1 ? (
+            <div
+              style={{
+                position: 'absolute',
+                left: '50%',
+                bottom: 12,
+                transform: 'translateX(-50%)',
+                display: 'flex',
+                gap: 8,
+                padding: '6px 10px',
+                borderRadius: 999,
+                backgroundColor: 'rgba(15, 23, 42, 0.35)',
+              }}
+            >
+              {mediaItems.map((_, index) => (
+                <button
+                  key={`media-dot-${index}`}
+                  type='button'
+                  onClick={() => scrollToMedia(index)}
+                  aria-label={`Go to media ${index + 1}`}
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    border: 'none',
+                    padding: 0,
+                    cursor: 'pointer',
+                    backgroundColor:
+                      index === activeMediaIndex
+                        ? theme.colors.white
+                        : 'rgba(255, 255, 255, 0.45)',
+                  }}
+                />
+              ))}
+            </div>
+          ) : null}
         </div>
       </section>
     );
