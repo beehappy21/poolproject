@@ -181,6 +181,7 @@
     }
 
     .product-gallery-thumb {
+        position: relative;
         border: 1px solid #dbeafe;
         border-radius: 12px;
         background: #f8fbff;
@@ -193,6 +194,29 @@
         height: 100%;
         object-fit: cover;
         display: block;
+    }
+
+    .product-gallery-remove {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        width: 2rem;
+        height: 2rem;
+        border: 0;
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.82);
+        color: #fff;
+        font-size: 1rem;
+        font-weight: 700;
+        line-height: 1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+    }
+
+    .product-gallery-remove:hover {
+        background: rgba(220, 38, 38, 0.92);
     }
 
     .product-pv-warning {
@@ -350,6 +374,7 @@
             <div class="pool-field">
                 <label for="product_gallery_files">Gallery images</label>
                 <input id="product_gallery_files" name="product[gallery_files][]" type="file" accept="image/*" multiple>
+                <div id="product_existing_gallery_inputs"></div>
                 <div class="pool-note">เลือกได้สูงสุด 10 รูป สำหรับหน้า Product Detail เท่านั้น รูปหลักหน้า Product Detail แนะนำ 1600 x 900 px (16:9) ระบบจะย่อรูปใหญ่ให้ไม่เกิน 1600px อัตโนมัติ และจะจัดการแสดงผลให้พอดีกับพื้นที่แสดงผลถ้ารูปเล็กหรือสัดส่วนไม่ตรง</div>
             </div>
 
@@ -691,6 +716,7 @@
         const detailCodeInput = document.getElementById('product_code');
         const detailCodeHint = document.getElementById('productCodeHint');
         const galleryFilesInput = document.getElementById('product_gallery_files');
+        const existingGalleryInputs = document.getElementById('product_existing_gallery_inputs');
         const homeCardFileInput = document.getElementById('product_home_card_file');
         const youtubeInput = document.getElementById('product_youtube_url');
         const imagePreview = document.getElementById('productImagePreview');
@@ -731,6 +757,10 @@
         const fallbackImage = imagePreview.getAttribute('src');
         const fallbackHomeCardImage = homeCardPreview.getAttribute('src');
         const constrainedInputs = Array.from(document.querySelectorAll('input[max], input[min], input[required], select[required], textarea[required]'));
+        let retainedExistingImageUrls = existingImageUrls.slice(0, 10);
+        let selectedGalleryFiles = Array.from(galleryFilesInput.files || []).filter(function (file) {
+            return file.type.startsWith('image/');
+        }).slice(0, 10);
         const initialProductOptions = Array.from(productFamilySelect.options)
             .filter(function (option) {
                 return option.value !== '';
@@ -949,41 +979,132 @@
             homeCardPreview.src = resolveImagePreviewUrl(@json($product['home_card_image_url'] ?? '')) || fallbackHomeCardImage;
         }
 
-        function selectedGalleryPreviewUrls() {
-            const fileUrls = Array.from(galleryFilesInput.files || [])
-                .filter(function (file) {
-                    return file.type.startsWith('image/');
-                })
-                .map(function (file) {
-                    return URL.createObjectURL(file);
-                });
+        function galleryFileFingerprint(file) {
+            return [file.name, file.size, file.lastModified, file.type].join('::');
+        }
 
-            if (fileUrls.length > 0) {
-                return fileUrls.slice(0, 10);
+        function syncGalleryFilesInput() {
+            const transfer = new DataTransfer();
+
+            selectedGalleryFiles.forEach(function (file) {
+                transfer.items.add(file);
+            });
+
+            galleryFilesInput.files = transfer.files;
+        }
+
+        function appendGalleryFiles(files) {
+            if (!Array.isArray(files) || files.length === 0) {
+                return;
             }
 
-            return existingImageUrls
-                .map(resolveImagePreviewUrl)
-                .filter(Boolean)
-                .slice(0, 10);
+            const mergedFiles = selectedGalleryFiles.concat(files)
+                .filter(function (file) {
+                    return file && file.type.startsWith('image/');
+                });
+            const seen = new Set();
+
+            selectedGalleryFiles = mergedFiles.filter(function (file) {
+                const fingerprint = galleryFileFingerprint(file);
+
+                if (seen.has(fingerprint)) {
+                    return false;
+                }
+
+                seen.add(fingerprint);
+
+                return true;
+            }).slice(0, 10);
+
+            syncGalleryFilesInput();
+        }
+
+        function syncExistingGalleryInputs() {
+            if (!existingGalleryInputs) {
+                return;
+            }
+
+            existingGalleryInputs.innerHTML = '';
+
+            retainedExistingImageUrls.forEach(function (url) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'product[existing_image_urls][]';
+                input.value = url;
+                existingGalleryInputs.appendChild(input);
+            });
+        }
+
+        function removeGalleryFile(index) {
+            selectedGalleryFiles = selectedGalleryFiles.filter(function (_, fileIndex) {
+                return fileIndex !== index;
+            });
+
+            syncGalleryFilesInput();
+            updateGalleryPreview();
+        }
+
+        function removeExistingGalleryImage(index) {
+            retainedExistingImageUrls = retainedExistingImageUrls.filter(function (_, imageIndex) {
+                return imageIndex !== index;
+            });
+
+            syncExistingGalleryInputs();
+            updateGalleryPreview();
+        }
+
+        function galleryPreviewItems() {
+            const uploadedItems = selectedGalleryFiles.map(function (file, index) {
+                return {
+                    type: 'upload',
+                    index: index,
+                    url: URL.createObjectURL(file),
+                };
+            });
+            const existingItems = retainedExistingImageUrls.map(function (url, index) {
+                return {
+                    type: 'existing',
+                    index: index,
+                    url: resolveImagePreviewUrl(url),
+                };
+            }).filter(function (item) {
+                return Boolean(item.url);
+            });
+
+            return uploadedItems.concat(existingItems).slice(0, 10);
         }
 
         function updateGalleryPreview() {
-            const allUrls = selectedGalleryPreviewUrls();
+            const items = galleryPreviewItems();
 
             galleryPreview.innerHTML = '';
 
-            updateImagePreview(allUrls[0] || '');
+            updateImagePreview(items[0]?.url || '');
 
-            allUrls.forEach(function (url, index) {
+            items.forEach(function (item, index) {
                 const shell = document.createElement('div');
                 shell.className = 'product-gallery-thumb';
 
                 const img = document.createElement('img');
-                img.src = url;
+                img.src = item.url;
                 img.alt = `Gallery image ${index + 1}`;
 
+                const removeButton = document.createElement('button');
+                removeButton.type = 'button';
+                removeButton.className = 'product-gallery-remove';
+                removeButton.setAttribute('aria-label', `Remove gallery image ${index + 1}`);
+                removeButton.textContent = '×';
+                removeButton.addEventListener('click', function () {
+                    if (item.type === 'upload') {
+                        removeGalleryFile(item.index);
+                        return;
+                    }
+
+                    removeExistingGalleryImage(item.index);
+                });
+
                 shell.appendChild(img);
+                shell.appendChild(removeButton);
                 galleryPreview.appendChild(shell);
             });
         }
@@ -1227,7 +1348,10 @@
             });
         }
 
-        galleryFilesInput.addEventListener('change', updateGalleryPreview);
+        galleryFilesInput.addEventListener('change', function () {
+            appendGalleryFiles(Array.from(galleryFilesInput.files || []));
+            updateGalleryPreview();
+        });
         if (homeCardFileInput) {
             homeCardFileInput.addEventListener('change', updateHomeCardPreview);
         }
@@ -1262,11 +1386,7 @@
                 return file.type.startsWith('image/');
             }).slice(0, 10);
             if (files.length > 0) {
-                const transfer = new DataTransfer();
-                files.forEach(function (file) {
-                    transfer.items.add(file);
-                });
-                galleryFilesInput.files = transfer.files;
+                appendGalleryFiles(files);
                 updateGalleryPreview();
             }
         });
@@ -1282,11 +1402,7 @@
                 return;
             }
 
-            const transfer = new DataTransfer();
-            files.forEach(function (file) {
-                transfer.items.add(file);
-            });
-            galleryFilesInput.files = transfer.files;
+            appendGalleryFiles(files);
             updateGalleryPreview();
         });
 
@@ -1297,6 +1413,7 @@
         syncFamilyInputMode();
         syncDetailCodeSuggestion(false);
         updateYoutubePreview();
+        syncExistingGalleryInputs();
         updateGalleryPreview();
         updateHomeCardPreview();
         syncPvState();

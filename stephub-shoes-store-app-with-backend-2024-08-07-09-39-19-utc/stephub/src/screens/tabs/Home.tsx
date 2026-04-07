@@ -10,6 +10,7 @@ import {product} from '../../product';
 import {components} from '../../components';
 import {ProductType} from '../../types/ProductType';
 import {
+  fetchCategoryImageMap,
   fetchLiveProducts,
   getProductCollections,
 } from '../../utils/liveCatalog';
@@ -241,8 +242,11 @@ export const Home: FC = () => {
     setBannersData(current => (current.length ? current : BANNER_PLACEHOLDERS));
 
     try {
-      const products = await fetchLiveProducts();
-      const collections = getProductCollections(products);
+      const [products, categoryImageMap] = await Promise.all([
+        fetchLiveProducts(),
+        fetchCategoryImageMap(),
+      ]);
+      const collections = getProductCollections(products, categoryImageMap);
       const visibleCollections = collections.filter(item => item.id !== 'all');
 
       setProductsData(products);
