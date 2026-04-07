@@ -139,7 +139,11 @@ createServer((request, response) => {
   }
 
   const normalizedPath = normalize(pathname).replace(/^(\.\.[/\\])+/, "");
-  const filePath = resolve(join(rootDir, normalizedPath === "/" ? "index.html" : normalizedPath.slice(1)));
+  const relativePath =
+    normalizedPath === "/"
+      ? "index.html"
+      : normalizedPath.replace(/^\/+/, "");
+  const filePath = resolve(join(rootDir, relativePath));
 
   if (filePath.startsWith(rootDir) && existsSync(filePath) && statSync(filePath).isFile()) {
     if (request.method === "HEAD") {
