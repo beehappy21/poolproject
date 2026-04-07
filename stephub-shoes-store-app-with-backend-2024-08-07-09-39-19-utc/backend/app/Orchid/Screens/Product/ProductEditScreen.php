@@ -623,10 +623,7 @@ class ProductEditScreen extends Screen
                     continue;
                 }
 
-                $resolvedUrls[] = $this->storeBinaryImage(
-                    $this->prepareUploadedImageBinary($file),
-                    $file->getMimeType() ?: 'application/octet-stream'
-                );
+                $resolvedUrls[] = $this->storeUploadedImageFile($file);
             }
         }
 
@@ -672,10 +669,7 @@ class ProductEditScreen extends Screen
             return $existingImageUrl ? $this->normalizeStoredImageReference($existingImageUrl) : null;
         }
 
-        return $this->storeBinaryImage(
-            $this->prepareUploadedImageBinary($file),
-            $file->getMimeType() ?: 'application/octet-stream'
-        );
+        return $this->storeUploadedImageFile($file);
     }
 
     private function storeDataUrlImage(string $dataUrl): ?string
@@ -710,6 +704,29 @@ class ProductEditScreen extends Screen
 
         $filename = 'products/' . Str::uuid()->toString() . '.' . $extension;
         Storage::disk('public')->put($filename, $binary);
+
+        return $filename;
+    }
+
+    private function storeUploadedImageFile(UploadedFile $file): ?string
+    {
+        if (!$file->isValid()) {
+            return null;
+        }
+
+        $extension = strtolower((string) ($file->guessExtension() ?: $file->extension() ?: 'bin'));
+        $filename = 'products/' . Str::uuid()->toString() . '.' . $extension;
+
+        $stream = fopen($file->getRealPath(), 'rb');
+        if ($stream === false) {
+            return null;
+        }
+
+        try {
+            Storage::disk('public')->put($filename, $stream);
+        } finally {
+            fclose($stream);
+        }
 
         return $filename;
     }
