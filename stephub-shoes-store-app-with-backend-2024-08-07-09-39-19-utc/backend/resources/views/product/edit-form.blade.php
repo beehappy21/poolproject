@@ -259,6 +259,80 @@
         font-size: 0.9rem;
     }
 
+    .product-sales-mode-grid {
+        display: grid;
+        gap: 0.85rem;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+
+    .product-sales-mode-card {
+        display: block;
+        border: 1px solid #cbd5e1;
+        border-radius: 14px;
+        background: #fff;
+        padding: 1rem;
+        cursor: pointer;
+        transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+    }
+
+    .product-sales-mode-card.is-active {
+        border-color: #1d4ed8;
+        background: #eff6ff;
+        box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.12);
+    }
+
+    .product-sales-mode-card input {
+        margin-right: 0.6rem;
+    }
+
+    .product-sales-mode-title {
+        display: flex;
+        align-items: center;
+        color: #0f172a;
+        font-weight: 700;
+        margin-bottom: 0.45rem;
+    }
+
+    .product-sales-mode-detail {
+        color: #475569;
+        font-size: 0.9rem;
+        line-height: 1.6;
+    }
+
+    .product-action-footer {
+        position: sticky;
+        bottom: 1rem;
+        z-index: 5;
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.75rem;
+        padding: 1rem;
+        margin-top: 1.25rem;
+        border: 1px solid #dbeafe;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.96);
+        box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+        backdrop-filter: blur(12px);
+    }
+
+    .product-action-footer button {
+        border: 0;
+        border-radius: 12px;
+        padding: 0.85rem 1.2rem;
+        font-weight: 700;
+        cursor: pointer;
+    }
+
+    .product-action-footer .secondary {
+        background: #e2e8f0;
+        color: #0f172a;
+    }
+
+    .product-action-footer .primary {
+        background: #1d4ed8;
+        color: #fff;
+    }
+
     @media (max-width: 900px) {
         .product-media-shell {
             grid-template-columns: 1fr;
@@ -666,6 +740,47 @@
         </div>
     </div>
 
+    <div class="pool-field">
+        <label>Sales channel</label>
+        <input type="hidden" id="product_sales_channel_mode" name="product[sales_channel_mode]" value="{{ old('product.sales_channel_mode', $product['sales_channel_mode'] ?? 'WAP_CATALOG') }}">
+        <div class="product-sales-mode-grid" id="productSalesModeGrid">
+            <label class="product-sales-mode-card" data-sales-mode-card="OFF">
+                <div class="product-sales-mode-title">
+                    <input type="checkbox" data-sales-mode-input="OFF" @checked((string) ($product['sales_channel_mode'] ?? 'WAP_CATALOG') === 'OFF')>
+                    ปิด
+                </div>
+                <div class="product-sales-mode-detail">ไม่เปิดขายทุกช่องทาง</div>
+            </label>
+
+            <label class="product-sales-mode-card" data-sales-mode-card="WAP_CATALOG">
+                <div class="product-sales-mode-title">
+                    <input type="checkbox" data-sales-mode-input="WAP_CATALOG" @checked((string) ($product['sales_channel_mode'] ?? 'WAP_CATALOG') === 'WAP_CATALOG')>
+                    WAP / Catalog
+                </div>
+                <div class="product-sales-mode-detail">เปิดขายที่ WAP และแสดงบนหน้า Home กับ Catalog</div>
+            </label>
+
+            <label class="product-sales-mode-card" data-sales-mode-card="CATALOG_ONLY">
+                <div class="product-sales-mode-title">
+                    <input type="checkbox" data-sales-mode-input="CATALOG_ONLY" @checked((string) ($product['sales_channel_mode'] ?? 'WAP_CATALOG') === 'CATALOG_ONLY')>
+                    Catalog
+                </div>
+                <div class="product-sales-mode-detail">เปิดขายที่ Catalog แต่ไม่แสดงบนหน้า Home</div>
+            </label>
+
+            <label class="product-sales-mode-card" data-sales-mode-card="BAO_ONLY">
+                <div class="product-sales-mode-title">
+                    <input type="checkbox" data-sales-mode-input="BAO_ONLY" @checked((string) ($product['sales_channel_mode'] ?? 'WAP_CATALOG') === 'BAO_ONLY')>
+                    BAO
+                </div>
+                <div class="product-sales-mode-detail">เปิดขายเฉพาะใน admin order create เท่านั้น</div>
+            </label>
+        </div>
+        @error('product.sales_channel_mode')
+            <div class="pool-field-error">{{ $message }}</div>
+        @enderror
+    </div>
+
     <div class="product-toggle-grid">
         <div class="pool-field">
             <label for="product_is_new">New</label>
@@ -699,6 +814,11 @@
             </select>
         </div>
     </div>
+</div>
+
+<div class="product-action-footer">
+    <button type="button" class="secondary" id="productBottomRemoveButton" @if (empty($product['id'])) style="display:none" @endif>Remove</button>
+    <button type="button" class="primary" id="productBottomSubmitButton">{{ empty($product['id']) ? 'Create SKU' : 'Update' }}</button>
 </div>
 
 <script>
@@ -753,6 +873,11 @@
         const firmRedeemLimitField = document.getElementById('productFirmRedeemLimitField');
         const firmModeSummary = document.getElementById('productFirmModeSummary');
         const firmHiddenFields = Array.from(document.querySelectorAll('[data-firm-hide="1"]'));
+        const salesModeHiddenInput = document.getElementById('product_sales_channel_mode');
+        const salesModeInputs = Array.from(document.querySelectorAll('[data-sales-mode-input]'));
+        const salesModeCards = Array.from(document.querySelectorAll('[data-sales-mode-card]'));
+        const bottomSubmitButton = document.getElementById('productBottomSubmitButton');
+        const bottomRemoveButton = document.getElementById('productBottomRemoveButton');
         const firstErrorInput = document.querySelector('.pool-input-error');
         const fallbackImage = imagePreview.getAttribute('src');
         const fallbackHomeCardImage = homeCardPreview.getAttribute('src');
@@ -887,6 +1012,58 @@
                 productCategoryName.value = categorySelect.options[categorySelect.selectedIndex]?.textContent || '';
                 productSupplierName.value = supplierSelect.options[supplierSelect.selectedIndex]?.textContent || '';
             }
+        }
+
+        function updateSalesModeUi(selectedMode) {
+            salesModeInputs.forEach(function (input) {
+                const isActive = input.getAttribute('data-sales-mode-input') === selectedMode;
+                input.checked = isActive;
+            });
+
+            salesModeCards.forEach(function (card) {
+                const isActive = card.getAttribute('data-sales-mode-card') === selectedMode;
+                card.classList.toggle('is-active', isActive);
+            });
+
+            if (salesModeHiddenInput) {
+                salesModeHiddenInput.value = selectedMode;
+            }
+        }
+
+        salesModeInputs.forEach(function (input) {
+            input.addEventListener('change', function () {
+                const mode = input.getAttribute('data-sales-mode-input') || 'WAP_CATALOG';
+                updateSalesModeUi(mode);
+            });
+        });
+
+        updateSalesModeUi((salesModeHiddenInput && salesModeHiddenInput.value) || 'WAP_CATALOG');
+
+        function findCommandButton(label) {
+            return Array.from(document.querySelectorAll('button, a')).find(function (node) {
+                return node.textContent && node.textContent.trim() === label;
+            });
+        }
+
+        if (bottomSubmitButton) {
+            bottomSubmitButton.addEventListener('click', function () {
+                const targetLabel = bottomSubmitButton.textContent.trim();
+                const commandButton = findCommandButton(targetLabel);
+
+                if (commandButton && commandButton !== bottomSubmitButton) {
+                    commandButton.click();
+                }
+            });
+        }
+
+        if (bottomRemoveButton) {
+            bottomRemoveButton.addEventListener('click', function () {
+                const commandButton = findCommandButton('Remove');
+
+                if (commandButton && commandButton !== bottomRemoveButton) {
+                    commandButton.click();
+                }
+            });
         }
 
         function syncDetailCodeSuggestion(force) {

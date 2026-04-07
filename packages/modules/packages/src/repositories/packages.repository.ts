@@ -401,6 +401,7 @@ export interface PackagesRepository {
       isTop: boolean;
       isFeatured: boolean;
       isBestSeller: boolean;
+      salesChannelMode: string;
       status: string;
     }>
   >;
@@ -931,8 +932,33 @@ export class PrismaPackagesRepository implements PackagesRepository {
   }
 
   async listStorefrontProducts() {
+    const storefrontModeRows = await this.prisma.$queryRaw<Array<{
+      id: bigint;
+      salesChannelMode: string | null;
+    }>>`
+      SELECT "id", "salesChannelMode"
+      FROM "ProductDetail"
+      WHERE "status" = 'ACTIVE'
+        AND COALESCE(NULLIF(TRIM("salesChannelMode"), ''), 'WAP_CATALOG') IN ('WAP_CATALOG', 'CATALOG_ONLY')
+    `;
+
+    const storefrontModeById = new Map(
+      storefrontModeRows.map((row) => [
+        row.id.toString(),
+        String(row.salesChannelMode || "WAP_CATALOG").trim().toUpperCase(),
+      ]),
+    );
+    const storefrontIds = storefrontModeRows.map((row) => row.id);
+
+    if (storefrontIds.length === 0) {
+      return [];
+    }
+
     const details = await this.prisma.productDetail.findMany({
       where: {
+        id: {
+          in: storefrontIds,
+        },
         status: "ACTIVE",
         product: {
           status: "ACTIVE",
@@ -1049,6 +1075,8 @@ export class PrismaPackagesRepository implements PackagesRepository {
         isTop: detail.isTop,
         isFeatured: detail.isFeatured,
         isBestSeller: detail.isBestSeller,
+        salesChannelMode:
+          storefrontModeById.get(detail.id.toString()) || "WAP_CATALOG",
         status: detail.status.toLowerCase(),
       }});
   }
