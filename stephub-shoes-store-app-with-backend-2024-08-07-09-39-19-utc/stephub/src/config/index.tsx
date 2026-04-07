@@ -8,31 +8,16 @@ const getRuntimeHostname = (): string => {
   return window.location.hostname.toLowerCase();
 };
 
-const isPublicWapHost = (hostname: string): boolean => {
-  return (
-    hostname === 'wap.blifehealthy.com' ||
-    hostname === 'www.blifehealthy.com'
-  );
-};
-
 const getDefaultApiBaseUrl = (): string => {
   const hostname = getRuntimeHostname();
-
-  if (isPublicWapHost(hostname)) {
-    return '/api';
-  }
-
-  return 'http://127.0.0.1:3000';
+  void hostname;
+  return '/api';
 };
 
 const getDefaultBaoBaseUrl = (): string => {
   const hostname = getRuntimeHostname();
-
-  if (isPublicWapHost(hostname)) {
-    return '/bao-api';
-  }
-
-  return 'http://127.0.0.1:8001';
+  void hostname;
+  return '/bao-api';
 };
 
 const API_BASE_URL =

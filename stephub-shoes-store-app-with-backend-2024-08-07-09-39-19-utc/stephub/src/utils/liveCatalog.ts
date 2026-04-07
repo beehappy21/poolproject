@@ -49,11 +49,8 @@ type BasicProduct = {
 };
 
 type CatalogCategory = {
-  id?: string | number;
   code?: string;
-  name?: string;
-  image?: string;
-  imageUrl?: string;
+  image?: string | null;
 };
 
 const DEFAULT_CATALOG_IMAGE = '/16.png';
@@ -65,6 +62,7 @@ const isPublicWapRuntime = (): boolean => {
 
   const hostname = window.location.hostname.toLowerCase();
   return (
+    hostname === 'blifehealthy.com' ||
     hostname === 'wap.blifehealthy.com' ||
     hostname === 'www.blifehealthy.com'
   );
@@ -87,12 +85,25 @@ const resolveCatalogImageUrl = (value?: string | null): string => {
     return '';
   }
 
-  if (
-    trimmed.startsWith('http://') ||
-    trimmed.startsWith('https://') ||
-    trimmed.startsWith('data:image/') ||
-    trimmed.startsWith('blob:')
-  ) {
+  if (trimmed.startsWith('data:image/') || trimmed.startsWith('blob:')) {
+    return trimmed;
+  }
+
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    try {
+      const parsedUrl = new URL(trimmed);
+
+      if (
+        isPublicWapRuntime() &&
+        /(^|\.)(bao\.blifehealthy\.com)$/i.test(parsedUrl.hostname) &&
+        parsedUrl.pathname.startsWith('/storage/')
+      ) {
+        return `${window.location.origin}${parsedUrl.pathname}`;
+      }
+    } catch (error) {
+      console.error(error);
+    }
+
     return trimmed;
   }
 
@@ -126,8 +137,9 @@ const toProductNumber = (value: unknown): number => {
 
 export const mapStorefrontProductToProduct = (
   item: StorefrontProduct,
-  _index: number,
+  index: number,
 ): ProductType => {
+  const fallbackImage = DEFAULT_CATALOG_IMAGE;
   const gallery = [
     resolveCatalogImageUrl(item.primaryImageUrl),
     ...(Array.isArray(item.imageUrls)
@@ -136,7 +148,7 @@ export const mapStorefrontProductToProduct = (
   ].filter((value, imageIndex, array): value is string => {
     return Boolean(value) && array.indexOf(value) === imageIndex;
   });
-  const image = gallery[0] || DEFAULT_CATALOG_IMAGE;
+  const image = gallery[0] || fallbackImage;
   const homeImage = resolveCatalogImageUrl(item.homeCardImageUrl) || image;
   const categoryCode = safeString(item.categoryCode, 'uncategorized');
   const supplierCode = safeString(item.supplierCode, 'catalog');
@@ -200,6 +212,7 @@ const mapBasicProductToProduct = (
   item: BasicProduct,
   index: number,
 ): ProductType => {
+  const fallbackImage = DEFAULT_CATALOG_IMAGE;
   const id = safeString(item.productId, String(index + 1));
   const categoryCode = safeString(item.categoryCode, 'catalog');
   const supplierCode = safeString(item.supplierCode, 'catalog');
@@ -219,9 +232,9 @@ const mapBasicProductToProduct = (
     rating: 5,
     ratingCount: 0,
     status: safeString(item.status, 'active'),
-    image: DEFAULT_CATALOG_IMAGE,
-    homeImage: DEFAULT_CATALOG_IMAGE,
-    images: [DEFAULT_CATALOG_IMAGE],
+    image: fallbackImage,
+    homeImage: fallbackImage,
+    images: [fallbackImage],
     sizes: ['standard'],
     size: 'standard',
     colors: [{name: 'default', code: '#1F2937'}],
@@ -259,32 +272,6 @@ const getListPayload = <T,>(value: unknown): T[] => {
   }
 
   return [];
-};
-
-export const fetchCategoryImageMap = async (): Promise<Record<string, string>> => {
-  try {
-    const response = await axios.get(URLS.GET_CATEGORIES, {
-      timeout: 15000,
-    });
-    const categories = getListPayload<CatalogCategory>(response.data);
-
-    return categories.reduce<Record<string, string>>((result, category) => {
-      const categoryCode = safeString(category.code).toLowerCase();
-      const image =
-        resolveCatalogImageUrl(category.imageUrl) ||
-        resolveCatalogImageUrl(category.image) ||
-        '';
-
-      if (categoryCode && image) {
-        result[categoryCode] = image;
-      }
-
-      return result;
-    }, {});
-  } catch (error) {
-    console.error('Unable to load category images, using default image fallback.', error);
-    return {};
-  }
 };
 
 export const fetchLiveProducts = async (): Promise<ProductType[]> => {
@@ -330,6 +317,28 @@ export const fetchLiveProducts = async (): Promise<ProductType[]> => {
   }
 
   throw storefrontError || new Error('Unable to load products from storefront or fallback catalog.');
+};
+
+export const fetchCategoryImageMap = async (): Promise<Record<string, string>> => {
+  const response = await axios.get(URLS.GET_CATEGORIES, {
+    timeout: 15000,
+  });
+  const items = getListPayload<CatalogCategory>(response.data);
+
+  return items.reduce<Record<string, string>>((result, item) => {
+    const code = safeString(item.code).toLowerCase();
+    const rawImage = safeString(item.image);
+    const image =
+      rawImage.startsWith('data:image/')
+        ? ''
+        : resolveCatalogImageUrl(rawImage);
+
+    if (code && image) {
+      result[code] = image;
+    }
+
+    return result;
+  }, {});
 };
 
 export const getProductCollections = (
@@ -405,7 +414,8 @@ export const getProductCollections = (
 export const fetchProductCollections = async () => {
   const [products, categoryImageMap] = await Promise.all([
     fetchLiveProducts(),
-    fetchCategoryImageMap(),
+    fetchCategoryImageMap().catch(() => ({})),
   ]);
+
   return getProductCollections(products, categoryImageMap);
 };

@@ -37,7 +37,8 @@ const PRODUCT_BATCH_SIZE = 20;
 const BANNER_INSERT_INTERVAL = 8;
 const MOBILE_BREAKPOINT = 768;
 const CATEGORY_VISIBLE_COUNT = 5;
-const HOME_CACHE_KEY = 'stephub-home-cache-v1';
+const HOME_CACHE_KEY = 'stephub-home-cache-v2';
+const LEGACY_HOME_CACHE_KEYS = ['stephub-home-cache-v1'];
 const HOME_REQUEST_TIMEOUT_MS = 10000;
 const HOME_SLIDE_INTERVAL_MS = 3000;
 const HOME_LOADING_FAILSAFE_MS = 12000;
@@ -66,7 +67,7 @@ const INLINE_IMAGE_PLACEHOLDER =
 const isBrowser = typeof window !== 'undefined';
 const isPublicWapRuntime = (): boolean =>
   isBrowser &&
-  ['wap.blifehealthy.com', 'www.blifehealthy.com'].includes(
+  ['blifehealthy.com', 'wap.blifehealthy.com', 'www.blifehealthy.com'].includes(
     window.location.hostname.toLowerCase(),
   );
 const isTouchDevice = (): boolean =>
@@ -84,7 +85,7 @@ const resolvePublicStorageUrl = (path: string): string => {
 
   if (
     isBrowser &&
-    ['wap.blifehealthy.com', 'www.blifehealthy.com'].includes(
+    ['blifehealthy.com', 'wap.blifehealthy.com', 'www.blifehealthy.com'].includes(
       window.location.hostname.toLowerCase(),
     )
   ) {
@@ -114,6 +115,7 @@ const normalizeBaoMediaUrl = (value: unknown): string | undefined => {
     if (
       parsed.hostname === '127.0.0.1' ||
       parsed.hostname === 'localhost' ||
+      parsed.hostname === 'blifehealthy.com' ||
       parsed.hostname === 'bao.blifehealthy.com' ||
       parsed.hostname === 'wap.blifehealthy.com' ||
       parsed.hostname === 'www.blifehealthy.com'
@@ -187,6 +189,20 @@ const readHomeCache = (): HomeCachePayload | null => {
   }
 };
 
+const clearLegacyHomeCache = () => {
+  if (!isBrowser) {
+    return;
+  }
+
+  try {
+    LEGACY_HOME_CACHE_KEYS.forEach(cacheKey => {
+      window.localStorage.removeItem(cacheKey);
+    });
+  } catch (error) {
+    console.warn('Unable to clear legacy Home cache.', error);
+  }
+};
+
 const writeHomeCache = (payload: HomeCachePayload) => {
   if (!isBrowser) {
     return;
@@ -244,7 +260,7 @@ export const Home: FC = () => {
     try {
       const [products, categoryImageMap] = await Promise.all([
         fetchLiveProducts(),
-        fetchCategoryImageMap(),
+        fetchCategoryImageMap().catch(() => ({})),
       ]);
       const collections = getProductCollections(products, categoryImageMap);
       const visibleCollections = collections.filter(item => item.id !== 'all');
@@ -329,6 +345,7 @@ export const Home: FC = () => {
   };
 
   useEffect(() => {
+    clearLegacyHomeCache();
     getData();
     window.scrollTo(0, 0);
   }, [initialVisibleProductCount]);
