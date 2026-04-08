@@ -715,7 +715,6 @@ class ProductEditScreen extends Screen
 
         return in_array($scheme, ['http', 'https'], true);
     }
-
     private function normalizeSalesChannelMode(?string $value): string
     {
         $normalized = Str::upper(trim((string) $value));
