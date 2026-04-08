@@ -34,6 +34,10 @@ const stack = createBrowserRouter([
         element: <screens.Product />,
       },
       {
+        path: 'product',
+        element: <screens.Product />,
+      },
+      {
         path: 'Shop',
         element: <screens.Shop />,
       },
@@ -43,6 +47,10 @@ const stack = createBrowserRouter([
       },
       {
         path: 'Description',
+        element: <screens.Description />,
+      },
+      {
+        path: 'description',
         element: <screens.Description />,
       },
       {

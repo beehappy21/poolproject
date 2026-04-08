@@ -8,6 +8,11 @@ import {hooks} from '../hooks';
 import {svg} from '../assets/svg';
 import {theme} from '../constants';
 import {formatTHB} from '../utils/currency';
+import {
+  toPlainTextProductDescription,
+  toRenderableProductRichTextHtml,
+} from '../utils';
+import {fetchLiveProducts} from '../utils/liveCatalog';
 import {product} from '../product';
 import {actions} from '../store/actions';
 import {components} from '../components';
@@ -21,6 +26,25 @@ type MediaItem =
       type: 'image';
       url: string;
     };
+
+const appendImageCacheKey = (url: string, cacheKey: string): string => {
+  if (!url || url.startsWith('data:image/') || url.startsWith('blob:')) {
+    return url;
+  }
+
+  try {
+    const parsed = new URL(
+      url,
+      typeof window !== 'undefined' ? window.location.origin : 'http://127.0.0.1',
+    );
+    parsed.searchParams.set('__v', cacheKey);
+    return parsed.toString();
+  } catch (error) {
+    console.error(error);
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}__v=${encodeURIComponent(cacheKey)}`;
+  }
+};
 
 const getYoutubeVideoId = (url?: string): string | null => {
   if (!url) {
@@ -45,7 +69,7 @@ const getYoutubeVideoId = (url?: string): string | null => {
   return null;
 };
 
-const buildMediaItems = (item: any): MediaItem[] => {
+const buildMediaItems = (item: any, cacheKey: string): MediaItem[] => {
   const media: MediaItem[] = [];
   const videoId = getYoutubeVideoId(item.youtubeUrl);
 
@@ -63,11 +87,14 @@ const buildMediaItems = (item: any): MediaItem[] => {
   );
 
   uniqueImages.forEach((url: string) => {
-    media.push({type: 'image', url});
+    media.push({type: 'image', url: appendImageCacheKey(url, cacheKey)});
   });
 
   if (!media.length && item.image) {
-    media.push({type: 'image', url: item.image});
+    media.push({
+      type: 'image',
+      url: appendImageCacheKey(item.image, cacheKey),
+    });
   }
 
   return media;
@@ -78,7 +105,11 @@ export const Product: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = hooks.useAppDispatch();
 
-  const item = location.state?.item;
+  const routeItem = location.state?.item;
+  const [item, setItem] = useState(routeItem);
+  const mediaCacheKeyRef = useRef(
+    `${routeItem?.productDetailId || routeItem?.id || 'product'}-${Date.now()}`,
+  );
 
   const [reviewsData, setReviewsData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -89,6 +120,7 @@ export const Product: React.FC = () => {
     item?.colors?.[0]?.name || 'default',
   );
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const videoFrameRef = useRef<HTMLIFrameElement | null>(null);
   const mediaScrollerRef = useRef<HTMLDivElement | null>(null);
 
@@ -98,7 +130,14 @@ export const Product: React.FC = () => {
     size: selectedSize,
   };
 
-  const mediaItems = buildMediaItems(item || {});
+  const mediaItems = buildMediaItems(item || {}, mediaCacheKeyRef.current);
+  const descriptionHtml = toRenderableProductRichTextHtml(item?.description);
+  const descriptionSummary =
+    item?.shortDescription || toPlainTextProductDescription(item?.description);
+  const hasLongDescription =
+    descriptionSummary.length > 260 ||
+    descriptionHtml.length > 700 ||
+    /<img|<figure|<ul|<ol|<h[1-4]/i.test(descriptionHtml);
   const hasLeadingVideo = mediaItems[0]?.type === 'video';
   const hasRealSizes =
     Array.isArray(item?.sizes) &&
@@ -134,6 +173,47 @@ export const Product: React.FC = () => {
   };
 
   useEffect(() => {
+    setItem(routeItem);
+    mediaCacheKeyRef.current = `${
+      routeItem?.productDetailId || routeItem?.id || 'product'
+    }-${Date.now()}`;
+  }, [routeItem?.productDetailId, routeItem?.id]);
+
+  useEffect(() => {
+    const targetId = String(routeItem?.productDetailId || routeItem?.id || '').trim();
+
+    if (!targetId) {
+      return;
+    }
+
+    let isMounted = true;
+
+    fetchLiveProducts()
+      .then((products) => {
+        if (!isMounted) {
+          return;
+        }
+
+        const latestProduct = products.find(
+          (productItem) =>
+            String(productItem.productDetailId || productItem.id) === targetId,
+        );
+
+        if (latestProduct) {
+          setItem(latestProduct);
+          mediaCacheKeyRef.current = `${targetId}-${Date.now()}`;
+        }
+      })
+      .catch((error) => {
+        console.error('Unable to refresh product detail.', error);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [routeItem?.productDetailId, routeItem?.id]);
+
+  useEffect(() => {
     window.scrollTo(0, 0);
     getReviews();
   }, []);
@@ -141,6 +221,7 @@ export const Product: React.FC = () => {
   useEffect(() => {
     setActiveMediaIndex(0);
     mediaScrollerRef.current?.scrollTo({left: 0, behavior: 'auto'});
+    setIsDescriptionExpanded(false);
   }, [item?.productDetailId, item?.id]);
 
   useEffect(() => {
@@ -237,33 +318,33 @@ export const Product: React.FC = () => {
     }
 
     return (
-      <div
-        key={`image-${index}`}
-        style={{
-          flex: '0 0 100%',
-          width: '100%',
-          aspectRatio: '16 / 9',
-          backgroundColor: '#000',
-          overflow: 'hidden',
-          display: 'flex',
-          alignItems: 'stretch',
-          justifyContent: 'stretch',
-          scrollSnapAlign: 'start',
-        }}
-      >
-        <img
-          src={media.url}
-          alt={item.name}
+        <div
+          key={`image-${index}`}
           style={{
+            flex: '0 0 100%',
             width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            display: 'block',
-            backgroundColor: '#000',
-            flex: 1,
+            aspectRatio: '16 / 9',
+            backgroundColor: '#f8fafc',
+            overflow: 'hidden',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            scrollSnapAlign: 'start',
           }}
-        />
-      </div>
+        >
+          <img
+            src={media.url}
+            alt={item.name}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain',
+              display: 'block',
+              backgroundColor: '#f8fafc',
+              flex: 1,
+            }}
+          />
+        </div>
     );
   };
 
@@ -302,7 +383,7 @@ export const Product: React.FC = () => {
           style={{
             width: '100%',
             aspectRatio: '16 / 9',
-            backgroundColor: '#000',
+            backgroundColor: '#f8fafc',
             overflow: 'hidden',
             position: 'relative',
           }}
@@ -482,7 +563,7 @@ export const Product: React.FC = () => {
                 maxWidth: 760,
               }}
             >
-              {item.shortDescription || item.description}
+              {descriptionSummary}
             </p>
           </div>
 
@@ -621,6 +702,21 @@ export const Product: React.FC = () => {
 
     return (
       <section style={{marginBottom: 28}}>
+        <style>{`
+          .wap-product-description img {
+            display: block;
+            width: auto !important;
+            max-width: 100% !important;
+            max-height: min(420px, 50vh) !important;
+            height: auto !important;
+            margin: 0 auto;
+            object-fit: contain !important;
+          }
+          .wap-product-description figure {
+            margin: 0 0 1rem;
+            text-align: center;
+          }
+        `}</style>
         <h3
           style={{
             marginTop: 0,
@@ -726,17 +822,50 @@ export const Product: React.FC = () => {
           รายละเอียดสินค้า
         </h3>
         <div
+          className='wap-product-description'
           style={{
+            position: 'relative',
             padding: 22,
             backgroundColor: theme.colors.ghostWhite,
             color: theme.colors.textColor,
             lineHeight: 1.8,
             fontSize: 15,
             ...theme.fonts.Mulish_400Regular,
+            maxHeight: hasLongDescription && !isDescriptionExpanded ? 320 : 'none',
+            overflow: 'hidden',
           }}
-        >
-          {item.description}
-        </div>
+          dangerouslySetInnerHTML={{
+            __html: descriptionHtml || '<p>-</p>',
+          }}
+        />
+        {hasLongDescription && !isDescriptionExpanded ? (
+          <div
+            style={{
+              marginTop: -72,
+              height: 72,
+              background:
+                'linear-gradient(180deg, rgba(248,250,252,0) 0%, rgba(248,250,252,0.94) 45%, rgba(248,250,252,1) 100%)',
+            }}
+          />
+        ) : null}
+        {hasLongDescription ? (
+          <button
+            type='button'
+            onClick={() => setIsDescriptionExpanded((current) => !current)}
+            style={{
+              marginTop: 14,
+              border: 'none',
+              backgroundColor: theme.colors.mainColor,
+              color: '#fff',
+              padding: '12px 18px',
+              cursor: 'pointer',
+              ...theme.fonts.Mulish_700Bold,
+              fontSize: 14,
+            }}
+          >
+            {isDescriptionExpanded ? 'ย่อรายละเอียด' : 'แสดงเพิ่มเติม'}
+          </button>
+        ) : null}
       </section>
     );
   };
