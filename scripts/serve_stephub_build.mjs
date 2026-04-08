@@ -1,5 +1,5 @@
 import { createServer, request as httpRequest } from "node:http";
-import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
+import { createReadStream, existsSync, statSync } from "node:fs";
 import { extname, join, normalize, resolve } from "node:path";
 import { request as httpsRequest } from "node:https";
 
@@ -22,7 +22,7 @@ const mimeTypes = {
   ".webp": "image/webp",
 };
 
-const indexHtml = readFileSync(join(rootDir, "index.html"));
+const indexHtmlPath = join(rootDir, "index.html");
 const apiProxyTarget = new URL(process.env.STEPHUB_API_PROXY_TARGET || "http://127.0.0.1:3000");
 const baoProxyTarget = new URL(process.env.STEPHUB_BAO_PROXY_TARGET || "http://127.0.0.1:8001");
 
@@ -169,13 +169,20 @@ createServer((request, response) => {
     return;
   }
 
-  sendBuffer(
-    response,
-    200,
-    request.method === "HEAD" ? undefined : indexHtml,
-    "text/html; charset=utf-8",
-    "no-store, no-cache, must-revalidate",
-  );
+  if (request.method === "HEAD") {
+    response.writeHead(200, {
+      "Content-Type": "text/html; charset=utf-8",
+      "Content-Length": statSync(indexHtmlPath).size,
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "*",
+      "Access-Control-Allow-Headers": "*",
+    });
+    response.end();
+    return;
+  }
+
+  sendFile(response, indexHtmlPath, pathname);
 }).listen(port, host, () => {
   console.log(`Stephub build server listening on http://${host}:${port}`);
 });

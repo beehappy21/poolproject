@@ -353,6 +353,8 @@ class ProductEditScreen extends Screen
             'product.gallery_files.*' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp'],
             'product.existing_image_urls' => ['nullable', 'array', 'max:10'],
             'product.existing_image_urls.*' => ['nullable', 'string', 'max:2048'],
+            'product.gallery_order' => ['nullable', 'array', 'max:10'],
+            'product.gallery_order.*' => ['nullable', 'string', 'max:4096'],
             'product.home_card_file' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp'],
             'product.cost_price' => ['nullable', 'numeric', 'min:0'],
             'product.member_price' => ['nullable', 'numeric', 'min:0'],
@@ -431,7 +433,8 @@ class ProductEditScreen extends Screen
         $retainedImageUrls = $this->normalizeExistingImageUrls($product['existing_image_urls'] ?? []);
         $imageUrls = $this->mergeUploadedImageUrls(
             $uploadedImageUrls,
-            $retainedImageUrls
+            $retainedImageUrls,
+            $product['gallery_order'] ?? []
         );
         $primaryImageUrl = $imageUrls[0] ?? null;
         $homeCardImageUrl = $this->resolveHomeCardImageUrl(
@@ -445,7 +448,7 @@ class ProductEditScreen extends Screen
             'name' => $product['name'],
             'slug' => ($product['slug'] ?? '') !== '' ? $product['slug'] : Str::slug($product['name']),
             'shortDescription' => $product['short_description'] ?? null,
-            'description' => $product['description'] ?? null,
+            'description' => $this->sanitizeRichDescription($product['description'] ?? null),
             'youtubeUrl' => $normalizedYoutubeUrl,
             'primaryImageUrl' => $primaryImageUrl,
             'homeCardImageUrl' => $homeCardImageUrl,
@@ -493,6 +496,225 @@ class ProductEditScreen extends Screen
         ];
     }
 
+    private function sanitizeRichDescription(?string $value): ?string
+    {
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        if (!preg_match('/<\/?[a-z][^>]*>/i', $value)) {
+            return $value;
+        }
+
+        if (!class_exists(\DOMDocument::class)) {
+            return strip_tags(
+                $value,
+                '<p><br><div><span><strong><b><em><i><u><ul><ol><li><h1><h2><h3><h4><blockquote><figure><figcaption><img><hr>'
+            );
+        }
+
+        $previous = libxml_use_internal_errors(true);
+
+        try {
+            $source = new \DOMDocument('1.0', 'UTF-8');
+            $source->loadHTML(
+                '<?xml encoding="utf-8" ?><div id="product-rich-description-root">' . $value . '</div>',
+                LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD
+            );
+
+            $root = $source->getElementById('product-rich-description-root');
+
+            if (!$root instanceof \DOMElement) {
+                return strip_tags($value);
+            }
+
+            $target = new \DOMDocument('1.0', 'UTF-8');
+            $container = $target->createElement('div');
+            $target->appendChild($container);
+
+            foreach (iterator_to_array($root->childNodes) as $childNode) {
+                $sanitizedNode = $this->sanitizeRichDescriptionNode($childNode, $target);
+                if ($sanitizedNode instanceof \DOMNode) {
+                    $container->appendChild($sanitizedNode);
+                }
+            }
+
+            $html = '';
+            foreach (iterator_to_array($container->childNodes) as $childNode) {
+                $html .= $target->saveHTML($childNode);
+            }
+
+            return trim($html) !== '' ? trim($html) : null;
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
+    }
+
+    private function sanitizeRichDescriptionNode(\DOMNode $node, \DOMDocument $target): ?\DOMNode
+    {
+        if ($node instanceof \DOMText) {
+            return $target->createTextNode($node->textContent ?? '');
+        }
+
+        if (!$node instanceof \DOMElement) {
+            return null;
+        }
+
+        $tagName = strtoupper($node->tagName);
+        $allowedTags = [
+            'P',
+            'BR',
+            'DIV',
+            'SPAN',
+            'STRONG',
+            'B',
+            'EM',
+            'I',
+            'U',
+            'UL',
+            'OL',
+            'LI',
+            'H1',
+            'H2',
+            'H3',
+            'H4',
+            'BLOCKQUOTE',
+            'FIGURE',
+            'FIGCAPTION',
+            'IMG',
+            'HR',
+        ];
+
+        if (!in_array($tagName, $allowedTags, true)) {
+            $fragment = $target->createDocumentFragment();
+
+            foreach (iterator_to_array($node->childNodes) as $childNode) {
+                $sanitizedChild = $this->sanitizeRichDescriptionNode($childNode, $target);
+                if ($sanitizedChild instanceof \DOMNode) {
+                    $fragment->appendChild($sanitizedChild);
+                }
+            }
+
+            return $fragment;
+        }
+
+        $element = $target->createElement(strtolower($tagName));
+        $sanitizedStyle = $this->sanitizeRichDescriptionStyle(
+            $tagName,
+            (string) $node->getAttribute('style')
+        );
+
+        if ($sanitizedStyle !== '') {
+            $element->setAttribute('style', $sanitizedStyle);
+        }
+
+        if ($tagName === 'IMG') {
+            $src = trim((string) $node->getAttribute('src'));
+
+            if (!$this->isAllowedRichDescriptionUrl($src)) {
+                return null;
+            }
+
+            $element->setAttribute('src', $src);
+
+            $alt = trim((string) $node->getAttribute('alt'));
+            if ($alt !== '') {
+                $element->setAttribute('alt', Str::limit($alt, 160, ''));
+            }
+        }
+
+        foreach (iterator_to_array($node->childNodes) as $childNode) {
+            $sanitizedChild = $this->sanitizeRichDescriptionNode($childNode, $target);
+            if ($sanitizedChild instanceof \DOMNode) {
+                $element->appendChild($sanitizedChild);
+            }
+        }
+
+        $blockTags = ['P', 'DIV', 'UL', 'OL', 'LI', 'H1', 'H2', 'H3', 'H4', 'BLOCKQUOTE', 'FIGURE', 'FIGCAPTION'];
+        if (in_array($tagName, $blockTags, true) && !$element->hasChildNodes()) {
+            $element->appendChild($target->createElement('br'));
+        }
+
+        return $element;
+    }
+
+    private function sanitizeRichDescriptionStyle(string $tagName, string $style): string
+    {
+        $style = trim($style);
+
+        if ($style === '') {
+            return '';
+        }
+
+        $allowedProperties = match ($tagName) {
+            'P', 'DIV', 'H1', 'H2', 'H3', 'H4', 'BLOCKQUOTE', 'FIGURE', 'FIGCAPTION' => ['text-align', 'font-size', 'color'],
+            'SPAN' => ['font-size', 'font-weight', 'font-style', 'text-decoration', 'color'],
+            'IMG' => ['width', 'max-width', 'height', 'display', 'margin', 'border-radius'],
+            default => [],
+        };
+
+        $safeDeclarations = [];
+
+        foreach (explode(';', $style) as $declaration) {
+            if (!str_contains($declaration, ':')) {
+                continue;
+            }
+
+            [$property, $value] = array_map('trim', explode(':', $declaration, 2));
+            $property = Str::lower($property);
+            $value = Str::lower($value);
+
+            if (!in_array($property, $allowedProperties, true)) {
+                continue;
+            }
+
+            $sanitizedValue = $this->sanitizeRichDescriptionStyleValue($property, $value);
+            if ($sanitizedValue !== null) {
+                $safeDeclarations[] = $property . ':' . $sanitizedValue;
+            }
+        }
+
+        return implode('; ', $safeDeclarations);
+    }
+
+    private function sanitizeRichDescriptionStyleValue(string $property, string $value): ?string
+    {
+        return match ($property) {
+            'text-align' => in_array($value, ['left', 'center', 'right', 'justify'], true) ? $value : null,
+            'font-size' => preg_match('/^\d{1,3}(px|rem|em|%)$/', $value) ? $value : null,
+            'color' => preg_match('/^#[0-9a-f]{3,8}$/', $value) ? $value : null,
+            'font-weight' => preg_match('/^(normal|bold|[1-9]00)$/', $value) ? $value : null,
+            'font-style' => in_array($value, ['normal', 'italic'], true) ? $value : null,
+            'text-decoration' => in_array($value, ['none', 'underline'], true) ? $value : null,
+            'width', 'max-width', 'height' => preg_match('/^(\d{1,4}(px|%)|auto)$/', $value) ? $value : null,
+            'display' => in_array($value, ['block', 'inline-block', 'inline'], true) ? $value : null,
+            'margin' => preg_match('/^(0|auto|0 auto|\d+(\.\d+)?(px|rem)\s+auto)$/', $value) ? $value : null,
+            'border-radius' => preg_match('/^\d{1,3}(px|%)$/', $value) ? $value : null,
+            default => null,
+        };
+    }
+
+    private function isAllowedRichDescriptionUrl(string $url): bool
+    {
+        if ($url === '') {
+            return false;
+        }
+
+        if (Str::startsWith($url, ['/','data:image/'])) {
+            return true;
+        }
+
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
+            return false;
+        }
+
+        $scheme = Str::lower((string) parse_url($url, PHP_URL_SCHEME));
+
+        return in_array($scheme, ['http', 'https'], true);
+    }
     private function normalizeSalesChannelMode(?string $value): string
     {
         $normalized = Str::upper(trim((string) $value));
@@ -642,11 +864,22 @@ class ProductEditScreen extends Screen
                     continue;
                 }
 
-                $resolvedUrls[] = $this->storeUploadedImageFile($file);
+                $storedUrl = $this->storeUploadedImageFile($file);
+                if (!$storedUrl) {
+                    continue;
+                }
+
+                $fingerprint = implode('::', [
+                    $file->getClientOriginalName(),
+                    $file->getSize(),
+                    $file->getMimeType() ?: $file->getClientMimeType() ?: '',
+                ]);
+
+                $resolvedUrls[$fingerprint] = $storedUrl;
             }
         }
 
-        return array_values(array_filter(array_unique(array_filter($resolvedUrls))));
+        return $resolvedUrls;
     }
 
     private function normalizeExistingImageUrls(array $existingImageUrls): array
@@ -663,18 +896,61 @@ class ProductEditScreen extends Screen
         return array_values(array_intersect($requestedUrls, $storedUrls));
     }
 
-    private function mergeUploadedImageUrls(array $uploadedImageUrls, array $existingImageUrls): array
+    private function mergeUploadedImageUrls(
+        array $uploadedImageUrls,
+        array $existingImageUrls,
+        array $galleryOrder = []
+    ): array
     {
         $existingUrls = array_values(array_filter(array_map(
             static fn ($value) => is_string($value) ? trim($value) : null,
             $existingImageUrls
         )));
+        $normalizedUploadedImageUrls = array_filter($uploadedImageUrls, static fn ($value) => is_string($value) && trim($value) !== '');
+        $normalizedOrder = array_values(array_filter(array_map(
+            static fn ($value) => is_string($value) ? trim($value) : null,
+            $galleryOrder
+        )));
 
-        if ($uploadedImageUrls === []) {
-            return array_slice(array_values(array_unique(array_filter($existingUrls))), 0, 10);
+        if ($normalizedOrder === []) {
+            if ($normalizedUploadedImageUrls === []) {
+                return array_slice(array_values(array_unique(array_filter($existingUrls))), 0, 10);
+            }
+
+            $urls = array_merge(array_values($normalizedUploadedImageUrls), $existingUrls);
+            $urls = array_values(array_unique(array_filter($urls)));
+
+            return array_slice($urls, 0, 10);
         }
 
-        $urls = array_merge($uploadedImageUrls, $existingUrls);
+        $orderedUrls = [];
+
+        foreach ($normalizedOrder as $token) {
+            if (str_starts_with($token, 'existing::')) {
+                $url = trim(substr($token, strlen('existing::')));
+                if ($url !== '' && in_array($url, $existingUrls, true)) {
+                    $orderedUrls[] = $url;
+                }
+                continue;
+            }
+
+            if (str_starts_with($token, 'upload::')) {
+                $fingerprint = trim(substr($token, strlen('upload::')));
+                $url = $normalizedUploadedImageUrls[$fingerprint] ?? null;
+                if (is_string($url) && $url !== '') {
+                    $orderedUrls[] = $url;
+                }
+            }
+        }
+
+        $remainingUploaded = array_values(array_filter($normalizedUploadedImageUrls, static function ($url) use ($orderedUrls) {
+            return !in_array($url, $orderedUrls, true);
+        }));
+        $remainingExisting = array_values(array_filter($existingUrls, static function ($url) use ($orderedUrls) {
+            return !in_array($url, $orderedUrls, true);
+        }));
+
+        $urls = array_merge($orderedUrls, $remainingUploaded, $remainingExisting);
         $urls = array_values(array_unique(array_filter($urls)));
 
         return array_slice($urls, 0, 10);
