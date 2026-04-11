@@ -95,6 +95,9 @@ export const buildAuthProductReviewsUrl = (productDetailId: string | number) =>
 export const buildSubmitTransferSlipUrl = (orderId: string | number) =>
   `${AUTH_ORDERS}/${orderId}/submit-transfer-slip`;
 
+export const buildAuthOrderReceiptUrl = (orderId: string | number) =>
+  `${AUTH_ORDERS}/${orderId}/receipt`;
+
 export const buildSetDefaultShippingAddressUrl = (
   shippingAddressId: string | number,
 ) => `${AUTH_SHIPPING_ADDRESSES}/${shippingAddressId}/default`;
@@ -154,5 +157,6 @@ export const URLS = {
   buildProductReviewsUrl,
   buildAuthProductReviewsUrl,
   buildSubmitTransferSlipUrl,
+  buildAuthOrderReceiptUrl,
   buildSetDefaultShippingAddressUrl,
 };

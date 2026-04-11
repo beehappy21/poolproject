@@ -231,6 +231,52 @@ export const OrderHistory: FC = () => {
     return order.approvalStatus !== 'approved';
   };
 
+  const canDownloadReceipt = (order: LiveOrder): boolean => {
+    return (
+      order.approvalStatus === 'approved' ||
+      !!order.shippedAt ||
+      !!order.deliveredAt
+    );
+  };
+
+  const handleReceiptDownload = async (order: LiveOrder): Promise<void> => {
+    if (!user?.accessToken) {
+      setSubmitErrorMessage('กรุณาเข้าสู่ระบบก่อนดาวน์โหลดใบเสร็จ');
+      return;
+    }
+
+    try {
+      const response = await axios.get(
+        URLS.buildAuthOrderReceiptUrl(order.orderId),
+        {
+          headers: {
+            Authorization: `Bearer ${user.accessToken}`,
+          },
+          withCredentials: true,
+          responseType: 'blob',
+        },
+      );
+
+      const blobUrl = window.URL.createObjectURL(response.data as Blob);
+      const openedWindow = window.open(blobUrl, '_blank', 'noopener,noreferrer');
+
+      if (!openedWindow) {
+        const downloadLink = document.createElement('a');
+        downloadLink.href = blobUrl;
+        downloadLink.target = '_blank';
+        downloadLink.download = `receipt-${order.orderNo}.html`;
+        downloadLink.click();
+      }
+
+      window.setTimeout(() => {
+        window.URL.revokeObjectURL(blobUrl);
+      }, 60000);
+    } catch (error) {
+      console.error(error);
+      setSubmitErrorMessage('ไม่สามารถโหลดใบเสร็จได้ในขณะนี้');
+    }
+  };
+
   const getOrders = useCallback(async (): Promise<void> => {
     if (!user?.accessToken) {
       setOrdersData([]);
@@ -757,6 +803,26 @@ export const OrderHistory: FC = () => {
                       >
                         เปิดสลิปโอนเงิน
                       </a>
+                    ) : null}
+                    {canDownloadReceipt(order) ? (
+                      <button
+                        type='button'
+                        onClick={() => void handleReceiptDownload(order)}
+                        style={{
+                          width: 'fit-content',
+                          border: '1px solid #B7D6C2',
+                          borderRadius: 999,
+                          padding: '10px 16px',
+                          backgroundColor: '#EFFAF3',
+                          color: '#20744A',
+                          cursor: 'pointer',
+                          ...theme.fonts.Mulish_700Bold,
+                          fontSize: 13,
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        ดาวน์โหลดใบเสร็จ
+                      </button>
                     ) : null}
                   </div>
                   <div

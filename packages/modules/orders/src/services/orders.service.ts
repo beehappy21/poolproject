@@ -42,6 +42,8 @@ export interface OrdersServiceContract {
         fulfillmentMethod: "delivery" | "branch_pickup";
         pickupBranchName: string | null;
         pickupBranchNote: string | null;
+        shippingAddressLine?: string | null;
+        shippingAddressNote?: string | null;
         createdAt: string;
       }>
     | {
@@ -70,6 +72,8 @@ export interface OrdersServiceContract {
           fulfillmentMethod: "delivery" | "branch_pickup";
           pickupBranchName: string | null;
           pickupBranchNote: string | null;
+          shippingAddressLine?: string | null;
+          shippingAddressNote?: string | null;
           createdAt: string;
         }>;
         total: number;
@@ -103,6 +107,8 @@ export interface OrdersServiceContract {
     fulfillmentMethod: "delivery" | "branch_pickup";
     pickupBranchName: string | null;
     pickupBranchNote: string | null;
+    shippingAddressLine?: string | null;
+    shippingAddressNote?: string | null;
     createdAt: string;
     autoOrderAudit?: {
       matrixEventId: string;

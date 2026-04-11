@@ -9,6 +9,7 @@ use App\Support\BaoAdminApiClient;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Orchid\Screen\Actions\Button;
+use Orchid\Screen\Actions\Link;
 use Orchid\Screen\Fields\Input;
 use Orchid\Screen\Fields\TextArea;
 use Orchid\Screen\Sight;
@@ -52,6 +53,16 @@ class OrderDetailScreen extends Screen {
 
   public function commandBar(): iterable {
     return [
+      Link::make('พิมพ์ใบเสร็จ')
+        ->icon('bs.receipt')
+        ->route('platform.order.receipt', $this->order?->id)
+        ->target('_blank')
+        ->canSee($this->order instanceof Order),
+      Link::make('พิมพ์ใบส่งของ')
+        ->icon('bs.printer')
+        ->route('platform.order.deliveryNote', $this->order?->id)
+        ->target('_blank')
+        ->canSee($this->order instanceof Order),
       Button::make('อนุมัติคำสั่งซื้อ')
         ->icon('bs.check-circle')
         ->confirm('ยืนยันการอนุมัติคำสั่งซื้อนี้?')

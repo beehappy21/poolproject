@@ -905,6 +905,8 @@ export class PrismaOrdersRepository implements OrdersRepository {
         shipmentCarrier: order.shipmentCarrier ?? null,
         shipmentNote: order.shipmentNote ?? null,
         orderSourceType: mapOrderSourceType(order),
+        shippingAddressLine: order.shippingAddressLine ?? null,
+        shippingAddressNote: order.shippingAddressNote ?? null,
         firstProductName: firstProductDetail?.name ?? null,
         firstProductImageUrl: firstProductDetail?.imageUrl ?? null,
         productItemCount: order.orderItems.length,
@@ -1093,6 +1095,8 @@ export class PrismaOrdersRepository implements OrdersRepository {
           shipmentCarrier: order.shipmentCarrier ?? null,
           shipmentNote: order.shipmentNote ?? null,
           orderSourceType: mapOrderSourceType(order),
+          shippingAddressLine: order.shippingAddressLine ?? null,
+          shippingAddressNote: order.shippingAddressNote ?? null,
           createdAt: order.createdAt.toISOString(),
           autoOrderAudit:
             reentryEvent && isMatrixReentryOrder(order)

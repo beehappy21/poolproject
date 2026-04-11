@@ -54,6 +54,7 @@ use App\Orchid\Screens\Commission\CommissionReportScreen;
 use App\Orchid\Screens\Commission\CommissionMainPlanReportScreen;
 use App\Orchid\Screens\Finance\MemberBankAccountListScreen;
 use App\Http\Controllers\Platform\CommissionReportController;
+use App\Http\Controllers\Platform\OrderDocumentController;
 use App\Http\Controllers\Platform\OrderReportController;
 use App\Http\Controllers\Platform\WithdrawReportController;
 use App\Http\Controllers\Platform\CommissionSettingsController;
@@ -302,6 +303,12 @@ Route::middleware('admin.access:'.AdminPermissions::ORDERS_MANAGE)->group(functi
 
   Route::get('order/export/{bucket?}', [OrderReportController::class, 'export'])
     ->name('platform.order.export');
+
+  Route::get('order/{order}/receipt', [OrderDocumentController::class, 'receipt'])
+    ->name('platform.order.receipt');
+
+  Route::get('order/{order}/delivery-note', [OrderDocumentController::class, 'deliveryNote'])
+    ->name('platform.order.deliveryNote');
 
   Route::screen('order/detail/{order?}', OrderDetailScreen::class)
     ->name('platform.order.detail');
