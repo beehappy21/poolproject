@@ -402,12 +402,12 @@ export class OrdersController {
       .map((item, index) => {
         return `
           <tr>
-            <td>${index + 1}</td>
-            <td>${this.escapeHtml(item.productName || "สินค้า")}</td>
-            <td class="num">${item.quantity}</td>
-            <td class="num">${this.escapeHtml(item.unitPriceUsdt)}</td>
-            <td class="num">${this.escapeHtml(item.unitPv)}</td>
-            <td class="num">${this.escapeHtml(item.lineTotalUsdt)}</td>
+            <td data-label="ลำดับ">${index + 1}</td>
+            <td data-label="สินค้า">${this.escapeHtml(item.productName || "สินค้า")}</td>
+            <td class="num" data-label="จำนวน">${item.quantity}</td>
+            <td class="num" data-label="ราคาต่อหน่วย">${this.escapeHtml(item.unitPriceUsdt)}</td>
+            <td class="num" data-label="PV">${this.escapeHtml(item.unitPv)}</td>
+            <td class="num" data-label="รวม">${this.escapeHtml(item.lineTotalUsdt)}</td>
           </tr>
         `;
       })
@@ -434,7 +434,7 @@ export class OrdersController {
     :root { --ink:#1e293b; --muted:#64748b; --line:#d9e2ec; --accent:#0f766e; --soft:#ecfeff; --bg:#f8fafc; }
     * { box-sizing:border-box; }
     body { margin:0; font-family:Arial, Helvetica, sans-serif; color:var(--ink); background:var(--bg); }
-    .page { max-width:960px; margin:24px auto; background:#fff; padding:32px; box-shadow:0 18px 50px rgba(15,23,42,.08); }
+    .page { max-width:960px; margin:24px auto; background:#fff; padding:32px; box-shadow:0 18px 50px rgba(15,23,42,.08); border-radius:24px; }
     .actions { display:flex; justify-content:flex-end; margin-bottom:16px; }
     .actions button { border:0; border-radius:999px; padding:10px 16px; background:var(--accent); color:#fff; cursor:pointer; }
     .topbar { display:flex; justify-content:space-between; gap:24px; margin-bottom:24px; }
@@ -452,6 +452,28 @@ export class OrdersController {
     th { background:var(--soft); color:var(--accent); font-weight:700; }
     .num { text-align:right; white-space:nowrap; }
     .footer-note { color:var(--muted); font-size:13px; line-height:1.6; border-top:1px dashed var(--line); padding-top:16px; }
+    @media (max-width: 640px) {
+      body { background:#fff; }
+      .page { margin:0; border-radius:0; box-shadow:none; padding:16px 14px 24px; }
+      .actions { position:sticky; top:0; background:#fff; padding-bottom:12px; margin-bottom:12px; }
+      .actions button { width:100%; }
+      .topbar, .brand { flex-direction:column; gap:12px; }
+      .brand-logo { width:56px; height:56px; }
+      .brand h1, .doc h2 { font-size:22px; }
+      .subtitle { font-size:12px; }
+      .meta, .recipient, .summary { grid-template-columns:1fr; gap:12px; margin-bottom:16px; }
+      .card { padding:14px; border-radius:14px; }
+      .value { font-size:14px; }
+      table, thead, tbody, tr, th, td { display:block; width:100%; }
+      thead { display:none; }
+      tbody { display:grid; gap:12px; }
+      tr { border:1px solid var(--line); border-radius:14px; overflow:hidden; background:#fff; }
+      td { display:flex; justify-content:space-between; gap:12px; padding:10px 12px; font-size:13px; text-align:left; }
+      td::before { content:attr(data-label); color:var(--accent); font-weight:700; flex:0 0 96px; }
+      td.num { text-align:left; white-space:normal; }
+      td[colspan] { display:block; text-align:center; }
+      td[colspan]::before { content:none; }
+    }
     @media print { body { background:#fff; } .page { margin:0; box-shadow:none; max-width:none; } .actions { display:none; } }
   </style>
 </head>

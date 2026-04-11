@@ -813,6 +813,47 @@ export class AuthController {
     };
   }
 
+  @Get("orders/:orderId/receipt")
+  async getOwnOrderReceipt(
+    @Param("orderId") orderId: string,
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+    @Res() response?: any,
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+    const validatedOrderId = requirePositiveIntegerString(orderId, "orderId");
+    const order = await this.ordersService.getOrder(validatedOrderId);
+
+    if (!order || order.sourceUserId !== user.userId) {
+      throw new UnauthorizedException("Order not found for session.");
+    }
+
+    const baoBaseUrl = (process.env.INTERNAL_BAO_BASE_URL || "http://bao:8001").replace(/\/+$/, "");
+    const receiptToken = (process.env.INTERNAL_RECEIPT_TOKEN || "").trim();
+    const receiptUrl = `${baoBaseUrl}/internal/order-source/${validatedOrderId}/receipt.pdf`;
+    const upstreamResponse = await fetch(receiptUrl, {
+      headers: receiptToken
+        ? {
+            "x-internal-receipt-token": receiptToken,
+          }
+        : undefined,
+    });
+
+    if (!upstreamResponse.ok) {
+      throw new NotFoundException("Receipt PDF is not available.");
+    }
+
+    const contentType = upstreamResponse.headers.get("content-type") || "application/pdf";
+    const buffer = Buffer.from(await upstreamResponse.arrayBuffer());
+
+    response.setHeader("Content-Type", contentType);
+    response.setHeader(
+      "Content-Disposition",
+      `inline; filename="receipt-${order.orderNo}.pdf"`,
+    );
+    response.send(buffer);
+  }
+
   @Post("products/:productDetailId/reviews")
   async upsertOwnProductReview(
     @Param("productDetailId") productDetailId: string,

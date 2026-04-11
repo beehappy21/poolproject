@@ -118,6 +118,22 @@ const resizeTransferSlipImage = async (file: File): Promise<string> => {
   return canvas.toDataURL('image/jpeg', TRANSFER_SLIP_OUTPUT_QUALITY);
 };
 
+const writeReceiptWindowMessage = (
+  receiptWindow: Window | null,
+  title: string,
+  body: string,
+): void => {
+  if (!receiptWindow) {
+    return;
+  }
+
+  receiptWindow.document.open();
+  receiptWindow.document.write(
+    `<!DOCTYPE html><html><head><meta charset="utf-8" /><title>${title}</title></head><body style="font-family: Arial, sans-serif; padding: 24px; line-height: 1.6;">${body}</body></html>`,
+  );
+  receiptWindow.document.close();
+};
+
 export const OrderHistory: FC = () => {
   const navigate = hooks.useAppNavigate();
   const user = hooks.useAppSelector((state: RootState) => state.userSlice.user);
@@ -251,12 +267,11 @@ export const OrderHistory: FC = () => {
 
     const receiptWindow = window.open('', '_blank');
 
-    if (receiptWindow) {
-      receiptWindow.document.write(
-        '<!DOCTYPE html><html><head><title>กำลังโหลดใบเสร็จ</title></head><body style="font-family: Arial, sans-serif; padding: 24px;">กำลังโหลดใบเสร็จ...</body></html>',
-      );
-      receiptWindow.document.close();
-    }
+    writeReceiptWindowMessage(
+      receiptWindow,
+      'กำลังโหลดใบเสร็จ',
+      'กำลังโหลดใบเสร็จ...',
+    );
 
     try {
       const response = await axios.get(
@@ -266,19 +281,43 @@ export const OrderHistory: FC = () => {
             Authorization: `Bearer ${user.accessToken}`,
           },
           withCredentials: true,
-          responseType: 'blob',
+          responseType: 'arraybuffer',
         },
       );
 
-      const blobUrl = window.URL.createObjectURL(response.data as Blob);
+      const contentType = String(response.headers['content-type'] || '').toLowerCase();
+      const responseData = response.data as ArrayBuffer;
+
+      if (contentType.includes('text/html')) {
+        const html = new TextDecoder('utf-8').decode(responseData);
+
+        if (receiptWindow) {
+          receiptWindow.document.open();
+          receiptWindow.document.write(html);
+          receiptWindow.document.close();
+        } else {
+          const htmlBlob = new Blob([html], {type: 'text/html; charset=utf-8'});
+          const htmlUrl = window.URL.createObjectURL(htmlBlob);
+          window.open(htmlUrl, '_blank');
+          window.setTimeout(() => {
+            window.URL.revokeObjectURL(htmlUrl);
+          }, 60000);
+        }
+
+        return;
+      }
+
+      const blobType = contentType || 'application/pdf';
+      const blobUrl = window.URL.createObjectURL(
+        new Blob([responseData], {type: blobType}),
+      );
 
       if (receiptWindow) {
-        receiptWindow.location.href = blobUrl;
+        receiptWindow.location.replace(blobUrl);
       } else {
         const downloadLink = document.createElement('a');
         downloadLink.href = blobUrl;
         downloadLink.target = '_blank';
-        downloadLink.download = `receipt-${order.orderNo}.html`;
         downloadLink.click();
       }
 
@@ -287,9 +326,11 @@ export const OrderHistory: FC = () => {
       }, 60000);
     } catch (error) {
       console.error(error);
-      if (receiptWindow) {
-        receiptWindow.close();
-      }
+      writeReceiptWindowMessage(
+        receiptWindow,
+        'ไม่สามารถโหลดใบเสร็จได้',
+        'ไม่สามารถโหลดใบเสร็จได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง',
+      );
       setSubmitErrorMessage('ไม่สามารถโหลดใบเสร็จได้ในขณะนี้');
     }
   };

@@ -5,6 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ $documentTitle }} {{ $order->order_no }}</title>
   <style>
+    @font-face {
+      font-family: 'Prompt';
+      font-style: normal;
+      font-weight: 400;
+      src: url('{{ resource_path('fonts/prompt/Prompt-Regular.ttf') }}') format('truetype');
+    }
+    @font-face {
+      font-family: 'Prompt';
+      font-style: normal;
+      font-weight: 600;
+      src: url('{{ resource_path('fonts/prompt/Prompt-SemiBold.ttf') }}') format('truetype');
+    }
+    @font-face {
+      font-family: 'Prompt';
+      font-style: normal;
+      font-weight: 700;
+      src: url('{{ resource_path('fonts/prompt/Prompt-Bold.ttf') }}') format('truetype');
+    }
     :root {
       color-scheme: light;
       --ink: #1e293b;
@@ -18,23 +36,24 @@
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: "DejaVu Sans", sans-serif;
+      font-family: "Prompt", "DejaVu Sans", sans-serif;
+      font-size: 11px;
       color: var(--ink);
       background: var(--bg);
     }
     .page {
-      max-width: 960px;
-      margin: 24px auto;
+      max-width: 100%;
+      margin: 0 auto;
       background: var(--panel);
-      padding: 32px;
-      box-shadow: 0 18px 50px rgba(15, 23, 42, 0.08);
+      padding: 18px 20px;
+      box-shadow: none;
     }
     .topbar {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      gap: 24px;
-      margin-bottom: 24px;
+      gap: 16px;
+      margin-bottom: 18px;
     }
     .brand {
       display: flex;
@@ -46,57 +65,57 @@
       flex: 1;
     }
     .brand-logo {
-      width: 74px;
-      height: 74px;
+      width: 54px;
+      height: 54px;
       object-fit: contain;
       flex: 0 0 auto;
     }
     .brand h1, .doc h2 { margin: 0; }
-    .brand h1 { font-size: 28px; }
+    .brand h1 { font-size: 20px; line-height: 1.25; }
     .brand .subtitle {
       margin-top: 4px;
-      margin-bottom: 8px;
-      font-size: 14px;
+      margin-bottom: 6px;
+      font-size: 11px;
       color: var(--muted);
       letter-spacing: 0.05em;
     }
-    .doc h2 { font-size: 26px; color: var(--accent); }
+    .doc h2 { font-size: 19px; color: var(--accent); line-height: 1.25; }
     .meta, .recipient, .summary {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 16px;
-      margin-bottom: 24px;
+      gap: 12px;
+      margin-bottom: 16px;
     }
     .card {
       border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 16px 18px;
+      border-radius: 12px;
+      padding: 12px 14px;
       background: #fff;
     }
     .label {
       display: block;
-      font-size: 12px;
+      font-size: 10px;
       color: var(--muted);
       text-transform: uppercase;
       letter-spacing: 0.06em;
-      margin-bottom: 6px;
+      margin-bottom: 4px;
     }
     .value {
-      font-size: 15px;
-      line-height: 1.55;
+      font-size: 11px;
+      line-height: 1.5;
       word-break: break-word;
     }
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-bottom: 24px;
+      margin-bottom: 16px;
     }
     th, td {
       border-bottom: 1px solid var(--line);
-      padding: 12px 10px;
+      padding: 8px 6px;
       text-align: left;
       vertical-align: top;
-      font-size: 14px;
+      font-size: 10px;
     }
     th {
       background: var(--accent-soft);
@@ -106,10 +125,10 @@
     .num { text-align: right; white-space: nowrap; }
     .footer-note {
       color: var(--muted);
-      font-size: 13px;
+      font-size: 10px;
       line-height: 1.6;
       border-top: 1px dashed var(--line);
-      padding-top: 16px;
+      padding-top: 12px;
     }
     .actions {
       display: flex;

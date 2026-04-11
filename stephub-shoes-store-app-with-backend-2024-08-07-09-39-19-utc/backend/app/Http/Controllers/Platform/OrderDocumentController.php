@@ -5,8 +5,11 @@ namespace App\Http\Controllers\Platform;
 use App\Models\Order;
 use App\Models\OrderLine;
 use App\Models\OrderSource;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Symfony\Component\HttpFoundation\Response;
 
 class OrderDocumentController extends Controller
 {
@@ -19,6 +22,26 @@ class OrderDocumentController extends Controller
     public function receipt(Order $order): View
     {
         return view('order.documents.receipt', $this->documentPayload($order, 'receipt'));
+    }
+
+    public function internalReceiptPdf(Request $request, string $sourceOrderId): Response
+    {
+        $expectedToken = trim((string) env('INTERNAL_RECEIPT_TOKEN', ''));
+        $providedToken = trim((string) $request->header('x-internal-receipt-token', ''));
+
+        abort_unless($expectedToken !== '' && hash_equals($expectedToken, $providedToken), 403);
+
+        $order = Order::query()
+            ->where('source_order_id', (int) $sourceOrderId)
+            ->firstOrFail();
+
+        $pdf = Pdf::loadView('order.documents.receipt', $this->documentPayload($order, 'receipt'))
+            ->setPaper('a5', 'portrait');
+
+        return response($pdf->output(), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="receipt-' . ($order->order_no ?: $order->id) . '.pdf"',
+        ]);
     }
 
     public function deliveryNote(Order $order): View
