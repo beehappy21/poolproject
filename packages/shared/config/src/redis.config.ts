@@ -3,6 +3,5 @@ export interface RedisConfig {
 }
 
 export const redisConfig: RedisConfig = {
-  url: "redis://localhost:6379",
+  url: process.env.APP_REDIS_URL?.trim() || process.env.REDIS_URL?.trim() || "redis://localhost:6379",
 };
-

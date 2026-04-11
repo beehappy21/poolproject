@@ -1,0 +1,155 @@
+services:
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile.nginx
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+      bao:
+        condition: service_healthy
+      wap:
+        condition: service_healthy
+    ports:
+      - "${NGINX_BIND_IP:-0.0.0.0}:${NGINX_HTTP_PORT:-80}:80"
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-poolproject}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "${PUBLIC_BIND_IP:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-poolproject}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "${PUBLIC_BIND_IP:-127.0.0.1}:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    build:
+      context: ../..
+      dockerfile: Dockerfile.api-worker
+    env_file:
+      - ./api.env
+    command: ["sh", "-lc", "npm run prisma:generate && npm run prisma:push"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles: ["tools"]
+
+  api:
+    build:
+      context: ../..
+      dockerfile: Dockerfile.api-worker
+    restart: unless-stopped
+    env_file:
+      - ./api.env
+    command: ["node", "dist/apps/api/apps/api/src/main.js"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${PUBLIC_BIND_IP:-127.0.0.1}:${API_PORT:-3000}:3000"
+    volumes:
+      - api-logs:/app/logs
+      - api-runtime:/app/runtime
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health | grep -q 'ok'"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: Dockerfile.api-worker
+    restart: unless-stopped
+    profiles: ["worker"]
+    env_file:
+      - ./api.env
+    command: ["node", "dist/apps/worker/apps/worker/src/main.js"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - api-logs:/app/logs
+      - api-runtime:/app/runtime
+
+  bao:
+    build:
+      context: ../../stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend
+      dockerfile: Dockerfile.bao
+    restart: unless-stopped
+    env_file:
+      - ./bao.env
+    environment:
+      BAO_HOST: 0.0.0.0
+      BAO_PORT: 8001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "${PUBLIC_BIND_IP:-127.0.0.1}:${BAO_PORT:-8001}:8001"
+    volumes:
+      - bao-database:/var/www/html/backend/database
+      - bao-storage:/var/www/html/backend/storage
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8001/admin/login >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  wap:
+    build:
+      context: ../../stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub
+      dockerfile: Dockerfile.wap
+      args:
+        REACT_APP_API_BASE_URL: ${WAP_REACT_APP_API_BASE_URL:-/api}
+        REACT_APP_BAO_BASE_URL: ${WAP_REACT_APP_BAO_BASE_URL:-/bao-api}
+        REACT_APP_LINE_LIFF_ID: ${WAP_REACT_APP_LINE_LIFF_ID:-2009662380-OAbgN6VR}
+        REACT_APP_LINE_LIFF_SIGNIN_URL: ${WAP_REACT_APP_LINE_LIFF_SIGNIN_URL:-https://wap.blifehealthy.com/line/liff/signin}
+        REACT_APP_LINE_LOGIN_CALLBACK_URL: ${WAP_REACT_APP_LINE_LOGIN_CALLBACK_URL:-https://wap.blifehealthy.com/line/liff/signin}
+    restart: unless-stopped
+    env_file:
+      - ./wap.env
+    depends_on:
+      api:
+        condition: service_healthy
+      bao:
+        condition: service_healthy
+    ports:
+      - "${PUBLIC_BIND_IP:-127.0.0.1}:${WAP_PORT:-3002}:3002"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3002/ >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:
+  redis-data:
+  api-logs:
+  api-runtime:
+  bao-database:
+  bao-storage:

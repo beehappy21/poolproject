@@ -1,0 +1,29 @@
+FROM node:20-alpine AS build
+
+WORKDIR /app
+
+RUN apk add --no-cache openssl
+
+COPY package.json package-lock.json pnpm-workspace.yaml nest-cli.json tsconfig.json tsconfig.base.json ./
+COPY apps ./apps
+COPY packages ./packages
+COPY prisma ./prisma
+
+RUN npm ci
+RUN npm run prisma:generate
+RUN npm run build
+
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+RUN apk add --no-cache openssl
+
+COPY --from=build /app/package.json /app/package-lock.json ./
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/prisma ./prisma
+COPY --from=build /app/dist ./dist
+
+RUN mkdir -p /app/logs /app/runtime
