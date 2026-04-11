@@ -1,157 +1,186 @@
 # Handoff Next
 
-Updated: 2026-04-03
+Updated: 2026-04-08
 
-## Current Focus
+## Current State
 
-- โฟกัสปัจจุบันอยู่ที่ `poolproject` ฝั่ง commission + matrix runtime
-- ประเด็นหลักรอบนี้คือยืนยัน flow `reentry` ให้ตรง business rule:
-  - เมื่อ member ไปถึง `round 1 / board 2`
-  - และมีสิทธิ์ reentry ตาม config
-  - ระบบต้องเปิด `round 2 / board 1`
-  - และจ่าย `firm` ตามที่ตั้งไว้
+- current branch: `main`
+- current HEAD: `123b072f`
+- working tree: clean
+- latest merged PRs:
+  - `#116` merged as `a94fd077`
+  - `#117` merged as `123b072f`
 
-## What Was Fixed
+## What Was Completed
 
-- commit `c5bffad0`
-  - ทำให้ order approval วิ่งต่อเข้า commission processing ทันที
-- commit `65dd5dce`
-  - แก้ source receivable cycle resolution ตอน approved order เพื่อไม่ให้ cashback/direct fallback ผิดเป็น `no_receivable_cycle`
-- commit `0e3e6f96`
-  - เพิ่ม flow `Forgot password` ของ WAP ให้ reset ด้วยรหัสสมาชิก แล้วตั้งรหัสผ่านเป็นเลข 6 หลักท้ายบัตรประชาชน
-- commit `76fbdf6f`
-  - แก้ WAP matrix render ให้ใช้ `boardDepth` จริง
-  - ทำให้ปุ่ม `REENTRY` จำค่า `ON/OFF` ใน browser ได้
-- commit `0765b164`
-  - เพิ่ม logic re-check matrix reentry eligibility หลังมี payout/event ใหม่
-  - แก้เคสที่ `board 1` จบไปก่อน แต่ member เพิ่งมีสิทธิ์ reentry ครบใน event ภายหลัง
-- commit `4a7fb761`
-  - สร้าง `reentry audit order` อัตโนมัติจาก matrix reentry event
-  - กันการสร้างซ้ำด้วย `approvalBatchRef` marker
-- commit `e3ca0b12`
-  - เปิดให้ API / user UI / admin UI มองเห็น `reentry audit order`
-  - เพิ่ม filter `sourceType` และ badge `REENTRY`
-- commit `891577a7`
-  - ล็อก policy ว่า `matrix reentry audit order` ห้าม cancel
-- commit `a8be4e52`
-  - เพิ่ม `Order.orderSourceType` ใน Prisma schema
-  - ย้าย repository/query หลักไปใช้ field จริง
-  - คง legacy fallback ผ่าน `approvalBatchRef` ไว้ชั่วคราวเพื่อรองรับข้อมูลระหว่างช่วงเปลี่ยนผ่าน
-- commit `70167793`
-  - เพิ่ม smoke test `matrix_reentry_audit_smoke`
-  - เจอและแก้ normal-order filter ที่เผลอตัด orders ที่ `approvalBatchRef = null`
-- commit `4324be56`
-  - เพิ่ม tooling สำหรับ reset runtime และ bootstrap ฐาน fresh `poolproject_retest`
-  - แยก lane ทดสอบเป็น legacy parity กับ fresh confidence
-- commit `61da5d42`
-  - แก้ race condition ของ flow `approve`
-  - ทำ `approveOrder` ให้ idempotent
-  - เพิ่ม per-order lock ใน orchestration เพื่อกัน commission ซ้ำเมื่อมี request ซ้อน
-- commit `63a4d907`
-  - ทำ WAP `Leave a review` ให้ใช้งานจริงผ่าน backend
-  - ทำปุ่ม `REENTRY` ฝั่ง WAP ให้ยิง backend จริง
-  - ซ่อนหน้า/route mock ที่ยังไม่ใช้จริง เช่น OTP และ delete account
+### BAO product editor
+
+- upgraded the product `Description` field into a rich editor in:
+  - `/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/resources/views/product/edit-form.blade.php`
+- added support for:
+  - bold / italic / underline
+  - paragraph / heading
+  - left / center / right align
+  - bullet / numbered list
+  - font size
+  - text color
+  - quick icons and emoji
+  - `More icons` popup
+  - insert image by URL
+  - upload image directly into description
+  - preview panel
+  - remove selected image / remove all images
+  - image overlay remove button
+
+### BAO image handling
+
+- added client-side image compression before submit for:
+  - gallery images
+  - home card image
+  - uploaded images inside description
+- this was done to avoid `PostTooLargeException`
+- BAO local server is currently running with:
+  - `upload_max_filesize=32M`
+  - `post_max_size=64M`
+
+### BAO gallery ordering
+
+- gallery images can now be reordered in BAO
+- desktop:
+  - drag and drop
+  - `←` / `→` buttons
+- mobile:
+  - touch drag and drop
+- first image is marked as `ภาพหลัก`
+- gallery order is persisted on save through:
+  - `product[gallery_order][]`
+  - backend merge logic in `ProductEditScreen.php`
+
+### WAP product rendering
+
+- WAP product page now renders rich HTML descriptions safely
+- description images are constrained to fit the container
+- long description area is collapsed with show more / collapse behavior
+- product page refreshes latest product data from API instead of relying only on route state
+- product image URLs get cache-busting query params to reduce stale image issues
+- top product slider was adjusted to fit images more safely in frame
+
+### WAP route stability
+
+- added lowercase route aliases for:
+  - `/product`
+  - `/description`
+- fixed the local static server fallback so nested routes use the current `build/index.html`
+- this removed the old blank white page issue when reloading subroutes
+
+### Runbook
+
+- added:
+  - `/Users/macbook/poolproject/RUNBOOK.md`
+- purpose:
+  - quick startup verification
+  - bundle check
+  - BAO/WAP product smoke steps
+
+## Important Files
+
+- static server:
+  - `/Users/macbook/poolproject/scripts/serve_stephub_build.mjs`
+- BAO product screen save logic:
+  - `/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Product/ProductEditScreen.php`
+- BAO product edit UI:
+  - `/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/resources/views/product/edit-form.blade.php`
+- WAP product page:
+  - `/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/Product.tsx`
+- WAP description page:
+  - `/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/Description.tsx`
+- WAP route config:
+  - `/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/navigation/StackNavigator.tsx`
+- rich text sanitizer/render helper:
+  - `/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/utils/index.tsx`
+- live catalog mapper:
+  - `/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/utils/liveCatalog.ts`
 
 ## Verified Runtime State
 
-- WAP `Commission` แสดง matrix `2x2` ได้จริงแล้ว
-- login/reset password ของ `TH0000013` ใช้งานได้แล้ว
-- local runtime proof สำหรับ reentry ผ่านแล้ว:
-  - สร้าง order ทดสอบ `0000018` ให้ `TH0000016`
-  - หลัง approve order ระบบ matrix วิ่งต่อและเปิด `TH0000013` เป็น `board 1 / round 2`
-  - `currentBoardNo/currentBoardRoundNo` ของ `TH0000013` กลายเป็น `1 / 2`
-  - `firmBalance` ของ `TH0000013` กลายเป็น `700`
-- ระบบสร้าง `reentry audit order` ให้เห็นใน production flow แล้ว
-  - event `86` ของ `TH0000013` สร้าง order `0000019`
-  - API ส่ง `orderSourceType = matrix_reentry`
-  - user/admin UI เห็น source และแยกจาก normal order ได้
-- policy `no cancel` ผ่านการพิสูจน์แล้ว
-  - `POST /orders/:id/cancel` สำหรับ reentry audit order ตอบ `400`
-  - message คือ `Matrix reentry audit orders cannot be cancelled.`
-- schema-level source type ใช้งานได้กับ reentry order ที่สร้างใหม่แล้ว
-  - `orderId = 47` (`0000020`) ถูกอ่านเป็น `matrix_reentry` ผ่านทั้ง list และ snapshot
-  - query `GET /orders?...&sourceType=matrix_reentry` คืนค่าได้ตามคาด
-- local DB backfill ของ rows เก่าผ่านแล้ว
-  - query `approvalBatchRef LIKE 'matrix-reentry:%' AND orderSourceType = NORMAL` คืน `0`
-  - `orderId = 46` (`0000019`) ถูกอ่านเป็น `matrix_reentry` ผ่าน API แล้ว
-- smoke test ใหม่ผ่านบน local API แล้ว
-  - เปิด `board 1 / round 2`
-  - credit `firm = 700`
-  - สร้าง reentry audit order
-  - reprocess แล้วไม่ duplicate
-  - cancel ได้ `400` ตาม policy
-- ฐาน fresh `poolproject_retest` พร้อมใช้แล้ว
-  - seed สมาชิกใหม่ `30` คน
-  - `memberCode` ตรงกับ `User.id` ทุกคนในชุด fresh
-  - catalog master (`ProductDetail = 9`, `Package = 5`) ถูก copy มาครบ
-- commission ทั้ง 5 ระบบพิสูจน์บนฐาน fresh แล้ว
-  - `cashback` ทำงานจริง
-  - `direct` ทำงานจริง
-  - `unilevel` ทำงานจริงหลังเปิด settings
-  - `pool` ทำงานจริงและมี payout จริงใน `/auth/pool-payouts`
-  - `matrix` ทำงานจริงและมี cycle + payout จริงใน `/auth/matrix` และ `/auth/matrix-payouts`
-- WAP review ใช้งานจริงแล้ว
-  - `POST /auth/products/:productDetailId/reviews` ใช้งานได้
-  - `GET /products/:productDetailId/reviews` อ่านกลับได้จริง
-- bug commission duplicate จาก approve ซ้ำถูกกดลงแล้ว
-  - order ใหม่ที่ approve ซ้อนกันไม่สร้าง cashback/direct/uni ซ้ำอีก
-  - ต้นเหตุคือ `approve` ไม่ idempotent และ orchestration ไม่มี per-order lock
+- local API health:
+  - `http://127.0.0.1:3000/health` returns `{"status":"ok"}`
+- local storefront products:
+  - `http://127.0.0.1:3000/products/storefront` returns live storefront payload
+- local BAO:
+  - `http://127.0.0.1:8001/admin/login` returns login redirect/page correctly
+- local WAP:
+  - `http://127.0.0.1:3002/` returns `200`
+  - `http://127.0.0.1:3002/product` returns `200`
+  - `http://127.0.0.1:3002/description` returns `200`
+- public surface:
+  - `https://wap.blifehealthy.com` returns `200`
+  - `https://bao.blifehealthy.com/admin/login` returns `200`
+  - `https://api.blifehealthy.com/health` returns `200`
+- smoke / verify:
+  - `node scripts/check_wap_public_surface.js` returned `result: ok`
+  - `bash scripts/wap-refresh-verify.sh --verify-only` completed successfully
+- local and nested WAP routes were verified to use the same bundle hash
 
-## Important Findings
+## Processes Currently Running
 
-- ปุ่ม `REENTRY` ใน WAP ไม่ใช่ business switch ของระบบ
-  - มันเป็นแค่ UI/local state helper
-  - ไม่ได้เป็นตัวสั่ง backend เปิดรอบใหม่หรือสร้าง bill
-- backend matrix runtime ตอนนี้ “เปิด reentry round ได้จริงแล้ว”
-  - ผ่าน `MatrixAccumulationEvent` แบบ `REENTRY`
-  - ผ่านการเปิด `board 1 / round ถัดไป`
-  - ผ่านการ credit `firm wallet`
-- runtime production ตอนนี้ “มี” auto/generated reentry bill แล้ว แต่ยังอยู่ในรูป `audit order`
-  - source-of-truth ของประเภท order กำลังถูกย้ายไป field `Order.orderSourceType`
-  - จึงเหมาะเป็น audit / visibility artifact มากกว่า commercial order ปกติ
-  - marker ยังมีประโยชน์สำหรับ dedupe กับ trace back ไปที่ `matrixEventId`
-- commission ทุกชนิดยังคำนวณเมื่อ order ถูก `approve` เท่านั้น
-  - order ที่ยัง `pending` จะยังไม่สร้าง commission draft จริง
-- logic reentry ปัจจุบันเปิด `board 1 / round ถัดไป` จริง
-  - ไม่ได้เปิด board 2 หรือ board อื่นแทน
-  - เมื่อครบเงื่อนไขจะเปิด round ใหม่, credit firm, และสร้าง reentry audit order
+- API on `3000`
+- BAO on `8001`
+- WAP static build server on `3002`
+- `cloudflared tunnel run blifehealthy`
 
-## Current Gap
+These were intentionally left running.
 
-- ช่องว่างหลักตอนนี้ไม่ใช่เรื่อง commission core แล้ว
-- สิ่งที่ยังควรปิดต่อ:
-  - cleanup ข้อมูล test ซ้ำเก่าบนฐานที่เคยโดน approve ซ้อนก่อน patch
-  - ตัดสินใจระยะยาวว่า `approvalBatchRef` จะคงไว้เพื่อ dedupe อย่างเดียวหรือไม่
-  - เมื่อมั่นใจเรื่องข้อมูลครบทุก environment แล้ว ค่อยพิจารณาลด legacy fallback ในโค้ด
-  - ถ้าจะให้ audit ใช้งานง่ายขึ้นอีก ควรดัน `matrixEventId / sourceBoardId / roundNo / firm credit` ขึ้นหน้า detail แบบสรุปอ่านง่าย
+## Backup / Recovery Points
 
-## Recommended Next Work
+- backup tag for PR `#116` work:
+  - `backup-pr116-20260408`
+- backup branch for PR `#116` work:
+  - `backup/latest-pr116-20260408`
 
-1. cleanup ข้อมูลซ้ำเก่าบนฐานทดสอบ
-- order ที่เคยโดน approve ซ้ำก่อน patch อาจยังมี commission ซ้ำค้างอยู่
-- ควรล้าง/รีเซ็ต หรือเขียน one-off cleanup ก่อนเริ่ม UAT รอบจริง
+## PR / Commit Reference
 
-2. รอ stabilize แล้วค่อยลด legacy fallback
-- ตอนนี้ local runtime และ local DB ผ่านแล้ว
-- เมื่อ environment อื่นถูก backfill ครบ ค่อยถอด dependence จาก marker เก่า
+- PR `#116`
+  - title: `Polish BAO product editor and WAP product rendering`
+  - merged commit on `main`: `a94fd077`
+- PR `#117`
+  - title: `Add local runbook for BAO and WAP checks`
+  - merged commit on `main`: `123b072f`
 
-3. คง `approvalBatchRef` ไว้เฉพาะงาน dedupe / trace
-- ใช้ผูกกับ `matrixEventId`
-- ไม่ใช้เป็น source-of-truth ของประเภท order อีก
+## Recommended Next Steps
 
-4. ถ้าจะยกระดับ audit ต่อ
-- เพิ่มหน้า detail ให้เห็น `sourceBoardId`, `roundNo`, `matrixEventId`
-- รวม firm posting / matrix event / audit order ไว้ในมุมมองเดียว
+1. If continuing product/admin work, start from `main` only.
+2. Use `RUNBOOK.md` for startup checks instead of older ad hoc notes.
+3. If touching BAO product media again, preserve:
+   - gallery order behavior
+   - touch drag support
+   - client-side compression
+4. If touching WAP routing or static serving, preserve:
+   - lowercase `/product` and `/description`
+   - current nested-route fallback in `serve_stephub_build.mjs`
+5. If any image-staleness issue appears again, inspect:
+   - `Product.tsx`
+   - `liveCatalog.ts`
+   - cache-busting on image URLs
+
+## Quick Start Next Session
+
+1. `git -C /Users/macbook/poolproject status --short`
+2. `curl -s http://127.0.0.1:3000/health`
+3. open `http://127.0.0.1:8001/admin/login`
+4. open `http://127.0.0.1:3002/`
+5. run:
+
+```bash
+bash /Users/macbook/poolproject/scripts/wap-refresh-verify.sh --verify-only
+```
+
+6. if WAP looks stale, compare bundle hash on `/` and `/product`
 
 ## Notes
 
-- ระหว่างพิสูจน์ fix ได้สร้าง order ทดสอบ local เพิ่ม 1 ใบ:
-  - `orderNo = 0000018`
-  - member `TH0000016`
-- working tree ตอนนี้ยังมีไฟล์ local/test ที่ยังไม่ได้ commit แยกจาก fix หลัก เช่น
-  - `scripts/matrix-sandbox-legacy.js`
-  - `scripts/run_local_api.sh`
-  - `scripts/run_local_stephub_app.sh`
-  - `testcommission001.md`
-- พอร์ต `3000` ล่าสุดถูกใช้กับฐาน `poolproject_retest` ระหว่าง fresh confidence lane
-- admin/member ที่ใช้พิสูจน์บนฐาน fresh หลัก ๆ คือ `TH0000013`, `TH0000014`, `TH0000007`, `TH0000003`, `TH0000006`
+- local storefront route is `http://127.0.0.1:3000/products/storefront`
+- earlier `404` seen on `/api/products/storefront` was only a wrong check path, not a runtime bug
+- branch cleanup was already done for:
+  - `codex/product-sales-channel-modes`
+  - `codex/add-runbook`

@@ -1,6 +1,10 @@
 export interface ApiConfig {
   port: number;
   corsOrigins: string[];
+  bodyLimit: string;
+  trustProxyHops: number;
+  rateLimitWindowMs: number;
+  rateLimitMaxRequests: number;
 }
 
 const DEFAULT_CORS_ORIGINS = [
@@ -26,7 +30,21 @@ function parseCorsOrigins(value?: string): string[] {
     .filter(Boolean);
 }
 
+function parsePositiveInteger(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+
+  return Math.floor(parsed);
+}
+
 export const apiConfig: ApiConfig = {
   port: Number(process.env.APP_PORT || process.env.PORT || 3000),
   corsOrigins: parseCorsOrigins(process.env.APP_CORS_ORIGINS),
+  bodyLimit: process.env.APP_BODY_LIMIT?.trim() || "12mb",
+  trustProxyHops: parsePositiveInteger(process.env.APP_TRUST_PROXY_HOPS, 1),
+  rateLimitWindowMs: parsePositiveInteger(process.env.APP_RATE_LIMIT_WINDOW_MS, 60_000),
+  rateLimitMaxRequests: parsePositiveInteger(process.env.APP_RATE_LIMIT_MAX_REQUESTS, 120),
 };
