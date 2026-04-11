@@ -134,6 +134,7 @@ export const Product: React.FC = () => {
   const descriptionHtml = toRenderableProductRichTextHtml(item?.description);
   const descriptionSummary =
     item?.shortDescription || toPlainTextProductDescription(item?.description);
+  const descriptionHasEmbeddedMedia = /<img|<figure/i.test(descriptionHtml);
   const hasLongDescription =
     descriptionSummary.length > 260 ||
     descriptionHtml.length > 700 ||
@@ -831,14 +832,19 @@ export const Product: React.FC = () => {
             lineHeight: 1.8,
             fontSize: 15,
             ...theme.fonts.Mulish_400Regular,
-            maxHeight: hasLongDescription && !isDescriptionExpanded ? 320 : 'none',
+            maxHeight:
+              hasLongDescription &&
+              !isDescriptionExpanded &&
+              !descriptionHasEmbeddedMedia
+                ? 320
+                : 'none',
             overflow: 'hidden',
           }}
           dangerouslySetInnerHTML={{
             __html: descriptionHtml || '<p>-</p>',
           }}
         />
-        {hasLongDescription && !isDescriptionExpanded ? (
+        {hasLongDescription && !isDescriptionExpanded && !descriptionHasEmbeddedMedia ? (
           <div
             style={{
               marginTop: -72,

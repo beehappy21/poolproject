@@ -1,14 +1,53 @@
-import React from 'react';
+import React, {useEffect, useState} from 'react';
 import {useLocation} from 'react-router-dom';
 
 import {theme} from '../constants';
 import {components} from '../components';
 import {toRenderableProductRichTextHtml} from '../utils';
+import {fetchLiveProducts} from '../utils/liveCatalog';
+import {ProductType} from '../types';
 
 export const Description: React.FC = () => {
   const location = useLocation();
-  const item = location.state?.item;
+  const routeItem = location.state?.item as ProductType | undefined;
+  const [item, setItem] = useState<ProductType | undefined>(routeItem);
   const descriptionHtml = toRenderableProductRichTextHtml(item?.description);
+  const targetId = String(routeItem?.productDetailId || routeItem?.id || '').trim();
+
+  useEffect(() => {
+    setItem(routeItem);
+  }, [routeItem]);
+
+  useEffect(() => {
+    if (!targetId) {
+      return;
+    }
+
+    let isMounted = true;
+
+    fetchLiveProducts()
+      .then((products) => {
+        if (!isMounted) {
+          return;
+        }
+
+        const latestProduct = products.find(
+          (productItem) =>
+            String(productItem.productDetailId || productItem.id) === targetId,
+        );
+
+        if (latestProduct) {
+          setItem(latestProduct);
+        }
+      })
+      .catch((error) => {
+        console.error('Unable to refresh product description.', error);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [targetId]);
 
   if (!item) {
     return (
