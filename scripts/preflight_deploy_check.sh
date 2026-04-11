@@ -9,6 +9,9 @@ node "$ROOT_DIR/scripts/check_api_env.mjs" "$ROOT_DIR/deploy/compose/api.env"
 node "$ROOT_DIR/scripts/check_bao_env.mjs" "$ROOT_DIR/deploy/compose/bao.env"
 node "$ROOT_DIR/scripts/check_wap_env.mjs" "$ROOT_DIR/deploy/compose/wap.env"
 
+echo "[preflight] validating stephub source tree"
+bash "$ROOT_DIR/scripts/check_stephub_source_tree.sh"
+
 echo "[preflight] checking for placeholder secrets"
 node "$ROOT_DIR/scripts/check_secret_placeholders.mjs"
 

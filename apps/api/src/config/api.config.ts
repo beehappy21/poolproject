@@ -15,6 +15,8 @@ const DEFAULT_CORS_ORIGINS = [
   "http://127.0.0.1:3000",
   "http://localhost:3000",
   "https://wap.blifehealthy.com",
+  "https://www.blifehealthy.com",
+  "https://blifehealthy.com",
   "https://api.blifehealthy.com",
   "https://bao.blifehealthy.com",
 ];

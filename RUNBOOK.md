@@ -61,6 +61,19 @@ curl -s http://127.0.0.1:3002/product | rg -o 'main\.[a-f0-9]+\.js'
 
 Expected: both commands return the same hash.
 
+## Public Deploy Guard
+
+Before any public `bao` or `wap` rebuild on a server, verify the source tree first:
+
+```bash
+cd /path/to/poolproject
+npm run ops:check:stephub-tree
+```
+
+Expected: the command reports the required BAO and WAP source files and ends with `source tree looks complete for bao/wap builds`.
+
+If it fails, stop the deploy there. Do not rebuild from a partial copy on the VPS.
+
 ## Product Smoke
 
 For product editor and WAP product verification:

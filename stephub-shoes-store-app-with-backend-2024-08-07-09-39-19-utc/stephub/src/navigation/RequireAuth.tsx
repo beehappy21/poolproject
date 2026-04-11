@@ -13,7 +13,7 @@ type Props = {
 
 const AUTH_VERIFY_TIMEOUT_MS = 8000;
 
-const isPublicIosRuntime = (): boolean => {
+const isPublicWapHostname = (): boolean => {
   if (typeof window === 'undefined') {
     return false;
   }
@@ -21,10 +21,24 @@ const isPublicIosRuntime = (): boolean => {
   const hostname = window.location.hostname.toLowerCase();
 
   return (
-    (hostname === 'wap.blifehealthy.com' ||
-      hostname === 'www.blifehealthy.com') &&
-    /iPad|iPhone|iPod/.test(window.navigator.userAgent || '')
+    hostname === 'wap.blifehealthy.com' ||
+    hostname === 'www.blifehealthy.com' ||
+    hostname === 'blifehealthy.com'
   );
+};
+
+const isPublicTouchRuntime = (): boolean => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  const coarsePointer = window.matchMedia?.('(pointer: coarse)').matches;
+  const maxTouchPoints = window.navigator.maxTouchPoints || 0;
+  const mobileUserAgent = /Android|iPhone|iPad|iPod|Mobile/i.test(
+    window.navigator.userAgent || '',
+  );
+
+  return Boolean(coarsePointer || maxTouchPoints > 0 || mobileUserAgent);
 };
 
 const shouldKeepSessionOnVerifyFailure = (error: unknown): boolean => {
@@ -82,7 +96,8 @@ export const RequireAuth: React.FC<Props> = ({children}) => {
         }
 
         if (
-          isPublicIosRuntime() &&
+          isPublicWapHostname() &&
+          isPublicTouchRuntime() &&
           shouldKeepSessionOnVerifyFailure(error)
         ) {
           return;

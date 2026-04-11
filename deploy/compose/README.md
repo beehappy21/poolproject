@@ -62,6 +62,7 @@ docker run --rm php:8.2-cli php -r 'echo "base64:".base64_encode(random_bytes(32
 3. Build the images.
 
 ```bash
+npm run ops:check:stephub-tree
 docker compose --env-file deploy/compose/.env -f deploy/compose/docker-compose.yml build
 ```
 
@@ -71,10 +72,40 @@ Validate env files before the first build:
 npm run ops:check:api-env -- deploy/compose/api.env
 npm run ops:check:bao-env -- deploy/compose/bao.env
 npm run ops:check:wap-env -- deploy/compose/wap.env
+npm run ops:check:stephub-tree
 npm run ops:check:secrets
 npm run ops:preflight:deploy
 docker compose --env-file deploy/compose/.env -f deploy/compose/docker-compose.yml config
 ```
+
+## Source Tree Guard
+
+Before any `bao` or `wap` rebuild, verify the Stephub source tree is complete on the machine that will run Docker Compose:
+
+```bash
+npm run ops:check:stephub-tree
+```
+
+This guard checks the required BAO and WAP build/runtime files, including:
+
+- `backend/artisan`
+- `backend/composer.json`
+- `backend/public/index.php`
+- `backend/vendor/autoload.php`
+- `backend/vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php`
+- `stephub/package.json`
+- `stephub/public/index.html`
+- `stephub/src/App.tsx`
+
+If this check fails, stop before `docker compose build bao wap`.
+
+Known failure mode from April 2026:
+
+- a partial copy on the VPS left `backend` and `stephub` missing critical files
+- `bao` then served a fatal PHP page because `server.php` and related Laravel files were missing
+- `wap` could restart against an incomplete or stale build context and show the wrong public surface
+
+Prefer deploying from a complete Git checkout or a verified full source archive. Do not rebuild from an ad hoc partial folder on the VPS.
 
 ## Server-Ready Example Values
 

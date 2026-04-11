@@ -56,6 +56,20 @@ const isLocalRuntime = (): boolean => {
   );
 };
 
+const isPublicWapRuntime = (): boolean => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  const hostname = window.location.hostname.toLowerCase();
+
+  return (
+    hostname === 'wap.blifehealthy.com' ||
+    hostname === 'www.blifehealthy.com' ||
+    hostname === 'blifehealthy.com'
+  );
+};
+
 const normalizeIdentifier = (value: string): string => {
   const trimmed = value.trim();
 
@@ -121,8 +135,9 @@ export const SignIn: React.FC = () => {
   const location = useLocation();
   const dispatch = hooks.useAppDispatch();
   const navigationState = (location.state || {}) as SignInLocationState;
+  const publicWapRuntime = useMemo(() => isPublicWapRuntime(), []);
 
-  const [rememberMe, setRememberMe] = useState<boolean>(false);
+  const [rememberMe, setRememberMe] = useState<boolean>(publicWapRuntime);
   const [identifier, setIdentifier] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
@@ -273,7 +288,7 @@ export const SignIn: React.FC = () => {
         applySignedInSession({
           payload,
           dispatch,
-          rememberMe,
+          rememberMe: publicWapRuntime || rememberMe,
           navigate,
           memberCodeFallback: normalizedIdentifier,
           nameFallback: normalizedIdentifier,
