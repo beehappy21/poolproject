@@ -123,13 +123,11 @@ class Category extends Model
     {
         if (!empty($this->imageUrl)) {
             $value = trim((string) $this->imageUrl);
-            if (
-                Str::startsWith($value, ['http://', 'https://', 'data:image/'])
-            ) {
+            if (Str::startsWith($value, ['data:image/'])) {
                 return $value;
             }
 
-            return asset('storage/' . ltrim($value, '/'));
+            return $this->resolvePublicImageUrl($value);
         }
 
         $initial = strtoupper(Str::substr($this->name ?? 'C', 0, 1));
@@ -141,6 +139,59 @@ class Category extends Model
 SVG;
 
         return 'data:image/svg+xml;base64,' . base64_encode($svg);
+    }
+
+    private function resolvePublicImageUrl(string $value): string
+    {
+        $raw = trim($value);
+
+        if ($raw === '') {
+            return '';
+        }
+
+        if (Str::startsWith($raw, ['/storage/'])) {
+            return $this->buildStorageUrl($raw);
+        }
+
+        if (Str::startsWith($raw, ['http://', 'https://'])) {
+            $parts = parse_url($raw);
+            $host = strtolower((string) ($parts['host'] ?? ''));
+            $path = (string) ($parts['path'] ?? '');
+            $query = isset($parts['query']) ? '?' . $parts['query'] : '';
+
+            if (
+                $path !== '' &&
+                ($host === '127.0.0.1' ||
+                    $host === 'localhost' ||
+                    $host === 'bao.blifehealthy.com' ||
+                    $host === 'wap.blifehealthy.com' ||
+                    $host === 'www.blifehealthy.com' ||
+                    $host === 'blifehealthy.com' ||
+                    $host === 'bao')
+            ) {
+                return $this->buildStorageUrl($path . $query);
+            }
+
+            return $raw;
+        }
+
+        return $this->buildStorageUrl('/storage/' . ltrim($raw, '/'));
+    }
+
+    private function buildStorageUrl(string $path): string
+    {
+        $request = request();
+        $forwardedHost = trim((string) $request->headers->get('x-forwarded-host', ''));
+        $forwardedProto = trim((string) $request->headers->get('x-forwarded-proto', 'https'));
+        $host = $forwardedHost !== '' ? $forwardedHost : $request->getHost();
+        $scheme = $forwardedProto !== '' ? $forwardedProto : $request->getScheme();
+
+        return sprintf(
+            '%s://%s%s',
+            $scheme,
+            $host,
+            Str::startsWith($path, '/') ? $path : '/' . $path,
+        );
     }
 
     public function getStatusLabelAttribute(): string

@@ -2,8 +2,18 @@ FROM php:8.3-cli-alpine
 
 WORKDIR /var/www/html/backend
 
-RUN apk add --no-cache postgresql-dev sqlite-dev \
- && docker-php-ext-install pdo pdo_pgsql pdo_sqlite
+RUN apk add --no-cache \
+    freetype-dev \
+    libjpeg-turbo-dev \
+    libpng-dev \
+    libwebp-dev \
+    postgresql-dev \
+    sqlite-dev \
+ && docker-php-ext-configure gd \
+    --with-freetype \
+    --with-jpeg \
+    --with-webp \
+ && docker-php-ext-install gd pdo pdo_pgsql pdo_sqlite
 
 COPY . .
 
