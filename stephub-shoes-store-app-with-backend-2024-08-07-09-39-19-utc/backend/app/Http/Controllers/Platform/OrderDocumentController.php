@@ -36,7 +36,7 @@ class OrderDocumentController extends Controller
             ->firstOrFail();
 
         $pdf = Pdf::loadView('order.documents.receipt', $this->documentPayload($order, 'receipt'))
-            ->setPaper('a5', 'portrait');
+            ->setPaper('a4', 'portrait');
 
         return response($pdf->output(), 200, [
             'Content-Type' => 'application/pdf',

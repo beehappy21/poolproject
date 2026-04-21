@@ -1,79 +1,112 @@
 Handoff Next
 
-Updated: 2026-04-11 18:07:42 +07
+Updated: 2026-04-21 09:50 +07
 Branch: `main`
+
+Current Baseline
+
+- Latest baseline commit before this round: `1c28d369`
+- Commit message: `fix(receipt): add pdf handoff baseline across api bao wap`
+- Push status: local changes only, not pushed yet
 
 Current Goal
 
-Make member receipt download/open work reliably on WAP order history.
+Keep the receipt flow stable on WAP while documenting the current PDF-first experiments. The receipt now works functionally, but the mobile PDF presentation is still not acceptable.
 
-What Was Completed
+What Was Completed In This Round
 
-- Added BAO printable receipt and delivery note support in admin/order detail.
-- Added member receipt endpoint on API: `GET /auth/orders/:orderId/receipt`
-- Added WAP receipt download button on order history.
-- Deployed BAO, API, and WAP to UAT server `nc-user@202.94.169.245`.
-- Verified UAT containers were healthy after deploy.
-- Confirmed BAO container contains:
-  - `resources/views/order/documents/receipt.blade.php`
-  - `resources/views/order/documents/delivery-note.blade.php`
-- Confirmed API container contains receipt endpoint build code:
-  - `renderReceiptHtml(...)` exists in compiled `orders.controller.js`
+- Reworked BAO receipt template to follow the company tax-invoice sample more closely.
+- Embedded the receipt in an A4-oriented layout and changed BAO PDF generation from `A5` to `A4`.
+- Added preview scaling logic so the HTML receipt page can shrink to fit narrower screens.
+- Tried multiple mobile-fit approaches for the preview frame:
+  - fixed A4 sheet size
+  - `min-height` vs fixed `height`
+  - centering with flex
+  - centering with computed `margin-left`
+  - scaling from `top center` and from `top left`
+  - shrinking the sheet to the printable area after `@page` margins
+- Deployed the BAO receipt updates to UAT multiple times and confirmed `poolproject-uat-bao-1` returned to `healthy` after each rebuild.
 
-What Was Found
+What Changed In Code
 
-- Order that user referred to as "13" is likely `orderNo = 0000013` in UAT.
-- In UAT DB, `Order.orderNo = 0000013` is `APPROVED`.
-- WAP originally checked `approvalStatus === 'approved'` in lowercase only.
-- This caused button/approved-state logic to fail for uppercase statuses like `APPROVED`.
-- Local fix was made in `stephub/.../src/screens/OrderHistory.tsx`:
-  - normalize approval status
-  - use `isOrderApproved(order)` across receipt/review/status logic
-- Another local fix was made in `OrderHistory.tsx`:
-  - open blank window synchronously on click before async receipt fetch
-  - then navigate that window to blob URL after receipt response
-  - this is to avoid popup blockers causing "click works but receipt does not display"
+- `stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Http/Controllers/Platform/OrderDocumentController.php`
+  - changed BAO PDF paper size from `a5` to `a4`
+- `stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/resources/views/order/documents/receipt.blade.php`
+  - replaced the earlier compact receipt with the new invoice-style template
+  - added A4 page sizing
+  - added screen-preview scaling logic
+  - added frame sizing experiments for mobile
 
-Important Current State
+Current UAT State
 
-- Local file changed at handoff time:
-  - `stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/OrderHistory.tsx`
-- WAP was rebuilt on UAT after the popup-handling fix and containers came back healthy.
-- User still reported: button is visible, but receipt still did not display before this handoff request.
+- Receipt opens successfully as PDF on UAT.
+- Thai text still renders correctly.
+- BAO is healthy after the latest deploy.
+- The current mobile result is still visually broken even after the latest scaling changes.
 
-Most Likely Remaining Causes
+Important Findings From Real Device Testing
 
-1. Browser popup / blob navigation behavior is still inconsistent on user device.
-2. API receipt endpoint is returning an error body / auth failure / forbidden in runtime for that member.
-3. WAP is swallowing the API error and only showing generic failure, while user interprets as "not showing".
-4. Receipt response HTML may be returned, but not presented correctly on the device/browser used.
+- The problem is no longer “receipt does not open”.
+- The remaining problem is specifically the mobile rendering/preview of the A4 PDF-style layout.
+- On real mobile Safari / in-app browser testing, the latest attempts still show the same core issues:
+  - the right side of the sheet is still clipped
+  - the document content still spills awkwardly toward a second page / lower section
+  - scaling behavior is inconsistent between desktop preview and real mobile rendering
+- This means the current strategy of forcing an A4 page and then visually shrinking it in-browser is still not robust enough for phone viewing.
 
-Highest-Value Next Steps
+What Was Tried But Did Not Solve It
 
-1. Reproduce with the real member account on UAT and inspect `/auth/orders/:id/receipt` response.
-2. Check API logs around receipt endpoint to see whether the response is `200`, `401`, `403`, or `404`.
-3. If browser display still fails, replace blob-open flow with:
-   - open a blank tab immediately
-   - fetch receipt as text/html
-   - write returned HTML directly into the opened tab
-4. Verify owner check in API endpoint:
-   - code compares `request.authUser.userId` to `order.sourceUserId`
-   - this should be confirmed against the real runtime user for `0000013`
+1. Switching BAO PDF output from `A5` to `A4`
+2. Locking the preview sheet to A4 width/height
+3. Using `min-height` instead of fixed height
+4. Centering with flex on the outer frame
+5. Centering with explicit `margin-left` after scale
+6. Shrinking the visual sheet to the printable area after page margins
+
+Recommended Next Step
+
+Do not continue spending time tuning the current “A4 sheet scaled down for mobile preview” approach unless there is a strong business reason to keep it.
+
+Best next options:
+
+- Option A: keep PDF for export/print only, and restore a mobile-first HTML receipt view for WAP
+- Option B: if PDF-first is mandatory, redesign the PDF specifically for narrow mobile reading instead of shrinking a desktop/A4 invoice
+
+My recommendation is Option A.
+
+Why:
+
+- real-device testing keeps failing in the same way
+- browser PDF/viewer behavior on phones is too inconsistent
+- WAP’s main use case is on phones, so HTML-first is the safer UX
 
 Useful UAT Commands
 
 ```bash
+ssh nc-user@202.94.169.245
 cd /home/nc-user/poolproject
-docker compose -f deploy/compose/docker-compose.yml build wap
-docker compose -f deploy/compose/docker-compose.yml up -d wap
+docker compose -f deploy/compose/docker-compose.yml build bao
+docker compose -f deploy/compose/docker-compose.yml up -d bao
 docker ps --format 'table {{.Names}}\t{{.Status}}'
-docker exec poolproject-uat-api-1 sh -lc "grep -n 'renderReceiptHtml' /app/dist/apps/api/packages/modules/orders/src/controllers/orders.controller.js | head -5"
-docker exec poolproject-uat-bao-1 sh -lc "find /var/www/html/backend/resources/views/order -maxdepth 3 -type f | sort"
-docker exec poolproject-uat-postgres-1 psql -U postgres -d poolproject -c 'select "id","orderNo","approvalStatus","status" from "Order" where "orderNo" = '\''0000013'\'';'
+docker logs --tail 200 poolproject-uat-bao-1
 ```
 
-Files Most Relevant Next Time
+Useful Notes About UAT
 
+- UAT source tree is not a git checkout.
+- Files were copied directly to:
+  - `/home/nc-user/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Http/Controllers/Platform/OrderDocumentController.php`
+  - `/home/nc-user/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/resources/views/order/documents/receipt.blade.php`
+- One backup created during this round:
+  - `/home/nc-user/poolproject/backups/receipt-hotfix-20260421-092750`
+
+Files To Start With Next Time
+
+- `HANDOFF_NEXT.md`
+- `stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Http/Controllers/Platform/OrderDocumentController.php`
+- `stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/resources/views/order/documents/receipt.blade.php`
 - `stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/OrderHistory.tsx`
-- `stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/config/index.tsx`
-- `packages/modules/orders/src/controllers/orders.controller.ts`
+
+Current Recommendation To The Next Person
+
+Treat the current commit as a documented experiment checkpoint, not as a finished UX solution.
