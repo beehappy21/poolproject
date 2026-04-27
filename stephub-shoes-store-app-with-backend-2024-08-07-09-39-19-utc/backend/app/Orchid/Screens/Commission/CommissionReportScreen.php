@@ -24,6 +24,7 @@ class CommissionReportScreen extends Screen
         $reportTotals = $report['totals'];
         $items = $report['rows']->values()->all();
         $total = (int) ($report['totalCount'] ?? count($items));
+        $modeMeta = $this->modeMeta($mode);
 
         $paginator = new LengthAwarePaginator(
             $items,
@@ -41,12 +42,12 @@ class CommissionReportScreen extends Screen
             'commissionReportRows' => $paginator,
             'commissionReportTotals' => $reportTotals,
             'commissionReportSummaryCards' => $report['summaryCards'],
-            'commissionNav' => CommissionSettingsScreen::commissionNav('report'),
+            'commissionNav' => CommissionSettingsScreen::commissionNav($mode, $request->except('page')),
             'commissionSection' => [
                 'title' => $report['title'],
-                'eyebrow' => $report['title'],
+                'eyebrow' => $modeMeta['eyebrow'],
                 'description' => $report['description'],
-                'accent' => '#2563eb',
+                'accent' => $modeMeta['accent'],
             ],
             'reportMode' => $mode,
         ];
@@ -72,5 +73,16 @@ class CommissionReportScreen extends Screen
         return [
             Layout::view('commission.report'),
         ];
+    }
+
+    private function modeMeta(string $mode): array
+    {
+        return match ($mode) {
+            'direct' => ['eyebrow' => 'Direct Bonus Report', 'accent' => '#0f766e'],
+            'team' => ['eyebrow' => 'Team Bonus Report', 'accent' => '#ea580c'],
+            'matching' => ['eyebrow' => 'Matching Bonus Report', 'accent' => '#7c3aed'],
+            'pool' => ['eyebrow' => 'Pool Bonus Report', 'accent' => '#0284c7'],
+            default => ['eyebrow' => 'Commission Report', 'accent' => '#2563eb'],
+        };
     }
 }

@@ -1,11 +1,6 @@
 import { Controller, Get, Header, Headers } from "@nestjs/common";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { AuthService } from "../../../packages/modules/auth";
-
-function readAdminFile(fileName: string): string {
-  return readFileSync(join(process.cwd(), "apps/api/public/admin", fileName), "utf8");
-}
 
 function readSignupFile(fileName: string): string {
   return readFileSync(join(process.cwd(), "apps/api/public/signup", fileName), "utf8");
@@ -17,8 +12,6 @@ function readMemberAppFile(fileName: string): string {
 
 @Controller()
 export class AdminUiController {
-  constructor(private readonly authService: AuthService) {}
-
   @Get()
   @Header("Content-Type", "text/html; charset=utf-8")
   getRoot() {
@@ -31,27 +24,27 @@ export class AdminUiController {
     @Headers("authorization") authorization?: string,
     @Headers("cookie") cookieHeader?: string,
   ) {
-    const token = this.extractToken(authorization, cookieHeader);
-    const user = token ? await this.authService.getSessionUser(token) : null;
-    return user ? readAdminFile("index.html") : this.renderLoginShell();
+    void authorization;
+    void cookieHeader;
+    return this.renderDeprecatedAdminRedirect();
   }
 
   @Get("admin/index.html")
   @Header("Content-Type", "text/html; charset=utf-8")
   getAdminIndex() {
-    return readAdminFile("index.html");
+    return this.renderDeprecatedAdminRedirect();
   }
 
   @Get("admin/styles.css")
   @Header("Content-Type", "text/css; charset=utf-8")
   getAdminStyles() {
-    return readAdminFile("styles.css");
+    return "/* Deprecated admin UI. Use Orchid BAO at http://127.0.0.1:8001/admin/main */";
   }
 
   @Get("admin/app.js")
   @Header("Content-Type", "application/javascript; charset=utf-8")
   getAdminScript() {
-    return readAdminFile("app.js");
+    return "console.warn('Deprecated admin UI. Use Orchid BAO at http://127.0.0.1:8001/admin/main');";
   }
 
   @Get("signup")
@@ -102,75 +95,19 @@ export class AdminUiController {
     return readMemberAppFile("app.js");
   }
 
-  private extractToken(authorization?: string, cookieHeader?: string): string | null {
-    const normalized = (authorization || "").trim();
+  private renderDeprecatedAdminRedirect(): string {
+    const target = "http://127.0.0.1:8001/admin/main";
 
-    if (normalized.toLowerCase().startsWith("bearer ")) {
-      const token = normalized.slice(7).trim();
-      return token || null;
-    }
-
-    const source = cookieHeader || "";
-    const prefix = "adminAccessToken=";
-
-    for (const part of source.split(";")) {
-      const value = part.trim();
-      if (value.startsWith(prefix)) {
-        return decodeURIComponent(value.slice(prefix.length));
-      }
-    }
-
-    return null;
-  }
-
-  private renderLoginShell(): string {
     return `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta http-equiv="refresh" content="0; url=${target}" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PoolProject Admin Login</title>
-    <link rel="stylesheet" href="/admin/styles.css" />
+    <title>Admin UI Moved</title>
   </head>
-  <body data-admin-view="login">
-    <div class="app-shell auth-shell">
-      <aside class="sidebar">
-        <div class="brand">
-          <p class="eyebrow">Internal Console</p>
-          <h1>PoolProject Admin</h1>
-        </div>
-        <div class="session-card" id="sessionCard">
-          <p class="muted">Sign in required</p>
-        </div>
-        <form class="login-form panel" id="loginForm">
-          <label>
-            <span>Member Code or Email</span>
-            <input id="identifierInput" type="text" placeholder="TH0000013 or member003 email" required />
-          </label>
-          <label>
-            <span>Password</span>
-            <input id="passwordInput" type="password" placeholder="a1a1a1" required />
-          </label>
-          <button type="submit">Sign In</button>
-          <p class="form-hint">Default local admin login: <code>TH0000013 / a1a1a1</code></p>
-        </form>
-        <div class="panel action-panel">
-          <button id="refreshButton" class="ghost">Check Session</button>
-          <button id="logoutButton" class="ghost danger">Sign Out</button>
-          <p class="muted" id="statusLine">Waiting for login</p>
-        </div>
-      </aside>
-      <main class="content">
-        <section class="hero panel">
-          <div>
-            <p class="eyebrow">Restricted Access</p>
-            <h2>Sign in to open the admin console.</h2>
-          </div>
-          <div class="hero-badge">/admin</div>
-        </section>
-      </main>
-    </div>
-    <script src="/admin/app.js"></script>
+  <body>
+    <p>Admin UI moved to <a href="${target}">${target}</a>.</p>
   </body>
 </html>`;
   }

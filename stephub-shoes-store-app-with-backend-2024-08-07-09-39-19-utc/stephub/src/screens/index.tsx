@@ -7,7 +7,6 @@ import {SignUp} from './SignUp';
 import {LineLiffSignIn, LineRichMenuShare} from './LineLiffSignIn';
 import {CompleteRegistration} from './CompleteRegistration';
 import {Commission} from './Commission';
-import {CommissionMainPlan} from './CommissionMainPlan';
 import {Firm} from './Firm';
 import {TransferSW} from './TransferSW';
 import {WithdrawSW} from './WithdrawSW';
@@ -53,7 +52,6 @@ export const screens = {
   CompleteRegistration,
   SignIn,
   Commission,
-  CommissionMainPlan,
   Firm,
   TransferSW,
   WithdrawSW,

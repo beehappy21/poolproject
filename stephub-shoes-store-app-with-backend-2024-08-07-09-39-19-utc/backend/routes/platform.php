@@ -51,7 +51,6 @@ use App\Orchid\Screens\Supplier\SupplierListScreen;
 use App\Orchid\Screens\Supplier\SupplierEditScreen;
 use App\Orchid\Screens\Commission\CommissionSettingsScreen;
 use App\Orchid\Screens\Commission\CommissionReportScreen;
-use App\Orchid\Screens\Commission\CommissionMainPlanReportScreen;
 use App\Orchid\Screens\Finance\MemberBankAccountListScreen;
 use App\Http\Controllers\Platform\CommissionReportController;
 use App\Http\Controllers\Platform\OrderDocumentController;
@@ -118,34 +117,6 @@ Route::middleware('admin.access:'.AdminPermissions::CATALOG_MANAGE)->group(funct
 });
 
 Route::middleware('admin.access:'.AdminPermissions::COMMISSIONS_MANAGE)->group(function (): void {
-  Route::screen('commission/settings', CommissionSettingsScreen::class)
-    ->defaults('section', 'settings')
-    ->name('platform.commission.settings');
-
-  Route::screen('commission/direct', CommissionSettingsScreen::class)
-    ->defaults('section', 'direct')
-    ->name('platform.commission.direct');
-
-  Route::screen('commission/unilevel', CommissionSettingsScreen::class)
-    ->defaults('section', 'unilevel')
-    ->name('platform.commission.unilevel');
-
-  Route::screen('commission/matrix', CommissionSettingsScreen::class)
-    ->defaults('section', 'matrix')
-    ->name('platform.commission.matrix');
-
-  Route::screen('commission/reentry', CommissionSettingsScreen::class)
-    ->defaults('section', 'reentry')
-    ->name('platform.commission.reentry');
-
-  Route::screen('commission/pool', CommissionSettingsScreen::class)
-    ->defaults('section', 'pool')
-    ->name('platform.commission.pool');
-
-  Route::screen('commission/cashback', CommissionSettingsScreen::class)
-    ->defaults('section', 'cashback')
-    ->name('platform.commission.cashback');
-
   Route::screen('commission/manual-payment', CommissionSettingsScreen::class)
     ->defaults('section', 'manual-payment')
     ->name('platform.commission.manualPayment');
@@ -166,28 +137,21 @@ Route::middleware('admin.access:'.AdminPermissions::COMMISSIONS_MANAGE)->group(f
     ->defaults('reportMode', 'overview')
     ->name('platform.commission.report');
 
-  Route::screen('commission-main-plan/report', CommissionMainPlanReportScreen::class)
-    ->name('platform.commission-main-plan.report');
-
   Route::screen('commission/report/direct', CommissionReportScreen::class)
     ->defaults('reportMode', 'direct')
     ->name('platform.commission.report.direct');
 
-  Route::screen('commission/report/unilevel', CommissionReportScreen::class)
-    ->defaults('reportMode', 'unilevel')
-    ->name('platform.commission.report.unilevel');
+  Route::screen('commission/report/team', CommissionReportScreen::class)
+    ->defaults('reportMode', 'team')
+    ->name('platform.commission.report.team');
 
-  Route::screen('commission/report/matrix', CommissionReportScreen::class)
-    ->defaults('reportMode', 'matrix')
-    ->name('platform.commission.report.matrix');
+  Route::screen('commission/report/matching', CommissionReportScreen::class)
+    ->defaults('reportMode', 'matching')
+    ->name('platform.commission.report.matching');
 
   Route::screen('commission/report/pool', CommissionReportScreen::class)
     ->defaults('reportMode', 'pool')
     ->name('platform.commission.report.pool');
-
-  Route::screen('commission/report/cashback', CommissionReportScreen::class)
-    ->defaults('reportMode', 'cashback')
-    ->name('platform.commission.report.cashback');
 
   Route::get('commission/report/export/{reportMode?}', [CommissionReportController::class, 'export'])
     ->name('platform.commission.report.export');

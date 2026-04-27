@@ -286,14 +286,9 @@ class CommissionSettingsController extends Controller
     private function redirectRouteName(string $section): string
     {
         return match ($section) {
-            'direct' => 'platform.commission.direct',
-            'unilevel' => 'platform.commission.unilevel',
             'manual-payment' => 'platform.commission.manualPayment',
             'signup-share' => 'platform.commission.signupShare',
-            'reentry' => 'platform.commission.reentry',
-            'pool' => 'platform.commission.pool',
-            'cashback' => 'platform.commission.cashback',
-            default => 'platform.commission.settings',
+            default => 'platform.commission.report',
         };
     }
 }

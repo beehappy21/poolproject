@@ -11,25 +11,23 @@ class CommissionReportBuilder
 {
     private const DETAIL_DESCRIPTIONS = [
         'direct' => 'รายงานรายการคอมมิชชั่นตามสมาชิก ช่วงเวลา และสายแนะนำ',
-        'unilevel' => 'รายงานรายการคอมมิชชั่นตามสมาชิก ช่วงเวลา และสายแนะนำ',
-        'matrix' => 'รายงานโบนัสเมทริกซ์ แยกตามบอร์ด ชั้น และสมาชิกต้นทาง',
+        'team' => 'รายงานโบนัสทีมจากรายการ TEAM_2LEG และ TEAM_3LEG ที่จ่ายจริงในระบบ',
+        'matching' => 'รายงานโบนัส matching จากรายการ MATCHING_L1 และ MATCHING_L2 ที่จ่ายจริงในระบบ',
         'pool' => 'รายงานพูลโบนัส โดยยึดสูตร PV approved รวมของวัน x % pool แล้วหารด้วยจำนวนสมาชิกที่ eligible ในวันนั้น',
-        'cashback' => 'รายงาน cash back จากยอด PV ซื้อส่วนตัวของสมาชิกที่ถูกอนุมัติ',
     ];
 
     private const DETAIL_TITLES = [
         'direct' => 'รายงานโบนัสแนะนำ',
-        'unilevel' => 'รายงานยูนิลีเวลโบนัส',
-        'matrix' => 'รายงานเมทริกซ์โบนัส',
+        'team' => 'รายงานโบนัสทีม',
+        'matching' => 'รายงานโบนัส Matching',
         'pool' => 'รายงานพูลโบนัส',
-        'cashback' => 'รายงาน Cash Back Bonus',
     ];
 
     public static function normalizeMode(?string $mode): string
     {
         $mode = (string) ($mode ?? 'overview');
 
-        return in_array($mode, ['overview', 'direct', 'unilevel', 'matrix', 'pool', 'cashback'], true) ? $mode : 'overview';
+        return in_array($mode, ['overview', 'direct', 'team', 'matching', 'pool'], true) ? $mode : 'overview';
     }
 
     public static function filtersFromRequest(Request $request): array
@@ -47,13 +45,12 @@ class CommissionReportBuilder
     {
         $mode = self::normalizeMode($mode);
         $baseQuery = self::baseLedgerQuery($filters);
-        $matrixBaseQuery = self::baseMatrixQuery($filters);
 
         if ($mode === 'overview') {
-            return self::buildOverview($filters, $baseQuery, $matrixBaseQuery);
+            return self::buildOverview($filters, $baseQuery);
         }
 
-        return self::buildDetail($mode, $filters, $baseQuery, $matrixBaseQuery);
+        return self::buildDetail($mode, $filters, $baseQuery);
     }
 
     public static function buildScreen(string $mode, array $filters, int $page = 1): array
@@ -77,19 +74,6 @@ class CommissionReportBuilder
             });
 
         self::applyBeneficiaryFilters($query, $filters, 'cl', 'beneficiary');
-
-        return $query;
-    }
-
-    private static function baseMatrixQuery(array $filters)
-    {
-        $query = DB::connection('poolproject')
-            ->table(DB::raw('"MatrixPayout" as mp'))
-            ->leftJoin(DB::raw('"User" as beneficiary'), function ($join) {
-                $join->on(DB::raw('beneficiary."id"'), '=', DB::raw('mp."beneficiaryUserId"'));
-            });
-
-        self::applyBeneficiaryFilters($query, $filters, 'mp', 'beneficiary');
 
         return $query;
     }
@@ -119,9 +103,9 @@ class CommissionReportBuilder
         }
     }
 
-    private static function buildOverview(array $filters, $baseQuery, $matrixBaseQuery): array
+    private static function buildOverview(array $filters, $baseQuery): array
     {
-        unset($baseQuery, $matrixBaseQuery);
+        unset($baseQuery);
 
         $query = self::overviewRowsQuery($filters);
         $rows = (clone $query)
@@ -159,80 +143,11 @@ class CommissionReportBuilder
         ];
     }
 
-    private static function buildDetail(string $mode, array $filters, $baseQuery, $matrixBaseQuery): array
+    private static function buildDetail(string $mode, array $filters, $baseQuery): array
     {
-        if ($mode === 'matrix') {
-            $detailRows = (clone $matrixBaseQuery)
-                ->leftJoin(DB::raw('"User" as source'), function ($join) {
-                    $join->on(DB::raw('source."id"'), '=', DB::raw('mp."sourceUserId"'));
-                })
-                ->selectRaw(
-                    'date(mp."createdAt") as report_date,
-                    beneficiary."memberCode" as beneficiary_member_code,
-                    beneficiary."name" as beneficiary_name,
-                    source."memberCode" as source_member_code,
-                    source."name" as source_name,
-                    mp."boardNo" as board_no,
-                    mp."levelNo" as level_no,
-                    mp."basePv" as base_pv,
-                    mp."rate" as rate,
-                    mp."payoutAmount" as amount'
-                )
-                ->orderByRaw('mp."createdAt" desc')
-                ->orderByRaw('mp."id" desc')
-                ->get()
-                ->map(fn ($row) => [
-                    'reportDate' => (string) $row->report_date,
-                    'beneficiaryMemberCode' => $row->beneficiary_member_code ?: '-',
-                    'beneficiaryName' => $row->beneficiary_name ?: '-',
-                    'sourceMemberCode' => $row->source_member_code ?: '-',
-                    'sourceName' => $row->source_name ?: '-',
-                    'boardNo' => $row->board_no ?? '-',
-                    'boardLabel' => $row->board_no !== null ? 'Board ' . $row->board_no : '-',
-                    'levelNo' => $row->level_no ?? '-',
-                    'basePv' => (string) $row->base_pv,
-                    'rate' => (string) $row->rate,
-                    'amount' => (string) $row->amount,
-                ]);
-
-            $totals = [
-                'basePv' => (string) $detailRows->sum(fn (array $row) => (float) $row['basePv']),
-                'amount' => (string) $detailRows->sum(fn (array $row) => (float) $row['amount']),
-                'boardCount' => (string) $detailRows
-                    ->map(fn (array $row) => ($row['beneficiaryMemberCode'] ?? '-') . '|' . ($row['boardNo'] ?? '-'))
-                    ->filter(fn (string $value) => !str_ends_with($value, '|-'))
-                    ->unique()
-                    ->count(),
-            ];
-
-            return [
-                'title' => 'รายงานเมทริกซ์โบนัส',
-                'description' => 'รายงานโบนัสเมทริกซ์ แยกตามบอร์ด ชั้น และสมาชิกต้นทาง',
-                'rows' => $detailRows,
-                'totals' => $totals,
-                'summaryCards' => [
-                    ['label' => 'รายการที่พบ', 'value' => (string) $detailRows->count(), 'note' => 'จำนวนรายการ matrix payout', 'format' => 'count'],
-                    ['label' => 'จำนวนบอร์ด', 'value' => $totals['boardCount'], 'note' => 'จำนวนบอร์ดของสมาชิกที่มีรายการในผลลัพธ์นี้', 'format' => 'count'],
-                    ['label' => 'PV รวม', 'value' => $totals['basePv'], 'note' => 'PV ที่นำมาคำนวณทั้งหมด', 'format' => 'decimal'],
-                    ['label' => 'ยอดจ่ายรวม', 'value' => $totals['amount'], 'note' => 'จำนวนเงิน matrix ทั้งหมด', 'format' => 'decimal'],
-                ],
-            ];
-        }
-
-        $commissionType = match ($mode) {
-            'direct' => 'DIRECT',
-            'unilevel' => 'UNI',
-            'pool' => 'POOL',
-            'cashback' => 'CASHBACK',
-            default => 'DIRECT',
-        };
         $title = self::DETAIL_TITLES[$mode] ?? self::DETAIL_TITLES['direct'];
 
-        $detailQuery = (clone $baseQuery)
-            ->leftJoin(DB::raw('"User" as source'), function ($join) {
-                $join->on(DB::raw('source."id"'), '=', DB::raw('cl."sourceUserId"'));
-            })
-            ->whereRaw('cl."commissionType" = ?', [$commissionType]);
+        $detailQuery = self::ledgerDetailQuery($filters, self::ledgerCommissionTypesForMode($mode));
 
         $detailRows = (clone $detailQuery)
             ->selectRaw(
@@ -291,9 +206,7 @@ class CommissionReportBuilder
 
     private static function buildPagedDetail(string $mode, array $filters, int $page): array
     {
-        return $mode === 'matrix'
-            ? self::buildPagedMatrixDetail($filters, $page)
-            : self::buildPagedLedgerDetail($mode, $filters, $page);
+        return self::buildPagedLedgerDetail($mode, $filters, $page);
     }
 
     private static function overviewRowsQuery(array $filters)
@@ -308,10 +221,9 @@ class CommissionReportBuilder
                 beneficiary_member_code,
                 beneficiary_name,
                 coalesce(sum(direct_amount), 0) as direct_amount,
-                coalesce(sum(cashback_amount), 0) as cashback_amount,
+                coalesce(sum(team_amount), 0) as team_amount,
+                coalesce(sum(matching_amount), 0) as matching_amount,
                 coalesce(sum(pool_amount), 0) as pool_amount,
-                coalesce(sum(uni_amount), 0) as uni_amount,
-                coalesce(sum(matrix_amount), 0) as matrix_amount,
                 coalesce(sum(total_amount), 0) as total_amount'
             )
             ->groupBy('report_date', 'beneficiary_member_code', 'beneficiary_name');
@@ -319,10 +231,7 @@ class CommissionReportBuilder
 
     private static function overviewUnionQuery(array $filters)
     {
-        $commissionRows = self::overviewCommissionSourceQuery($filters);
-        $matrixRows = self::overviewMatrixSourceQuery($filters);
-
-        return $commissionRows->unionAll($matrixRows);
+        return self::overviewCommissionSourceQuery($filters);
     }
 
     private static function overviewCommissionSourceQuery(array $filters)
@@ -333,30 +242,13 @@ class CommissionReportBuilder
                 coalesce(beneficiary."memberCode", \'-\') as beneficiary_member_code,
                 coalesce(beneficiary."name", \'-\') as beneficiary_name,
                 coalesce(sum(case when cl."commissionType" = \'DIRECT\' then cl."commissionAmount" else 0 end), 0) as direct_amount,
-                coalesce(sum(case when cl."commissionType" = \'CASHBACK\' then cl."commissionAmount" else 0 end), 0) as cashback_amount,
+                coalesce(sum(case when cl."commissionType" in (\'TEAM_2LEG\', \'TEAM_3LEG\') then cl."commissionAmount" else 0 end), 0) as team_amount,
+                coalesce(sum(case when cl."commissionType" in (\'MATCHING_L1\', \'MATCHING_L2\') then cl."commissionAmount" else 0 end), 0) as matching_amount,
                 coalesce(sum(case when cl."commissionType" = \'POOL\' then cl."commissionAmount" else 0 end), 0) as pool_amount,
-                coalesce(sum(case when cl."commissionType" = \'UNI\' then cl."commissionAmount" else 0 end), 0) as uni_amount,
-                0 as matrix_amount,
                 coalesce(sum(cl."commissionAmount"), 0) as total_amount'
             )
+            ->whereIn(DB::raw('cl."commissionType"'), ['DIRECT', 'TEAM_2LEG', 'TEAM_3LEG', 'MATCHING_L1', 'MATCHING_L2', 'POOL'])
             ->groupByRaw('date(cl."createdAt"), coalesce(beneficiary."memberCode", \'-\'), coalesce(beneficiary."name", \'-\')');
-    }
-
-    private static function overviewMatrixSourceQuery(array $filters)
-    {
-        return self::baseMatrixQuery($filters)
-            ->selectRaw(
-                'date(mp."createdAt") as report_date,
-                coalesce(beneficiary."memberCode", \'-\') as beneficiary_member_code,
-                coalesce(beneficiary."name", \'-\') as beneficiary_name,
-                0 as direct_amount,
-                0 as cashback_amount,
-                0 as pool_amount,
-                0 as uni_amount,
-                coalesce(sum(mp."payoutAmount"), 0) as matrix_amount,
-                coalesce(sum(mp."payoutAmount"), 0) as total_amount'
-            )
-            ->groupByRaw('date(mp."createdAt"), coalesce(beneficiary."memberCode", \'-\'), coalesce(beneficiary."name", \'-\')');
     }
 
     private static function overviewTotalsRow(array $filters): object
@@ -367,10 +259,9 @@ class CommissionReportBuilder
             ->selectRaw(
                 'count(*) as total_count,
                 coalesce(sum(direct_amount), 0) as direct_amount,
-                coalesce(sum(cashback_amount), 0) as cashback_amount,
+                coalesce(sum(team_amount), 0) as team_amount,
+                coalesce(sum(matching_amount), 0) as matching_amount,
                 coalesce(sum(pool_amount), 0) as pool_amount,
-                coalesce(sum(uni_amount), 0) as uni_amount,
-                coalesce(sum(matrix_amount), 0) as matrix_amount,
                 coalesce(sum(total_amount), 0) as total_amount'
             )
             ->first();
@@ -378,10 +269,9 @@ class CommissionReportBuilder
         return $row ?? (object) [
             'total_count' => 0,
             'direct_amount' => '0',
-            'cashback_amount' => '0',
+            'team_amount' => '0',
+            'matching_amount' => '0',
             'pool_amount' => '0',
-            'uni_amount' => '0',
-            'matrix_amount' => '0',
             'total_amount' => '0',
         ];
     }
@@ -393,10 +283,9 @@ class CommissionReportBuilder
             'beneficiaryMemberCode' => $row->beneficiary_member_code ?: '-',
             'beneficiaryName' => $row->beneficiary_name ?: '-',
             'directAmount' => (string) $row->direct_amount,
-            'cashbackAmount' => (string) $row->cashback_amount,
+            'teamAmount' => (string) $row->team_amount,
+            'matchingAmount' => (string) $row->matching_amount,
             'poolAmount' => (string) $row->pool_amount,
-            'uniAmount' => (string) $row->uni_amount,
-            'matrixAmount' => (string) $row->matrix_amount,
             'totalAmount' => (string) $row->total_amount,
         ];
     }
@@ -405,10 +294,9 @@ class CommissionReportBuilder
     {
         return [
             'directAmount' => (string) ($row->direct_amount ?? '0'),
-            'cashbackAmount' => (string) ($row->cashback_amount ?? '0'),
+            'teamAmount' => (string) ($row->team_amount ?? '0'),
+            'matchingAmount' => (string) ($row->matching_amount ?? '0'),
             'poolAmount' => (string) ($row->pool_amount ?? '0'),
-            'uniAmount' => (string) ($row->uni_amount ?? '0'),
-            'matrixAmount' => (string) ($row->matrix_amount ?? '0'),
             'totalAmount' => (string) ($row->total_amount ?? '0'),
         ];
     }
@@ -417,95 +305,22 @@ class CommissionReportBuilder
     {
         return [
             'title' => 'รายงานคอมมิชชั่น',
-            'description' => 'รายงานคอมมิชชั่นรวมต่อสมาชิก แยกตามประเภทโบนัสและช่วงเวลาที่เลือก',
+            'description' => 'รายงานคอมมิชชั่นรวมต่อสมาชิก แยกตาม direct, team, matching และ pool',
             'rows' => $rows,
             'totals' => $totals,
             'summaryCards' => [
                 ['label' => 'รายการที่พบ', 'value' => (string) $totalCount, 'note' => 'จำนวนแถวหลังกรองทั้งหมด', 'format' => 'count'],
                 ['label' => 'โบนัสแนะนำรวม', 'value' => $totals['directAmount'], 'note' => 'ยอด direct bonus', 'format' => 'decimal'],
-                ['label' => 'Cash back รวม', 'value' => $totals['cashbackAmount'], 'note' => 'ยอด cashback bonus', 'format' => 'decimal'],
-                ['label' => 'ยูนิลีเวลรวม', 'value' => $totals['uniAmount'], 'note' => 'ยอด unilevel bonus', 'format' => 'decimal'],
-                ['label' => 'เมทริกซ์รวม', 'value' => $totals['matrixAmount'], 'note' => 'ยอด matrix payout', 'format' => 'decimal'],
+                ['label' => 'โบนัสทีมรวม', 'value' => $totals['teamAmount'], 'note' => 'ยอด team bonus', 'format' => 'decimal'],
+                ['label' => 'โบนัส Matching รวม', 'value' => $totals['matchingAmount'], 'note' => 'ยอด matching bonus', 'format' => 'decimal'],
+                ['label' => 'พูลโบนัสรวม', 'value' => $totals['poolAmount'], 'note' => 'ยอด pool bonus', 'format' => 'decimal'],
                 ['label' => 'ยอดรวมทั้งหมด', 'value' => $totals['totalAmount'], 'note' => 'รวมทุกประเภทคอมมิชชั่น', 'format' => 'decimal'],
             ],
         ];
     }
-
-    private static function buildPagedMatrixDetail(array $filters, int $page): array
-    {
-        $query = self::matrixDetailQuery($filters);
-        $offset = ($page - 1) * $filters['pageSize'];
-
-        $rows = (clone $query)
-            ->selectRaw(
-                'date(mp."createdAt") as report_date,
-                beneficiary."memberCode" as beneficiary_member_code,
-                beneficiary."name" as beneficiary_name,
-                source."memberCode" as source_member_code,
-                source."name" as source_name,
-                mp."boardNo" as board_no,
-                mp."levelNo" as level_no,
-                mp."basePv" as base_pv,
-                mp."rate" as rate,
-                mp."payoutAmount" as amount'
-            )
-            ->orderByRaw('mp."createdAt" desc')
-            ->orderByRaw('mp."id" desc')
-            ->limit($filters['pageSize'])
-            ->offset($offset)
-            ->get()
-            ->map(fn ($row) => self::mapMatrixDetailRow($row));
-
-        $totalsRow = (clone $query)
-            ->selectRaw(
-                'count(*) as total_count,
-                coalesce(sum(mp."basePv"), 0) as total_base_pv,
-                coalesce(sum(mp."payoutAmount"), 0) as total_amount,
-                count(distinct case
-                    when mp."boardNo" is null then null
-                    else concat(coalesce(beneficiary."memberCode", \'-\'), \'|\', mp."boardNo"::text)
-                end) as board_count'
-            )
-            ->first();
-        $totalsRow ??= (object) [
-            'total_count' => 0,
-            'total_base_pv' => '0',
-            'total_amount' => '0',
-            'board_count' => 0,
-        ];
-
-        $totalCount = (int) ($totalsRow->total_count ?? 0);
-        $totals = [
-            'basePv' => (string) ($totalsRow->total_base_pv ?? '0'),
-            'amount' => (string) ($totalsRow->total_amount ?? '0'),
-            'boardCount' => (string) ($totalsRow->board_count ?? '0'),
-        ];
-
-        return [
-            'title' => self::DETAIL_TITLES['matrix'],
-            'description' => self::DETAIL_DESCRIPTIONS['matrix'],
-            'rows' => $rows,
-            'totals' => $totals,
-            'totalCount' => $totalCount,
-            'summaryCards' => [
-                ['label' => 'รายการที่พบ', 'value' => (string) $totalCount, 'note' => 'จำนวนรายการ matrix payout', 'format' => 'count'],
-                ['label' => 'จำนวนบอร์ด', 'value' => $totals['boardCount'], 'note' => 'จำนวนบอร์ดของสมาชิกที่มีรายการในผลลัพธ์นี้', 'format' => 'count'],
-                ['label' => 'PV รวม', 'value' => $totals['basePv'], 'note' => 'PV ที่นำมาคำนวณทั้งหมด', 'format' => 'decimal'],
-                ['label' => 'ยอดจ่ายรวม', 'value' => $totals['amount'], 'note' => 'จำนวนเงิน matrix ทั้งหมด', 'format' => 'decimal'],
-            ],
-        ];
-    }
-
     private static function buildPagedLedgerDetail(string $mode, array $filters, int $page): array
     {
-        $commissionType = match ($mode) {
-            'direct' => 'DIRECT',
-            'unilevel' => 'UNI',
-            'pool' => 'POOL',
-            'cashback' => 'CASHBACK',
-            default => 'DIRECT',
-        };
-        $query = self::ledgerDetailQuery($filters, $commissionType);
+        $query = self::ledgerDetailQuery($filters, self::ledgerCommissionTypesForMode($mode));
         $offset = ($page - 1) * $filters['pageSize'];
 
         $rows = (clone $query)
@@ -572,38 +387,13 @@ class CommissionReportBuilder
         ];
     }
 
-    private static function matrixDetailQuery(array $filters)
-    {
-        return self::baseMatrixQuery($filters)
-            ->leftJoin(DB::raw('"User" as source'), function ($join) {
-                $join->on(DB::raw('source."id"'), '=', DB::raw('mp."sourceUserId"'));
-            });
-    }
-
-    private static function ledgerDetailQuery(array $filters, string $commissionType)
+    private static function ledgerDetailQuery(array $filters, array $commissionTypes)
     {
         return self::baseLedgerQuery($filters)
             ->leftJoin(DB::raw('"User" as source'), function ($join) {
                 $join->on(DB::raw('source."id"'), '=', DB::raw('cl."sourceUserId"'));
             })
-            ->whereRaw('cl."commissionType" = ?', [$commissionType]);
-    }
-
-    private static function mapMatrixDetailRow(object $row): array
-    {
-        return [
-            'reportDate' => (string) $row->report_date,
-            'beneficiaryMemberCode' => $row->beneficiary_member_code ?: '-',
-            'beneficiaryName' => $row->beneficiary_name ?: '-',
-            'sourceMemberCode' => $row->source_member_code ?: '-',
-            'sourceName' => $row->source_name ?: '-',
-            'boardNo' => $row->board_no ?? '-',
-            'boardLabel' => $row->board_no !== null ? 'Board ' . $row->board_no : '-',
-            'levelNo' => $row->level_no ?? '-',
-            'basePv' => (string) $row->base_pv,
-            'rate' => (string) $row->rate,
-            'amount' => (string) $row->amount,
-        ];
+            ->whereIn(DB::raw('cl."commissionType"'), $commissionTypes);
     }
 
     private static function mapLedgerDetailRow(object $row): array
@@ -642,45 +432,7 @@ class CommissionReportBuilder
             ];
         }
 
-        if ($mode === 'matrix') {
-            $totalsRow = (clone self::matrixDetailQuery($filters))
-                ->selectRaw(
-                    'count(*) as total_count,
-                    coalesce(sum(mp."basePv"), 0) as total_base_pv,
-                    coalesce(sum(mp."payoutAmount"), 0) as total_amount,
-                    count(distinct case
-                        when mp."boardNo" is null then null
-                        else concat(coalesce(beneficiary."memberCode", \'-\'), \'|\', mp."boardNo"::text)
-                    end) as board_count'
-                )
-                ->first();
-            $totalsRow ??= (object) [
-                'total_count' => 0,
-                'total_base_pv' => '0',
-                'total_amount' => '0',
-                'board_count' => 0,
-            ];
-
-            return [
-                'title' => self::DETAIL_TITLES['matrix'],
-                'description' => self::DETAIL_DESCRIPTIONS['matrix'],
-                'totals' => [
-                    'basePv' => (string) ($totalsRow->total_base_pv ?? '0'),
-                    'amount' => (string) ($totalsRow->total_amount ?? '0'),
-                    'boardCount' => (string) ($totalsRow->board_count ?? '0'),
-                ],
-                'totalCount' => (int) ($totalsRow->total_count ?? 0),
-            ];
-        }
-
-        $commissionType = match ($mode) {
-            'direct' => 'DIRECT',
-            'unilevel' => 'UNI',
-            'pool' => 'POOL',
-            'cashback' => 'CASHBACK',
-            default => 'DIRECT',
-        };
-        $totalsRow = (clone self::ledgerDetailQuery($filters, $commissionType))
+        $totalsRow = (clone self::ledgerDetailQuery($filters, self::ledgerCommissionTypesForMode($mode)))
             ->selectRaw(
                 'count(*) as total_count,
                 coalesce(sum(cl."basePv"), 0) as total_base_pv,
@@ -724,35 +476,7 @@ class CommissionReportBuilder
                 ->map(fn ($row) => self::mapOverviewRow($row));
         }
 
-        if ($mode === 'matrix') {
-            return (clone self::matrixDetailQuery($filters))
-                ->selectRaw(
-                    'date(mp."createdAt") as report_date,
-                    beneficiary."memberCode" as beneficiary_member_code,
-                    beneficiary."name" as beneficiary_name,
-                    source."memberCode" as source_member_code,
-                    source."name" as source_name,
-                    mp."boardNo" as board_no,
-                    mp."levelNo" as level_no,
-                    mp."basePv" as base_pv,
-                    mp."rate" as rate,
-                    mp."payoutAmount" as amount'
-                )
-                ->orderByRaw('mp."createdAt" desc')
-                ->orderByRaw('mp."id" desc')
-                ->cursor()
-                ->map(fn ($row) => self::mapMatrixDetailRow($row));
-        }
-
-        $commissionType = match ($mode) {
-            'direct' => 'DIRECT',
-            'unilevel' => 'UNI',
-            'pool' => 'POOL',
-            'cashback' => 'CASHBACK',
-            default => 'DIRECT',
-        };
-
-        return (clone self::ledgerDetailQuery($filters, $commissionType))
+        return (clone self::ledgerDetailQuery($filters, self::ledgerCommissionTypesForMode($mode)))
             ->selectRaw(
                 'date(cl."createdAt") as report_date,
                 beneficiary."memberCode" as beneficiary_member_code,
@@ -768,5 +492,16 @@ class CommissionReportBuilder
             ->orderByRaw('cl."id" desc')
             ->cursor()
             ->map(fn ($row) => self::mapLedgerDetailRow($row));
+    }
+
+    private static function ledgerCommissionTypesForMode(string $mode): array
+    {
+        return match ($mode) {
+            'direct' => ['DIRECT'],
+            'team' => ['TEAM_2LEG', 'TEAM_3LEG'],
+            'matching' => ['MATCHING_L1', 'MATCHING_L2'],
+            'pool' => ['POOL'],
+            default => ['DIRECT'],
+        };
     }
 }

@@ -59,34 +59,6 @@ class PlatformProvider extends OrchidServiceProvider {
             ->route('platform.product.list'),
         ]),
 
-      Menu::make('Commission Setting')
-        ->title('Commission Setting')
-        ->icon('bs-cash-stack')
-        ->permission(AdminPermissions::COMMISSIONS_MANAGE)
-        ->list([
-          Menu::make('Overview')
-            ->icon('bs.sliders')
-            ->route('platform.commission.settings'),
-          Menu::make('Direct Bonus')
-            ->icon('bs-cash')
-            ->route('platform.commission.direct'),
-          Menu::make('Unilevel Bonus')
-            ->icon('bs-diagram-3')
-            ->route('platform.commission.unilevel'),
-          Menu::make('Matrix Bonus')
-            ->icon('bs-grid-3x3-gap')
-            ->route('platform.commission.matrix'),
-          Menu::make('Auto Order Rules')
-            ->icon('bs-arrow-repeat')
-            ->route('platform.commission.reentry'),
-          Menu::make('Pool Bonus')
-            ->icon('bs-droplet')
-            ->route('platform.commission.pool'),
-          Menu::make('Cash Back')
-            ->icon('bs-arrow-repeat')
-            ->route('platform.commission.cashback'),
-        ]),
-
       Menu::make('Commission Report')
         ->icon('bs-table')
         ->permission(AdminPermissions::COMMISSIONS_MANAGE)
@@ -97,18 +69,15 @@ class PlatformProvider extends OrchidServiceProvider {
           Menu::make('Direct Bonus')
             ->icon('bs-cash')
             ->route('platform.commission.report.direct'),
-          Menu::make('Unilevel Bonus')
+          Menu::make('Team Bonus')
             ->icon('bs-diagram-3')
-            ->route('platform.commission.report.unilevel'),
-          Menu::make('Matrix Bonus')
-            ->icon('bs-grid-3x3-gap')
-            ->route('platform.commission.report.matrix'),
+            ->route('platform.commission.report.team'),
+          Menu::make('Matching Bonus')
+            ->icon('bs-shuffle')
+            ->route('platform.commission.report.matching'),
           Menu::make('Pool Bonus')
             ->icon('bs-droplet')
             ->route('platform.commission.report.pool'),
-          Menu::make('Cash Back')
-            ->icon('bs-arrow-repeat')
-            ->route('platform.commission.report.cashback'),
         ]),
 
       Menu::make('Orders')

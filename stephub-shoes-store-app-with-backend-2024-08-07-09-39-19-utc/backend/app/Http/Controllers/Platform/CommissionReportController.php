@@ -127,8 +127,7 @@ class CommissionReportController extends Controller
     private function headersForMode(string $mode): array
     {
         return match ($mode) {
-            'overview' => ['วันที่', 'รหัสสมาชิก', 'ชื่อสมาชิก', 'โบนัสแนะนำ', 'Cash Back', 'พูลโบนัส', 'ยูนิลีเวล', 'เมทริกซ์', 'จำนวนรวม'],
-            'matrix' => ['วันที่', 'รหัสสมาชิก', 'ชื่อสมาชิก', 'จาก', 'ชื่อ', 'Board', 'ลำดับชั้น', 'พีวี', 'เปอร์เซ็นต์', 'จำนวน'],
+            'overview' => ['วันที่', 'รหัสสมาชิก', 'ชื่อสมาชิก', 'โบนัสแนะนำ', 'โบนัสทีม', 'โบนัส Matching', 'พูลโบนัส', 'จำนวนรวม'],
             'pool' => ['วันที่', 'รหัสสมาชิก', 'ชื่อสมาชิก', 'พีวี', 'เปอร์เซ็นต์', 'จำนวน'],
             default => ['วันที่', 'รหัสสมาชิก', 'ชื่อสมาชิก', 'จาก', 'ชื่อ', 'ลำดับชั้น', 'พีวี', 'เปอร์เซ็นต์', 'จำนวน'],
         };
@@ -142,26 +141,10 @@ class CommissionReportController extends Controller
                 $row['beneficiaryMemberCode'],
                 $row['beneficiaryName'],
                 number_format((float) $row['directAmount'], 2, '.', ''),
-                number_format((float) $row['cashbackAmount'], 2, '.', ''),
+                number_format((float) $row['teamAmount'], 2, '.', ''),
+                number_format((float) $row['matchingAmount'], 2, '.', ''),
                 number_format((float) $row['poolAmount'], 2, '.', ''),
-                number_format((float) $row['uniAmount'], 2, '.', ''),
-                number_format((float) $row['matrixAmount'], 2, '.', ''),
                 number_format((float) $row['totalAmount'], 2, '.', ''),
-            ];
-        }
-
-        if ($mode === 'matrix') {
-            return [
-                $row['reportDate'],
-                $row['beneficiaryMemberCode'],
-                $row['beneficiaryName'],
-                $row['sourceMemberCode'],
-                $row['sourceName'],
-                $row['boardLabel'] ?? ($row['boardNo'] ?? '-'),
-                $row['levelNo'],
-                number_format((float) $row['basePv'], 2, '.', ''),
-                number_format((float) $row['rate'], 2, '.', ''),
-                number_format((float) $row['amount'], 2, '.', ''),
             ];
         }
 
@@ -209,10 +192,9 @@ class CommissionReportController extends Controller
                 '',
                 '',
                 $this->formatDecimal((float) ($totals['directAmount'] ?? 0)),
-                $this->formatDecimal((float) ($totals['cashbackAmount'] ?? 0)),
+                $this->formatDecimal((float) ($totals['teamAmount'] ?? 0)),
+                $this->formatDecimal((float) ($totals['matchingAmount'] ?? 0)),
                 $this->formatDecimal((float) ($totals['poolAmount'] ?? 0)),
-                $this->formatDecimal((float) ($totals['uniAmount'] ?? 0)),
-                $this->formatDecimal((float) ($totals['matrixAmount'] ?? 0)),
                 $this->formatDecimal((float) ($totals['totalAmount'] ?? 0)),
             ];
         }
@@ -224,21 +206,6 @@ class CommissionReportController extends Controller
                 '',
                 $this->formatDecimal((float) ($totals['basePv'] ?? 0)),
                 $this->formatDecimal((float) ($totals['avgRate'] ?? 0)),
-                $this->formatDecimal((float) ($totals['amount'] ?? 0)),
-            ];
-        }
-
-        if ($mode === 'matrix') {
-            return [
-                'รวมทั้งหมด',
-                '',
-                '',
-                '',
-                '',
-                (string) ((int) ($totals['boardCount'] ?? 0)),
-                '',
-                $this->formatDecimal((float) ($totals['basePv'] ?? 0)),
-                '',
                 $this->formatDecimal((float) ($totals['amount'] ?? 0)),
             ];
         }
