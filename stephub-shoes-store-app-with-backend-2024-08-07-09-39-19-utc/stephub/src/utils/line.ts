@@ -99,7 +99,7 @@ export const buildSignUpPath = (sponsorCode?: string | null): string => {
     return '/SignUp';
   }
 
-  return `/SignUp?sponsorCode=${encodeURIComponent(normalizedSponsorCode)}`;
+  return `/SignUp?ref=${encodeURIComponent(normalizedSponsorCode)}`;
 };
 
 export const resolvePublicAppBaseUrl = (): string => {
@@ -228,7 +228,7 @@ export const buildLineLiffEntryPath = (input?: {
   query.set('mode', mode);
 
   if (sponsorCode) {
-    query.set('sponsorCode', sponsorCode);
+    query.set('ref', sponsorCode);
   }
 
   if (returnTo) {
@@ -312,7 +312,7 @@ export const buildLineLoginCallbackUrl = (input?: {
     const parsed = new URL(config.callbackUrl);
     parsed.searchParams.set('mode', input?.mode || 'signin');
     if (sponsorCode) {
-      parsed.searchParams.set('sponsorCode', sponsorCode);
+      parsed.searchParams.set('ref', sponsorCode);
     }
     if (returnTo) {
       parsed.searchParams.set('returnTo', returnTo);

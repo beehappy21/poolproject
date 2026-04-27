@@ -9,13 +9,16 @@ Use this checklist before starting real data entry and real day-to-day usage on 
 Use this section first if the current task is the Stephub commission refactor and you want to continue without re-reading older handoff notes.
 
 - [ ] Open [HANDOFF_NEXT.md](/Users/macbook/poolproject/HANDOFF_NEXT.md:1)
+- [ ] Open [docs/technical-design/referral_commission_plan_thb.md](/Users/macbook/poolproject/docs/technical-design/referral_commission_plan_thb.md:1)
 - [ ] Ignore old receipt/PDF work unless the user explicitly asks for it
 - [ ] Confirm these still pass before touching more code:
   - [ ] `npx prisma validate --schema prisma/schema.prisma`
   - [ ] `npm run lint`
 - [ ] Treat `COMM-04` as complete
 - [ ] Treat `COMM-05` backend scope as complete
+- [ ] Treat `COMM-05` close-out as complete unless a real bug is found
 - [ ] Keep the shared cap/gating path as the single source of truth for commission finalization
+- [ ] Keep `referral_commission_plan_thb.md` as the only active plan reference
 - [ ] Do not restart team/matching implementation unless a bug is found
 - [ ] Team scaffold exists already via `POST /commissions/team-settlement-batches/:settlementDate/scaffold`
 - [ ] Team process endpoint exists via `POST /commissions/team-settlement-batches/:settlementDate/process`
@@ -34,6 +37,8 @@ Use this section first if the current task is the Stephub commission refactor an
 - [ ] Pool snapshot endpoint exists: `GET /pool/:poolDate/snapshot`
 - [ ] Admin quick actions expose team `Scaffold / Process / Snapshot`
 - [ ] Admin quick actions expose pool `Snapshot / Payouts`
+- [ ] Matrix is soft-disabled in runtime unless business explicitly asks to turn it back on
+- [ ] BAO matrix panels and matrix source filter are hidden when matrix visibility is off
 - [ ] One-leg carry-forward smoke exists: `npm run smoke:commissions:team-carry-forward`
 - [ ] Team final-payable-to-matching smoke exists: `npm run smoke:commissions:team-matching-final-payable`
 - [ ] Team concurrent rerun smoke exists: `npm run smoke:commissions:team-concurrent-rerun`
@@ -46,9 +51,21 @@ Use this section first if the current task is the Stephub commission refactor an
   - [ ] one-leg carry-forward stays `payable=0`, `bonus=0`, `status=carried_forward`
   - [ ] isolated fixture proves matching `basePv` comes from team `finalPayableAmount`
 - [ ] Finish adjustment-plan cleanup before reopening recipient-positive pool testing
+- [ ] Treat recipient-positive pool verification as the next phase, not as unfinished `COMM-05`
+- [ ] New commission UI work can start from this point without reopening `COMM-05`
+- [ ] When resuming pool phase, use a date or fixture with at least `1` eligible recipient before judging payout-path behavior
+- [ ] When resuming pool phase, verify in order:
+  - [ ] `team -> buyback side effect -> pool`
+  - [ ] `POST /pool/:poolDate/close` yields non-zero eligible recipients
+  - [ ] `GET /pool/:poolDate/snapshot` shows payout rows and correct summary counts
+  - [ ] `commissionLedgerId` linkage is present on pool payouts
+  - [ ] held pool payouts land in the held wallet bucket when applicable
+  - [ ] rerun returns `reprocessed: true` without duplicate payout/wallet effects
 
 Locked rules for next session:
 
+- [ ] Referral identity uses `referralCode`, not `memberCode`
+- [ ] New sign-up links use `/SignUp?ref=...`
 - [ ] Team structure is `L / M / R`
 - [ ] Daily cap is `5000 THB`
 - [ ] Cap applies across all commission channels combined
@@ -57,6 +74,8 @@ Locked rules for next session:
 - [ ] Excess above threshold is held pending member-initiated repurchase for `3` calendar days in `Asia/Bangkok`
 - [ ] If not completed in time, status becomes `BLOCKED_AFTER_EXPIRY`
 - [ ] Pool basis is `100% of approved PV`
+- [ ] Commission basis uses approved order PV from real catalog items: `sum(quantity x unitPv)`
+- [ ] Commission payout interprets `1 PV = 1 THB`
 - [ ] Pool qualification needs member own purchase + `3` directs + each direct has `1` purchase order
 - [ ] Matching is based on actual team payable after cap
 - [ ] Locked daily order is `team -> buyback side effect -> pool`
@@ -130,17 +149,13 @@ Dangerous commands to avoid unless intentionally resetting:
 
 - [ ] Overview values are reviewed
 - [ ] Direct Bonus settings are correct
-- [ ] Unilevel Bonus settings are correct
-- [ ] Matrix Bonus settings are correct
-- [ ] Reentry Rules are correct
-  - [ ] Reentry amount
-  - [ ] Firm amount
-  - [ ] PV amount
+- [ ] Matching Bonus settings are correct
+- [ ] Team Bonus settings are correct
 - [ ] Pool Bonus settings are correct
-- [ ] Cash Back settings are correct
+- [ ] Buyback threshold and grace days are correct
 - [ ] Signup Share message is correct
 - [ ] App Commission Menu Visibility is correct
-- [ ] Commission types hidden from app are intentionally disabled from calculation
+- [ ] Hidden commission types are intentionally inactive in the current plan
 
 ## Manual Payment
 

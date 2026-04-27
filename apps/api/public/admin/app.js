@@ -290,6 +290,7 @@ state.settings = {
   uniLevelRates: ["0"],
   poolRate: "0",
   cashbackRate: "0",
+  matrixVisible: false,
 };
 state.matrixSettings = {
   boardWidth: 2,
@@ -1759,8 +1760,18 @@ async function loadCommissionSettings() {
     uniLevelRates: settings.uniLevelRates,
     poolRate: settings.poolRate,
     cashbackRate: settings.cashbackRate || "0",
+    matrixVisible: settings.appVisibility?.matrix !== false,
   };
+  applyMatrixVisibility();
   renderCommissionSettings();
+}
+
+function applyMatrixVisibility() {
+  const matrixVisible = state.settings.matrixVisible !== false;
+
+  document.querySelectorAll("[data-matrix-ui]").forEach((element) => {
+    element.hidden = !matrixVisible;
+  });
 }
 
 async function loadWalletSettings() {
@@ -2410,7 +2421,7 @@ async function loadDashboard() {
           <button type="button" class="secondary" data-action="member-detail" data-member-id="${member.memberId}">Detail</button>
           <button type="button" class="secondary" data-action="member-network" data-member-id="${member.memberId}">Network</button>
           <button type="button" class="secondary" data-action="member-referral" data-member-code="${member.memberCode}">Referral</button>
-          <button type="button" class="secondary" data-action="member-matrix" data-member-id="${member.memberId}">Matrix</button>
+          ${state.settings.matrixVisible !== false ? `<button type="button" class="secondary" data-action="member-matrix" data-member-id="${member.memberId}">Matrix</button>` : ""}
           <button type="button" class="secondary" data-action="member-reset-password" data-member-id="${member.memberId}">Reset PW</button>
           <button type="button" class="secondary" data-action="prefill-activate" data-member-id="${member.memberId}">Activate</button>
           <button type="button" class="secondary" data-action="prefill-order-member" data-member-id="${member.memberId}">New Order</button>
@@ -2427,7 +2438,7 @@ async function loadDashboard() {
       <td>${order.orderId}</td>
       <td>${order.orderNo}</td>
       <td>${order.sourceUserId}</td>
-      <td>${order.orderSourceType === "matrix_reentry" ? '<span class="status-badge status-badge--success">AUTO ORDER</span>' : '<span class="status-badge">NORMAL</span>'}</td>
+      <td>${order.orderSourceType === "matrix_reentry" ? (state.settings.matrixVisible !== false ? '<span class="status-badge status-badge--success">AUTO ORDER</span>' : '<span class="status-badge">HIDDEN MATRIX</span>') : '<span class="status-badge">NORMAL</span>'}</td>
       <td>${order.approvalStatus}</td>
       <td>${order.totalPv}</td>
       <td>

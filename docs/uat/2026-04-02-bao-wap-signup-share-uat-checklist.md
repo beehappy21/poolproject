@@ -31,7 +31,7 @@ Scope: BAO signup-share settings, WAP share/signup flow, LINE profile binding, a
 ## WAP Share Flow
 
 - [ ] Share page shows `ลิงก์แนะนำของคุณ`
-- [ ] Referral link uses `/SignUp?sponsorCode=...`
+- [ ] Referral link uses `/SignUp?ref=...`
 - [ ] Share text uses BAO `ข้อความแนบลิงก์สมัคร`
 - [ ] `แชร์ผ่าน LINE` works
 - [ ] `คัดลอกลิงก์` works

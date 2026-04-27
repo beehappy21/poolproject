@@ -52,7 +52,7 @@ const DEFAULT_SETTINGS: CommissionSettings = {
     matching: true,
     team: true,
     unilevel: false,
-    matrix: true,
+    matrix: false,
     pool: true,
   },
 };

@@ -14,7 +14,6 @@ import {
   LineProfile,
   buildPublicSignUpUrl,
   buildLineLiffLaunchUrl,
-  buildLineShareUrl,
   initializeLineLiff,
 } from '../../utils/line';
 
@@ -35,6 +34,24 @@ type ReferralResponse = {
   referralCode?: string;
   referralLink?: string;
   lineReferralLink?: string;
+};
+
+type DirectReferralsResponse = {
+  member?: {
+    memberId?: string;
+    memberCode?: string;
+    referralCode?: string;
+    name?: string;
+    sponsorId?: string | null;
+  };
+  directReferrals?: Array<{
+    memberId?: string;
+    memberCode?: string;
+    referralCode?: string;
+    name?: string;
+    sponsorId?: string | null;
+    childCount?: number;
+  }>;
 };
 
 type SignupShareSettingsResponse = {
@@ -59,17 +76,6 @@ type LineBindingStatusResponse = {
   userId: string;
   memberCode: string;
   lineBinding: LineBindingResponse | null;
-};
-
-type WindowWithSharePicker = Window & {
-  liff?: {
-    shareTargetPicker?(
-      messages: Array<{
-        type: 'text';
-        text: string;
-      }>,
-    ): Promise<unknown | null>;
-  };
 };
 
 const DEFAULT_PROFILE_AVATAR = '/16.png';
@@ -123,9 +129,16 @@ const buildLocalReferralPreviewLink = (code: string) => {
 const buildBaoAlignedReferralLink = (payload?: {
   memberCode?: string;
   sponsorCode?: string;
+  referralCode?: string;
   referralLink?: string;
   lineReferralLink?: string;
 }) => {
+  const referralCode = normalizeMemberCode(payload?.referralCode);
+
+  if (referralCode) {
+    return buildLocalReferralPreviewLink(referralCode);
+  }
+
   const sponsorCode = normalizeMemberCode(payload?.sponsorCode || payload?.memberCode);
 
   if (sponsorCode) {
@@ -141,9 +154,9 @@ const buildBaoAlignedReferralLink = (payload?: {
   try {
     const parsedUrl = new URL(rawLink);
     const rawSponsorCode =
+      parsedUrl.searchParams.get('ref') ||
       parsedUrl.searchParams.get('sponsorCode') ||
-      parsedUrl.searchParams.get('sponsor_code') ||
-      parsedUrl.searchParams.get('ref');
+      parsedUrl.searchParams.get('sponsor_code');
 
     const normalizedSponsorCode = normalizeMemberCode(rawSponsorCode);
 
@@ -164,6 +177,11 @@ export const Profile: React.FC = () => {
 
   const user = hooks.useAppSelector((state: RootState) => state.userSlice.user);
   const [referralLink, setReferralLink] = useState('');
+  const [referralCode, setReferralCode] = useState('');
+  const [directReferralCount, setDirectReferralCount] = useState(0);
+  const [selectedPlacement, setSelectedPlacement] = useState<
+    'AUTO' | 'LEFT' | 'MIDDLE' | 'RIGHT'
+  >('AUTO');
   const [copyMessage, setCopyMessage] = useState('');
   const [shareMessage, setShareMessage] = useState(DEFAULT_LINE_SHARE_MESSAGE);
   const [lineProfile, setLineProfile] = useState<LineProfile | null>(null);
@@ -260,10 +278,12 @@ export const Profile: React.FC = () => {
 
       if (!currentMemberCode) {
         setReferralLink('');
+        setReferralCode('');
         return;
       }
 
       setReferralLink(buildLocalReferralPreviewLink(currentMemberCode));
+      setReferralCode('');
 
       try {
         if (user?.accessToken) {
@@ -276,6 +296,13 @@ export const Profile: React.FC = () => {
           setLineBinding(response.data.lineBinding || null);
 
           const nextReferralLink = buildBaoAlignedReferralLink(response.data.referral);
+          const nextReferralCode = normalizeMemberCode(
+            response.data.referral?.referralCode,
+          );
+
+          if (nextReferralCode) {
+            setReferralCode(nextReferralCode);
+          }
 
           if (nextReferralLink) {
             setReferralLink(nextReferralLink);
@@ -287,18 +314,47 @@ export const Profile: React.FC = () => {
           URLS.buildMemberReferralLinkUrl(currentMemberCode),
         );
 
+        setReferralCode(
+          normalizeMemberCode(fallbackResponse.data.referralCode) || currentMemberCode,
+        );
+
         setReferralLink(
           buildBaoAlignedReferralLink(fallbackResponse.data) ||
             buildLocalReferralPreviewLink(currentMemberCode),
         );
       } catch (error) {
         console.error(error);
+        setReferralCode(currentMemberCode);
         setReferralLink(buildLocalReferralPreviewLink(currentMemberCode));
       }
     };
 
     loadReferralLink();
   }, [user?.accessToken, user?.memberCode]);
+
+  useEffect(() => {
+    const loadDirectReferrals = async () => {
+      const currentMemberCode = normalizeMemberCode(user?.memberCode);
+
+      if (!currentMemberCode) {
+        setDirectReferralCount(0);
+        return;
+      }
+
+      try {
+        const response = await axios.get<DirectReferralsResponse>(
+          URLS.buildMemberDirectReferralsUrl(currentMemberCode),
+        );
+
+        setDirectReferralCount(response.data.directReferrals?.length || 0);
+      } catch (error) {
+        console.error(error);
+        setDirectReferralCount(0);
+      }
+    };
+
+    loadDirectReferrals();
+  }, [user?.memberCode]);
 
   useEffect(() => {
     const loadLineBinding = async () => {
@@ -383,49 +439,6 @@ export const Profile: React.FC = () => {
     } catch (error) {
       console.error(error);
       setCopyMessage('แชร์ไม่สำเร็จ');
-    } finally {
-      window.setTimeout(() => setCopyMessage(''), 2000);
-    }
-  };
-
-  const handleShareViaLine = async () => {
-    if (!referralLink) {
-      return;
-    }
-
-    const shareUrl = buildLineShareUrl(shareMessage, referralLink);
-
-    try {
-      const liff = (window as WindowWithSharePicker).liff;
-
-      if (liff?.shareTargetPicker) {
-        try {
-          const result = await liff.shareTargetPicker([
-            {
-              type: 'text',
-              text: [shareMessage.trim(), referralLink.trim()]
-                .filter(Boolean)
-                .join('\n'),
-            },
-          ]);
-
-          if (result === null) {
-            setCopyMessage('ยกเลิกการแชร์ไว้ก่อน');
-            return;
-          }
-
-          setCopyMessage('แชร์ผ่าน LINE แล้ว');
-          return;
-        } catch (pickerError) {
-          console.error('LINE shareTargetPicker failed, fallback to LINE share URL.', pickerError);
-        }
-      }
-
-      window.location.assign(shareUrl);
-      setCopyMessage('กำลังเปิดแชร์ผ่าน LINE');
-    } catch (error) {
-      console.error(error);
-      setCopyMessage('เปิดแชร์ผ่าน LINE ไม่สำเร็จ');
     } finally {
       window.setTimeout(() => setCopyMessage(''), 2000);
     }
@@ -762,114 +775,154 @@ export const Profile: React.FC = () => {
       return null;
     }
 
+    const effectiveReferralCode =
+      referralCode || normalizeMemberCode(user?.memberCode) || '-';
+    const placementUnlocked = directReferralCount >= 3;
+    const helperText = placementUnlocked
+      ? 'AUTO พร้อมใช้งาน และสามารถเลือก L / M / R สำหรับลิงก์แนะนำสมาชิกได้'
+      : `AUTO ใช้งานได้แล้วตอนนี้ ส่วน L / M / R จะปลดล็อกเมื่อมีสมาชิกสายตรงครบ 3 คน (${directReferralCount}/3)`;
+    const placementOptions: Array<{
+      label: 'AUTO' | 'LEFT' | 'MIDDLE' | 'RIGHT';
+      shortLabel: 'AUTO' | 'L' | 'M' | 'R';
+      disabled: boolean;
+    }> = [
+      {label: 'AUTO', shortLabel: 'AUTO', disabled: false},
+      {label: 'LEFT', shortLabel: 'L', disabled: !placementUnlocked},
+      {label: 'MIDDLE', shortLabel: 'M', disabled: !placementUnlocked},
+      {label: 'RIGHT', shortLabel: 'R', disabled: !placementUnlocked},
+    ];
+
     return (
       <div
         style={{
           marginBottom: 24,
           marginLeft: 20,
           marginRight: 20,
-          padding: 7,
-          borderRadius: 10,
-          backgroundColor: '#F4F7FB',
-          border: `1px solid ${theme.colors.aliceBlue2}`,
+          padding: 18,
+          borderRadius: 0,
+          background:
+            'linear-gradient(135deg, rgba(47,74,110,0.96) 0%, rgba(91,69,112,0.94) 100%)',
+          border: '1px solid rgba(255,255,255,0.12)',
+          boxShadow: '0 20px 40px rgba(15, 23, 42, 0.18)',
         }}
       >
         <div
           style={{
-            display: 'grid',
-            gap: 7,
-            minWidth: 0,
-            gridTemplateColumns: 'minmax(0, 1fr) auto auto auto',
+            color: '#FFFFFF',
+            fontSize: 17,
+            lineHeight: 1.3,
+            marginBottom: 18,
+            ...theme.fonts.Mulish_800ExtraBold,
           }}
         >
-          <div
-            style={{
-              flex: 1,
-              minWidth: 0,
-              padding: '6px 8px',
-              borderRadius: 7,
-              backgroundColor: theme.colors.white,
-              border: `1px solid ${theme.colors.aliceBlue2}`,
-              color: theme.colors.mainColor,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              fontSize: 11,
-              ...theme.fonts.Mulish_600SemiBold,
-            }}
-            title={referralLink}
-          >
-            {referralLink}
-          </div>
+          Referral code : {effectiveReferralCode}
+        </div>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+            gap: 10,
+            marginBottom: 12,
+          }}
+        >
+          {placementOptions.map(option => {
+            const isActive = selectedPlacement === option.label;
+
+            return (
+              <button
+                key={option.label}
+                type='button'
+                disabled={option.disabled}
+                onClick={() => {
+                  if (!option.disabled) {
+                    setSelectedPlacement(option.label);
+                  }
+                }}
+                style={{
+                  height: 44,
+                  borderRadius: 0,
+                  cursor: option.disabled ? 'not-allowed' : 'pointer',
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  backgroundColor: isActive ? '#86F7B1' : 'rgba(255,255,255,0.03)',
+                  color: isActive ? '#101828' : 'rgba(255,255,255,0.72)',
+                  opacity: option.disabled ? 0.5 : 1,
+                  fontSize: option.shortLabel === 'AUTO' ? 16 : 18,
+                  letterSpacing: 0.6,
+                  ...theme.fonts.Mulish_800ExtraBold,
+                }}
+                title={option.label}
+              >
+                {option.shortLabel}
+              </button>
+            );
+          })}
+        </div>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 0.9fr)',
+            gap: 12,
+          }}
+        >
           <button
             onClick={handleCopyReferralLink}
             style={{
-              border: 'none',
-              width: 25,
-              height: 25,
-              borderRadius: 7,
+              border: '1px solid rgba(255,255,255,0.12)',
+              height: 48,
+              borderRadius: 0,
               cursor: 'pointer',
-              backgroundColor: theme.colors.mainColor,
-              color: theme.colors.mainYellow,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 11,
-              ...theme.fonts.Mulish_700Bold,
-            }}
-            title='Copy'
-          >
-            C
-          </button>
-          <button
-            onClick={handleShareViaLine}
-            style={{
-              border: 'none',
-              minWidth: 35,
-              height: 25,
-              borderRadius: 7,
-              cursor: 'pointer',
-              backgroundColor: '#06C755',
+              backgroundColor: 'rgba(255,255,255,0.04)',
               color: '#FFFFFF',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: 10,
-              padding: '0 7px',
-              ...theme.fonts.Mulish_700Bold,
+              fontSize: 16,
+              ...theme.fonts.Mulish_800ExtraBold,
             }}
-            title='Share via LINE'
+            title='Copy'
           >
-            LINE
+            Copy
           </button>
           <button
             onClick={handleShareReferralLink}
             style={{
-              border: 'none',
-              width: 25,
-              height: 25,
-              borderRadius: 7,
+              border: '1px solid rgba(255,255,255,0.12)',
+              height: 48,
+              borderRadius: 0,
               cursor: 'pointer',
-              backgroundColor: '#F59E0B',
-              color: '#1F2937',
+              backgroundColor: 'rgba(255,255,255,0.04)',
+              color: '#FFFFFF',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: 11,
-              ...theme.fonts.Mulish_700Bold,
+              fontSize: 16,
+              ...theme.fonts.Mulish_800ExtraBold,
             }}
             title='Share'
           >
-            ↗
+            Share
           </button>
+        </div>
+        <div
+          style={{
+            marginTop: 14,
+            color: 'rgba(255,255,255,0.82)',
+            fontSize: 12,
+            lineHeight: 1.6,
+            ...theme.fonts.Mulish_400Regular,
+          }}
+        >
+          {helperText}
         </div>
         {copyMessage ? (
           <div
             style={{
               marginTop: 8,
               color: copyMessage.includes('ไม่สำเร็จ')
-                ? theme.colors.coralRed
-                : '#15803D',
+                ? '#FCA5A5'
+                : '#A7F3D0',
               fontSize: 12,
               ...theme.fonts.Mulish_400Regular,
             }}

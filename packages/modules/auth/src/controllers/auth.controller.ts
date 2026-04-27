@@ -3,6 +3,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Headers,
   Param,
@@ -881,6 +882,10 @@ export class AuthController {
     @Headers("authorization") authorization?: string,
     @Headers("cookie") cookieHeader?: string,
   ) {
+    if (readCommissionSettings().appVisibility.matrix === false) {
+      throw new ForbiddenException("Matrix is disabled.");
+    }
+
     const user = await this.requireSessionUser(authorization, cookieHeader);
 
     try {
@@ -917,6 +922,10 @@ export class AuthController {
     @Headers("cookie") cookieHeader?: string,
     @Body() body?: { enabled?: boolean },
   ) {
+    if (readCommissionSettings().appVisibility.matrix === false) {
+      throw new ForbiddenException("Matrix is disabled.");
+    }
+
     const user = await this.requireSessionUser(authorization, cookieHeader);
 
     if (typeof body?.enabled !== "boolean") {

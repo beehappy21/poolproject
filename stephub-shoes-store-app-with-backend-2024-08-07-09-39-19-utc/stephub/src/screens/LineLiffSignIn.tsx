@@ -127,9 +127,16 @@ const buildLocalReferralPreviewLink = (code: string) => {
 const buildBaoAlignedReferralLink = (payload?: {
   memberCode?: string;
   sponsorCode?: string;
+  referralCode?: string;
   referralLink?: string;
   lineReferralLink?: string;
 }) => {
+  const referralCode = normalizeMemberCode(payload?.referralCode);
+
+  if (referralCode) {
+    return buildLocalReferralPreviewLink(referralCode);
+  }
+
   const sponsorCode = normalizeMemberCode(payload?.sponsorCode || payload?.memberCode);
 
   if (sponsorCode) {
@@ -145,9 +152,9 @@ const buildBaoAlignedReferralLink = (payload?: {
   try {
     const parsedUrl = new URL(rawLink);
     const rawSponsorCode =
+      parsedUrl.searchParams.get('ref') ||
       parsedUrl.searchParams.get('sponsorCode') ||
-      parsedUrl.searchParams.get('sponsor_code') ||
-      parsedUrl.searchParams.get('ref');
+      parsedUrl.searchParams.get('sponsor_code');
 
     const normalizedSponsorCode = normalizeMemberCode(rawSponsorCode);
 
@@ -546,7 +553,7 @@ export const LineLiffSignIn: React.FC = () => {
           >
             Mode: {mode}
             <br />
-            Sponsor code: {sponsorCode || '-'}
+            Referral code: {sponsorCode || '-'}
             <br />
             Return to: {returnTo}
             <br />

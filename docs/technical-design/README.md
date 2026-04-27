@@ -3,10 +3,10 @@
 Minimal design binding for the current scaffold.
 
 Source of truth:
-- [commission_main_plan_spec.md](/Users/macbook/poolproject/docs/technical-design/commission_main_plan_spec.md)
+- [referral_commission_plan_thb.md](/Users/macbook/poolproject/docs/technical-design/referral_commission_plan_thb.md)
 
 Current rule status:
-- `commission_main_plan_spec.md` is the primary business and implementation source of truth
+- `referral_commission_plan_thb.md` is the only active business and implementation source of truth
 - supporting docs may provide context, but they must not override the main plan unless a later approved revision explicitly replaces it
 
 ## Design Binding
@@ -26,9 +26,7 @@ Supporting infrastructure:
 - worker app shell: `apps/worker`
 
 Current feature specs:
-- [commission_main_plan_spec.md](/Users/macbook/poolproject/docs/technical-design/commission_main_plan_spec.md)
-- [commission_main_implementation_plan.md](/Users/macbook/poolproject/docs/technical-design/commission_main_implementation_plan.md)
-- [commission_main_test_plan.md](/Users/macbook/poolproject/docs/technical-design/commission_main_test_plan.md)
+- [referral_commission_plan_thb.md](/Users/macbook/poolproject/docs/technical-design/referral_commission_plan_thb.md)
 - [firm_wallet_spec.md](/Users/macbook/poolproject/docs/technical-design/firm_wallet_spec.md)
 - [matrix_runtime_reentry_spec.md](/Users/macbook/poolproject/docs/technical-design/matrix_runtime_reentry_spec.md) `legacy runtime reference only`
 

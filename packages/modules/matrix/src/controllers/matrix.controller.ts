@@ -64,6 +64,16 @@ export class MatrixController {
 
   @Get("summary")
   async getMatrixSummary() {
+    if (readCommissionSettings().appVisibility.matrix === false) {
+      return {
+        cycleCount: 0,
+        activeCycleCount: 0,
+        payoutCount: 0,
+        payoutTotal: "0",
+        latestCycles: [],
+      };
+    }
+
     return this.matrixService.getMatrixSummary();
   }
 

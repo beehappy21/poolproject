@@ -248,7 +248,7 @@ export const SignUp: FC = (): JSX.Element => {
       const createResponse = await axios.post<CreatedMemberResponse>(
         `${URLS.API_BASE_URL}/members`,
         {
-          sponsorCode,
+          ref: sponsorCode,
           name: lineDisplayName || undefined,
           lineUserId,
           lineIdToken: lineIdToken || undefined,

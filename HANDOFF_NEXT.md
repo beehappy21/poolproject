@@ -1,11 +1,11 @@
 Handoff Next
 
-Updated: 2026-04-27 22:02 +07
+Updated: 2026-04-27 22:22 +07
 Branch: `main`
 
 Current Goal
 
-Continue the Stephub commission-plan refactor after `COMM-05` backend completion.
+Continue the Stephub commission-plan refactor after `COMM-05` completion.
 Do not go back to the old receipt/PDF work unless explicitly asked.
 
 What Was Completed In This Round
@@ -91,6 +91,12 @@ Validation Completed
 
 Runtime Verification Completed This Round
 
+- matrix is now soft-disabled for runtime and visible surfaces:
+  - `runtime/commission-settings.json` now sets `appVisibility.matrix = false`
+  - default commission settings fallback also default matrix visibility to `false`
+  - member matrix actions now reject when matrix is disabled
+  - matrix summary endpoint now returns an empty summary when disabled
+  - BAO admin matrix sections and the matrix order-source filter option are hidden when matrix visibility is off
 - local stack was restarted successfully and API health recovered on `http://127.0.0.1:3000/health`
 - local Prisma schema had been behind runtime initially; `npx prisma db push --schema prisma/schema.prisma` was required once before team batch endpoints could run
 - verified login and live API calls against the local stack
@@ -157,7 +163,7 @@ Current Working Files
 
 - [HANDOFF_NEXT.md](/Users/macbook/poolproject/HANDOFF_NEXT.md:1)
 - [CHECKLIST_LIVE_OPERATIONS.md](/Users/macbook/poolproject/CHECKLIST_LIVE_OPERATIONS.md:1)
-- [docs/technical-design/commission_couponweb3_reuse_map.md](/Users/macbook/poolproject/docs/technical-design/commission_couponweb3_reuse_map.md:1)
+- [docs/technical-design/referral_commission_plan_thb.md](/Users/macbook/poolproject/docs/technical-design/referral_commission_plan_thb.md:1)
 - [packages/modules/commissions/src/controllers/commissions.controller.ts](/Users/macbook/poolproject/packages/modules/commissions/src/controllers/commissions.controller.ts:1)
 - [packages/modules/commissions/src/domain/commissions.types.ts](/Users/macbook/poolproject/packages/modules/commissions/src/domain/commissions.types.ts:1)
 - [packages/modules/commissions/src/repositories/commissions.repository.ts](/Users/macbook/poolproject/packages/modules/commissions/src/repositories/commissions.repository.ts:1)
@@ -184,7 +190,8 @@ Current Working Tree
   - `packages/shared/utils/src/commission-settings.util.ts`
   - `prisma/schema.prisma`
 - untracked:
-  - `docs/technical-design/commission_couponweb3_reuse_map.md`
+  - `docs/technical-design/referral_commission_plan_thb.md`
+  - `tmp/archived_commission_plan_2026-04-27/`
 - unrelated existing file to ignore unless user asks:
   - Thai-named `.xlsx` file in repo root
 
@@ -192,21 +199,50 @@ Exactly What To Do Next
 
 Treat `COMM-05` as complete. Do not redo cap/gating or team/matching core runtime.
 
-1. Finish adjustment planning and keep scope locked
+1. Treat `COMM-05` as closed
+- do not reopen team/matching implementation or `COMM-05` hardening unless a real bug is found
+
+2. Finish adjustment planning and keep scope locked
 - treat current backend adjustment work as the active focus, not recipient-positive pool testing
 - do not spend more time trying to force a pool-eligible sample from the current dataset
 - if more plan cleanup is needed, capture it in handoff/checklist first before reopening runtime verification
+- UI work for the new commission display can start from here
+- treat matrix as soft-disabled unless the business explicitly asks to revive it
 
-2. Keep the locked runtime order intact in every later smoke flow
+3. Keep the locked runtime order intact in every later smoke flow
 - `team -> buyback side effect -> pool`
 - do not reorder these batches during further verification or test wiring
 
-3. Defer pool recipient-positive testing until after adjustment planning is fully settled
+4. Defer pool recipient-positive testing until after adjustment planning is fully settled
 - current `2025-11-27` sample already proves rerun behavior
 - recipient-positive pool verification remains a later phase
 - when returning to it, use a date or fixture that naturally produces eligible recipients instead of stretching the current sample data
 
-4. If a formal automated test harness is introduced later
+6. Use the new THB/PV referral and commission plan as the only source of truth
+- use [docs/technical-design/referral_commission_plan_thb.md](/Users/macbook/poolproject/docs/technical-design/referral_commission_plan_thb.md:1)
+- treat older commission-plan docs as archived material only
+- new referral flow must use `referralCode` and `/SignUp?ref=...`
+- commission basis is approved order PV from real catalog data:
+  - `orderTotalPv = sum(quantity x unitPv)`
+  - payout calculation interprets `1 PV = 1 THB`
+- do not reintroduce package-based or USDT-based wording
+
+Pool Verification Phase Checklist
+
+When the team is ready to resume pool work, do it in this order:
+
+1. prepare a date or fixture that produces at least `1` eligible pool recipient
+2. run the locked order:
+   - `team -> buyback side effect -> pool`
+3. verify `POST /pool/:poolDate/close` returns a non-zero eligible recipient count
+4. verify `GET /pool/:poolDate/snapshot` shows:
+   - payout rows present
+   - correct `approved / held / fallback / linkedCommissionCount`
+5. verify pool commission rows link back through `commissionLedgerId`
+6. verify held pool payouts land in the held wallet bucket when applicable
+7. verify rerunning the same pool date returns `reprocessed: true` and does not duplicate payouts or wallet credits
+
+5. If a formal automated test harness is introduced later
 - port the three existing smoke checks into durable automated coverage:
   - one-leg carry-forward
   - matching from team `finalPayableAmount`
@@ -249,7 +285,7 @@ npm run lint
 Recommended First Files Next Session
 
 1. [HANDOFF_NEXT.md](/Users/macbook/poolproject/HANDOFF_NEXT.md:1)
-2. [docs/technical-design/commission_couponweb3_reuse_map.md](/Users/macbook/poolproject/docs/technical-design/commission_couponweb3_reuse_map.md:1)
+2. [docs/technical-design/referral_commission_plan_thb.md](/Users/macbook/poolproject/docs/technical-design/referral_commission_plan_thb.md:1)
 3. [packages/modules/commissions/src/services/commissions.service.ts](/Users/macbook/poolproject/packages/modules/commissions/src/services/commissions.service.ts:1)
 4. [packages/modules/commissions/src/repositories/commissions.repository.ts](/Users/macbook/poolproject/packages/modules/commissions/src/repositories/commissions.repository.ts:1)
 5. [packages/modules/commissions/src/controllers/commissions.controller.ts](/Users/macbook/poolproject/packages/modules/commissions/src/controllers/commissions.controller.ts:1)
@@ -258,4 +294,4 @@ Bottom Line
 
 The repo has moved past the `COMM-04` cap/gating milestone.
 `COMM-05` backend runtime and close-out hardening are effectively complete, with runtime verification on the local stack for processed-date reruns, concurrent reruns, one-leg carry-forward, and matching-from-final-payable.
-Pool payout creation also runs through the shared finalize path; the next person should finish plan cleanup and regression coverage first, then come back to recipient-positive pool verification as a separate phase.
+Pool payout creation also runs through the shared finalize path; the next person should treat `COMM-05` as done, begin the new commission UI if needed, and come back to recipient-positive pool verification as a separate phase. Matrix is currently soft-disabled across runtime and primary admin/member surfaces.
