@@ -1,0 +1,456 @@
+import axios from 'axios';
+import React, {useEffect, useState} from 'react';
+
+import {URLS} from '../config';
+import {theme} from '../constants';
+import {components} from '../components';
+import {hooks} from '../hooks';
+import {RootState} from '../store';
+
+type TreeNode = {
+  memberId: string;
+  memberCode: string;
+  referralCode: string;
+  name: string;
+  sponsorId: string | null;
+  placementSide?: 'LEFT' | 'MIDDLE' | 'RIGHT' | null;
+  childCount: number;
+};
+
+type TreePayload = {
+  member: {
+    memberId: string;
+    memberCode: string;
+    referralCode: string;
+    name: string;
+    sponsorId: string | null;
+  };
+  directReferrals: TreeNode[];
+};
+
+export const TeamMember: React.FC = () => {
+  const user = hooks.useAppSelector((state: RootState) => state.userSlice.user);
+  const initialMemberCode = user?.memberCode?.trim().toUpperCase() || '';
+  const [selectedFilter, setSelectedFilter] = useState<
+    'DIRECT' | 'LEFT' | 'MIDDLE' | 'RIGHT'
+  >('DIRECT');
+  const [rootCodeInput, setRootCodeInput] = useState(
+    initialMemberCode,
+  );
+  const [activeRootCode, setActiveRootCode] = useState(
+    initialMemberCode,
+  );
+  const [rootMemberName, setRootMemberName] = useState('');
+  const [childrenByCode, setChildrenByCode] = useState<Record<string, TreeNode[]>>(
+    {},
+  );
+  const [expandedCodes, setExpandedCodes] = useState<Record<string, boolean>>({});
+  const [loadingCodes, setLoadingCodes] = useState<Record<string, boolean>>({});
+  const [screenLoading, setScreenLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const fetchTreeLevel = async (memberCode: string): Promise<TreePayload> => {
+    const response = await axios.get<TreePayload>(
+      URLS.buildMemberDirectReferralsUrl(memberCode),
+    );
+
+    return response.data;
+  };
+
+  const loadRootLevel = async (memberCode: string) => {
+    setScreenLoading(true);
+    setErrorMessage('');
+
+    try {
+      const payload = await fetchTreeLevel(memberCode);
+      setActiveRootCode(payload.member.memberCode);
+      setRootCodeInput(payload.member.memberCode);
+      setRootMemberName(payload.member.name);
+      setChildrenByCode({[payload.member.memberCode]: payload.directReferrals});
+      setExpandedCodes({});
+      setSelectedFilter('DIRECT');
+    } catch (error: any) {
+      setChildrenByCode({});
+      setRootMemberName('');
+      setErrorMessage(
+        error?.response?.data?.message ||
+          'ไม่สามารถโหลดข้อมูลทีมงานได้ในขณะนี้',
+      );
+    } finally {
+      setScreenLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!initialMemberCode) {
+      setScreenLoading(false);
+      setErrorMessage('ไม่พบรหัสสมาชิกของ session ปัจจุบัน กรุณาเข้าสู่ระบบใหม่อีกครั้ง');
+      return;
+    }
+
+    loadRootLevel(initialMemberCode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialMemberCode]);
+
+  const handleExpand = async (node: TreeNode) => {
+    if (loadingCodes[node.memberCode]) {
+      return;
+    }
+
+    const isExpanded = Boolean(expandedCodes[node.memberCode]);
+    if (isExpanded) {
+      setExpandedCodes(current => ({...current, [node.memberCode]: false}));
+      return;
+    }
+
+    if (childrenByCode[node.memberCode]) {
+      setExpandedCodes(current => ({...current, [node.memberCode]: true}));
+      return;
+    }
+
+    setLoadingCodes(current => ({...current, [node.memberCode]: true}));
+    try {
+      const payload = await fetchTreeLevel(node.memberCode);
+      setChildrenByCode(current => ({
+        ...current,
+        [node.memberCode]: payload.directReferrals,
+      }));
+      setExpandedCodes(current => ({...current, [node.memberCode]: true}));
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoadingCodes(current => ({...current, [node.memberCode]: false}));
+    }
+  };
+
+  const rootChildren = childrenByCode[activeRootCode] || [];
+  const filteredRootChildren =
+    selectedFilter === 'DIRECT'
+      ? rootChildren
+      : rootChildren.filter(node => node.placementSide === selectedFilter);
+
+  const directCount = rootChildren.length;
+  const leftCount = rootChildren.filter(node => node.placementSide === 'LEFT').length;
+  const middleCount = rootChildren.filter(node => node.placementSide === 'MIDDLE').length;
+  const rightCount = rootChildren.filter(node => node.placementSide === 'RIGHT').length;
+
+  const renderNode = (node: TreeNode, level: number): JSX.Element => {
+    const children = childrenByCode[node.memberCode];
+    const isExpanded = Boolean(expandedCodes[node.memberCode]);
+    const isLoading = Boolean(loadingCodes[node.memberCode]);
+    const sideLabel =
+      node.placementSide === 'LEFT'
+        ? 'L'
+        : node.placementSide === 'MIDDLE'
+          ? 'M'
+          : node.placementSide === 'RIGHT'
+            ? 'R'
+            : '-';
+
+    return (
+      <li key={node.memberCode} style={{listStyle: 'none', color: theme.colors.mainColor}}>
+        <button
+          onClick={() => handleExpand(node)}
+          style={{
+            width: '100%',
+            border: '1px solid #E2E8F0',
+            backgroundColor: '#F8FAFC',
+            borderRadius: 14,
+            padding: '12px 14px',
+            cursor: 'pointer',
+            color: theme.colors.mainColor,
+            fontSize: level === 0 ? 17 : 15,
+            lineHeight: 1.5,
+            textAlign: 'left',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            ...theme.fonts.Mulish_600SemiBold,
+          }}
+        >
+          <span style={{minWidth: 0}}>
+            {'\uD83D\uDCC1'} {node.memberCode} {node.name}
+            <span
+              style={{
+                display: 'block',
+                marginTop: 4,
+                color: theme.colors.textColor,
+                fontSize: 12,
+                ...theme.fonts.Mulish_400Regular,
+              }}
+            >
+              ตำแหน่ง {sideLabel} · ทีมย่อย {node.childCount}
+            </span>
+          </span>
+          <span
+            style={{
+              color: '#94A3B8',
+              fontSize: 20,
+              lineHeight: 1,
+              ...theme.fonts.Mulish_700Bold,
+            }}
+          >
+            {isExpanded ? '−' : '›'}
+          </span>
+        </button>
+
+        {isLoading ? (
+          <div
+            style={{
+              marginTop: 6,
+              marginLeft: 28,
+              color: theme.colors.textColor,
+              ...theme.fonts.Mulish_400Regular,
+            }}
+          >
+            กำลังโหลดข้อมูล...
+          </div>
+        ) : null}
+
+        {isExpanded && children?.length ? (
+          <ul
+            style={{
+              marginTop: 6,
+              marginBottom: 6,
+              paddingLeft: level === 0 ? 16 : 14,
+              display: 'grid',
+              gap: 8,
+            }}
+          >
+            {children.map(child => renderNode(child, level + 1))}
+          </ul>
+        ) : null}
+
+        {isExpanded && children && children.length === 0 ? (
+          <div
+            style={{
+              marginTop: 6,
+              marginLeft: 28,
+              color: theme.colors.textColor,
+              ...theme.fonts.Mulish_400Regular,
+            }}
+          >
+            ไม่มีสายงานต่อ
+          </div>
+        ) : null}
+      </li>
+    );
+  };
+
+  return (
+    <>
+      <components.Header title='ทีมงาน / Team member' goBack={true} />
+      <main
+        style={{
+          padding: '20px 20px 120px',
+          backgroundColor: '#F4F6FA',
+          minHeight: 'calc(100vh - 72px)',
+        }}
+      >
+        <section style={{marginBottom: 16}}>
+          <h2
+            style={{
+              margin: '0 0 4px',
+              color: theme.colors.mainColor,
+              fontSize: 30,
+              ...theme.fonts.Mulish_700Bold,
+            }}
+          >
+            Member
+          </h2>
+          <p
+            style={{
+              margin: 0,
+              color: theme.colors.textColor,
+              fontSize: 18,
+              ...theme.fonts.Mulish_600SemiBold,
+            }}
+          >
+            Tree
+          </p>
+        </section>
+
+        <section
+          style={{
+            marginBottom: 16,
+            padding: 18,
+            borderRadius: 0,
+            background: 'linear-gradient(180deg, #232734 0%, #171B26 100%)',
+            border: '1px solid rgba(148, 163, 184, 0.24)',
+            boxShadow: '0 16px 32px rgba(15, 23, 42, 0.18)',
+          }}
+        >
+          <div
+            style={{
+              marginBottom: 16,
+              color: '#FFFFFF',
+              fontSize: 28,
+              ...theme.fonts.Mulish_700Bold,
+            }}
+          >
+            Team volume
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+              gap: 12,
+            }}
+          >
+            {[
+              {key: 'DIRECT' as const, label: 'DIRECT', count: directCount},
+              {key: 'LEFT' as const, label: 'L', count: leftCount},
+              {key: 'MIDDLE' as const, label: 'M', count: middleCount},
+              {key: 'RIGHT' as const, label: 'R', count: rightCount},
+            ].map(item => {
+              const isActive = selectedFilter === item.key;
+
+              return (
+                <button
+                  key={item.key}
+                  type='button'
+                  onClick={() => setSelectedFilter(item.key)}
+                  style={{
+                    border: '1px solid rgba(167, 139, 250, 0.36)',
+                    borderRadius: 0,
+                    padding: '16px 10px',
+                    background: isActive
+                      ? 'linear-gradient(180deg, rgba(76, 90, 138, 0.96) 0%, rgba(72, 48, 102, 0.96) 100%)'
+                      : 'linear-gradient(180deg, rgba(66, 79, 120, 0.92) 0%, rgba(63, 46, 96, 0.92) 100%)',
+                    color: '#FFFFFF',
+                    cursor: 'pointer',
+                    display: 'grid',
+                    gap: 8,
+                    justifyItems: 'center',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: item.key === 'DIRECT' ? 14 : 18,
+                      letterSpacing: '0.08em',
+                      ...theme.fonts.Mulish_700Bold,
+                    }}
+                  >
+                    {item.label}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 28,
+                      lineHeight: 1,
+                      ...theme.fonts.Mulish_700Bold,
+                    }}
+                  >
+                    {item.count}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        <section
+          style={{
+            backgroundColor: theme.colors.white,
+            borderRadius: 16,
+            padding: 20,
+            border: `1px solid ${theme.colors.aliceBlue2}`,
+          }}
+        >
+          <div style={{display: 'flex', gap: 10, marginBottom: 18}}>
+            <input
+              value={rootCodeInput}
+              onChange={event => setRootCodeInput(event.target.value.toUpperCase())}
+              style={{
+                flex: 1,
+                height: 42,
+                border: '2px solid #30384A',
+                padding: '0 12px',
+                color: theme.colors.mainColor,
+                fontSize: 16,
+                ...theme.fonts.Mulish_600SemiBold,
+              }}
+            />
+            <button
+              onClick={() => {
+                const nextCode = rootCodeInput.trim().toUpperCase();
+                if (!nextCode) {
+                  return;
+                }
+                loadRootLevel(nextCode);
+              }}
+              style={{
+                border: 'none',
+                backgroundColor: theme.colors.mainColor,
+                color: theme.colors.mainYellow,
+                borderRadius: 12,
+                padding: '0 16px',
+                cursor: 'pointer',
+                ...theme.fonts.Mulish_700Bold,
+              }}
+            >
+              โหลด
+            </button>
+          </div>
+
+          <div
+            style={{
+              borderTop: `1px solid ${theme.colors.aliceBlue2}`,
+              paddingTop: 18,
+            }}
+          >
+            {screenLoading ? (
+              <components.Loader />
+            ) : errorMessage ? (
+              <div
+                style={{
+                  color: theme.colors.coralRed,
+                  lineHeight: 1.7,
+                  ...theme.fonts.Mulish_400Regular,
+                }}
+              >
+                {errorMessage}
+              </div>
+            ) : (
+              <>
+                <div
+                  style={{
+                    marginBottom: 12,
+                    color: theme.colors.textColor,
+                    ...theme.fonts.Mulish_400Regular,
+                  }}
+                >
+                  {activeRootCode}
+                  {rootMemberName ? ` ${rootMemberName}` : ''}
+                </div>
+                {filteredRootChildren.length === 0 ? (
+                  <div
+                    style={{
+                      color: theme.colors.textColor,
+                      lineHeight: 1.7,
+                      ...theme.fonts.Mulish_400Regular,
+                    }}
+                  >
+                    ยังไม่มีสมาชิกในกลุ่ม{' '}
+                    {selectedFilter === 'DIRECT'
+                      ? 'direct'
+                      : selectedFilter === 'LEFT'
+                        ? 'L'
+                        : selectedFilter === 'MIDDLE'
+                          ? 'M'
+                          : 'R'}
+                  </div>
+                ) : (
+                  <ul style={{margin: 0, paddingLeft: 0, display: 'grid', gap: 10}}>
+                    {filteredRootChildren.map(node => renderNode(node, 0))}
+                  </ul>
+                )}
+              </>
+            )}
+          </div>
+        </section>
+      </main>
+    </>
+  );
+};
