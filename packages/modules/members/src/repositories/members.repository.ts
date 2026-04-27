@@ -26,7 +26,7 @@ export interface MembersRepository {
         sponsorId: string | null;
         nationalId?: string | null;
         uplineUserId?: string | null;
-        placementSide?: "LEFT" | "RIGHT" | null;
+        placementSide?: "LEFT" | "MIDDLE" | "RIGHT" | null;
         rankCode?: string | null;
         honorTitle?: string | null;
         mobileCenterCode?: string | null;
@@ -41,7 +41,7 @@ export interface MembersRepository {
           sponsorId: string | null;
           nationalId?: string | null;
           uplineUserId?: string | null;
-          placementSide?: "LEFT" | "RIGHT" | null;
+          placementSide?: "LEFT" | "MIDDLE" | "RIGHT" | null;
           rankCode?: string | null;
           honorTitle?: string | null;
           mobileCenterCode?: string | null;
@@ -94,7 +94,7 @@ export interface MembersRepository {
     sponsorId: string | null;
     nationalId?: string | null;
     uplineUserId?: string | null;
-    placementSide?: "LEFT" | "RIGHT" | null;
+    placementSide?: "LEFT" | "MIDDLE" | "RIGHT" | null;
     rankCode?: string | null;
     honorTitle?: string | null;
     mobileCenterCode?: string | null;
@@ -126,7 +126,7 @@ export interface MembersRepository {
     sponsorId: string | null;
     nationalId?: string | null;
     uplineUserId?: string | null;
-    placementSide?: "LEFT" | "RIGHT" | null;
+    placementSide?: "LEFT" | "MIDDLE" | "RIGHT" | null;
     rankCode?: string | null;
     honorTitle?: string | null;
     mobileCenterCode?: string | null;
@@ -352,7 +352,7 @@ export class PrismaMembersRepository implements MembersRepository {
       memberProfile?: {
         nationalId: string | null;
         uplineUserId: bigint | null;
-        placementSide: "LEFT" | "RIGHT" | null;
+        placementSide: "LEFT" | "MIDDLE" | "RIGHT" | null;
         rankCode: string | null;
         honorTitle: string | null;
         mobileCenterCode: string | null;
@@ -707,7 +707,7 @@ export class PrismaMembersRepository implements MembersRepository {
     sponsorId: string | null;
     nationalId?: string | null;
     uplineUserId?: string | null;
-    placementSide?: "LEFT" | "RIGHT" | null;
+    placementSide?: "LEFT" | "MIDDLE" | "RIGHT" | null;
     rankCode?: string | null;
     honorTitle?: string | null;
     mobileCenterCode?: string | null;
@@ -942,7 +942,7 @@ export class PrismaMembersRepository implements MembersRepository {
     sponsorId: string | null;
     nationalId?: string | null;
     uplineUserId?: string | null;
-    placementSide?: "LEFT" | "RIGHT" | null;
+    placementSide?: "LEFT" | "MIDDLE" | "RIGHT" | null;
     rankCode?: string | null;
     honorTitle?: string | null;
     mobileCenterCode?: string | null;

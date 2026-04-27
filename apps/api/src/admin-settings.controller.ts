@@ -153,6 +153,55 @@ export class AdminSettingsController {
       uniLevelRates: payload.uniLevelRates.map((value, index) =>
         requireDecimalRateString(value, `uniLevelRates[${index}]`),
       ),
+      matchingLevelRates: Array.isArray(payload.matchingLevelRates)
+        ? payload.matchingLevelRates.map((value, index) =>
+            requireDecimalRateString(value, `matchingLevelRates[${index}]`),
+          )
+        : current.matchingLevelRates,
+      teamTwoLegRate: requireDecimalRateString(
+        optionalString(payload.teamTwoLegRate) ?? current.teamTwoLegRate,
+        "teamTwoLegRate",
+      ),
+      teamThreeLegRate: requireDecimalRateString(
+        optionalString(payload.teamThreeLegRate) ?? current.teamThreeLegRate,
+        "teamThreeLegRate",
+      ),
+      dailyCommissionCapAmount: requireDecimalRateString(
+        optionalString(payload.dailyCommissionCapAmount) ??
+          current.dailyCommissionCapAmount,
+        "dailyCommissionCapAmount",
+      ),
+      buybackThresholdAmount: requireDecimalRateString(
+        optionalString(payload.buybackThresholdAmount) ??
+          current.buybackThresholdAmount,
+        "buybackThresholdAmount",
+      ),
+      buybackRepurchaseAmount: requireDecimalRateString(
+        optionalString(payload.buybackRepurchaseAmount) ??
+          current.buybackRepurchaseAmount,
+        "buybackRepurchaseAmount",
+      ),
+      buybackGraceDays:
+        typeof payload.buybackGraceDays === "number"
+          ? payload.buybackGraceDays
+          : Number.parseInt(
+              optionalString(payload.buybackGraceDays) ??
+                `${current.buybackGraceDays}`,
+              10,
+            ),
+      poolMinActivePackageBuyerDirects:
+        typeof payload.poolMinActivePackageBuyerDirects === "number"
+          ? payload.poolMinActivePackageBuyerDirects
+          : Number.parseInt(
+              optionalString(payload.poolMinActivePackageBuyerDirects) ??
+                `${current.poolMinActivePackageBuyerDirects}`,
+              10,
+            ),
+      poolMaxEntitlementShareRate: requireDecimalRateString(
+        optionalString(payload.poolMaxEntitlementShareRate) ??
+          current.poolMaxEntitlementShareRate,
+        "poolMaxEntitlementShareRate",
+      ),
       poolRate: requireDecimalRateString(payload.poolRate, "poolRate"),
       cashbackRate: requireDecimalRateString(payload.cashbackRate, "cashbackRate"),
       appVisibility: {
@@ -168,6 +217,18 @@ export class AdminSettingsController {
             : payload.directVisible === true ||
               payload.directVisible === "true" ||
               payload.directVisible === "1",
+        matching:
+          payload.matchingVisible === undefined
+            ? current.appVisibility.matching
+            : payload.matchingVisible === true ||
+              payload.matchingVisible === "true" ||
+              payload.matchingVisible === "1",
+        team:
+          payload.teamVisible === undefined
+            ? current.appVisibility.team
+            : payload.teamVisible === true ||
+              payload.teamVisible === "true" ||
+              payload.teamVisible === "1",
         unilevel:
           payload.unilevelVisible === undefined
             ? current.appVisibility.unilevel

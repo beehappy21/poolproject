@@ -19,7 +19,7 @@ export interface MembersServiceContract {
         sponsorId: string | null;
         nationalId?: string | null;
         uplineUserId?: string | null;
-        placementSide?: "LEFT" | "RIGHT" | null;
+        placementSide?: "LEFT" | "MIDDLE" | "RIGHT" | null;
         rankCode?: string | null;
         honorTitle?: string | null;
         mobileCenterCode?: string | null;
@@ -34,7 +34,7 @@ export interface MembersServiceContract {
           sponsorId: string | null;
           nationalId?: string | null;
           uplineUserId?: string | null;
-          placementSide?: "LEFT" | "RIGHT" | null;
+          placementSide?: "LEFT" | "MIDDLE" | "RIGHT" | null;
           rankCode?: string | null;
           honorTitle?: string | null;
           mobileCenterCode?: string | null;
@@ -104,7 +104,7 @@ export interface MembersServiceContract {
     sponsorId: string | null;
     nationalId?: string | null;
     uplineUserId?: string | null;
-    placementSide?: "LEFT" | "RIGHT" | null;
+    placementSide?: "LEFT" | "MIDDLE" | "RIGHT" | null;
     rankCode?: string | null;
     honorTitle?: string | null;
     mobileCenterCode?: string | null;
@@ -119,7 +119,7 @@ export interface MembersServiceContract {
     sponsorId: string | null;
     nationalId?: string | null;
     uplineUserId?: string | null;
-    placementSide?: "LEFT" | "RIGHT" | null;
+    placementSide?: "LEFT" | "MIDDLE" | "RIGHT" | null;
     rankCode?: string | null;
     honorTitle?: string | null;
     mobileCenterCode?: string | null;

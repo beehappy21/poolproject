@@ -1065,6 +1065,17 @@ function isCommissionTypeVisible(
     case "cashback":
       return appVisibility.cashback !== false;
     case "direct":
+    case "matching_l1":
+    case "matching_l2":
+      return commissionType?.toLowerCase().startsWith("matching")
+        ? appVisibility.matching !== false
+        : appVisibility.direct !== false;
+    case "team_2leg":
+    case "team_3leg":
+    case "team":
+      return appVisibility.team !== false;
+    case "direct_l1":
+    case "direct_l2":
       return appVisibility.direct !== false;
     case "uni":
     case "unilevel":

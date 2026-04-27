@@ -43,6 +43,7 @@ enum CatalogStatus {
 
 enum PlacementSide {
   LEFT
+  MIDDLE
   RIGHT
 }
 
@@ -104,6 +105,10 @@ enum CommissionType {
   UNI
   POOL
   CASHBACK
+  TEAM_2LEG
+  TEAM_3LEG
+  MATCHING_L1
+  MATCHING_L2
 }
 
 enum CommissionStatus {
@@ -117,6 +122,13 @@ enum CommissionStatus {
   FALLBACK
 }
 
+enum CommissionReleaseStatus {
+  WITHDRAWABLE
+  HELD_PENDING_REPURCHASE
+  RELEASED_AFTER_REPURCHASE
+  BLOCKED_AFTER_EXPIRY
+}
+
 enum HoldStatus {
   NONE
   HELD
@@ -128,6 +140,10 @@ enum CompanyBonusSourceType {
   UNI
   POOL
   CASHBACK
+  TEAM_2LEG
+  TEAM_3LEG
+  MATCHING_L1
+  MATCHING_L2
   REVERSAL
 }
 
@@ -141,9 +157,13 @@ enum WalletTransactionType {
   DIRECT_CREDIT
   UNI_CREDIT
   POOL_CREDIT
+  TEAM_CREDIT
+  MATCHING_CREDIT
   MATRIX_CREDIT
   MATRIX_REENTRY_DEBIT
   CASHBACK_CREDIT
+  BUYBACK_HELD_CREDIT
+  BUYBACK_RELEASE
   DCW_CREDIT
   FIRM_REENTRY_CREDIT
   FIRM_ORDER_CREDIT
@@ -338,6 +358,35 @@ enum MatrixPayoutStatus {
   RESET
 }
 
+enum BuybackProgressStatus {
+  CLEAR
+  HELD_PENDING_REPURCHASE
+  BLOCKED_AFTER_EXPIRY
+}
+
+enum TeamSettlementBatchStatus {
+  SCAFFOLDED
+  PROCESSED
+}
+
+enum TeamSettlementItemStatus {
+  PLANNED
+  PROCESSED
+  CARRIED_FORWARD
+}
+
+enum PoolSettlementBatchStatus {
+  OPEN
+  PROCESSED
+  ADJUSTED
+}
+
+enum PoolSettlementItemStatus {
+  PLANNED
+  PROCESSED
+  SKIPPED
+}
+
 model User {
   id                   BigInt       @id @default(autoincrement())
   memberCode           String       @unique @db.VarChar(50)
@@ -373,6 +422,11 @@ model User {
   sourceCommissions              CommissionLedger[]             @relation("CommissionSourceUser")
   originalTargetCommissions      CommissionLedger[]             @relation("CommissionOriginalTargetUser")
   rollupFromCommissions          CommissionLedger[]             @relation("CommissionRollupFromUser")
+  dailyCommissionCapUsages       DailyCommissionCapUsage[]
+  teamSettlementBatchItems       TeamSettlementBatchItem[]
+  buybackProgress                UserBuybackProgress?
+  buybackEvents                  BuybackEvent[]
+  poolSettlementBatchItems       PoolSettlementBatchItem[]
   companyBonusLedgers            CompanyBonusLedger[]           @relation("CompanyBonusCreatedByUser")
   dailyPoolEligibilitySnapshots  DailyPoolEligibilitySnapshot[]
   dailyPoolPayouts               DailyPoolPayout[]
@@ -409,17 +463,17 @@ model User {
 }
 
 model LineBinding {
-  id           BigInt   @id @default(autoincrement())
-  userId       BigInt   @unique
-  lineUserId   String   @unique @db.VarChar(255)
-  displayName  String?  @db.VarChar(255)
-  pictureUrl   String?  @db.Text
-  statusMessage String? @db.Text
-  source       String?  @db.VarChar(100)
-  boundAt      DateTime @default(now())
-  lastSyncedAt DateTime @updatedAt
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            BigInt   @id @default(autoincrement())
+  userId        BigInt   @unique
+  lineUserId    String   @unique @db.VarChar(255)
+  displayName   String?  @db.VarChar(255)
+  pictureUrl    String?  @db.Text
+  statusMessage String?  @db.Text
+  source        String?  @db.VarChar(100)
+  boundAt       DateTime @default(now())
+  lastSyncedAt  DateTime @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -450,26 +504,26 @@ model MemberProfile {
 }
 
 model MemberShippingAddress {
-  id            BigInt   @id @default(autoincrement())
-  userId        BigInt
-  label         String?  @db.VarChar(100)
-  recipientName String   @db.VarChar(255)
-  phone         String   @db.VarChar(50)
-  email         String?  @db.VarChar(255)
-  countryCode   String?  @db.VarChar(10)
-  countryName   String?  @db.VarChar(100)
-  provinceCode  String?  @db.VarChar(20)
-  provinceName  String?  @db.VarChar(255)
-  districtCode  String?  @db.VarChar(20)
-  districtName  String?  @db.VarChar(255)
-  subdistrictCode String? @db.VarChar(20)
-  subdistrictName String? @db.VarChar(255)
-  postalCode    String?  @db.VarChar(20)
-  addressLine   String   @db.Text
-  note          String?  @db.Text
-  isDefault     Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id              BigInt   @id @default(autoincrement())
+  userId          BigInt
+  label           String?  @db.VarChar(100)
+  recipientName   String   @db.VarChar(255)
+  phone           String   @db.VarChar(50)
+  email           String?  @db.VarChar(255)
+  countryCode     String?  @db.VarChar(10)
+  countryName     String?  @db.VarChar(100)
+  provinceCode    String?  @db.VarChar(20)
+  provinceName    String?  @db.VarChar(255)
+  districtCode    String?  @db.VarChar(20)
+  districtName    String?  @db.VarChar(255)
+  subdistrictCode String?  @db.VarChar(20)
+  subdistrictName String?  @db.VarChar(255)
+  postalCode      String?  @db.VarChar(20)
+  addressLine     String   @db.Text
+  note            String?  @db.Text
+  isDefault       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   user   User    @relation(fields: [userId], references: [id])
   orders Order[]
@@ -540,66 +594,66 @@ model Product {
 }
 
 model ProductDetail {
-  id               BigInt        @id @default(autoincrement())
-  productId        BigInt
-  code             String        @unique @db.VarChar(50)
-  name             String        @db.VarChar(255)
-  slug             String?       @unique @db.VarChar(255)
-  shortDescription String?       @db.VarChar(500)
-  description      String?       @db.Text
-  youtubeUrl       String?       @db.VarChar(500)
-  primaryImageUrl  String?       @db.VarChar(500)
-  homeCardImageUrl String?       @db.VarChar(500)
-  imageUrls        String[]      @default([])
-  costPriceUsdt    Decimal       @default(0) @db.Decimal(18, 8)
-  memberPriceUsdt  Decimal       @default(0) @db.Decimal(18, 8)
-  retailPriceUsdt  Decimal       @default(0) @db.Decimal(18, 8)
-  pv               Decimal       @default(0) @db.Decimal(18, 8)
-  ratingAvg        Decimal       @default(0) @db.Decimal(10, 2)
-  ratingCount      Int           @default(0)
-  sortOrder        Int           @default(0)
-  isNew            Boolean       @default(false)
-  isTop            Boolean       @default(false)
-  isFeatured       Boolean       @default(false)
-  isBestSeller     Boolean       @default(false)
-  poolRateMode     PoolRateMode   @default(DEFAULT_50_PERCENT)
-  poolRate         Decimal       @default(0) @db.Decimal(10, 8)
-  poolCapMultiple  Decimal       @default(0) @db.Decimal(10, 8)
-  commissionCapScope CommissionCapScope @default(POOL_ONLY)
-  commissionCapMultiple Decimal   @default(0) @db.Decimal(10, 8)
-  activeDays        Int           @default(0)
-  earningCapAmount  Decimal       @default(0) @db.Decimal(18, 8)
-  dcwSpendEnabled   Boolean       @default(false)
-  dcwUsageAmount    Decimal       @default(0) @db.Decimal(18, 8)
-  dcwUsageAmountOverridden Boolean @default(false)
-  dcwCashRewardRate Decimal       @default(0) @db.Decimal(10, 8)
-  dcwShoppingRewardRate Decimal   @default(0) @db.Decimal(10, 8)
-  firmEnabled       Boolean       @default(false)
-  firmOverrideCostGuard Boolean   @default(false)
-  firmDcwRewardAmount Decimal     @default(0) @db.Decimal(18, 8)
-  firmRedeemStockLimit Int?
-  stockQuantity     Int?
-  salesChannelMode  String        @default("WAP_CATALOG") @db.VarChar(30)
-  status           CatalogStatus @default(ACTIVE)
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  id                       BigInt             @id @default(autoincrement())
+  productId                BigInt
+  code                     String             @unique @db.VarChar(50)
+  name                     String             @db.VarChar(255)
+  slug                     String?            @unique @db.VarChar(255)
+  shortDescription         String?            @db.VarChar(500)
+  description              String?            @db.Text
+  youtubeUrl               String?            @db.VarChar(500)
+  primaryImageUrl          String?            @db.VarChar(500)
+  homeCardImageUrl         String?            @db.VarChar(500)
+  imageUrls                String[]           @default([])
+  costPriceUsdt            Decimal            @default(0) @db.Decimal(18, 8)
+  memberPriceUsdt          Decimal            @default(0) @db.Decimal(18, 8)
+  retailPriceUsdt          Decimal            @default(0) @db.Decimal(18, 8)
+  pv                       Decimal            @default(0) @db.Decimal(18, 8)
+  ratingAvg                Decimal            @default(0) @db.Decimal(10, 2)
+  ratingCount              Int                @default(0)
+  sortOrder                Int                @default(0)
+  isNew                    Boolean            @default(false)
+  isTop                    Boolean            @default(false)
+  isFeatured               Boolean            @default(false)
+  isBestSeller             Boolean            @default(false)
+  poolRateMode             PoolRateMode       @default(DEFAULT_50_PERCENT)
+  poolRate                 Decimal            @default(0) @db.Decimal(10, 8)
+  poolCapMultiple          Decimal            @default(0) @db.Decimal(10, 8)
+  commissionCapScope       CommissionCapScope @default(POOL_ONLY)
+  commissionCapMultiple    Decimal            @default(0) @db.Decimal(10, 8)
+  activeDays               Int                @default(0)
+  earningCapAmount         Decimal            @default(0) @db.Decimal(18, 8)
+  dcwSpendEnabled          Boolean            @default(false)
+  dcwUsageAmount           Decimal            @default(0) @db.Decimal(18, 8)
+  dcwUsageAmountOverridden Boolean            @default(false)
+  dcwCashRewardRate        Decimal            @default(0) @db.Decimal(10, 8)
+  dcwShoppingRewardRate    Decimal            @default(0) @db.Decimal(10, 8)
+  firmEnabled              Boolean            @default(false)
+  firmOverrideCostGuard    Boolean            @default(false)
+  firmDcwRewardAmount      Decimal            @default(0) @db.Decimal(18, 8)
+  firmRedeemStockLimit     Int?
+  stockQuantity            Int?
+  salesChannelMode         String             @default("WAP_CATALOG") @db.VarChar(30)
+  status                   CatalogStatus      @default(ACTIVE)
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
 
-  product      Product       @relation(fields: [productId], references: [id])
-  packageItems PackageItem[]
+  product             Product              @relation(fields: [productId], references: [id])
+  packageItems        PackageItem[]
   memberPackageCycles MemberPackageCycle[]
-  reviews      ProductReview[]
+  reviews             ProductReview[]
 
   @@index([productId, status])
 }
 
 model ProductReview {
-  id              BigInt       @id @default(autoincrement())
+  id              BigInt   @id @default(autoincrement())
   productDetailId BigInt
   userId          BigInt
   rating          Int
-  comment         String?      @db.Text
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  comment         String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   productDetail ProductDetail @relation(fields: [productDetailId], references: [id])
   user          User          @relation(fields: [userId], references: [id])
@@ -610,30 +664,30 @@ model ProductReview {
 }
 
 model Package {
-  id               BigInt         @id @default(autoincrement())
-  code             String         @unique @db.VarChar(50)
-  name             String         @db.VarChar(255)
-  costPriceUsdt    Decimal        @default(0) @db.Decimal(18, 8)
-  memberPriceUsdt  Decimal        @default(0) @db.Decimal(18, 8)
-  retailPriceUsdt  Decimal        @default(0) @db.Decimal(18, 8)
-  priceUsdt        Decimal        @db.Decimal(18, 8)
-  pv               Decimal        @db.Decimal(18, 8)
-  poolRateMode     PoolRateMode   @default(DEFAULT_50_PERCENT)
-  poolRate         Decimal        @default(0) @db.Decimal(10, 8)
-  poolCapMultiple  Decimal        @default(0) @db.Decimal(10, 8)
-  commissionCapScope CommissionCapScope @default(POOL_ONLY)
-  commissionCapMultiple Decimal    @default(0) @db.Decimal(10, 8)
-  dcwSpendEnabled   Boolean        @default(false)
-  dcwUsageAmount    Decimal        @default(0) @db.Decimal(18, 8)
-  dcwUsageAmountOverridden Boolean @default(false)
-  dcwCashRewardRate Decimal        @default(0) @db.Decimal(10, 8)
-  dcwShoppingRewardRate Decimal    @default(0) @db.Decimal(10, 8)
-  activeDays       Int
-  earningCapType   EarningCapType
-  earningCapAmount Decimal        @db.Decimal(18, 8)
-  status           PackageStatus  @default(ACTIVE)
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  id                       BigInt             @id @default(autoincrement())
+  code                     String             @unique @db.VarChar(50)
+  name                     String             @db.VarChar(255)
+  costPriceUsdt            Decimal            @default(0) @db.Decimal(18, 8)
+  memberPriceUsdt          Decimal            @default(0) @db.Decimal(18, 8)
+  retailPriceUsdt          Decimal            @default(0) @db.Decimal(18, 8)
+  priceUsdt                Decimal            @db.Decimal(18, 8)
+  pv                       Decimal            @db.Decimal(18, 8)
+  poolRateMode             PoolRateMode       @default(DEFAULT_50_PERCENT)
+  poolRate                 Decimal            @default(0) @db.Decimal(10, 8)
+  poolCapMultiple          Decimal            @default(0) @db.Decimal(10, 8)
+  commissionCapScope       CommissionCapScope @default(POOL_ONLY)
+  commissionCapMultiple    Decimal            @default(0) @db.Decimal(10, 8)
+  dcwSpendEnabled          Boolean            @default(false)
+  dcwUsageAmount           Decimal            @default(0) @db.Decimal(18, 8)
+  dcwUsageAmountOverridden Boolean            @default(false)
+  dcwCashRewardRate        Decimal            @default(0) @db.Decimal(10, 8)
+  dcwShoppingRewardRate    Decimal            @default(0) @db.Decimal(10, 8)
+  activeDays               Int
+  earningCapType           EarningCapType
+  earningCapAmount         Decimal            @db.Decimal(18, 8)
+  status                   PackageStatus      @default(ACTIVE)
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
 
   memberPackageCycles MemberPackageCycle[]
   orderItems          OrderItem[]
@@ -665,29 +719,29 @@ model PackageItem {
 }
 
 model MemberPackageCycle {
-  id                 BigInt        @id @default(autoincrement())
-  userId             BigInt
-  packageId          BigInt?
-  productDetailId    BigInt?
-  cycleNo            Int
-  purchaseBase       Decimal?      @db.Decimal(18, 8)
-  poolRateMode       PoolRateMode?
-  poolRate           Decimal?      @db.Decimal(10, 8)
-  poolCapMultiple    Decimal?      @db.Decimal(10, 8)
-  commissionCapScope CommissionCapScope?
-  commissionCapMultiple Decimal?   @db.Decimal(10, 8)
-  activatedAt        DateTime
-  activeUntil        DateTime
-  earningCap         Decimal       @db.Decimal(18, 8)
-  earnedTotalInCycle Decimal       @default(0) @db.Decimal(18, 8)
-  earningStatus      EarningStatus @default(ACTIVE)
-  repurchaseRequired Boolean       @default(false)
-  isReceivable       Boolean       @default(true)
-  status             CycleStatus   @default(ACTIVE)
-  cappedAt           DateTime?
-  closedAt           DateTime?
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  id                    BigInt              @id @default(autoincrement())
+  userId                BigInt
+  packageId             BigInt?
+  productDetailId       BigInt?
+  cycleNo               Int
+  purchaseBase          Decimal?            @db.Decimal(18, 8)
+  poolRateMode          PoolRateMode?
+  poolRate              Decimal?            @db.Decimal(10, 8)
+  poolCapMultiple       Decimal?            @db.Decimal(10, 8)
+  commissionCapScope    CommissionCapScope?
+  commissionCapMultiple Decimal?            @db.Decimal(10, 8)
+  activatedAt           DateTime
+  activeUntil           DateTime
+  earningCap            Decimal             @db.Decimal(18, 8)
+  earnedTotalInCycle    Decimal             @default(0) @db.Decimal(18, 8)
+  earningStatus         EarningStatus       @default(ACTIVE)
+  repurchaseRequired    Boolean             @default(false)
+  isReceivable          Boolean             @default(true)
+  status                CycleStatus         @default(ACTIVE)
+  cappedAt              DateTime?
+  closedAt              DateTime?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
 
   user              User               @relation(fields: [userId], references: [id])
   package           Package?           @relation(fields: [packageId], references: [id])
@@ -757,6 +811,7 @@ model Order {
   matrixPayouts            MatrixPayout[]            @relation("MatrixPayoutSourceOrder")
   matrixAccumulationEvents MatrixAccumulationEvent[] @relation("MatrixAccumulationSourceOrder")
   generatedMatrixReorders  MatrixReorder[]
+  BuybackEvent             BuybackEvent[]
 
   @@index([userId, status])
   @@index([shippingAddressId])
@@ -769,23 +824,23 @@ model Order {
 }
 
 model OrderItem {
-  id            BigInt   @id @default(autoincrement())
-  orderId       BigInt
-  packageId     BigInt?
-  productId     String?  @db.VarChar(100)
-  qty           Int      @default(1)
-  unitPriceUsdt Decimal  @default(0) @db.Decimal(18, 8)
-  unitPv        Decimal  @default(0) @db.Decimal(18, 8)
-  poolRateMode  PoolRateMode @default(DEFAULT_50_PERCENT)
-  unitPoolRate  Decimal  @default(0) @db.Decimal(10, 8)
-  dcwSpendEnabled Boolean @default(false)
-  unitDcwUsageAmount Decimal @default(0) @db.Decimal(18, 8)
-  unitDcwCashRewardRate Decimal @default(0) @db.Decimal(10, 8)
-  unitDcwShoppingRewardRate Decimal @default(0) @db.Decimal(10, 8)
-  lineTotalUsdt Decimal  @default(0) @db.Decimal(18, 8)
-  lineTotalPv   Decimal  @default(0) @db.Decimal(18, 8)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                        BigInt       @id @default(autoincrement())
+  orderId                   BigInt
+  packageId                 BigInt?
+  productId                 String?      @db.VarChar(100)
+  qty                       Int          @default(1)
+  unitPriceUsdt             Decimal      @default(0) @db.Decimal(18, 8)
+  unitPv                    Decimal      @default(0) @db.Decimal(18, 8)
+  poolRateMode              PoolRateMode @default(DEFAULT_50_PERCENT)
+  unitPoolRate              Decimal      @default(0) @db.Decimal(10, 8)
+  dcwSpendEnabled           Boolean      @default(false)
+  unitDcwUsageAmount        Decimal      @default(0) @db.Decimal(18, 8)
+  unitDcwCashRewardRate     Decimal      @default(0) @db.Decimal(10, 8)
+  unitDcwShoppingRewardRate Decimal      @default(0) @db.Decimal(10, 8)
+  lineTotalUsdt             Decimal      @default(0) @db.Decimal(18, 8)
+  lineTotalPv               Decimal      @default(0) @db.Decimal(18, 8)
+  createdAt                 DateTime     @default(now())
+  updatedAt                 DateTime     @updatedAt
 
   order   Order    @relation(fields: [orderId], references: [id])
   package Package? @relation(fields: [packageId], references: [id])
@@ -794,47 +849,59 @@ model OrderItem {
 }
 
 model CommissionLedger {
-  id                       BigInt           @id @default(autoincrement())
+  id                       BigInt                  @id @default(autoincrement())
   beneficiaryUserId        BigInt?
   beneficiaryCycleId       BigInt?
   sourceUserId             BigInt
   orderId                  BigInt?
+  sourceCommissionLedgerId BigInt?
   commissionType           CommissionType
   tierNo                   Int?
   levelNo                  Int?
-  rate                     Decimal          @default(0) @db.Decimal(10, 8)
-  basePv                   Decimal          @default(0) @db.Decimal(18, 8)
-  commissionAmount         Decimal          @default(0) @db.Decimal(18, 8)
+  rate                     Decimal                 @default(0) @db.Decimal(10, 8)
+  basePv                   Decimal                 @default(0) @db.Decimal(18, 8)
+  commissionAmount         Decimal                 @default(0) @db.Decimal(18, 8)
+  grossAmount              Decimal                 @default(0) @db.Decimal(18, 8)
+  finalPayableAmount       Decimal                 @default(0) @db.Decimal(18, 8)
+  discardedAmount          Decimal                 @default(0) @db.Decimal(18, 8)
+  releaseStatus            CommissionReleaseStatus @default(WITHDRAWABLE)
+  commissionDate           DateTime?               @db.Date
   originalTargetUserId     BigInt?
   rollupFromUserId         BigInt?
-  rollupDepth              Int              @default(0)
+  rollupDepth              Int                     @default(0)
   cycleRefId               BigInt?
   evaluationAt             DateTime
   finalizeCheckedAt        DateTime?
   finalizedAt              DateTime?
-  status                   CommissionStatus @default(PENDING)
-  fallbackToCompany        Boolean          @default(false)
-  blockReason              String?          @db.VarChar(100)
-  companyFallbackReason    String?          @db.VarChar(100)
-  holdStatus               HoldStatus       @default(NONE)
-  holdReason               String?          @db.VarChar(100)
+  status                   CommissionStatus        @default(PENDING)
+  fallbackToCompany        Boolean                 @default(false)
+  blockReason              String?                 @db.VarChar(100)
+  companyFallbackReason    String?                 @db.VarChar(100)
+  holdStatus               HoldStatus              @default(NONE)
+  holdReason               String?                 @db.VarChar(100)
   releasedToWithdrawableAt DateTime?
-  createdAt                DateTime         @default(now())
-  updatedAt                DateTime         @updatedAt
+  metadata                 Json?
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
 
-  beneficiaryUser    User?               @relation("CommissionBeneficiaryUser", fields: [beneficiaryUserId], references: [id])
-  beneficiaryCycle   MemberPackageCycle? @relation(fields: [beneficiaryCycleId], references: [id])
-  sourceUser         User                @relation("CommissionSourceUser", fields: [sourceUserId], references: [id])
-  order              Order?              @relation(fields: [orderId], references: [id])
-  originalTargetUser User?               @relation("CommissionOriginalTargetUser", fields: [originalTargetUserId], references: [id])
-  rollupFromUser     User?               @relation("CommissionRollupFromUser", fields: [rollupFromUserId], references: [id])
-  dailyPoolPayouts   DailyPoolPayout[]
+  beneficiaryUser          User?               @relation("CommissionBeneficiaryUser", fields: [beneficiaryUserId], references: [id])
+  beneficiaryCycle         MemberPackageCycle? @relation(fields: [beneficiaryCycleId], references: [id])
+  sourceUser               User                @relation("CommissionSourceUser", fields: [sourceUserId], references: [id])
+  order                    Order?              @relation(fields: [orderId], references: [id])
+  sourceCommissionLedger   CommissionLedger?   @relation("CommissionLedgerSourceCommission", fields: [sourceCommissionLedgerId], references: [id])
+  derivedCommissionLedgers CommissionLedger[]  @relation("CommissionLedgerSourceCommission")
+  originalTargetUser       User?               @relation("CommissionOriginalTargetUser", fields: [originalTargetUserId], references: [id])
+  rollupFromUser           User?               @relation("CommissionRollupFromUser", fields: [rollupFromUserId], references: [id])
+  dailyPoolPayouts         DailyPoolPayout[]
 
   @@index([beneficiaryUserId, status])
   @@index([beneficiaryCycleId, status])
   @@index([orderId, commissionType])
   @@index([status, holdStatus])
   @@index([cycleRefId])
+  @@index([beneficiaryUserId, commissionDate])
+  @@index([status, releaseStatus])
+  @@index([sourceCommissionLedgerId])
 }
 
 model CompanyBonusLedger {
@@ -915,6 +982,137 @@ model DailyPoolPayout {
   commissionLedger CommissionLedger?   @relation(fields: [commissionLedgerId], references: [id])
 
   @@index([cycleId, status])
+  @@index([userId, status])
+}
+
+model DailyCommissionCapUsage {
+  id         BigInt   @id @default(autoincrement())
+  userId     BigInt
+  capDate    DateTime @db.Date
+  capAmount  Decimal  @default(0) @db.Decimal(18, 8)
+  usedAmount Decimal  @default(0) @db.Decimal(18, 8)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, capDate])
+  @@index([capDate])
+}
+
+model TeamSettlementBatch {
+  id               BigInt                    @id @default(autoincrement())
+  settlementDate   DateTime                  @db.Date
+  status           TeamSettlementBatchStatus @default(SCAFFOLDED)
+  processedAt      DateTime?
+  totalUsers       Int                       @default(0)
+  totalPayablePv   Decimal                   @default(0) @db.Decimal(18, 8)
+  totalBonusAmount Decimal                   @default(0) @db.Decimal(18, 8)
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+
+  items TeamSettlementBatchItem[]
+
+  @@unique([settlementDate])
+  @@index([status, settlementDate])
+}
+
+model TeamSettlementBatchItem {
+  id                  BigInt                   @id @default(autoincrement())
+  batchId             BigInt
+  userId              BigInt
+  availablePvByLeg    Json
+  plannedPaidPvByLeg  Json
+  carryForwardPvByLeg Json
+  payablePv           Decimal                  @default(0) @db.Decimal(18, 8)
+  bonusAmount         Decimal                  @default(0) @db.Decimal(18, 8)
+  status              TeamSettlementItemStatus @default(PLANNED)
+  processedAt         DateTime?
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+
+  batch TeamSettlementBatch @relation(fields: [batchId], references: [id])
+  user  User                @relation(fields: [userId], references: [id])
+
+  @@unique([batchId, userId])
+  @@index([userId, status])
+}
+
+model UserBuybackProgress {
+  id                    BigInt                @id @default(autoincrement())
+  userId                BigInt                @unique
+  accumulatedAmount     Decimal               @default(0) @db.Decimal(18, 8)
+  status                BuybackProgressStatus @default(CLEAR)
+  thresholdReachedAt    DateTime?
+  graceExpiresAt        DateTime?
+  blockedAt             DateTime?
+  currentBuybackCycleId String?               @db.VarChar(100)
+  lastQualifyingOrderId BigInt?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([status, graceExpiresAt])
+}
+
+model BuybackEvent {
+  id                         BigInt   @id @default(autoincrement())
+  userId                     BigInt
+  triggerAmount              Decimal  @default(0) @db.Decimal(18, 8)
+  remainingAccumulatedAmount Decimal  @default(0) @db.Decimal(18, 8)
+  orderId                    BigInt?
+  status                     String   @db.VarChar(100)
+  message                    String?  @db.VarChar(255)
+  referenceType              String?  @db.VarChar(100)
+  referenceId                String?  @db.VarChar(100)
+  metadata                   Json?
+  createdAt                  DateTime @default(now())
+
+  user  User   @relation(fields: [userId], references: [id])
+  order Order? @relation(fields: [orderId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+}
+
+model PoolSettlementBatch {
+  id                  BigInt                    @id @default(autoincrement())
+  settlementDate      DateTime                  @db.Date
+  status              PoolSettlementBatchStatus @default(OPEN)
+  processedAt         DateTime?
+  qualifiedUsers      Int                       @default(0)
+  totalSalesPv        Decimal                   @default(0) @db.Decimal(18, 8)
+  poolBasisPv         Decimal                   @default(0) @db.Decimal(18, 8)
+  poolAmount          Decimal                   @default(0) @db.Decimal(18, 8)
+  sharePerUser        Decimal                   @default(0) @db.Decimal(18, 8)
+  entitlementRuleNote String?                   @db.VarChar(255)
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+
+  items PoolSettlementBatchItem[]
+
+  @@unique([settlementDate])
+  @@index([status, settlementDate])
+}
+
+model PoolSettlementBatchItem {
+  id                        BigInt                   @id @default(autoincrement())
+  batchId                   BigInt
+  userId                    BigInt
+  qualifiedDirectBuyerCount Int                      @default(0)
+  entitlementCount          Int                      @default(0)
+  grossAmount               Decimal                  @default(0) @db.Decimal(18, 8)
+  finalAmount               Decimal                  @default(0) @db.Decimal(18, 8)
+  status                    PoolSettlementItemStatus @default(PLANNED)
+  processedAt               DateTime?
+  createdAt                 DateTime                 @default(now())
+  updatedAt                 DateTime                 @updatedAt
+
+  batch PoolSettlementBatch @relation(fields: [batchId], references: [id])
+  user  User                @relation(fields: [userId], references: [id])
+
+  @@unique([batchId, userId])
   @@index([userId, status])
 }
 
@@ -1016,25 +1214,25 @@ model WithdrawRequest {
 }
 
 model KycRequest {
-  id                  BigInt           @id @default(autoincrement())
-  userId              BigInt
-  nationalId          String?          @db.VarChar(30)
-  bankName            String?          @db.VarChar(255)
-  bankBranch          String?          @db.VarChar(255)
-  bankAccountNumber   String?          @db.VarChar(100)
-  bankAccountName     String?          @db.VarChar(255)
-  bankAccountType     String?          @db.VarChar(100)
-  personalIdImageUrl  String?          @db.Text
-  bankBookImageUrl    String?          @db.Text
-  selfieImageUrl      String?          @db.Text
-  note                String?          @db.Text
-  status              KycRequestStatus @default(PENDING)
-  submittedAt         DateTime         @default(now())
-  approvedAt          DateTime?
-  approvedByUserId    BigInt?
-  rejectionReason     String?          @db.Text
-  createdAt           DateTime         @default(now())
-  updatedAt           DateTime         @updatedAt
+  id                 BigInt           @id @default(autoincrement())
+  userId             BigInt
+  nationalId         String?          @db.VarChar(30)
+  bankName           String?          @db.VarChar(255)
+  bankBranch         String?          @db.VarChar(255)
+  bankAccountNumber  String?          @db.VarChar(100)
+  bankAccountName    String?          @db.VarChar(255)
+  bankAccountType    String?          @db.VarChar(100)
+  personalIdImageUrl String?          @db.Text
+  bankBookImageUrl   String?          @db.Text
+  selfieImageUrl     String?          @db.Text
+  note               String?          @db.Text
+  status             KycRequestStatus @default(PENDING)
+  submittedAt        DateTime         @default(now())
+  approvedAt         DateTime?
+  approvedByUserId   BigInt?
+  rejectionReason    String?          @db.Text
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 
   user           User  @relation("KycRequestUser", fields: [userId], references: [id])
   approvedByUser User? @relation("KycRequestApprovedByUser", fields: [approvedByUserId], references: [id])
@@ -1045,25 +1243,25 @@ model KycRequest {
 }
 
 model MatrixCycle {
-  id                 BigInt            @id @default(autoincrement())
-  userId             BigInt
-  cycleNo            Int
-  boardWidth         Int               @default(2)
-  boardDepth         Int               @default(3)
-  boardCount         Int               @default(3)
-  organizationPvRate Decimal           @default(0.1) @db.Decimal(18, 8)
-  cwReentryAmount    Decimal           @default(0) @db.Decimal(18, 8)
-  personalCarryPv    Decimal           @default(0) @db.Decimal(18, 8)
-  levelRatesSnapshot String            @default("[\"0.1\",\"0.05\",\"0.03\"]") @db.Text
-  totalAccumulatedPv Decimal           @default(0) @db.Decimal(18, 8)
-  currentBoardNo     Int               @default(1)
-  currentBoardRoundNo Int              @default(1)
-  status             MatrixCycleStatus @default(ACTIVE)
-  startedAt          DateTime          @default(now())
-  completedAt        DateTime?
-  resetAt            DateTime?
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
+  id                  BigInt            @id @default(autoincrement())
+  userId              BigInt
+  cycleNo             Int
+  boardWidth          Int               @default(2)
+  boardDepth          Int               @default(3)
+  boardCount          Int               @default(3)
+  organizationPvRate  Decimal           @default(0.1) @db.Decimal(18, 8)
+  cwReentryAmount     Decimal           @default(0) @db.Decimal(18, 8)
+  personalCarryPv     Decimal           @default(0) @db.Decimal(18, 8)
+  levelRatesSnapshot  String            @default("[\"0.1\",\"0.05\",\"0.03\"]") @db.Text
+  totalAccumulatedPv  Decimal           @default(0) @db.Decimal(18, 8)
+  currentBoardNo      Int               @default(1)
+  currentBoardRoundNo Int               @default(1)
+  status              MatrixCycleStatus @default(ACTIVE)
+  startedAt           DateTime          @default(now())
+  completedAt         DateTime?
+  resetAt             DateTime?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
 
   user               User                      @relation(fields: [userId], references: [id])
   boards             MatrixBoard[]
@@ -1075,29 +1273,29 @@ model MatrixCycle {
 }
 
 model MatrixBoard {
-  id              BigInt            @id @default(autoincrement())
-  cycleId         BigInt
-  boardNo         Int
-  roundNo         Int               @default(1)
-  slotCount       Int               @default(14)
-  openThresholdPv Decimal           @default(0) @db.Decimal(18, 8)
-  accumulatedPv   Decimal           @default(0) @db.Decimal(18, 8)
-  filledSlots     Int               @default(0)
-  status          MatrixBoardStatus @default(LOCKED)
+  id                   BigInt            @id @default(autoincrement())
+  cycleId              BigInt
+  boardNo              Int
+  roundNo              Int               @default(1)
+  slotCount            Int               @default(14)
+  openThresholdPv      Decimal           @default(0) @db.Decimal(18, 8)
+  accumulatedPv        Decimal           @default(0) @db.Decimal(18, 8)
+  filledSlots          Int               @default(0)
+  status               MatrixBoardStatus @default(LOCKED)
   reentrySourceBoardId BigInt?
-  openedAt        DateTime?
-  completedAt     DateTime?
-  resetAt         DateTime?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  openedAt             DateTime?
+  completedAt          DateTime?
+  resetAt              DateTime?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
 
-  cycle               MatrixCycle               @relation(fields: [cycleId], references: [id])
-  positions           MatrixPosition[]
-  payouts             MatrixPayout[]
-  accumulationEvents  MatrixAccumulationEvent[]
-  triggeredReorders   MatrixReorder[]
-  reentrySourceBoard  MatrixBoard?              @relation("MatrixBoardReentrySource", fields: [reentrySourceBoardId], references: [id])
-  reentryChildBoards  MatrixBoard[]             @relation("MatrixBoardReentrySource")
+  cycle              MatrixCycle               @relation(fields: [cycleId], references: [id])
+  positions          MatrixPosition[]
+  payouts            MatrixPayout[]
+  accumulationEvents MatrixAccumulationEvent[]
+  triggeredReorders  MatrixReorder[]
+  reentrySourceBoard MatrixBoard?              @relation("MatrixBoardReentrySource", fields: [reentrySourceBoardId], references: [id])
+  reentryChildBoards MatrixBoard[]             @relation("MatrixBoardReentrySource")
 
   @@unique([cycleId, boardNo, roundNo])
   @@index([cycleId, status])
