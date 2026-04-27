@@ -19,6 +19,7 @@ import {
   multiplyDecimalStrings,
   subtractDecimalStrings,
 } from "../../../../shared/utils/src/money.util";
+import { readCommissionSettings } from "../../../../shared/utils/src/commission-settings.util";
 import { CommissionsService } from "../../../commissions/src/services/commissions.service";
 import { MembersService } from "../../../members/src/services/members.service";
 import { OrdersService } from "../../../orders/src/services/orders.service";
@@ -106,6 +107,7 @@ export interface PoolServiceContract {
       payoutId: string;
       userId: string;
       beneficiaryCycleId: string | null;
+      commissionLedgerId: string | null;
       payoutAmount: string;
       status: string;
       blockReason: string | null;
@@ -167,39 +169,33 @@ export class PoolService implements PoolServiceContract {
   async evaluatePoolEligibility(
     snapshots: PoolEligibilityMemberSnapshot[],
   ): Promise<PoolEligibilityDecision[]> {
+    const commissionSettings = readCommissionSettings();
+    const minDirects = commissionSettings.poolMinActivePackageBuyerDirects;
+
     return snapshots.map((snapshot) => ({
       userId: snapshot.userId,
-      eligible: snapshot.memberActive && snapshot.activeDirectReferralCount >= 2,
+      eligible:
+        snapshot.hasOwnApprovedOrder &&
+        snapshot.activeDirectReferralCount >= minDirects &&
+        snapshot.activeDirectBuyerCount >= minDirects,
       reasonCode:
-        snapshot.memberActive && snapshot.activeDirectReferralCount >= 2
-          ? "weekly_pool_qualified"
-          : !snapshot.memberActive
-            ? "missing_recent_b1_completion"
-            : "missing_two_direct_referrals",
+        snapshot.hasOwnApprovedOrder &&
+        snapshot.activeDirectReferralCount >= minDirects &&
+        snapshot.activeDirectBuyerCount >= minDirects
+          ? "daily_pool_qualified"
+          : !snapshot.hasOwnApprovedOrder
+            ? "missing_own_purchase_order"
+            : snapshot.activeDirectReferralCount < minDirects
+              ? "missing_three_direct_referrals"
+              : "missing_three_direct_buyer_orders",
       memberActive: snapshot.memberActive,
-      activeDirectReferralCount: snapshot.activeDirectReferralCount,
+      activeDirectReferralCount: snapshot.activeDirectBuyerCount,
     }));
   }
 
   async closePool(poolDate: string): Promise<PoolCloseResult> {
-    if (getBangkokDayOfWeek(poolDate) !== 0) {
-      throw new BadRequestException(
-        "poolDate must be a Sunday in Asia/Bangkok timezone.",
-      );
-    }
-
     const existingCycle = await this.poolRepository.getPoolCycle(poolDate);
-
-    if (existingCycle) {
-      return {
-        poolDate: existingCycle.poolDate,
-        fundingTotalApprovedPv: existingCycle.fundingTotalApprovedPv,
-        poolFund: existingCycle.poolFund,
-        eligibleMemberCount: existingCycle.eligibleMemberCount,
-        payoutPerMember: existingCycle.payoutPerMember,
-        companyFallbackAmount: existingCycle.companyFallbackAmount,
-      };
-    }
+    const commissionSettings = readCommissionSettings();
 
     const approvedOrders =
       await this.ordersService.listApprovedOrdersForPoolDate(poolDate);
@@ -208,31 +204,26 @@ export class PoolService implements PoolServiceContract {
       poolDate,
       approvedOrderCount: approvedOrders.length,
       fundingTotalApprovedPv: this.sumApprovedOrderPv(approvedOrders),
-      poolRate: "0.3",
+      poolRate: commissionSettings.poolRate,
       approvedOrders,
     });
     const eligibilitySnapshots = await this.poolRepository.listWeeklyEligibilitySnapshots({
+      poolDate,
       evaluationAt,
-      qualifiedWindowStartAt: this.resolveQualifiedWindowStartAt(poolDate),
     });
     const flow = await this.handleDailyPoolFlow(
       poolDate,
       evaluationAt,
-      eligibilitySnapshots.map((snapshot) => ({
-        userId: snapshot.userId,
-        memberActive: snapshot.memberActive,
-        activeDirectReferralCount: snapshot.activeDirectReferralCount,
-        evaluationAt,
-      })),
+      eligibilitySnapshots,
     );
     const { poolCycleId } = await this.poolRepository.createOrUpdatePoolCycle({
       ...funding,
       evaluationAt,
       settingsSnapshot: JSON.stringify({
-        poolRateMode: "weekly_fixed_rate",
-        weeklyPoolRate: "0.3",
+        poolRateMode: "daily_fixed_rate",
+        dailyPoolRate: commissionSettings.poolRate,
         timezone: "Asia/Bangkok",
-        eligibilityRule: "direct_two_and_recent_b1",
+        eligibilityRule: "own_purchase_and_three_direct_buyers",
       }),
       eligibleMemberCount: flow.eligibleRecipientCount,
       payoutPerMember: flow.payoutPerMember,
@@ -242,9 +233,39 @@ export class PoolService implements PoolServiceContract {
       poolCycleId,
       flow.eligibilityDecisions,
     );
+    const poolCommissionResults = await Promise.all(
+      flow.recipientDrafts.map(async (recipient) => {
+        const commission =
+          compareDecimalStrings(recipient.amount, "0") > 0
+            ? await this.commissionsService.createPoolCommission({
+                poolCycleId,
+                poolDate,
+                beneficiaryUserId: recipient.userId,
+                evaluationAt,
+                basePv: recipient.amount,
+                amount: recipient.amount,
+              })
+            : null;
+
+        return {
+          userId: recipient.userId,
+          beneficiaryCycleId:
+            commission?.beneficiaryCycleId ??
+            recipient.finalization.beneficiaryCycleId ??
+            null,
+          commissionLedgerId: commission?.commissionId ?? null,
+          payoutAmount: commission?.finalPayableAmount ?? recipient.amount,
+          status:
+            commission?.commissionStatus ??
+            recipient.finalization.commissionStatus,
+          blockReason:
+            commission?.fallbackReason ?? recipient.finalization.fallbackReason ?? null,
+        };
+      }),
+    );
     await this.poolRepository.createPoolPayoutDrafts({
       poolCycleId,
-      recipientDrafts: flow.recipientDrafts,
+      recipientDrafts: poolCommissionResults,
     });
     await this.postPoolWalletEntries(poolDate);
 
@@ -255,10 +276,12 @@ export class PoolService implements PoolServiceContract {
       eligibleMemberCount: flow.eligibleRecipientCount,
       payoutPerMember: flow.payoutPerMember,
       companyFallbackAmount: flow.companyFallback.amount,
+      reprocessed: !!existingCycle,
     };
   }
 
   async loadApprovedOrderFunding(poolDate: string): Promise<PoolFundingInput> {
+    const commissionSettings = readCommissionSettings();
     const approvedOrders =
       await this.ordersService.listApprovedOrdersForPoolDate(poolDate);
 
@@ -266,7 +289,7 @@ export class PoolService implements PoolServiceContract {
       poolDate,
       approvedOrderCount: approvedOrders.length,
       fundingTotalApprovedPv: this.sumApprovedOrderPv(approvedOrders),
-      poolRate: "0.3",
+      poolRate: commissionSettings.poolRate,
       approvedOrders,
     };
   }
@@ -294,7 +317,7 @@ export class PoolService implements PoolServiceContract {
       poolDate,
       approvedOrderCount: approvedOrders.length,
       fundingTotalApprovedPv: this.sumApprovedOrderPv(approvedOrders),
-      poolRate: "0.3",
+      poolRate: readCommissionSettings().poolRate,
       approvedOrders,
     });
     const eligibilityDecisions = await this.evaluatePoolEligibility(snapshots);
@@ -524,16 +547,19 @@ export class PoolService implements PoolServiceContract {
     const payouts = await this.poolRepository.listPoolPayouts(poolDate);
 
     for (const payout of payouts) {
-      if (payout.status !== "approved") {
+      if (
+        (payout.status !== "approved" && payout.status !== "held") ||
+        !payout.commissionLedgerId
+      ) {
         continue;
       }
 
       await this.walletsService.postApprovedEarning({
         userId: payout.userId,
-        refType: "pool",
-        refId: payout.payoutId,
+        refType: "commission",
+        refId: payout.commissionLedgerId,
         amount: payout.payoutAmount,
-        holdRequired: false,
+        holdRequired: payout.status === "held",
         earningType: "pool",
       });
     }
@@ -548,16 +574,6 @@ export class PoolService implements PoolServiceContract {
   }
 
   private calculatePoolContributionForOrder(order: PoolSourceOrder): string {
-    return multiplyDecimalStrings(order.totalPv, "0.3");
-  }
-
-  private resolveQualifiedWindowStartAt(poolDate: string): string {
-    const { year, month } = parseDateOnlyParts(poolDate);
-    const previousMonthYear = month === 1 ? year - 1 : year;
-    const previousMonth = month === 1 ? 12 : month - 1;
-
-    return new Date(
-      Date.UTC(previousMonthYear, previousMonth - 1, 1, 0 - BANGKOK_UTC_OFFSET_HOURS, 0, 0, 0),
-    ).toISOString();
+    return multiplyDecimalStrings(order.totalPv, readCommissionSettings().poolRate);
   }
 }

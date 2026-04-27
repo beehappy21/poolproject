@@ -33,7 +33,9 @@ export interface PoolFundingResult {
 export interface PoolEligibilityMemberSnapshot {
   userId: string;
   memberActive: boolean;
+  hasOwnApprovedOrder: boolean;
   activeDirectReferralCount: number;
+  activeDirectBuyerCount: number;
   latestQualifiedBoardCompletedAt?: string | null;
   evaluationAt?: string;
 }
@@ -98,4 +100,5 @@ export interface PoolCloseResult {
   eligibleMemberCount: number;
   payoutPerMember: string;
   companyFallbackAmount: string;
+  reprocessed?: boolean;
 }

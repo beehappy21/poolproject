@@ -191,3 +191,68 @@ export interface ApprovedOrderCommissionFlowResult {
   directDrafts: DirectCommissionDraftResult[];
   uniDrafts: UniCommissionDraftResult[];
 }
+
+export interface TeamSettlementCandidateSnapshot {
+  userId: string;
+  uplineUserId: string | null;
+  placementSide: "LEFT" | "MIDDLE" | "RIGHT" | null;
+  totalPv: string;
+}
+
+export interface TeamSettlementBatchScaffoldResult {
+  settlementDate: string;
+  status: "scaffolded" | "processed";
+  totalUsers: number;
+  processedUsers?: number;
+  carriedForwardUsers?: number;
+  totalPayablePv?: string;
+  totalBonusAmount?: string;
+  items: Array<{
+    userId: string;
+    availablePvByLeg: Record<
+      "LEFT" | "MIDDLE" | "RIGHT",
+      { memberCount: number; totalPv: string }
+    >;
+    plannedPaidPvByLeg: Record<"LEFT" | "MIDDLE" | "RIGHT", string>;
+    carryForwardPvByLeg: Record<"LEFT" | "MIDDLE" | "RIGHT", string>;
+    payablePv: string;
+    bonusAmount: string;
+    status: "planned" | "processed" | "carried_forward";
+  }>;
+}
+
+export interface TeamSettlementBatchItemSnapshot {
+  itemId: string;
+  userId: string;
+  availablePvByLeg: Record<
+    "LEFT" | "MIDDLE" | "RIGHT",
+    { memberCount: number; totalPv: string }
+  >;
+  plannedPaidPvByLeg: Record<"LEFT" | "MIDDLE" | "RIGHT", string>;
+  carryForwardPvByLeg: Record<"LEFT" | "MIDDLE" | "RIGHT", string>;
+  payablePv: string;
+  bonusAmount: string;
+  status: "planned" | "processed" | "carried_forward";
+}
+
+export interface TeamSettlementBatchProcessResult {
+  settlementDate: string;
+  status: "processed";
+  totalUsers: number;
+  processedUsers: number;
+  carriedForwardUsers: number;
+  totalPayablePv: string;
+  totalBonusAmount: string;
+  items: TeamSettlementBatchItemSnapshot[];
+}
+
+export interface TeamSettlementBatchSnapshotResult {
+  settlementDate: string;
+  batchStatus: "missing" | "scaffolded" | "processed";
+  totalUsers: number;
+  processedUsers: number;
+  carriedForwardUsers: number;
+  totalPayablePv: string;
+  totalBonusAmount: string;
+  items: TeamSettlementBatchItemSnapshot[];
+}

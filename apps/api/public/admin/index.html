@@ -1235,6 +1235,25 @@
                 <input id="poolDateInput" type="date" value="2026-03-20" required />
                 <button type="submit">Close Pool Date</button>
               </form>
+
+              <form id="teamSettlementForm" class="panel inner-panel stacked-form">
+                <h4>Team Settlement</h4>
+                <input id="teamSettlementDateInput" type="date" value="2026-03-20" required />
+                <div class="table-actions">
+                  <button type="button" id="teamSettlementScaffoldButton">Scaffold</button>
+                  <button type="button" class="secondary" id="teamSettlementProcessButton">Process</button>
+                  <button type="button" class="ghost" id="teamSettlementSnapshotButton">Snapshot</button>
+                </div>
+              </form>
+
+              <form id="runtimeVerifyForm" class="panel inner-panel stacked-form">
+                <h4>Runtime Verify</h4>
+                <input id="runtimeVerifyPoolDateInput" type="date" value="2026-03-20" required />
+                <div class="table-actions">
+                  <button type="button" id="runtimeVerifyPoolSnapshotButton">Pool Snapshot</button>
+                  <button type="button" class="ghost" id="runtimeVerifyPoolPayoutsButton">Pool Payouts</button>
+                </div>
+              </form>
             </div>
           </article>
 

@@ -50,6 +50,14 @@ export class PoolController {
 
     return {
       cycle,
+      summary: {
+        payoutCount: payouts.length,
+        approvedCount: payouts.filter((payout) => payout.status === "approved").length,
+        heldCount: payouts.filter((payout) => payout.status === "held").length,
+        fallbackCount: payouts.filter((payout) => payout.status === "fallback").length,
+        linkedCommissionCount: payouts.filter((payout) => !!payout.commissionLedgerId)
+          .length,
+      },
       payouts,
     };
   }

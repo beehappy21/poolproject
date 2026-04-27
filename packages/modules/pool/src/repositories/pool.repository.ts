@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 
 import {
   PoolEligibilityDecision,
+  PoolEligibilityMemberSnapshot,
   PoolFundingResult,
   PoolRecipientDraftResult,
 } from "../domain/pool.types";
@@ -60,7 +61,14 @@ export interface PoolRepository {
 
   createPoolPayoutDrafts(input: {
     poolCycleId: string;
-    recipientDrafts: PoolRecipientDraftResult[];
+    recipientDrafts: Array<{
+      userId: string;
+      beneficiaryCycleId: string | null;
+      commissionLedgerId: string | null;
+      payoutAmount: string;
+      status: "approved" | "held" | "withdrawable" | "fallback";
+      blockReason: string | null;
+    }>;
   }): Promise<void>;
 
   getPoolCycle(poolDate: string): Promise<{
@@ -79,6 +87,7 @@ export interface PoolRepository {
       payoutId: string;
       userId: string;
       beneficiaryCycleId: string | null;
+      commissionLedgerId: string | null;
       payoutAmount: string;
       status: string;
       blockReason: string | null;
@@ -98,9 +107,9 @@ export interface PoolRepository {
   >;
 
   listWeeklyEligibilitySnapshots(input: {
+    poolDate: string;
     evaluationAt: string;
-    qualifiedWindowStartAt: string;
-  }): Promise<PoolEligibilityDecision[]>;
+  }): Promise<PoolEligibilityMemberSnapshot[]>;
 }
 
 @Injectable()
@@ -250,36 +259,16 @@ export class PrismaPoolRepository implements PoolRepository {
 
   async createPoolPayoutDrafts(input: {
     poolCycleId: string;
-    recipientDrafts: PoolRecipientDraftResult[];
+    recipientDrafts: Array<{
+      userId: string;
+      beneficiaryCycleId: string | null;
+      commissionLedgerId: string | null;
+      payoutAmount: string;
+      status: "approved" | "held" | "withdrawable" | "fallback";
+      blockReason: string | null;
+    }>;
   }): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
-      const existingApprovedPayouts = await tx.dailyPoolPayout.findMany({
-        where: {
-          cycleId: BigInt(input.poolCycleId),
-          status: "APPROVED",
-          beneficiaryCycleId: { not: null },
-        },
-        select: {
-          beneficiaryCycleId: true,
-          payoutAmount: true,
-        },
-      });
-
-      for (const payout of existingApprovedPayouts) {
-        if (!payout.beneficiaryCycleId) {
-          continue;
-        }
-
-        await tx.memberPackageCycle.update({
-          where: { id: payout.beneficiaryCycleId },
-          data: {
-            earnedTotalInCycle: {
-              decrement: payout.payoutAmount,
-            },
-          },
-        });
-      }
-
       await tx.dailyPoolPayout.deleteMany({
         where: { cycleId: BigInt(input.poolCycleId) },
       });
@@ -292,34 +281,24 @@ export class PrismaPoolRepository implements PoolRepository {
         data: input.recipientDrafts.map((recipient) => ({
           cycleId: BigInt(input.poolCycleId),
           userId: BigInt(recipient.userId),
-          beneficiaryCycleId: recipient.finalization.beneficiaryCycleId
-            ? BigInt(recipient.finalization.beneficiaryCycleId)
+          beneficiaryCycleId: recipient.beneficiaryCycleId
+            ? BigInt(recipient.beneficiaryCycleId)
             : null,
-          payoutAmount: recipient.amount,
+          commissionLedgerId: recipient.commissionLedgerId
+            ? BigInt(recipient.commissionLedgerId)
+            : null,
+          payoutAmount: recipient.payoutAmount,
           status:
-            recipient.finalization.commissionStatus === "approved"
-              ? "APPROVED"
-              : "FALLBACK",
-          blockReason: recipient.finalization.fallbackReason,
+            recipient.status === "held"
+              ? "HELD"
+              : recipient.status === "withdrawable"
+                ? "WITHDRAWABLE"
+                : recipient.status === "approved"
+                  ? "APPROVED"
+                  : "FALLBACK",
+          blockReason: recipient.blockReason,
         })),
       });
-
-      const approvedRecipients = input.recipientDrafts.filter(
-        (recipient) =>
-          recipient.finalization.commissionStatus === "approved" &&
-          !!recipient.finalization.beneficiaryCycleId,
-      );
-
-      for (const recipient of approvedRecipients) {
-        await tx.memberPackageCycle.update({
-          where: { id: BigInt(recipient.finalization.beneficiaryCycleId!) },
-          data: {
-            earnedTotalInCycle: {
-              increment: recipient.amount,
-            },
-          },
-        });
-      }
     });
   }
 
@@ -371,6 +350,7 @@ export class PrismaPoolRepository implements PoolRepository {
         id: true,
         userId: true,
         beneficiaryCycleId: true,
+        commissionLedgerId: true,
         payoutAmount: true,
         status: true,
         blockReason: true,
@@ -381,6 +361,7 @@ export class PrismaPoolRepository implements PoolRepository {
       payoutId: payout.id.toString(),
       userId: payout.userId.toString(),
       beneficiaryCycleId: payout.beneficiaryCycleId?.toString() ?? null,
+      commissionLedgerId: payout.commissionLedgerId?.toString() ?? null,
       payoutAmount: payout.payoutAmount.toString(),
       status: payout.status.toLowerCase(),
       blockReason: payout.blockReason,
@@ -419,11 +400,11 @@ export class PrismaPoolRepository implements PoolRepository {
   }
 
   async listWeeklyEligibilitySnapshots(input: {
+    poolDate: string;
     evaluationAt: string;
-    qualifiedWindowStartAt: string;
-  }): Promise<PoolEligibilityDecision[]> {
-    const evaluationAt = new Date(input.evaluationAt);
-    const qualifiedWindowStartAt = new Date(input.qualifiedWindowStartAt);
+  }): Promise<PoolEligibilityMemberSnapshot[]> {
+    const dayStart = new Date(`${input.poolDate}T00:00:00.000Z`);
+    const dayEnd = new Date(`${input.poolDate}T23:59:59.999Z`);
 
     const users = await this.prisma.user.findMany({
       where: {
@@ -437,21 +418,37 @@ export class PrismaPoolRepository implements PoolRepository {
             directReferrals: true,
           },
         },
-        matrixCycles: {
-          orderBy: [{ startedAt: "desc" }, { id: "desc" }],
+        orders: {
+          where: {
+            approvalStatus: "APPROVED",
+            orderSourceType: "NORMAL",
+            approvedAt: {
+              gte: dayStart,
+              lte: dayEnd,
+            },
+          },
           select: {
-            boards: {
+            id: true,
+          },
+        },
+        directReferrals: {
+          where: {
+            status: "ACTIVE",
+            payoutStatus: "ACTIVE",
+          },
+          select: {
+            id: true,
+            orders: {
               where: {
-                boardNo: 1,
-                status: "COMPLETED",
-                completedAt: {
-                  gte: qualifiedWindowStartAt,
-                  lte: evaluationAt,
+                approvalStatus: "APPROVED",
+                orderSourceType: "NORMAL",
+                approvedAt: {
+                  gte: dayStart,
+                  lte: dayEnd,
                 },
               },
-              orderBy: [{ completedAt: "desc" }, { id: "desc" }],
               select: {
-                completedAt: true,
+                id: true,
               },
             },
           },
@@ -460,22 +457,25 @@ export class PrismaPoolRepository implements PoolRepository {
     });
 
     return users.map((user) => {
-      const latestQualifiedBoardCompletedAt =
-        user.matrixCycles.flatMap((cycle) => cycle.boards)[0]?.completedAt ?? null;
+      const hasOwnApprovedOrder = user.orders.length > 0;
       const activeDirectReferralCount = user._count.directReferrals;
-      const memberActive = latestQualifiedBoardCompletedAt !== null;
-      const eligible = memberActive && activeDirectReferralCount >= 2;
+      const activeDirectBuyerCount = user.directReferrals.filter(
+        (directReferral) => directReferral.orders.length > 0,
+      ).length;
+      const memberActive = hasOwnApprovedOrder;
+      const eligible =
+        hasOwnApprovedOrder &&
+        activeDirectReferralCount >= 3 &&
+        activeDirectBuyerCount >= 3;
 
       return {
         userId: user.id.toString(),
-        eligible,
-        reasonCode: eligible
-          ? "weekly_pool_qualified"
-          : !memberActive
-            ? "missing_recent_b1_completion"
-            : "missing_two_direct_referrals",
         memberActive,
+        hasOwnApprovedOrder,
         activeDirectReferralCount,
+        activeDirectBuyerCount,
+        latestQualifiedBoardCompletedAt: null,
+        evaluationAt: input.evaluationAt,
       };
     });
   }

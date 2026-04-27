@@ -14,11 +14,38 @@ Use this section first if the current task is the Stephub commission refactor an
   - [ ] `npx prisma validate --schema prisma/schema.prisma`
   - [ ] `npm run lint`
 - [ ] Treat `COMM-04` as complete
+- [ ] Treat `COMM-05` backend scope as complete
 - [ ] Keep the shared cap/gating path as the single source of truth for commission finalization
-- [ ] Start directly from `COMM-05`
-- [ ] Build team settlement runtime on top of the shared finalize path
-- [ ] Add matching creation after team settlement
+- [ ] Do not restart team/matching implementation unless a bug is found
+- [ ] Team scaffold exists already via `POST /commissions/team-settlement-batches/:settlementDate/scaffold`
+- [ ] Team process endpoint exists via `POST /commissions/team-settlement-batches/:settlementDate/process`
+- [ ] Current scaffold already captures per-leg `memberCount + totalPv` and computes payout/carry-forward math
+- [ ] Matching is now created from actual team final payable after cap during team process
+- [ ] Rerun guard exists for repeated team process calls on the same settlement date
+- [ ] Processed team batches are protected from being overwritten by scaffold reruns
+- [ ] Team scaffold/process now use serializable transaction retry to reduce concurrent overwrite risk
+- [ ] Pool source orders now read by Bangkok single-day range, not the old weekly range
+- [ ] Pool qualification now targets own purchase + `3` directs + `3` direct buyers
 - [ ] Keep pool ordering locked behind `team -> buyback side effect -> pool`
+- [ ] Pool payout creation now runs through the shared commission finalize path
+- [ ] Pool payout snapshots now link back to `commissionLedgerId`
+- [ ] `closePool(poolDate)` now reruns and reports `reprocessed` when the cycle already existed
+- [ ] Team snapshot endpoint exists: `GET /commissions/team-settlement-batches/:settlementDate/snapshot`
+- [ ] Pool snapshot endpoint exists: `GET /pool/:poolDate/snapshot`
+- [ ] Admin quick actions expose team `Scaffold / Process / Snapshot`
+- [ ] Admin quick actions expose pool `Snapshot / Payouts`
+- [ ] One-leg carry-forward smoke exists: `npm run smoke:commissions:team-carry-forward`
+- [ ] Team final-payable-to-matching smoke exists: `npm run smoke:commissions:team-matching-final-payable`
+- [ ] Team concurrent rerun smoke exists: `npm run smoke:commissions:team-concurrent-rerun`
+- [ ] `COMM-05` close-out runtime checks are effectively complete on the local stack
+- [ ] Runtime-verified sample already exists for `2025-11-27`:
+  - [ ] team snapshot stays `processed` after rerun
+  - [ ] concurrent rerun smoke keeps batch `processed` with stable counts
+  - [ ] pool close returns `reprocessed: true`
+  - [ ] sample pool date currently has `0` eligible recipients, so payout-path verification is intentionally deferred for now
+  - [ ] one-leg carry-forward stays `payable=0`, `bonus=0`, `status=carried_forward`
+  - [ ] isolated fixture proves matching `basePv` comes from team `finalPayableAmount`
+- [ ] Finish adjustment-plan cleanup before reopening recipient-positive pool testing
 
 Locked rules for next session:
 
@@ -165,6 +192,23 @@ Dangerous commands to avoid unless intentionally resetting:
 - [ ] Stock is reduced correctly after order creation
 - [ ] Cancel order restores stock correctly
 - [ ] Cancel order restores wallet balances correctly where applicable
+- [ ] If testing `COMM-05`, confirm scaffold endpoint can create a team batch for a sample settlement date without breaking order approval flow
+- [ ] If testing `COMM-05`, confirm scaffold on an already processed settlement date returns preserved `processed` state instead of reverting to `planned`
+- [ ] If testing `COMM-05`, confirm process endpoint can create `TEAM_2LEG` / `TEAM_3LEG` entries without forcing a fake `orderId`
+- [ ] If testing `COMM-05`, confirm process endpoint also creates `MATCHING_L1` / `MATCHING_L2` from source team `finalPayableAmount`
+- [ ] If testing `COMM-05`, confirm rerunning scaffold/process on the same settlement date does not duplicate `TEAM_*` or `MATCHING_*`
+- [ ] If testing `COMM-05`, run `npm run smoke:commissions:team-carry-forward` to confirm a 1-leg case stays carried forward and does not become payable
+- [ ] If testing `COMM-05`, run `npm run smoke:commissions:team-matching-final-payable` to confirm matching uses team `finalPayableAmount` as `basePv`
+- [ ] If testing `COMM-05`, run `npm run smoke:commissions:team-concurrent-rerun` to confirm concurrent scaffold/process reruns keep batch state stable
+- [ ] If a formal automated test harness is added later, port the 3 `COMM-05` smoke checks into stable automated coverage instead of inventing new scenarios first
+- [ ] If testing next pool step, confirm daily pool source uses only same-day approved orders and not the previous weekly window
+- [ ] If testing next pool step, confirm rerunning the same pool date does not duplicate pool commissions or wallet postings
+- [ ] If testing next pool step, confirm rerunning the same pool date returns `reprocessed: true`
+- [ ] If testing next pool step, confirm held pool commissions post into held bucket instead of withdrawable
+- [ ] If testing next pool step, use `/pool/:poolDate/snapshot` summary counts to confirm approved/held/fallback/linkage state after rerun
+- [ ] If not enough real data exists for pool recipients, skip pool payout-path testing and record the deferment in `HANDOFF_NEXT.md` first
+- [ ] If testing next team step, use `/commissions/team-settlement-batches/:settlementDate/snapshot` to confirm processed vs carried-forward counts after rerun
+- [ ] If local team endpoints start failing after schema changes, run `npx prisma db push --schema prisma/schema.prisma` before assuming the feature is broken
 
 ## KYC
 
@@ -208,5 +252,7 @@ Dangerous commands to avoid unless intentionally resetting:
 - Demo Stephub `10x5` catalog restore is disabled.
 - Do not use destructive flags/scripts unless you intentionally want to reset data.
 - `COMM-04` cap/gating work is complete; next backend milestone is team settlement plus matching.
+- `COMM-05` backend runtime is complete enough for continuation work; current continuation milestone is runtime verification of the new daily pool path plus rerun safety.
+- Current scaffold source for per-leg PV is active-cycle `purchaseBase` overlapping the settlement date.
 - `npm run smoke:bao:withdraw-kyc` covers `Delivered Orders`, `KYC approve/reject`, and `Withdraw approve + paid` on local BAO/API.
 - If member-side withdraw submission fails with `Insufficient withdrawable balance.`, seed or create enough withdrawable balance first; BAO approve/paid flow still validates correctly once a request exists.

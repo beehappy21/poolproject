@@ -6,12 +6,19 @@ import {
   BonusToCycleAllocationInput,
   CommissionFinalizationInput,
   CommissionFinalizationResult,
+  CommissionReleaseStatus,
   CommissionSourceType,
   DailyCommissionCapSnapshot,
+  TeamSettlementBatchItemSnapshot,
+  TeamSettlementBatchProcessResult,
+  TeamSettlementBatchScaffoldResult,
+  TeamSettlementBatchSnapshotResult,
+  TeamSettlementCandidateSnapshot,
   UserBuybackProgressSnapshot,
 } from "../domain/commissions.types";
 import { PrismaService } from "../../../../infrastructure/src/prisma/prisma.service";
 import { toQualificationCycleSnapshot } from "../../../../infrastructure/src/prisma/prisma.mappers";
+import { addDecimalStrings } from "../../../../shared/utils/src/money.util";
 
 function mapCommissionSourceTypeToPrisma(
   sourceType: CommissionSourceType,
@@ -92,6 +99,47 @@ export interface CommissionsRepository {
   }): Promise<UserBuybackProgressSnapshot>;
 
   createBuybackEvent(input: BuybackEventDraft): Promise<void>;
+
+  listTeamSettlementCandidates(
+    settlementDate: string,
+  ): Promise<TeamSettlementCandidateSnapshot[]>;
+
+  replaceTeamSettlementBatchScaffold(input: {
+    settlementDate: string;
+    items: TeamSettlementBatchScaffoldResult["items"];
+  }): Promise<TeamSettlementBatchScaffoldResult>;
+
+  listTeamSettlementBatchItems(
+    settlementDate: string,
+  ): Promise<TeamSettlementBatchItemSnapshot[]>;
+
+  markTeamSettlementBatchProcessed(input: {
+    settlementDate: string;
+    items: Array<{
+      itemId: string;
+      status: TeamSettlementBatchItemSnapshot["status"];
+    }>;
+  }): Promise<TeamSettlementBatchProcessResult>;
+
+  getTeamSettlementBatchSnapshot(
+    settlementDate: string,
+  ): Promise<TeamSettlementBatchSnapshotResult>;
+
+  findExistingCommissionBySource(input: {
+    sourceType: CommissionSourceType;
+    sourceRefId: string;
+    sourceCommissionLedgerId?: string | null;
+    beneficiaryUserId?: string | null;
+    levelNo?: number | null;
+  }): Promise<{
+    commissionId: string;
+    beneficiaryUserId: string | null;
+    beneficiaryCycleId: string | null;
+    finalPayableAmount: string;
+    releaseStatus: CommissionReleaseStatus;
+    commissionStatus: CommissionFinalizationResult["commissionStatus"];
+    fallbackReason: string | null;
+  } | null>;
 
   listCommissionEntries(filters?: {
     orderId?: string;
@@ -234,7 +282,12 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
           ? BigInt(input.beneficiaryUserId)
           : null,
         sourceUserId: BigInt(input.sourceUserId),
-        orderId: BigInt(input.sourceRefId),
+        orderId:
+          input.sourceType === "direct" ||
+          input.sourceType === "uni" ||
+          input.sourceType === "cashback"
+            ? BigInt(input.sourceRefId)
+            : null,
         sourceCommissionLedgerId: input.sourceCommissionLedgerId
           ? BigInt(input.sourceCommissionLedgerId)
           : null,
@@ -421,6 +474,584 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
         metadata: (input.metadata as Prisma.InputJsonValue | undefined) ?? undefined,
       },
     });
+  }
+
+  async listTeamSettlementCandidates(
+    settlementDate: string,
+  ): Promise<TeamSettlementCandidateSnapshot[]> {
+    const start = new Date(`${settlementDate}T00:00:00.000Z`);
+    const nextDay = new Date(start);
+    nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        memberProfile: {
+          is: {
+            uplineUserId: {
+              not: null,
+            },
+            placementSide: {
+              not: null,
+            },
+          },
+        },
+        packageCycles: {
+          some: {
+            status: "ACTIVE",
+            activatedAt: {
+              lt: nextDay,
+            },
+            activeUntil: {
+              gte: start,
+            },
+          },
+        },
+      },
+      select: {
+        id: true,
+        memberProfile: {
+          select: {
+            uplineUserId: true,
+            placementSide: true,
+          },
+        },
+        packageCycles: {
+          where: {
+            status: "ACTIVE",
+            activatedAt: {
+              lt: nextDay,
+            },
+            activeUntil: {
+              gte: start,
+            },
+          },
+          select: {
+            purchaseBase: true,
+          },
+        },
+      },
+      orderBy: {
+        id: "asc",
+      },
+    });
+
+    return users.map((user) => ({
+      userId: user.id.toString(),
+      uplineUserId: user.memberProfile?.uplineUserId?.toString() ?? null,
+      placementSide: user.memberProfile?.placementSide ?? null,
+      totalPv: user.packageCycles.reduce(
+        (sum, cycle) => addDecimalStrings(sum, cycle.purchaseBase?.toString() ?? "0"),
+        "0",
+      ),
+    }));
+  }
+
+  async replaceTeamSettlementBatchScaffold(input: {
+    settlementDate: string;
+    items: TeamSettlementBatchScaffoldResult["items"];
+  }): Promise<TeamSettlementBatchScaffoldResult> {
+    const settlementDate = this.asCapDate(input.settlementDate);
+
+    return this.withSerializableRetry(() =>
+      this.prisma.$transaction(
+        async (tx) => {
+          const existingBatch = await tx.teamSettlementBatch.findUnique({
+            where: {
+              settlementDate,
+            },
+            select: {
+              id: true,
+              status: true,
+              totalUsers: true,
+              totalPayablePv: true,
+              totalBonusAmount: true,
+              items: {
+                orderBy: {
+                  userId: "asc",
+                },
+                select: {
+                  userId: true,
+                  availablePvByLeg: true,
+                  plannedPaidPvByLeg: true,
+                  carryForwardPvByLeg: true,
+                  payablePv: true,
+                  bonusAmount: true,
+                  status: true,
+                },
+              },
+            },
+          });
+
+          if (existingBatch?.status === "PROCESSED") {
+            const items = existingBatch.items.map((item) => ({
+              userId: item.userId.toString(),
+              availablePvByLeg:
+                item.availablePvByLeg as TeamSettlementBatchScaffoldResult["items"][number]["availablePvByLeg"],
+              plannedPaidPvByLeg:
+                item.plannedPaidPvByLeg as TeamSettlementBatchScaffoldResult["items"][number]["plannedPaidPvByLeg"],
+              carryForwardPvByLeg:
+                item.carryForwardPvByLeg as TeamSettlementBatchScaffoldResult["items"][number]["carryForwardPvByLeg"],
+              payablePv: item.payablePv.toString(),
+              bonusAmount: item.bonusAmount.toString(),
+              status:
+                item.status === "PROCESSED"
+                  ? ("processed" as const)
+                  : item.status === "CARRIED_FORWARD"
+                    ? ("carried_forward" as const)
+                    : ("planned" as const),
+            }));
+
+            return {
+              settlementDate: input.settlementDate,
+              status: "processed" as const,
+              totalUsers: existingBatch.totalUsers,
+              processedUsers: items.filter((item) => item.status === "processed")
+                .length,
+              carriedForwardUsers: items.filter(
+                (item) => item.status === "carried_forward",
+              ).length,
+              totalPayablePv: existingBatch.totalPayablePv.toString(),
+              totalBonusAmount: existingBatch.totalBonusAmount.toString(),
+              items,
+            };
+          }
+
+          const batch = existingBatch
+            ? await tx.teamSettlementBatch.update({
+                where: {
+                  id: existingBatch.id,
+                },
+                data: {
+                  status: "SCAFFOLDED",
+                  totalUsers: input.items.length,
+                  totalPayablePv: "0",
+                  totalBonusAmount: "0",
+                  processedAt: null,
+                },
+                select: {
+                  id: true,
+                },
+              })
+            : await tx.teamSettlementBatch.create({
+                data: {
+                  settlementDate,
+                  status: "SCAFFOLDED",
+                  totalUsers: input.items.length,
+                  totalPayablePv: "0",
+                  totalBonusAmount: "0",
+                },
+                select: {
+                  id: true,
+                },
+              });
+
+          await tx.teamSettlementBatchItem.deleteMany({
+            where: {
+              batchId: batch.id,
+            },
+          });
+
+          if (input.items.length > 0) {
+            await tx.teamSettlementBatchItem.createMany({
+              data: input.items.map((item) => ({
+                batchId: batch.id,
+                userId: BigInt(item.userId),
+                availablePvByLeg: item.availablePvByLeg as Prisma.InputJsonValue,
+                plannedPaidPvByLeg: item.plannedPaidPvByLeg as Prisma.InputJsonValue,
+                carryForwardPvByLeg:
+                  item.carryForwardPvByLeg as Prisma.InputJsonValue,
+                payablePv: item.payablePv,
+                bonusAmount: item.bonusAmount,
+                status: "PLANNED",
+              })),
+            });
+          }
+
+          return {
+            settlementDate: input.settlementDate,
+            status: "scaffolded" as const,
+            totalUsers: input.items.length,
+            processedUsers: 0,
+            carriedForwardUsers: 0,
+            totalPayablePv: "0",
+            totalBonusAmount: "0",
+            items: input.items,
+          };
+        },
+        {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        },
+      ),
+    );
+  }
+
+  async findExistingCommissionBySource(input: {
+    sourceType: CommissionSourceType;
+    sourceRefId: string;
+    sourceCommissionLedgerId?: string | null;
+    beneficiaryUserId?: string | null;
+    levelNo?: number | null;
+  }): Promise<{
+    commissionId: string;
+    beneficiaryUserId: string | null;
+    beneficiaryCycleId: string | null;
+    finalPayableAmount: string;
+    releaseStatus: CommissionReleaseStatus;
+    commissionStatus: CommissionFinalizationResult["commissionStatus"];
+    fallbackReason: string | null;
+  } | null> {
+    const commission = await this.prisma.commissionLedger.findFirst({
+      where: {
+        commissionType: mapCommissionSourceTypeToPrisma(input.sourceType),
+        orderId:
+          input.sourceType === "direct" ||
+          input.sourceType === "uni" ||
+          input.sourceType === "cashback"
+            ? BigInt(input.sourceRefId)
+            : null,
+        sourceCommissionLedgerId: input.sourceCommissionLedgerId
+          ? BigInt(input.sourceCommissionLedgerId)
+          : undefined,
+        beneficiaryUserId: input.beneficiaryUserId
+          ? BigInt(input.beneficiaryUserId)
+          : undefined,
+        levelNo: input.levelNo ?? undefined,
+        ...(input.sourceType === "team_2leg" || input.sourceType === "team_3leg"
+          ? {
+              metadata: {
+                path: ["teamSettlementBatchItemId"],
+                equals: input.sourceRefId,
+              },
+            }
+          : input.sourceType === "pool"
+            ? {
+                metadata: {
+                  path: ["poolCycleId"],
+                  equals: input.sourceRefId,
+                },
+              }
+          : {}),
+      },
+      orderBy: {
+        id: "asc",
+      },
+      select: {
+        id: true,
+        beneficiaryUserId: true,
+        beneficiaryCycleId: true,
+        finalPayableAmount: true,
+        releaseStatus: true,
+        status: true,
+        companyFallbackReason: true,
+      },
+    });
+
+    if (!commission) {
+      return null;
+    }
+
+    return {
+      commissionId: commission.id.toString(),
+      beneficiaryUserId: commission.beneficiaryUserId?.toString() ?? null,
+      beneficiaryCycleId: commission.beneficiaryCycleId?.toString() ?? null,
+      finalPayableAmount: commission.finalPayableAmount.toString(),
+      releaseStatus:
+        commission.releaseStatus === "HELD_PENDING_REPURCHASE"
+          ? "held_pending_repurchase"
+          : commission.releaseStatus === "RELEASED_AFTER_REPURCHASE"
+            ? "released_after_repurchase"
+            : commission.releaseStatus === "BLOCKED_AFTER_EXPIRY"
+              ? "blocked_after_expiry"
+              : "withdrawable",
+      commissionStatus:
+        commission.status === "FALLBACK"
+          ? "fallback"
+          : commission.status === "HELD"
+            ? "held"
+            : commission.status === "WITHDRAWABLE"
+              ? "withdrawable"
+              : "approved",
+      fallbackReason: commission.companyFallbackReason ?? null,
+    };
+  }
+
+  async listTeamSettlementBatchItems(
+    settlementDate: string,
+  ): Promise<TeamSettlementBatchItemSnapshot[]> {
+    const batch = await this.prisma.teamSettlementBatch.findUnique({
+      where: {
+        settlementDate: this.asCapDate(settlementDate),
+      },
+      select: {
+        items: {
+          orderBy: {
+            userId: "asc",
+          },
+          select: {
+            id: true,
+            userId: true,
+            availablePvByLeg: true,
+            plannedPaidPvByLeg: true,
+            carryForwardPvByLeg: true,
+            payablePv: true,
+            bonusAmount: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    return (batch?.items ?? []).map((item) => ({
+      itemId: item.id.toString(),
+      userId: item.userId.toString(),
+      availablePvByLeg: item.availablePvByLeg as TeamSettlementBatchItemSnapshot["availablePvByLeg"],
+      plannedPaidPvByLeg:
+        item.plannedPaidPvByLeg as TeamSettlementBatchItemSnapshot["plannedPaidPvByLeg"],
+      carryForwardPvByLeg:
+        item.carryForwardPvByLeg as TeamSettlementBatchItemSnapshot["carryForwardPvByLeg"],
+      payablePv: item.payablePv.toString(),
+      bonusAmount: item.bonusAmount.toString(),
+      status:
+        item.status === "PROCESSED"
+          ? "processed"
+          : item.status === "CARRIED_FORWARD"
+            ? "carried_forward"
+            : "planned",
+    }));
+  }
+
+  async markTeamSettlementBatchProcessed(input: {
+    settlementDate: string;
+    items: Array<{
+      itemId: string;
+      status: TeamSettlementBatchItemSnapshot["status"];
+    }>;
+  }): Promise<TeamSettlementBatchProcessResult> {
+    const settlementDate = this.asCapDate(input.settlementDate);
+
+    return this.withSerializableRetry(() =>
+      this.prisma.$transaction(
+        async (tx) => {
+          const batch = await tx.teamSettlementBatch.findUnique({
+            where: {
+              settlementDate,
+            },
+            select: {
+              id: true,
+              items: {
+                orderBy: {
+                  userId: "asc",
+                },
+                select: {
+                  id: true,
+                  userId: true,
+                  availablePvByLeg: true,
+                  plannedPaidPvByLeg: true,
+                  carryForwardPvByLeg: true,
+                  payablePv: true,
+                  bonusAmount: true,
+                },
+              },
+            },
+          });
+
+          if (!batch) {
+            return {
+              settlementDate: input.settlementDate,
+              status: "processed" as const,
+              totalUsers: 0,
+              processedUsers: 0,
+              carriedForwardUsers: 0,
+              totalPayablePv: "0",
+              totalBonusAmount: "0",
+              items: [],
+            };
+          }
+
+          const statusByItemId = new Map(
+            input.items.map((item) => [item.itemId, item.status]),
+          );
+
+          for (const item of batch.items) {
+            const status = statusByItemId.get(item.id.toString());
+            if (!status) {
+              continue;
+            }
+
+            await tx.teamSettlementBatchItem.update({
+              where: {
+                id: item.id,
+              },
+              data: {
+                status:
+                  status === "processed"
+                    ? "PROCESSED"
+                    : status === "carried_forward"
+                      ? "CARRIED_FORWARD"
+                      : "PLANNED",
+                processedAt: new Date(),
+              },
+            });
+          }
+
+          const totalPayablePv = batch.items.reduce(
+            (sum, item) => addDecimalStrings(sum, item.payablePv.toString()),
+            "0",
+          );
+          const totalBonusAmount = batch.items.reduce(
+            (sum, item) => addDecimalStrings(sum, item.bonusAmount.toString()),
+            "0",
+          );
+
+          await tx.teamSettlementBatch.update({
+            where: {
+              id: batch.id,
+            },
+            data: {
+              status: "PROCESSED",
+              totalUsers: batch.items.length,
+              totalPayablePv,
+              totalBonusAmount,
+              processedAt: new Date(),
+            },
+          });
+
+          const items: TeamSettlementBatchItemSnapshot[] = batch.items.map((item) => ({
+            itemId: item.id.toString(),
+            userId: item.userId.toString(),
+            availablePvByLeg:
+              item.availablePvByLeg as TeamSettlementBatchItemSnapshot["availablePvByLeg"],
+            plannedPaidPvByLeg:
+              item.plannedPaidPvByLeg as TeamSettlementBatchItemSnapshot["plannedPaidPvByLeg"],
+            carryForwardPvByLeg:
+              item.carryForwardPvByLeg as TeamSettlementBatchItemSnapshot["carryForwardPvByLeg"],
+            payablePv: item.payablePv.toString(),
+            bonusAmount: item.bonusAmount.toString(),
+            status: statusByItemId.get(item.id.toString()) ?? "planned",
+          }));
+
+          return {
+            settlementDate: input.settlementDate,
+            status: "processed",
+            totalUsers: items.length,
+            processedUsers: items.filter((item) => item.status === "processed")
+              .length,
+            carriedForwardUsers: items.filter(
+              (item) => item.status === "carried_forward",
+            ).length,
+            totalPayablePv,
+            totalBonusAmount,
+            items,
+          };
+        },
+        {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        },
+      ),
+    );
+  }
+
+  private async withSerializableRetry<T>(
+    operation: () => Promise<T>,
+    maxAttempts = 3,
+  ): Promise<T> {
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        return await operation();
+      } catch (error) {
+        lastError = error;
+
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2034" &&
+          attempt < maxAttempts
+        ) {
+          continue;
+        }
+
+        throw error;
+      }
+    }
+
+    throw lastError;
+  }
+
+  async getTeamSettlementBatchSnapshot(
+    settlementDate: string,
+  ): Promise<TeamSettlementBatchSnapshotResult> {
+    const batch = await this.prisma.teamSettlementBatch.findUnique({
+      where: {
+        settlementDate: this.asCapDate(settlementDate),
+      },
+      select: {
+        status: true,
+        totalUsers: true,
+        totalPayablePv: true,
+        totalBonusAmount: true,
+        items: {
+          orderBy: {
+            userId: "asc",
+          },
+          select: {
+            id: true,
+            userId: true,
+            availablePvByLeg: true,
+            plannedPaidPvByLeg: true,
+            carryForwardPvByLeg: true,
+            payablePv: true,
+            bonusAmount: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    if (!batch) {
+      return {
+        settlementDate,
+        batchStatus: "missing",
+        totalUsers: 0,
+        processedUsers: 0,
+        carriedForwardUsers: 0,
+        totalPayablePv: "0",
+        totalBonusAmount: "0",
+        items: [],
+      };
+    }
+
+    const items: TeamSettlementBatchItemSnapshot[] = batch.items.map((item) => ({
+      itemId: item.id.toString(),
+      userId: item.userId.toString(),
+      availablePvByLeg:
+        item.availablePvByLeg as TeamSettlementBatchItemSnapshot["availablePvByLeg"],
+      plannedPaidPvByLeg:
+        item.plannedPaidPvByLeg as TeamSettlementBatchItemSnapshot["plannedPaidPvByLeg"],
+      carryForwardPvByLeg:
+        item.carryForwardPvByLeg as TeamSettlementBatchItemSnapshot["carryForwardPvByLeg"],
+      payablePv: item.payablePv.toString(),
+      bonusAmount: item.bonusAmount.toString(),
+      status:
+        item.status === "PROCESSED"
+          ? "processed"
+          : item.status === "CARRIED_FORWARD"
+            ? "carried_forward"
+            : "planned",
+    }));
+
+    return {
+      settlementDate,
+      batchStatus: batch.status === "PROCESSED" ? "processed" : "scaffolded",
+      totalUsers: batch.totalUsers,
+      processedUsers: items.filter((item) => item.status === "processed").length,
+      carriedForwardUsers: items.filter(
+        (item) => item.status === "carried_forward",
+      ).length,
+      totalPayablePv: batch.totalPayablePv.toString(),
+      totalBonusAmount: batch.totalBonusAmount.toString(),
+      items,
+    };
   }
 
   async finalizeCommissionEntry(

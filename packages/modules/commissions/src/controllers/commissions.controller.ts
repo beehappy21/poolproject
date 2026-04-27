@@ -1,7 +1,15 @@
-import { BadRequestException, Controller, Get, Query } from "@nestjs/common";
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+} from "@nestjs/common";
 
 import {
   optionalPositiveInteger,
+  requireDateOnlyString,
   requirePositiveIntegerString,
 } from "../../../../../apps/api/src/http/request.util";
 import { CommissionsService } from "../services/commissions.service";
@@ -80,5 +88,32 @@ export class CommissionsController {
       page: optionalPositiveInteger(page, "page"),
       pageSize: optionalPositiveInteger(pageSize, "pageSize"),
     });
+  }
+
+  @Post("team-settlement-batches/:settlementDate/scaffold")
+  async scaffoldTeamSettlementBatch(
+    @Param("settlementDate") settlementDate: string,
+  ) {
+    return this.commissionsService.scaffoldTeamSettlementBatch(
+      requireDateOnlyString(settlementDate, "settlementDate"),
+    );
+  }
+
+  @Post("team-settlement-batches/:settlementDate/process")
+  async processTeamSettlementBatch(
+    @Param("settlementDate") settlementDate: string,
+  ) {
+    return this.commissionsService.processTeamSettlementBatch(
+      requireDateOnlyString(settlementDate, "settlementDate"),
+    );
+  }
+
+  @Get("team-settlement-batches/:settlementDate/snapshot")
+  async getTeamSettlementBatchSnapshot(
+    @Param("settlementDate") settlementDate: string,
+  ) {
+    return this.commissionsService.getTeamSettlementBatchSnapshot(
+      requireDateOnlyString(settlementDate, "settlementDate"),
+    );
   }
 }

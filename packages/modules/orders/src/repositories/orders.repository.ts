@@ -160,16 +160,13 @@ function toBangkokUtcDate(input: {
   );
 }
 
-function buildBangkokWeeklyRange(poolDate: string) {
+function buildBangkokSingleDayRange(poolDate: string) {
   const { year, month, day } = parseDateOnlyParts(poolDate);
-  const closeDayUtc = Date.UTC(year, month - 1, day);
-  const startDay = new Date(closeDayUtc - 6 * 24 * 60 * 60 * 1000);
-
   return {
     gte: toBangkokUtcDate({
-      year: startDay.getUTCFullYear(),
-      month: startDay.getUTCMonth() + 1,
-      day: startDay.getUTCDate(),
+      year,
+      month,
+      day,
       hour: 0,
       minute: 0,
       second: 0,
@@ -2395,7 +2392,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
       }>;
     }>
   > {
-    const range = buildBangkokWeeklyRange(poolDate);
+    const range = buildBangkokSingleDayRange(poolDate);
     const orderItemSelect = {
       lineTotalPv: true,
       poolRateMode: true,

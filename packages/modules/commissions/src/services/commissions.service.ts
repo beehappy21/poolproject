@@ -10,6 +10,10 @@ import {
   CommissionFinalizationResult,
   CommissionSourceType,
   DirectCommissionFinalizationResult,
+  TeamSettlementBatchItemSnapshot,
+  TeamSettlementBatchProcessResult,
+  TeamSettlementBatchScaffoldResult,
+  TeamSettlementBatchSnapshotResult,
   UserBuybackProgressSnapshot,
 } from "../domain/commissions.types";
 import {
@@ -141,6 +145,35 @@ export interface CommissionsServiceContract {
         pageSize: number;
       }
   >;
+
+  scaffoldTeamSettlementBatch(
+    settlementDate: string,
+  ): Promise<TeamSettlementBatchScaffoldResult>;
+
+  processTeamSettlementBatch(
+    settlementDate: string,
+  ): Promise<TeamSettlementBatchProcessResult>;
+
+  getTeamSettlementBatchSnapshot(
+    settlementDate: string,
+  ): Promise<TeamSettlementBatchSnapshotResult>;
+
+  createPoolCommission(input: {
+    poolCycleId: string;
+    poolDate: string;
+    beneficiaryUserId: string;
+    evaluationAt: string;
+    basePv: string;
+    amount: string;
+  }): Promise<{
+    commissionId: string;
+    beneficiaryUserId: string | null;
+    beneficiaryCycleId: string | null;
+    finalPayableAmount: string;
+    releaseStatus: CommissionReleaseStatus;
+    commissionStatus: CommissionFinalizationResult["commissionStatus"];
+    fallbackReason: string | null;
+  } | null>;
 }
 
 @Injectable()
@@ -444,6 +477,504 @@ export class CommissionsService implements CommissionsServiceContract {
     pageSize?: number;
   }) {
     return this.commissionsRepository.listCompanyFallbackEntries(filters);
+  }
+
+  async scaffoldTeamSettlementBatch(
+    settlementDate: string,
+  ): Promise<TeamSettlementBatchScaffoldResult> {
+    const commissionSettings = readCommissionSettings();
+    const candidates =
+      await this.commissionsRepository.listTeamSettlementCandidates(
+        settlementDate,
+      );
+    const grouped = new Map<
+      string,
+      TeamSettlementBatchScaffoldResult["items"][number]
+    >();
+
+    for (const candidate of candidates) {
+      if (!candidate.uplineUserId || !candidate.placementSide) {
+        continue;
+      }
+
+      const existing = grouped.get(candidate.uplineUserId) ?? {
+        userId: candidate.uplineUserId,
+        availablePvByLeg: {
+          LEFT: { memberCount: 0, totalPv: "0" },
+          MIDDLE: { memberCount: 0, totalPv: "0" },
+          RIGHT: { memberCount: 0, totalPv: "0" },
+        },
+        plannedPaidPvByLeg: {
+          LEFT: "0",
+          MIDDLE: "0",
+          RIGHT: "0",
+        },
+        carryForwardPvByLeg: {
+          LEFT: "0",
+          MIDDLE: "0",
+          RIGHT: "0",
+        },
+        payablePv: "0",
+        bonusAmount: "0",
+        status: "planned" as const,
+      };
+
+      existing.availablePvByLeg[candidate.placementSide].memberCount += 1;
+      existing.availablePvByLeg[candidate.placementSide].totalPv =
+        addDecimalStrings(
+          existing.availablePvByLeg[candidate.placementSide].totalPv,
+          candidate.totalPv,
+        );
+      grouped.set(candidate.uplineUserId, existing);
+    }
+
+    const items = [...grouped.values()]
+      .map((item) =>
+        this.buildTeamSettlementScaffoldItem(item, {
+          teamTwoLegRate: commissionSettings.teamTwoLegRate,
+          teamThreeLegRate: commissionSettings.teamThreeLegRate,
+        }),
+      )
+      .sort((left, right) => left.userId.localeCompare(right.userId));
+
+    return this.commissionsRepository.replaceTeamSettlementBatchScaffold({
+      settlementDate,
+      items,
+    });
+  }
+
+  async processTeamSettlementBatch(
+    settlementDate: string,
+  ): Promise<TeamSettlementBatchProcessResult> {
+    const commissionSettings = readCommissionSettings();
+    const evaluationAt = `${settlementDate}T12:00:00+07:00`;
+    const items =
+      await this.commissionsRepository.listTeamSettlementBatchItems(
+        settlementDate,
+      );
+    const processedStatuses: Array<{
+      itemId: string;
+      status: TeamSettlementBatchItemSnapshot["status"];
+    }> = [];
+
+    for (const item of items) {
+      if (item.status !== "planned") {
+        processedStatuses.push({
+          itemId: item.itemId,
+          status: item.status,
+        });
+        continue;
+      }
+
+      const sourceType =
+        this.resolveTeamCommissionSourceType(item.plannedPaidPvByLeg);
+      const shouldCreateLedger =
+        !!sourceType &&
+        compareDecimalStrings(item.payablePv, "0") > 0 &&
+        compareDecimalStrings(item.bonusAmount, "0") > 0;
+
+      if (!shouldCreateLedger || !sourceType) {
+        processedStatuses.push({
+          itemId: item.itemId,
+          status: "carried_forward",
+        });
+        continue;
+      }
+
+      const rate =
+        sourceType === "team_3leg"
+          ? commissionSettings.teamThreeLegRate
+          : commissionSettings.teamTwoLegRate;
+      const existingTeamCommission =
+        await this.commissionsRepository.findExistingCommissionBySource({
+          sourceType,
+          sourceRefId: item.itemId,
+        });
+      const teamCommission =
+        existingTeamCommission ??
+        (await this.createTeamCommissionFromBatchItem({
+          item,
+          sourceType,
+          rate,
+          settlementDate,
+          evaluationAt,
+          commissionConfig: {
+            dailyCommissionCapAmount: commissionSettings.dailyCommissionCapAmount,
+            buybackThresholdAmount: commissionSettings.buybackThresholdAmount,
+            buybackGraceDays: commissionSettings.buybackGraceDays,
+          },
+        }));
+
+      if (
+        teamCommission &&
+        commissionSettings.appVisibility.matching !== false &&
+        teamCommission.commissionStatus !== "fallback" &&
+        compareDecimalStrings(teamCommission.finalPayableAmount, "0") > 0
+      ) {
+        await this.createMatchingCommissionsFromTeam({
+          sourceCommissionLedgerId: teamCommission.commissionId,
+          sourceUserId: item.userId,
+          evaluationAt,
+          settlementDate,
+          matchingBaseAmount: teamCommission.finalPayableAmount,
+          matchingLevelRates: commissionSettings.matchingLevelRates,
+        });
+      }
+
+      processedStatuses.push({
+        itemId: item.itemId,
+        status: "processed",
+      });
+    }
+
+    return this.commissionsRepository.markTeamSettlementBatchProcessed({
+      settlementDate,
+      items: processedStatuses,
+    });
+  }
+
+  async getTeamSettlementBatchSnapshot(
+    settlementDate: string,
+  ): Promise<TeamSettlementBatchSnapshotResult> {
+    return this.commissionsRepository.getTeamSettlementBatchSnapshot(
+      settlementDate,
+    );
+  }
+
+  async createPoolCommission(input: {
+    poolCycleId: string;
+    poolDate: string;
+    beneficiaryUserId: string;
+    evaluationAt: string;
+    basePv: string;
+    amount: string;
+  }): Promise<{
+    commissionId: string;
+    beneficiaryUserId: string | null;
+    beneficiaryCycleId: string | null;
+    finalPayableAmount: string;
+    releaseStatus: CommissionReleaseStatus;
+    commissionStatus: CommissionFinalizationResult["commissionStatus"];
+    fallbackReason: string | null;
+  } | null> {
+    const existingCommission =
+      await this.commissionsRepository.findExistingCommissionBySource({
+        sourceType: "pool",
+        sourceRefId: input.poolCycleId,
+        beneficiaryUserId: input.beneficiaryUserId,
+      });
+
+    if (existingCommission) {
+      return {
+        commissionId: existingCommission.commissionId,
+        beneficiaryUserId: existingCommission.beneficiaryUserId,
+        beneficiaryCycleId: existingCommission.beneficiaryCycleId,
+        finalPayableAmount: existingCommission.finalPayableAmount,
+        releaseStatus: existingCommission.releaseStatus,
+        commissionStatus: existingCommission.commissionStatus,
+        fallbackReason: existingCommission.fallbackReason,
+      };
+    }
+
+    const commissionConfig = this.readCommissionConfigFallback();
+    const finalization = await this.finalizeCommissionItem({
+      sourceType: "pool",
+      sourceRefId: input.poolCycleId,
+      sourceUserId: input.beneficiaryUserId,
+      beneficiaryUserId: input.beneficiaryUserId,
+      evaluationAt: input.evaluationAt,
+      basePv: input.basePv,
+      rate: "1",
+      amount: input.amount,
+      metadata: {
+        poolDate: input.poolDate,
+        poolCycleId: input.poolCycleId,
+      },
+      commissionConfig,
+    });
+
+    const persisted = await this.persistCommissionItem(
+      {
+        sourceType: "pool",
+        sourceRefId: input.poolCycleId,
+        sourceUserId: input.beneficiaryUserId,
+        beneficiaryUserId: input.beneficiaryUserId,
+        evaluationAt: input.evaluationAt,
+        basePv: input.basePv,
+        rate: "1",
+        amount: input.amount,
+        metadata: {
+          poolDate: input.poolDate,
+          poolCycleId: input.poolCycleId,
+        },
+        commissionConfig,
+      },
+      finalization,
+    );
+
+    if (!persisted) {
+      return null;
+    }
+
+    return {
+      commissionId: persisted.commissionId,
+      beneficiaryUserId: input.beneficiaryUserId,
+      beneficiaryCycleId: finalization.beneficiaryCycleId,
+      finalPayableAmount: finalization.finalPayableAmount,
+      releaseStatus: finalization.releaseStatus,
+      commissionStatus: finalization.commissionStatus,
+      fallbackReason: finalization.fallbackReason,
+    };
+  }
+
+  private buildTeamSettlementScaffoldItem(
+    item: TeamSettlementBatchScaffoldResult["items"][number],
+    rates: {
+      teamTwoLegRate: string;
+      teamThreeLegRate: string;
+    },
+  ): TeamSettlementBatchScaffoldResult["items"][number] {
+    const leftPv = item.availablePvByLeg.LEFT.totalPv;
+    const middlePv = item.availablePvByLeg.MIDDLE.totalPv;
+    const rightPv = item.availablePvByLeg.RIGHT.totalPv;
+    const positiveLegs = ([
+      ["LEFT", leftPv],
+      ["MIDDLE", middlePv],
+      ["RIGHT", rightPv],
+    ] as const).filter(([, totalPv]) => compareDecimalStrings(totalPv, "0") > 0);
+
+    let plannedPaidPvByLeg: TeamSettlementBatchScaffoldResult["items"][number]["plannedPaidPvByLeg"] =
+      {
+        LEFT: "0",
+        MIDDLE: "0",
+        RIGHT: "0",
+      };
+    let payablePv = "0";
+    let bonusAmount = "0";
+
+    if (positiveLegs.length >= 3) {
+      payablePv = positiveLegs.reduce(
+        (currentMin, [, totalPv]) => minDecimalString(currentMin, totalPv),
+        positiveLegs[0][1],
+      );
+      plannedPaidPvByLeg = {
+        LEFT: payablePv,
+        MIDDLE: payablePv,
+        RIGHT: payablePv,
+      };
+      bonusAmount = multiplyDecimalStrings(payablePv, rates.teamThreeLegRate);
+    } else if (positiveLegs.length >= 2) {
+      const payableLegs = positiveLegs
+        .sort((left, right) => compareDecimalStrings(left[1], right[1]))
+        .slice(0, 2);
+      payablePv = minDecimalString(payableLegs[0][1], payableLegs[1][1]);
+      plannedPaidPvByLeg = {
+        LEFT: "0",
+        MIDDLE: "0",
+        RIGHT: "0",
+      };
+      for (const [leg] of payableLegs) {
+        plannedPaidPvByLeg[leg] = payablePv;
+      }
+      bonusAmount = multiplyDecimalStrings(payablePv, rates.teamTwoLegRate);
+    }
+
+    return {
+      ...item,
+      plannedPaidPvByLeg,
+      carryForwardPvByLeg: {
+        LEFT: this.maxZeroDecimal(
+          subtractDecimalStrings(leftPv, plannedPaidPvByLeg.LEFT),
+        ),
+        MIDDLE: this.maxZeroDecimal(
+          subtractDecimalStrings(middlePv, plannedPaidPvByLeg.MIDDLE),
+        ),
+        RIGHT: this.maxZeroDecimal(
+          subtractDecimalStrings(rightPv, plannedPaidPvByLeg.RIGHT),
+        ),
+      },
+      payablePv,
+      bonusAmount,
+    };
+  }
+
+  private resolveTeamCommissionSourceType(
+    plannedPaidPvByLeg: TeamSettlementBatchItemSnapshot["plannedPaidPvByLeg"],
+  ): "team_2leg" | "team_3leg" | null {
+    const payableLegCount = Object.values(plannedPaidPvByLeg).filter(
+      (value) => compareDecimalStrings(value, "0") > 0,
+    ).length;
+
+    if (payableLegCount >= 3) {
+      return "team_3leg";
+    }
+
+    if (payableLegCount >= 2) {
+      return "team_2leg";
+    }
+
+    return null;
+  }
+
+  private async createTeamCommissionFromBatchItem(input: {
+    item: TeamSettlementBatchItemSnapshot;
+    sourceType: "team_2leg" | "team_3leg";
+    rate: string;
+    settlementDate: string;
+    evaluationAt: string;
+    commissionConfig: Required<
+      NonNullable<CommissionFinalizationInput["commissionConfig"]>
+    >;
+  }): Promise<{
+    commissionId: string;
+    beneficiaryUserId: string | null;
+    finalPayableAmount: string;
+    releaseStatus: CommissionReleaseStatus;
+    commissionStatus: CommissionFinalizationResult["commissionStatus"];
+  } | null> {
+    const finalization = await this.finalizeCommissionItem({
+      sourceType: input.sourceType,
+      sourceRefId: input.item.itemId,
+      sourceUserId: input.item.userId,
+      beneficiaryUserId: input.item.userId,
+      evaluationAt: input.evaluationAt,
+      basePv: input.item.payablePv,
+      rate: input.rate,
+      amount: input.item.bonusAmount,
+      metadata: {
+        settlementDate: input.settlementDate,
+        teamSettlementBatchItemId: input.item.itemId,
+        availablePvByLeg: input.item.availablePvByLeg,
+        plannedPaidPvByLeg: input.item.plannedPaidPvByLeg,
+        carryForwardPvByLeg: input.item.carryForwardPvByLeg,
+      },
+      commissionConfig: input.commissionConfig,
+    });
+
+    const persisted = await this.persistCommissionItem(
+      {
+        sourceType: input.sourceType,
+        sourceRefId: input.item.itemId,
+        sourceUserId: input.item.userId,
+        beneficiaryUserId: input.item.userId,
+        evaluationAt: input.evaluationAt,
+        basePv: input.item.payablePv,
+        rate: input.rate,
+        amount: input.item.bonusAmount,
+        metadata: {
+          settlementDate: input.settlementDate,
+          teamSettlementBatchItemId: input.item.itemId,
+          availablePvByLeg: input.item.availablePvByLeg,
+          plannedPaidPvByLeg: input.item.plannedPaidPvByLeg,
+          carryForwardPvByLeg: input.item.carryForwardPvByLeg,
+        },
+        commissionConfig: input.commissionConfig,
+      },
+      finalization,
+    );
+
+    if (!persisted) {
+      return null;
+    }
+
+    return {
+      commissionId: persisted.commissionId,
+      beneficiaryUserId: input.item.userId,
+      finalPayableAmount: finalization.finalPayableAmount,
+      releaseStatus: finalization.releaseStatus,
+      commissionStatus: finalization.commissionStatus,
+    };
+  }
+
+  private async createMatchingCommissionsFromTeam(input: {
+    sourceCommissionLedgerId: string;
+    sourceUserId: string;
+    evaluationAt: string;
+    settlementDate: string;
+    matchingBaseAmount: string;
+    matchingLevelRates: string[];
+  }): Promise<void> {
+    if (compareDecimalStrings(input.matchingBaseAmount, "0") <= 0) {
+      return;
+    }
+
+    const candidateUserIds = await this.membersService.getUplineCandidateIds(
+      input.sourceUserId,
+      input.evaluationAt,
+    );
+    const matchingCandidateUserIds =
+      await this.resolveDirectBonusCandidatePath({
+        sourceUserId: input.sourceUserId,
+        evaluationAt: input.evaluationAt,
+        candidateUserIds,
+        directLevelCount: input.matchingLevelRates.length,
+      });
+
+    for (const [index, rate] of input.matchingLevelRates.entries()) {
+      const beneficiaryUserId = matchingCandidateUserIds[index] ?? null;
+      const amount = multiplyDecimalStrings(input.matchingBaseAmount, rate);
+
+      if (this.shouldSkipCommission(rate, amount)) {
+        continue;
+      }
+
+      const levelNo = index + 1;
+      const sourceType =
+        levelNo === 1 ? ("matching_l1" as const) : ("matching_l2" as const);
+      const existingMatchingCommission =
+        await this.commissionsRepository.findExistingCommissionBySource({
+          sourceType,
+          sourceRefId: input.sourceCommissionLedgerId,
+          sourceCommissionLedgerId: input.sourceCommissionLedgerId,
+          levelNo,
+        });
+
+      if (existingMatchingCommission) {
+        continue;
+      }
+
+      const finalization =
+        beneficiaryUserId
+          ? await this.finalizeCommissionItem({
+              sourceType,
+              sourceRefId: input.sourceCommissionLedgerId,
+              sourceUserId: input.sourceUserId,
+              beneficiaryUserId,
+              evaluationAt: input.evaluationAt,
+              basePv: input.matchingBaseAmount,
+              rate,
+              amount,
+              levelNo,
+              sourceCommissionLedgerId: input.sourceCommissionLedgerId,
+              metadata: {
+                settlementDate: input.settlementDate,
+                sourceTeamCommissionLedgerId: input.sourceCommissionLedgerId,
+                matchingBaseAmount: input.matchingBaseAmount,
+              },
+            })
+          : this.buildUniMissingBeneficiaryFinalization(amount);
+
+      await this.persistCommissionItem(
+        {
+          sourceType,
+          sourceRefId: input.sourceCommissionLedgerId,
+          sourceUserId: input.sourceUserId,
+          beneficiaryUserId,
+          evaluationAt: input.evaluationAt,
+          basePv: input.matchingBaseAmount,
+          rate,
+          amount,
+          levelNo,
+          sourceCommissionLedgerId: input.sourceCommissionLedgerId,
+          metadata: {
+            settlementDate: input.settlementDate,
+            sourceTeamCommissionLedgerId: input.sourceCommissionLedgerId,
+            matchingBaseAmount: input.matchingBaseAmount,
+          },
+        },
+        finalization,
+      );
+    }
   }
 
   private async buildCashbackDrafts(
@@ -918,9 +1449,9 @@ export class CommissionsService implements CommissionsServiceContract {
   private async persistCommissionItem(
     input: CommissionFinalizationInput,
     finalization: CommissionFinalizationResult,
-  ): Promise<void> {
+  ): Promise<{ commissionId: string } | null> {
     if (this.shouldSkipCommission(input.rate, input.amount)) {
-      return;
+      return null;
     }
 
     const { commissionId } =
@@ -955,7 +1486,7 @@ export class CommissionsService implements CommissionsServiceContract {
 
     if (finalization.commissionStatus === "fallback" && finalization.fallbackReason) {
       if (compareDecimalStrings(finalization.finalPayableAmount, "0") <= 0) {
-        return;
+        return { commissionId };
       }
 
       await this.createCompanyFallback({
@@ -965,6 +1496,8 @@ export class CommissionsService implements CommissionsServiceContract {
         reasonCode: finalization.fallbackReason,
       });
     }
+
+    return { commissionId };
   }
 
   private readCommissionConfigFallback(): Required<

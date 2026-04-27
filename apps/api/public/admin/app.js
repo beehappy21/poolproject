@@ -87,6 +87,13 @@ const createMemberForm = document.getElementById("createMemberForm");
 const createOrderForm = document.getElementById("createOrderForm");
 const activatePackageForm = document.getElementById("activatePackageForm");
 const closePoolForm = document.getElementById("closePoolForm");
+const teamSettlementDateInput = document.getElementById("teamSettlementDateInput");
+const teamSettlementScaffoldButton = document.getElementById("teamSettlementScaffoldButton");
+const teamSettlementProcessButton = document.getElementById("teamSettlementProcessButton");
+const teamSettlementSnapshotButton = document.getElementById("teamSettlementSnapshotButton");
+const runtimeVerifyPoolDateInput = document.getElementById("runtimeVerifyPoolDateInput");
+const runtimeVerifyPoolSnapshotButton = document.getElementById("runtimeVerifyPoolSnapshotButton");
+const runtimeVerifyPoolPayoutsButton = document.getElementById("runtimeVerifyPoolPayoutsButton");
 const orderPackageSelect = document.getElementById("orderPackageSelect");
 const activatePackageSelect = document.getElementById("activatePackageSelect");
 const packageCodeInput = document.getElementById("packageCodeInput");
@@ -2599,6 +2606,59 @@ async function loadPoolSnapshot(poolDate) {
   pushHistory("Pool Snapshot", `Loaded snapshot for ${poolDate}`);
 }
 
+async function loadTeamSettlementSnapshot(settlementDate) {
+  if (!settlementDate) {
+    setActionOutput("Team settlement snapshot failed", {
+      message: "settlementDate is required",
+    });
+    return;
+  }
+
+  setStatus(`Loading team settlement snapshot ${settlementDate}`);
+  const snapshot = await request(
+    `/commissions/team-settlement-batches/${encodeURIComponent(settlementDate)}/snapshot`,
+  );
+  setActionOutput(`Team settlement snapshot ${settlementDate}`, snapshot);
+  setStatus(`Loaded team settlement snapshot ${settlementDate}`);
+  pushHistory("Team Snapshot", `Loaded team settlement snapshot for ${settlementDate}`);
+}
+
+async function scaffoldTeamSettlement(settlementDate) {
+  if (!settlementDate) {
+    setActionOutput("Team settlement scaffold failed", {
+      message: "settlementDate is required",
+    });
+    return;
+  }
+
+  setStatus(`Scaffolding team settlement ${settlementDate}`);
+  const result = await request(
+    `/commissions/team-settlement-batches/${encodeURIComponent(settlementDate)}/scaffold`,
+    { method: "POST" },
+  );
+  setActionOutput(`Team settlement scaffold ${settlementDate}`, result);
+  setStatus(`Scaffolded team settlement ${settlementDate}`);
+  pushHistory("Team Scaffold", `Scaffolded team settlement for ${settlementDate}`);
+}
+
+async function processTeamSettlement(settlementDate) {
+  if (!settlementDate) {
+    setActionOutput("Team settlement process failed", {
+      message: "settlementDate is required",
+    });
+    return;
+  }
+
+  setStatus(`Processing team settlement ${settlementDate}`);
+  const result = await request(
+    `/commissions/team-settlement-batches/${encodeURIComponent(settlementDate)}/process`,
+    { method: "POST" },
+  );
+  setActionOutput(`Team settlement process ${settlementDate}`, result);
+  setStatus(`Processed team settlement ${settlementDate}`);
+  pushHistory("Team Process", `Processed team settlement for ${settlementDate}`);
+}
+
 async function loadReferralLink(memberCode) {
   if (!memberCode) {
     setActionOutput("Referral link failed", { message: "memberCode is required" });
@@ -2883,6 +2943,51 @@ if (loadPoolPayoutsButton) {
     loadPoolPayouts(poolPayoutDateInput.value).catch((error) => {
       setStatus(error.message);
       setActionOutput("Pool payout lookup failed", { message: error.message });
+    });
+  });
+}
+
+if (teamSettlementScaffoldButton) {
+  teamSettlementScaffoldButton.addEventListener("click", () => {
+    scaffoldTeamSettlement(teamSettlementDateInput?.value || "").catch((error) => {
+      setStatus(error.message);
+      setActionOutput("Team settlement scaffold failed", { message: error.message });
+    });
+  });
+}
+
+if (teamSettlementProcessButton) {
+  teamSettlementProcessButton.addEventListener("click", () => {
+    processTeamSettlement(teamSettlementDateInput?.value || "").catch((error) => {
+      setStatus(error.message);
+      setActionOutput("Team settlement process failed", { message: error.message });
+    });
+  });
+}
+
+if (teamSettlementSnapshotButton) {
+  teamSettlementSnapshotButton.addEventListener("click", () => {
+    loadTeamSettlementSnapshot(teamSettlementDateInput?.value || "").catch((error) => {
+      setStatus(error.message);
+      setActionOutput("Team settlement snapshot failed", { message: error.message });
+    });
+  });
+}
+
+if (runtimeVerifyPoolSnapshotButton) {
+  runtimeVerifyPoolSnapshotButton.addEventListener("click", () => {
+    loadPoolSnapshot(runtimeVerifyPoolDateInput?.value || "").catch((error) => {
+      setStatus(error.message);
+      setActionOutput("Pool snapshot failed", { message: error.message });
+    });
+  });
+}
+
+if (runtimeVerifyPoolPayoutsButton) {
+  runtimeVerifyPoolPayoutsButton.addEventListener("click", () => {
+    loadPoolPayouts(runtimeVerifyPoolDateInput?.value || "").catch((error) => {
+      setStatus(error.message);
+      setActionOutput("Pool payouts failed", { message: error.message });
     });
   });
 }
