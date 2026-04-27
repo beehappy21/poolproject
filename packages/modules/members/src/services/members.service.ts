@@ -140,6 +140,7 @@ export interface MembersServiceContract {
       referralCode: string;
       name: string;
       sponsorId: string | null;
+      placementSide?: "LEFT" | "MIDDLE" | "RIGHT" | null;
       childCount: number;
     }>;
   } | null>;

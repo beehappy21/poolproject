@@ -10,13 +10,6 @@ import {RootState} from '../store';
 
 const commissionCards = [
   {
-    key: 'cashback',
-    label: 'cashback',
-    title: 'Cashback / แคชแบ็ก',
-    value: 'ซื้อเองแล้วรับคืนตาม PV ที่อนุมัติ',
-    note: 'ใช้กับยอด cashback ของสมาชิกจากการซื้อส่วนตัว',
-  },
-  {
     key: 'direct',
     label: 'direct',
     title: 'Direct / โบนัสแนะนำ',
@@ -24,18 +17,18 @@ const commissionCards = [
     note: 'ใช้แสดงข้อมูลโบนัสแนะนำจากสมาชิกที่อยู่ใต้สายงานตรง',
   },
   {
-    key: 'unilevel',
-    label: 'unilevel',
-    title: 'Unilevel / ยูนิลีเวล',
-    value: 'รายได้ตามลำดับชั้นทีมงาน',
-    note: 'ใช้สำหรับสรุปคอมมิชชั่นระดับทีมหลายชั้น',
+    key: 'team',
+    label: 'team',
+    title: 'Team / โบนัสทีม',
+    value: 'รายได้จาก TEAM 2-leg และ 3-leg',
+    note: 'ใช้แสดงข้อมูลโบนัสทีมจากยอดที่ระบบ process และจ่ายจริงแล้ว',
   },
   {
-    key: 'matrix',
-    label: 'matrix',
-    title: 'Matrix / เมทริกซ์',
-    value: 'รายได้จาก matrix board',
-    note: 'ใช้แสดงผล payout ของ matrix ตาม board ที่สมาชิกมีสิทธิ์',
+    key: 'matching',
+    label: 'matching',
+    title: 'Matching / โบนัสแมชชิ่ง',
+    value: 'รายได้จาก MATCHING L1 และ L2',
+    note: 'ใช้แสดงข้อมูล matching bonus ที่อ้างอิงจาก team commission ที่จ่ายจริง',
   },
   {
     key: 'pool',
@@ -43,6 +36,13 @@ const commissionCards = [
     title: 'Pool / พูล',
     value: 'รายได้จาก pool bonus',
     note: 'ใช้สำหรับแสดงการแบ่ง pool รายวันหรือรอบที่ระบบอนุมัติแล้ว',
+  },
+  {
+    key: 'cashback',
+    label: 'cashback',
+    title: 'Cashback / แคชแบ็ก',
+    value: 'ซื้อเองแล้วรับคืนตาม PV ที่อนุมัติ',
+    note: 'ใช้กับยอด cashback ของสมาชิกจากการซื้อส่วนตัว',
   },
 ] as const;
 
@@ -107,11 +107,17 @@ type DirectReferralSummary = {
   memberId: string;
   memberCode: string;
   name: string;
+  placementSide?: 'LEFT' | 'MIDDLE' | 'RIGHT' | null;
   childCount: number;
 };
 
 type DirectReferralsResponse = {
   directReferrals?: DirectReferralSummary[];
+  member?: {
+    memberId?: string;
+    memberCode?: string;
+    name?: string;
+  };
 };
 
 type MatrixBoardSummary = {
@@ -319,8 +325,14 @@ const getCommissionTypeLabel = (value?: string | null) => {
   switch (value?.toLowerCase()) {
     case 'direct':
       return 'Direct';
-    case 'uni':
-      return 'Unilevel';
+    case 'team_2leg':
+      return 'Team 2-Leg';
+    case 'team_3leg':
+      return 'Team 3-Leg';
+    case 'matching_l1':
+      return 'Matching L1';
+    case 'matching_l2':
+      return 'Matching L2';
     case 'pool':
       return 'Pool';
     case 'cashback':
@@ -355,6 +367,15 @@ const extractCommissionTotal = (payload?: CommissionResponsePayload): number => 
   }
 
   return payload.total ?? payload.items?.length ?? 0;
+};
+
+const isNonFallbackCommissionEntry = (entry: CommissionEntry) => {
+  return entry.status?.toLowerCase() !== 'fallback';
+};
+
+const hasCommissionType = (entry: CommissionEntry, types: string[]) => {
+  const normalizedType = entry.commissionType?.toLowerCase();
+  return normalizedType ? types.includes(normalizedType) : false;
 };
 
 const resolveReentryTarget = (
@@ -444,11 +465,11 @@ export const Commission: React.FC = () => {
     board: MatrixBoardSummary;
   } | null>(null);
   const [visibility, setVisibility] = useState<Record<CommissionKey, boolean>>({
-    cashback: true,
     direct: true,
-    unilevel: true,
-    matrix: true,
+    team: true,
+    matching: true,
     pool: true,
+    cashback: true,
   });
 
   const loadCommissionPage = async () => {
@@ -521,13 +542,13 @@ export const Commission: React.FC = () => {
 
       if (commissionSettingsResult.status === 'fulfilled') {
         setVisibility({
+          direct: commissionSettingsResult.value.data.appVisibility?.direct !== false,
+          team: commissionSettingsResult.value.data.appVisibility?.team !== false,
+          matching:
+            commissionSettingsResult.value.data.appVisibility?.matching !== false,
+          pool: commissionSettingsResult.value.data.appVisibility?.pool !== false,
           cashback:
             commissionSettingsResult.value.data.appVisibility?.cashback !== false,
-          direct: commissionSettingsResult.value.data.appVisibility?.direct !== false,
-          unilevel:
-            commissionSettingsResult.value.data.appVisibility?.unilevel !== false,
-          matrix: commissionSettingsResult.value.data.appVisibility?.matrix !== false,
-          pool: commissionSettingsResult.value.data.appVisibility?.pool !== false,
         });
       }
 
@@ -743,12 +764,6 @@ export const Commission: React.FC = () => {
     ? visibleButtons.find(card => card.key === selectedKey)
     : null;
   const isMobileViewport = viewportWidth < 768;
-  const isTabletViewport = viewportWidth >= 768 && viewportWidth < 1180;
-  const matrixBoardWidth = isMobileViewport
-    ? 'calc((100% - 22px) / 2.2)'
-    : isTabletViewport
-      ? '168px'
-      : '196px';
   const activeCycle = useMemo(
     () => resolveActiveMatrixCycle(matrixData),
     [matrixData],
@@ -773,9 +788,6 @@ export const Commission: React.FC = () => {
       cwAvailableForDisplay >= autoOrderAmount
     );
   }, [autoOrderAmount, cwAvailableForDisplay, reentryEligible]);
-  const matrixPvHoldAmount = useMemo(() => {
-    return Math.max(parseDecimal(activeCycle?.personalCarryPv), 0);
-  }, [activeCycle?.personalCarryPv]);
 
   const cwRecentEntries = useMemo(() => {
     return commissionEntries
@@ -790,7 +802,11 @@ export const Commission: React.FC = () => {
 
   const cashbackEntries = useMemo(() => {
     return commissionEntries
-      .filter(entry => entry.commissionType?.toLowerCase() === 'cashback')
+      .filter(
+        entry =>
+          isNonFallbackCommissionEntry(entry) &&
+          entry.commissionType?.toLowerCase() === 'cashback',
+      )
       .sort(
         (left, right) =>
           new Date(right.createdAt || 0).getTime() -
@@ -800,7 +816,53 @@ export const Commission: React.FC = () => {
 
   const directEntries = useMemo(() => {
     return commissionEntries
-      .filter(entry => entry.commissionType?.toLowerCase() === 'direct')
+      .filter(
+        entry =>
+          isNonFallbackCommissionEntry(entry) &&
+          entry.commissionType?.toLowerCase() === 'direct',
+      )
+      .sort(
+        (left, right) =>
+          new Date(right.createdAt || 0).getTime() -
+          new Date(left.createdAt || 0).getTime(),
+      );
+  }, [commissionEntries]);
+
+  const teamEntries = useMemo(() => {
+    return commissionEntries
+      .filter(
+        entry =>
+          isNonFallbackCommissionEntry(entry) &&
+          hasCommissionType(entry, ['team_2leg', 'team_3leg']),
+      )
+      .sort(
+        (left, right) =>
+          new Date(right.createdAt || 0).getTime() -
+          new Date(left.createdAt || 0).getTime(),
+      );
+  }, [commissionEntries]);
+
+  const matchingEntries = useMemo(() => {
+    return commissionEntries
+      .filter(
+        entry =>
+          isNonFallbackCommissionEntry(entry) &&
+          hasCommissionType(entry, ['matching_l1', 'matching_l2']),
+      )
+      .sort(
+        (left, right) =>
+          new Date(right.createdAt || 0).getTime() -
+          new Date(left.createdAt || 0).getTime(),
+      );
+  }, [commissionEntries]);
+
+  const poolEntries = useMemo(() => {
+    return commissionEntries
+      .filter(
+        entry =>
+          isNonFallbackCommissionEntry(entry) &&
+          entry.commissionType?.toLowerCase() === 'pool',
+      )
       .sort(
         (left, right) =>
           new Date(right.createdAt || 0).getTime() -
@@ -815,6 +877,18 @@ export const Commission: React.FC = () => {
   const directTotal = useMemo(() => {
     return directEntries.reduce((sum, entry) => sum + parseDecimal(entry.amount), 0);
   }, [directEntries]);
+
+  const teamTotal = useMemo(() => {
+    return teamEntries.reduce((sum, entry) => sum + parseDecimal(entry.amount), 0);
+  }, [teamEntries]);
+
+  const matchingTotal = useMemo(() => {
+    return matchingEntries.reduce((sum, entry) => sum + parseDecimal(entry.amount), 0);
+  }, [matchingEntries]);
+
+  const poolTotal = useMemo(() => {
+    return poolEntries.reduce((sum, entry) => sum + parseDecimal(entry.amount), 0);
+  }, [poolEntries]);
 
   const recentDcwTransactions = useMemo(() => {
     return walletTransactions
@@ -890,205 +964,88 @@ export const Commission: React.FC = () => {
     cwTotal: formatDecimal(cwAvailableForDisplay),
   });
 
+  const commissionOverviewCards = useMemo(() => {
+    const cardMap: Record<
+      CommissionKey,
+      {title: string; amount: number; count: number; accent: string}
+    > = {
+      direct: {
+        title: 'Direct',
+        amount: directTotal,
+        count: directEntries.length,
+        accent: '#1D4ED8',
+      },
+      team: {
+        title: 'Team',
+        amount: teamTotal,
+        count: teamEntries.length,
+        accent: '#EA580C',
+      },
+      matching: {
+        title: 'Matching',
+        amount: matchingTotal,
+        count: matchingEntries.length,
+        accent: '#7C3AED',
+      },
+      pool: {
+        title: 'Pool',
+        amount: poolTotal,
+        count: poolEntries.length,
+        accent: '#0284C7',
+      },
+      cashback: {
+        title: 'Cashback',
+        amount: cashbackTotal,
+        count: cashbackEntries.length,
+        accent: '#0F766E',
+      },
+    };
+
+    return visibleButtons.map(card => ({
+      key: card.key,
+      title: cardMap[card.key].title,
+      amount: cardMap[card.key].amount,
+      count: cardMap[card.key].count,
+      accent: cardMap[card.key].accent,
+    }));
+  }, [
+    cashbackEntries.length,
+    cashbackTotal,
+    directEntries.length,
+    directTotal,
+    matchingEntries.length,
+    matchingTotal,
+    poolEntries.length,
+    poolTotal,
+    teamEntries.length,
+    teamTotal,
+    visibleButtons,
+  ]);
+
+
   const renderCommissionSummaryCard = () => {
-    if (!selectedCard || selectedCard.key === 'matrix') {
+    if (!selectedCard) {
       return null;
     }
 
-    if (selectedCard.key === 'cashback') {
-      return (
-        <section style={{display: 'grid', gap: 12}}>
-          <div
-            style={{
-              padding: 18,
-              borderRadius: 16,
-              backgroundColor: theme.colors.white,
-              border: `1px solid ${theme.colors.aliceBlue2}`,
-            }}
-          >
-            <p
-              style={{
-                margin: '0 0 6px',
-                color: theme.colors.textColor,
-                fontSize: 14,
-                ...theme.fonts.Mulish_400Regular,
-              }}
-            >
-              {selectedCard.title}
-            </p>
-            <h3
-              style={{
-                margin: '0 0 8px',
-                color: theme.colors.mainColor,
-                fontSize: 22,
-                ...theme.fonts.Mulish_700Bold,
-              }}
-            >
-              รวม {formatDecimal(cashbackTotal)}
-            </h3>
-            <p style={{margin: 0, color: theme.colors.textColor, lineHeight: 1.6}}>
-              รายการ cashback ทั้งหมด {cashbackEntries.length} รายการ
-            </p>
-          </div>
+    const selectedEntriesMap: Record<CommissionKey, CommissionEntry[]> = {
+      direct: directEntries,
+      team: teamEntries,
+      matching: matchingEntries,
+      pool: poolEntries,
+      cashback: cashbackEntries,
+    };
 
-          {cashbackEntries.slice(0, 5).map(entry => (
-            <article
-              key={entry.commissionId || `${entry.createdAt}-${entry.amount}`}
-              style={{
-                padding: 14,
-                borderRadius: 14,
-                backgroundColor: '#F8FAFC',
-                border: `1px solid ${theme.colors.aliceBlue2}`,
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: 12,
-                  marginBottom: 6,
-                }}
-              >
-                <div style={{color: theme.colors.mainColor, ...theme.fonts.Mulish_700Bold}}>
-                  Cashback
-                </div>
-                <div style={{color: theme.colors.mainColor, ...theme.fonts.Mulish_700Bold}}>
-                  {formatDecimal(parseDecimal(entry.amount))}
-                </div>
-              </div>
-              <div style={{color: theme.colors.textColor, lineHeight: 1.6}}>
-                <div>เวลา: {formatDateTime(entry.createdAt)}</div>
-                <div>สถานะ: {entry.status || '-'}</div>
-              </div>
-            </article>
-          ))}
+    const selectedTotalMap: Record<CommissionKey, number> = {
+      direct: directTotal,
+      team: teamTotal,
+      matching: matchingTotal,
+      pool: poolTotal,
+      cashback: cashbackTotal,
+    };
 
-          {!cashbackEntries.length ? (
-            <div style={{color: theme.colors.textColor}}>ยังไม่มีรายการ cashback</div>
-          ) : null}
-        </section>
-      );
-    }
-
-    if (selectedCard.key === 'direct') {
-      return (
-        <section style={{display: 'grid', gap: 12}}>
-          <div
-            style={{
-              padding: 18,
-              borderRadius: 16,
-              backgroundColor: theme.colors.white,
-              border: `1px solid ${theme.colors.aliceBlue2}`,
-            }}
-          >
-            <p
-              style={{
-                margin: '0 0 6px',
-                color: theme.colors.textColor,
-                fontSize: 14,
-                ...theme.fonts.Mulish_400Regular,
-              }}
-            >
-              {selectedCard.title}
-            </p>
-            <h3
-              style={{
-                margin: '0 0 8px',
-                color: theme.colors.mainColor,
-                fontSize: 22,
-                ...theme.fonts.Mulish_700Bold,
-              }}
-            >
-              รวม {formatDecimal(directTotal)}
-            </h3>
-            <p style={{margin: 0, color: theme.colors.textColor, lineHeight: 1.6}}>
-              สมาชิกสายตรง {directReferrals.length} คน · รายการ direct {directEntries.length} รายการ
-            </p>
-          </div>
-
-          {directReferrals.length ? (
-            <section
-              style={{
-                padding: 14,
-                borderRadius: 14,
-                backgroundColor: '#F8FAFC',
-                border: `1px solid ${theme.colors.aliceBlue2}`,
-              }}
-            >
-              <div
-                style={{
-                  marginBottom: 10,
-                  color: theme.colors.mainColor,
-                  ...theme.fonts.Mulish_700Bold,
-                }}
-              >
-                สมาชิกสายตรง
-              </div>
-              <div style={{display: 'grid', gap: 10}}>
-                {directReferrals.slice(0, 5).map(referral => (
-                  <div
-                    key={referral.memberId}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      gap: 12,
-                    }}
-                  >
-                    <div>
-                      <div style={{color: theme.colors.mainColor, ...theme.fonts.Mulish_700Bold}}>
-                        {referral.memberCode}
-                      </div>
-                      <div style={{color: theme.colors.textColor}}>{referral.name}</div>
-                    </div>
-                    <div style={{color: theme.colors.textColor}}>
-                      ทีมย่อย {referral.childCount}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          ) : null}
-
-          {directEntries.slice(0, 5).map(entry => (
-            <article
-              key={entry.commissionId || `${entry.createdAt}-${entry.amount}`}
-              style={{
-                padding: 14,
-                borderRadius: 14,
-                backgroundColor: '#F8FAFC',
-                border: `1px solid ${theme.colors.aliceBlue2}`,
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: 12,
-                  marginBottom: 6,
-                }}
-              >
-                <div style={{color: theme.colors.mainColor, ...theme.fonts.Mulish_700Bold}}>
-                  Direct {entry.levelNo ? `L${entry.levelNo}` : ''}
-                </div>
-                <div style={{color: theme.colors.mainColor, ...theme.fonts.Mulish_700Bold}}>
-                  {formatDecimal(parseDecimal(entry.amount))}
-                </div>
-              </div>
-              <div style={{color: theme.colors.textColor, lineHeight: 1.6}}>
-                <div>เวลา: {formatDateTime(entry.createdAt)}</div>
-                <div>สถานะ: {entry.status || '-'}</div>
-              </div>
-            </article>
-          ))}
-
-          {!directEntries.length && !directReferrals.length ? (
-            <div style={{color: theme.colors.textColor}}>ยังไม่มีข้อมูล direct</div>
-          ) : null}
-        </section>
-      );
-    }
+    const selectedEntries = selectedEntriesMap[selectedCard.key];
+    const selectedTotal = selectedTotalMap[selectedCard.key];
 
     return (
       <section style={{display: 'grid', gap: 12}}>
@@ -1118,8 +1075,8 @@ export const Commission: React.FC = () => {
               fontSize: 22,
               ...theme.fonts.Mulish_700Bold,
             }}
-          >
-            {selectedCard.value}
+            >
+            รวม {formatDecimal(selectedTotal)}
           </h3>
           <p
             style={{
@@ -1129,9 +1086,105 @@ export const Commission: React.FC = () => {
               ...theme.fonts.Mulish_400Regular,
             }}
           >
-            {selectedCard.note}
+            {selectedCard.key === 'direct'
+              ? `สมาชิกสายตรง ${directReferrals.length} คน · รายการ direct ${directEntries.length} รายการ`
+              : `${selectedCard.note} · พบ ${selectedEntries.length} รายการ`}
           </p>
         </div>
+
+        {selectedCard.key === 'direct' && directReferrals.length ? (
+          <section
+            style={{
+              padding: 14,
+              borderRadius: 14,
+              backgroundColor: '#F8FAFC',
+              border: `1px solid ${theme.colors.aliceBlue2}`,
+            }}
+          >
+            <div
+              style={{
+                marginBottom: 10,
+                color: theme.colors.mainColor,
+                ...theme.fonts.Mulish_700Bold,
+              }}
+            >
+              สมาชิกสายตรง
+            </div>
+            <div style={{display: 'grid', gap: 10}}>
+              {directReferrals.slice(0, 5).map(referral => (
+                <div
+                  key={referral.memberId}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                  }}
+                >
+                  <div>
+                    <div style={{color: theme.colors.mainColor, ...theme.fonts.Mulish_700Bold}}>
+                      {referral.memberCode}
+                    </div>
+                    <div style={{color: theme.colors.textColor}}>{referral.name}</div>
+                  </div>
+                  <div style={{color: theme.colors.textColor}}>
+                    ทีมย่อย {referral.childCount}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {selectedEntries.slice(0, 5).map(entry => {
+          const member = entry.sourceUserId
+            ? memberDirectory.get(entry.sourceUserId)
+            : undefined;
+
+          return (
+            <article
+              key={entry.commissionId || `${entry.createdAt}-${entry.amount}`}
+              style={{
+                padding: 14,
+                borderRadius: 14,
+                backgroundColor: '#F8FAFC',
+                border: `1px solid ${theme.colors.aliceBlue2}`,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 12,
+                  marginBottom: 6,
+                }}
+              >
+                <div style={{color: theme.colors.mainColor, ...theme.fonts.Mulish_700Bold}}>
+                  {getCommissionTypeLabel(entry.commissionType)}
+                </div>
+                <div style={{color: theme.colors.mainColor, ...theme.fonts.Mulish_700Bold}}>
+                  {formatDecimal(parseDecimal(entry.amount))}
+                </div>
+              </div>
+              <div style={{color: theme.colors.textColor, lineHeight: 1.6}}>
+                {member?.memberCode || member?.name ? (
+                  <div>
+                    จาก: {member?.memberCode || '-'}
+                    {member?.name ? ` · ${member.name}` : ''}
+                  </div>
+                ) : null}
+                <div>เวลา: {formatDateTime(entry.createdAt)}</div>
+                <div>สถานะ: {entry.status || '-'}</div>
+              </div>
+            </article>
+          );
+        })}
+
+        {!selectedEntries.length && !(selectedCard.key === 'direct' && directReferrals.length) ? (
+          <div style={{color: theme.colors.textColor}}>
+            ยังไม่มีข้อมูล {selectedCard.label}
+          </div>
+        ) : null}
       </section>
     );
   };
@@ -1247,328 +1300,6 @@ export const Commission: React.FC = () => {
         positions,
       };
     });
-  };
-
-const getBoardStatusLabel = (board: MatrixBoardSummary) => {
-  if (board.status?.toLowerCase() === 'completed') {
-    return 'Complete';
-  }
-
-  if (
-    board.status?.toLowerCase() === 'active' ||
-    board.status?.toLowerCase() === 'open'
-  ) {
-    return 'Active';
-  }
-
-  if (board.status?.toLowerCase() === 'locked') {
-    return 'Locked';
-  }
-
-  return 'Wait';
-};
-
-  const renderMatrixBoardCard = (
-    cycle: MatrixCycleSummary,
-    board: MatrixBoardSummary,
-    widthOverride?: string,
-  ): JSX.Element => {
-    const levelRows = getBoardLevelRows(cycle, board);
-    const statusLabel = getBoardStatusLabel(board);
-    const isComplete = statusLabel === 'Complete';
-    const isActive = statusLabel === 'Active';
-    const boardTitle = `Board ${board.boardNo || 1}`;
-    const roundLabel = `Round ${board.roundNo || 1}`;
-
-    return (
-      <button
-        key={`${cycle.cycleId}-${board.boardId}`}
-        onClick={() => setSelectedMatrixBoard({cycleNo: cycle.cycleNo || 1, board})}
-        style={{
-          border: 'none',
-          textAlign: 'left',
-          borderRadius: 16,
-          padding: isMobileViewport ? 6 : 11,
-          cursor: 'pointer',
-          background:
-            'linear-gradient(180deg, rgba(96,126,218,0.96) 0%, rgba(96,126,218,0.90) 100%)',
-          boxShadow: '0 12px 24px rgba(47, 74, 156, 0.22)',
-          color: '#FFFFFF',
-          display: 'grid',
-          gap: isMobileViewport ? 6 : 8,
-          width: widthOverride || matrixBoardWidth,
-          minWidth: widthOverride || matrixBoardWidth,
-          flex: '0 0 auto',
-          overflow: 'hidden',
-          scrollSnapAlign: 'start',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'flex-start',
-            gap: 12,
-          }}
-        >
-          <div>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                marginBottom: 4,
-              }}
-            >
-              <span
-                style={{
-                  width: isMobileViewport ? 9 : 11,
-                  height: isMobileViewport ? 9 : 11,
-                  borderRadius: '50%',
-                  backgroundColor: '#8CF369',
-                  boxShadow: '0 0 0 2px rgba(255,255,255,0.12)',
-                }}
-              />
-              <strong
-              style={{
-                fontSize: isMobileViewport ? 9 : 10,
-                ...theme.fonts.Mulish_700Bold,
-              }}
-            >
-                S Size
-              </strong>
-            </div>
-            <div
-              style={{
-                fontSize: isMobileViewport ? 8 : 9,
-                ...theme.fonts.Mulish_600SemiBold,
-              }}
-            >
-              {formatDecimal(parseDecimal(board.openThresholdPv))}
-              {' '}point
-            </div>
-          </div>
-
-          <div style={{textAlign: 'right'}}>
-            <div
-              style={{
-                fontSize: isMobileViewport ? 10 : 11,
-                ...theme.fonts.Mulish_700Bold,
-                marginBottom: isMobileViewport ? 2 : 4,
-              }}
-            >
-              {boardTitle}
-            </div>
-            <div
-              style={{
-                fontSize: isMobileViewport ? 8 : 9,
-                ...theme.fonts.Mulish_600SemiBold,
-                opacity: 0.92,
-              }}
-            >
-              {roundLabel}
-            </div>
-          </div>
-        </div>
-
-        <div
-          style={{
-            display: 'grid',
-            gap: isMobileViewport ? 6 : 10,
-            maxHeight: isMobileViewport ? 102 : 172,
-            overflowY: 'auto',
-            paddingRight: 2,
-          }}
-        >
-            {levelRows.map(level => (
-            <div key={`${board.boardId}-level-${level.levelNo}`}>
-              <div
-                style={{
-                  marginBottom: isMobileViewport ? 4 : 6,
-                  fontSize: isMobileViewport ? 8 : 10,
-                  ...theme.fonts.Mulish_600SemiBold,
-                }}
-              >
-                Level {level.levelNo} ({level.filled}/{level.capacity})
-              </div>
-              <div
-                style={{
-                  width: '100%',
-                  height: isMobileViewport ? 9 : 14,
-                  borderRadius: 999,
-                  overflow: 'hidden',
-                  backgroundColor: 'rgba(28, 56, 123, 0.78)',
-                }}
-              >
-                <div
-                  style={{
-                    width: `${level.percent}%`,
-                    height: '100%',
-                    borderRadius: 999,
-                    backgroundColor: '#C8EDFF',
-                    transition: 'width 0.25s ease',
-                  }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div
-          style={{
-            borderRadius: 14,
-            padding: isMobileViewport ? '5px 7px' : '8px 10px',
-            textAlign: 'center',
-            backgroundColor: isComplete
-              ? 'rgba(58, 85, 150, 0.95)'
-              : isActive
-                ? 'rgba(25, 73, 151, 0.95)'
-                : 'rgba(58, 85, 150, 0.95)',
-            fontSize: isMobileViewport ? 9 : 11,
-            ...theme.fonts.Mulish_700Bold,
-          }}
-        >
-          {statusLabel}
-        </div>
-      </button>
-    );
-  };
-
-  const renderMatrixBoards = (): JSX.Element => {
-    const cycles = matrixData.cycles || [];
-
-    if (!cycles.length) {
-      return (
-        <section
-          style={{
-            padding: 18,
-            borderRadius: 16,
-            backgroundColor: theme.colors.white,
-            border: `1px solid ${theme.colors.aliceBlue2}`,
-          }}
-        >
-          <p
-            style={{
-              margin: 0,
-              color: theme.colors.textColor,
-              ...theme.fonts.Mulish_400Regular,
-            }}
-          >
-            ยังไม่มีข้อมูล matrix board ในระบบ
-          </p>
-        </section>
-      );
-    }
-
-    return (
-      <section style={{display: 'grid', gap: 26}}>
-        {cycles.map(cycle => {
-          const orderedBoards = [...(cycle.boards || [])]
-            .filter(board => board.status?.toLowerCase() !== 'locked')
-            .sort((left, right) => {
-              const leftBoard = left.boardNo || 0;
-              const rightBoard = right.boardNo || 0;
-
-              if (leftBoard !== rightBoard) {
-                return leftBoard - rightBoard;
-              }
-
-              return (left.roundNo || 0) - (right.roundNo || 0);
-            });
-          const roundRows = orderedBoards.reduce<Array<{
-            roundNo: number;
-            boards: MatrixBoardSummary[];
-          }>>((rows, board) => {
-            const roundNo = board.roundNo || 1;
-            const existingRow = rows.find(row => row.roundNo === roundNo);
-
-            if (existingRow) {
-              existingRow.boards.push(board);
-            } else {
-              rows.push({roundNo, boards: [board]});
-            }
-
-            return rows;
-          }, []);
-
-          return (
-            <section
-              key={cycle.cycleId}
-              style={{
-                borderRadius: 28,
-                padding: isMobileViewport ? 14 : 18,
-                background: 'linear-gradient(180deg, #5B9DE0 0%, #4D8FD6 100%)',
-                border: '4px solid #35699E',
-                boxShadow: '0 20px 40px rgba(53, 105, 158, 0.18)',
-                overflow: 'visible',
-              }}
-            >
-              {/* Mobile matrix layout contract:
-                  - boards are grouped by round, with Round 2 rendered on its own row beneath Round 1
-                  - rows are left-aligned by default to match the approved WAP layout
-                  - a row with exactly 3 visible boards should fill the row width on mobile
-                  - the cycle summary header above the rows is intentionally hidden to avoid duplicate labels
-              */}
-              <div style={{display: 'grid', gap: 12}}>
-                {roundRows.map(row => (
-                  <div key={`${cycle.cycleId}-round-${row.roundNo}`}>
-                    {(() => {
-                      const rowGap = isMobileViewport ? 6 : 8;
-                      const rowCardWidth =
-                        isMobileViewport
-                          ? row.boards.length >= 3
-                            ? `calc((100% - ${rowGap * 2}px) / 3)`
-                            : undefined
-                          : undefined;
-
-                      return (
-                    <div
-                      style={{
-                        display: 'grid',
-                        gap: 10,
-                        padding: isMobileViewport ? 10 : 14,
-                        borderRadius: 24,
-                        background: 'rgba(104, 139, 220, 0.22)',
-                        border: '1px solid rgba(255,255,255,0.18)',
-                        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12)',
-                      }}
-                    >
-                      {roundRows.length > 1 ? (
-                        <div
-                          style={{
-                            color: 'rgba(255,255,255,0.96)',
-                            fontSize: isMobileViewport ? 11 : 12,
-                            textAlign: 'center',
-                            ...theme.fonts.Mulish_700Bold,
-                          }}
-                        >
-                          Round {row.roundNo}
-                        </div>
-                      ) : null}
-                      <div
-                        style={{
-                          display: 'flex',
-                          flexWrap: 'wrap',
-                          gap: isMobileViewport ? 6 : 8,
-                          alignItems: 'stretch',
-                          justifyContent: 'flex-start',
-                        }}
-                      >
-                        {row.boards.map(board =>
-                          renderMatrixBoardCard(cycle, board, rowCardWidth),
-                        )}
-                      </div>
-                    </div>
-                      );
-                    })()}
-                  </div>
-                ))}
-              </div>
-            </section>
-          );
-        })}
-      </section>
-    );
   };
 
   const renderMatrixBoardModal = (): JSX.Element | null => {
@@ -2371,69 +2102,69 @@ const getBoardStatusLabel = (board: MatrixBoardSummary) => {
           </>
         ) : null}
 
-        {selectedCard?.key === 'matrix' ? (
-          <>
-            <section
-              style={{
-                marginBottom: 14,
-                padding: '14px 16px',
-                borderRadius: 18,
-                background: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)',
-                border: '1px solid #BFDBFE',
-                boxShadow: '0 12px 24px rgba(59, 130, 246, 0.10)',
-              }}
-            >
-              <div
+        {!selectedCard ? (
+          <section
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+              gap: 14,
+              marginBottom: 20,
+            }}
+          >
+            {commissionOverviewCards.map(card => (
+              <button
+                key={card.key}
+                type='button'
+                onClick={() => setSelectedKey(card.key)}
                 style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: 12,
+                  border: `1px solid ${theme.colors.aliceBlue2}`,
+                  borderRadius: 18,
+                  backgroundColor: theme.colors.white,
+                  padding: '16px 18px',
+                  textAlign: 'left',
+                  display: 'grid',
+                  gap: 6,
+                  boxShadow: '0 16px 32px rgba(31, 41, 55, 0.06)',
+                  cursor: 'pointer',
                 }}
               >
-                <div>
-                  <div
-                    style={{
-                      color: '#1E3A8A',
-                      fontSize: 12,
-                      letterSpacing: '0.08em',
-                      textTransform: 'uppercase',
-                      ...theme.fonts.Mulish_700Bold,
-                    }}
-                  >
-                    PV Hold
-                  </div>
-                  <div
-                    style={{
-                      marginTop: 4,
-                      color: theme.colors.textColor,
-                      fontSize: 12,
-                      lineHeight: 1.5,
-                      ...theme.fonts.Mulish_400Regular,
-                    }}
-                  >
-                    PV สะสมที่รอใช้เปิดจุดถัดไปตามกติกา matrix
-                  </div>
+                <div
+                  style={{
+                    color: card.accent,
+                    fontSize: 12,
+                    letterSpacing: '0.06em',
+                    textTransform: 'uppercase',
+                    ...theme.fonts.Mulish_700Bold,
+                  }}
+                >
+                  {card.title}
                 </div>
                 <div
                   style={{
-                    color: '#1D4ED8',
-                    fontSize: 26,
+                    color: theme.colors.mainColor,
+                    fontSize: 24,
                     lineHeight: 1,
                     ...theme.fonts.Mulish_700Bold,
                   }}
                 >
-                  {formatDecimal(matrixPvHoldAmount)}
+                  {formatDecimal(card.amount)}
                 </div>
-              </div>
-            </section>
-            {renderMatrixBoards()}
-          </>
+                <div
+                  style={{
+                    color: theme.colors.textColor,
+                    fontSize: 12,
+                    lineHeight: 1.5,
+                    ...theme.fonts.Mulish_400Regular,
+                  }}
+                >
+                  {card.count} รายการ
+                </div>
+              </button>
+            ))}
+          </section>
         ) : null}
 
-        {selectedCard && selectedCard.key !== 'matrix'
-          ? renderCommissionSummaryCard()
-          : null}
+        {selectedKey ? renderCommissionSummaryCard() : null}
 
         {renderMatrixBoardModal()}
         {renderDetailPanel()}

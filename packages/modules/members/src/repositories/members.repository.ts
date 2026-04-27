@@ -978,6 +978,11 @@ export class PrismaMembersRepository implements MembersRepository {
         referralCode: true,
         name: true,
         sponsorId: true,
+        memberProfile: {
+          select: {
+            placementSide: true,
+          },
+        },
       },
     });
 
@@ -995,6 +1000,7 @@ export class PrismaMembersRepository implements MembersRepository {
           sponsorId: directReferral.sponsorId
             ? toIdString(directReferral.sponsorId)
             : null,
+          placementSide: directReferral.memberProfile?.placementSide ?? null,
           childCount,
         };
       }),
