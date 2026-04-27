@@ -1,6 +1,6 @@
 Handoff Next
 
-Updated: 2026-04-28 02:05 +07
+Updated: 2026-04-28 02:10 +07
 Branch: `main`
 
 Current Goal
@@ -191,6 +191,34 @@ Runtime Verification Completed This Round
   - latest commits:
     - `b506494c` `Move team volume UI to TeamMember`
     - `e4153eeb` `Add team volume section to TeamMember`
+- latest UAT deploy to `nc-user@202.94.169.245` is complete
+  - deploy target path is `/home/nc-user/poolproject`
+  - runtime path is `docker compose -f deploy/compose/docker-compose.yml --env-file deploy/compose/.env`
+  - because server source is not a normal git checkout, deploy was done by uploading and extracting:
+    - `.tmp/poolproject-deploy-2026-04-28.tgz`
+  - source package was extracted over the live tree
+  - deprecated files removed on server during deploy:
+    - old custom Nest admin files under `apps/api/public/admin/`
+    - old `CommissionMainPlanReportScreen.php`
+    - old `main-plan-report.blade.php`
+    - archived helper scripts tied to `commission-main-plan`
+  - images rebuilt successfully for:
+    - `poolproject-uat-api`
+    - `poolproject-uat-bao`
+    - `poolproject-uat-wap`
+  - runtime migration completed successfully with:
+    - `docker compose ... --profile tools run --rm migrate`
+    - `prisma generate`
+    - `prisma db push`
+  - post-deploy health checks passed:
+    - `GET http://127.0.0.1:3000/health` -> `{"status":"ok"}`
+    - `GET http://127.0.0.1:8001/admin/login` -> `200 OK`
+    - `GET http://127.0.0.1:3002/` -> `200 OK`
+  - post-deploy container state was healthy for:
+    - `api`
+    - `bao`
+    - `wap`
+    - `nginx`
 
 Current Working Files
 
@@ -212,33 +240,26 @@ Current Working Files
 - [packages/modules/members/src/repositories/members.repository.ts](/Users/macbook/poolproject/packages/modules/members/src/repositories/members.repository.ts:956)
 - [packages/modules/members/src/services/members.service.ts](/Users/macbook/poolproject/packages/modules/members/src/services/members.service.ts:129)
 - [stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/TeamMember.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/TeamMember.tsx:1)
+- [deploy/compose/docker-compose.yml](/Users/macbook/poolproject/deploy/compose/docker-compose.yml:1)
 
 Current Working Tree
 
 - modified:
-  - `CHECKLIST_LIVE_OPERATIONS.md`
   - `HANDOFF_NEXT.md`
-  - `apps/api/src/admin-ui.controller.ts`
-  - `docs/uat/2026-04-03-bao-wap-runtime-audit.md`
-  - `package.json`
-  - `stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Http/Controllers/Platform/CommissionReportController.php`
-  - `stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Http/Controllers/Platform/CommissionSettingsController.php`
-  - `stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/PlatformProvider.php`
-  - `stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Commission/CommissionReportScreen.php`
-  - `stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Commission/CommissionSettingsScreen.php`
-  - `stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Support/CommissionReportBuilder.php`
-  - `stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/resources/views/commission/report.blade.php`
-  - `stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/routes/platform.php`
-  - `stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/navigation/StackNavigator.tsx`
-  - `stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/index.tsx`
 - untracked:
   - `tmp/archived_admin_ui_2026-04-28/`
-  - `tmp/archived_commission_plan_2026-04-27/`
 - unrelated existing file to ignore unless user asks:
   - Thai-named `.xlsx` file in repo root
 - note:
   - `TeamMember.tsx` was force-added and committed because the `stephub/` tree is ignored by repo rules
   - if later WAP file changes are meant to be committed, expect to use `git add -f` again for those specific paths
+  - current server deploy does not rely on `git pull` on the VPS
+  - the known working emergency path is:
+    - upload archive
+    - extract into `/home/nc-user/poolproject`
+    - rebuild `api/bao/wap`
+    - run `migrate`
+    - `docker compose up -d api bao wap nginx`
 
 Exactly What To Do Next
 
