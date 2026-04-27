@@ -1,8 +1,39 @@
 # Live Operations Checklist
 
-Updated: 2026-04-03
+Updated: 2026-04-27
 
 Use this checklist before starting real data entry and real day-to-day usage on the current local/runtime stack.
+
+## Next Session Shortcut
+
+Use this section first if the current task is the Stephub commission refactor and you want to continue without re-reading older handoff notes.
+
+- [ ] Open [HANDOFF_NEXT.md](/Users/macbook/poolproject/HANDOFF_NEXT.md:1)
+- [ ] Ignore old receipt/PDF work unless the user explicitly asks for it
+- [ ] Confirm these still pass before touching more code:
+  - [ ] `npx prisma validate --schema prisma/schema.prisma`
+  - [ ] `npm run lint`
+- [ ] Treat `COMM-04` as complete
+- [ ] Keep the shared cap/gating path as the single source of truth for commission finalization
+- [ ] Start directly from `COMM-05`
+- [ ] Build team settlement runtime on top of the shared finalize path
+- [ ] Add matching creation after team settlement
+- [ ] Keep pool ordering locked behind `team -> buyback side effect -> pool`
+
+Locked rules for next session:
+
+- [ ] Team structure is `L / M / R`
+- [ ] Daily cap is `5000 THB`
+- [ ] Cap applies across all commission channels combined
+- [ ] Buyback threshold uses `final payable after cap`
+- [ ] No auto-deducted recycle purchase
+- [ ] Excess above threshold is held pending member-initiated repurchase for `3` calendar days in `Asia/Bangkok`
+- [ ] If not completed in time, status becomes `BLOCKED_AFTER_EXPIRY`
+- [ ] Pool basis is `100% of approved PV`
+- [ ] Pool qualification needs member own purchase + `3` directs + each direct has `1` purchase order
+- [ ] Matching is based on actual team payable after cap
+- [ ] Locked daily order is `team -> buyback side effect -> pool`
+- [ ] If 3-team has only 2 payable legs, fall back to the 2-leg rule
 
 ## Safety First
 
@@ -101,6 +132,7 @@ Dangerous commands to avoid unless intentionally resetting:
 - [ ] Wallet top-up can be approved in BAO
 - [ ] Approved top-up updates member wallet correctly
 - [ ] Wallet history appears correctly in app and BAO
+- [ ] Held commission entries appear in the held bucket when buyback gating or risk hold applies
 
 ## Withdrawals
 
@@ -164,6 +196,7 @@ Dangerous commands to avoid unless intentionally resetting:
 - [ ] Confirm stock movement
 - [ ] Confirm wallet movement
 - [ ] Confirm commission movement
+- [ ] Confirm held-vs-withdrawable commission movement
 - [ ] Confirm app order history display
 - [ ] Confirm BAO reports display
 - [ ] Run `npm run smoke:bao:withdraw-kyc`
@@ -174,5 +207,6 @@ Dangerous commands to avoid unless intentionally resetting:
 - Current runtime is configured to preserve DB state by default.
 - Demo Stephub `10x5` catalog restore is disabled.
 - Do not use destructive flags/scripts unless you intentionally want to reset data.
+- `COMM-04` cap/gating work is complete; next backend milestone is team settlement plus matching.
 - `npm run smoke:bao:withdraw-kyc` covers `Delivered Orders`, `KYC approve/reject`, and `Withdraw approve + paid` on local BAO/API.
 - If member-side withdraw submission fails with `Insufficient withdrawable balance.`, seed or create enough withdrawable balance first; BAO approve/paid flow still validates correctly once a request exists.

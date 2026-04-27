@@ -1,12 +1,48 @@
 import { Injectable } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 
 import {
+  BuybackEventDraft,
   BonusToCycleAllocationInput,
   CommissionFinalizationInput,
   CommissionFinalizationResult,
+  CommissionSourceType,
+  DailyCommissionCapSnapshot,
+  UserBuybackProgressSnapshot,
 } from "../domain/commissions.types";
 import { PrismaService } from "../../../../infrastructure/src/prisma/prisma.service";
 import { toQualificationCycleSnapshot } from "../../../../infrastructure/src/prisma/prisma.mappers";
+
+function mapCommissionSourceTypeToPrisma(
+  sourceType: CommissionSourceType,
+):
+  | "DIRECT"
+  | "UNI"
+  | "POOL"
+  | "CASHBACK"
+  | "TEAM_2LEG"
+  | "TEAM_3LEG"
+  | "MATCHING_L1"
+  | "MATCHING_L2" {
+  switch (sourceType) {
+    case "direct":
+      return "DIRECT";
+    case "uni":
+      return "UNI";
+    case "pool":
+      return "POOL";
+    case "cashback":
+      return "CASHBACK";
+    case "team_2leg":
+      return "TEAM_2LEG";
+    case "team_3leg":
+      return "TEAM_3LEG";
+    case "matching_l1":
+      return "MATCHING_L1";
+    case "matching_l2":
+      return "MATCHING_L2";
+  }
+}
 
 export interface CommissionsRepository {
   findCandidateCyclesForAllocation(
@@ -29,6 +65,34 @@ export interface CommissionsRepository {
     reasonCode: string;
   }): Promise<void>;
 
+  getDailyCommissionCapSnapshot(input: {
+    beneficiaryUserId: string;
+    capDate: string;
+    capAmount: string;
+  }): Promise<DailyCommissionCapSnapshot>;
+
+  incrementDailyCommissionCapUsage(input: {
+    beneficiaryUserId: string;
+    capDate: string;
+    capAmount: string;
+    amount: string;
+  }): Promise<void>;
+
+  getUserBuybackProgress(
+    beneficiaryUserId: string,
+  ): Promise<UserBuybackProgressSnapshot | null>;
+
+  upsertUserBuybackProgress(input: {
+    beneficiaryUserId: string;
+    accumulatedAmount: string;
+    status: UserBuybackProgressSnapshot["status"];
+    thresholdReachedAt?: string | null;
+    graceExpiresAt?: string | null;
+    blockedAt?: string | null;
+  }): Promise<UserBuybackProgressSnapshot>;
+
+  createBuybackEvent(input: BuybackEventDraft): Promise<void>;
+
   listCommissionEntries(filters?: {
     orderId?: string;
     beneficiaryUserId?: string;
@@ -47,6 +111,10 @@ export interface CommissionsRepository {
         rate: string;
         basePv: string;
         amount: string;
+        grossAmount: string;
+        finalPayableAmount: string;
+        discardedAmount: string;
+        releaseStatus: string;
         status: string;
         companyFallbackReason: string | null;
         createdAt: string;
@@ -63,6 +131,10 @@ export interface CommissionsRepository {
           rate: string;
           basePv: string;
           amount: string;
+          grossAmount: string;
+          finalPayableAmount: string;
+          discardedAmount: string;
+          releaseStatus: string;
           status: string;
           companyFallbackReason: string | null;
           createdAt: string;
@@ -108,6 +180,10 @@ export interface CommissionsRepository {
 @Injectable()
 export class PrismaCommissionsRepository implements CommissionsRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  private asCapDate(capDate: string): Date {
+    return new Date(`${capDate}T00:00:00.000Z`);
+  }
 
   async findCandidateCyclesForAllocation(
     input: BonusToCycleAllocationInput,
@@ -159,16 +235,26 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
           : null,
         sourceUserId: BigInt(input.sourceUserId),
         orderId: BigInt(input.sourceRefId),
-        commissionType: input.sourceType.toUpperCase() as
-          | "DIRECT"
-          | "UNI"
-          | "POOL"
-          | "CASHBACK",
+        sourceCommissionLedgerId: input.sourceCommissionLedgerId
+          ? BigInt(input.sourceCommissionLedgerId)
+          : null,
+        commissionType: mapCommissionSourceTypeToPrisma(input.sourceType),
         levelNo: input.levelNo ?? null,
         tierNo: input.tierNo ?? null,
         rate: input.rate,
         basePv: input.basePv,
-        commissionAmount: input.amount,
+        commissionAmount: input.finalPayableAmount ?? input.amount,
+        grossAmount: input.grossAmount ?? input.amount,
+        finalPayableAmount: input.finalPayableAmount ?? input.amount,
+        discardedAmount: input.discardedAmount ?? "0",
+        releaseStatus:
+          input.releaseStatus?.toUpperCase() as
+            | "WITHDRAWABLE"
+            | "HELD_PENDING_REPURCHASE"
+            | "RELEASED_AFTER_REPURCHASE"
+            | "BLOCKED_AFTER_EXPIRY" | undefined,
+        commissionDate: new Date(input.evaluationAt),
+        metadata: (input.metadata as Prisma.InputJsonValue | undefined) ?? undefined,
         evaluationAt: new Date(input.evaluationAt),
         status: "PENDING",
       },
@@ -176,6 +262,165 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
     });
 
     return { commissionId: commission.id.toString() };
+  }
+
+  async getDailyCommissionCapSnapshot(input: {
+    beneficiaryUserId: string;
+    capDate: string;
+    capAmount: string;
+  }): Promise<DailyCommissionCapSnapshot> {
+    const capDate = this.asCapDate(input.capDate);
+    const existing = await this.prisma.dailyCommissionCapUsage.findUnique({
+      where: {
+        userId_capDate: {
+          userId: BigInt(input.beneficiaryUserId),
+          capDate,
+        },
+      },
+      select: {
+        usedAmount: true,
+      },
+    });
+
+    return {
+      beneficiaryUserId: input.beneficiaryUserId,
+      capDate: input.capDate,
+      capAmount: input.capAmount,
+      usedAmount: existing?.usedAmount.toString() ?? "0",
+    };
+  }
+
+  async incrementDailyCommissionCapUsage(input: {
+    beneficiaryUserId: string;
+    capDate: string;
+    capAmount: string;
+    amount: string;
+  }): Promise<void> {
+    await this.prisma.dailyCommissionCapUsage.upsert({
+      where: {
+        userId_capDate: {
+          userId: BigInt(input.beneficiaryUserId),
+          capDate: this.asCapDate(input.capDate),
+        },
+      },
+      create: {
+        userId: BigInt(input.beneficiaryUserId),
+        capDate: this.asCapDate(input.capDate),
+        capAmount: input.capAmount,
+        usedAmount: input.amount,
+      },
+      update: {
+        capAmount: input.capAmount,
+        usedAmount: {
+          increment: input.amount,
+        },
+      },
+    });
+  }
+
+  async getUserBuybackProgress(
+    beneficiaryUserId: string,
+  ): Promise<UserBuybackProgressSnapshot | null> {
+    const progress = await this.prisma.userBuybackProgress.findUnique({
+      where: {
+        userId: BigInt(beneficiaryUserId),
+      },
+      select: {
+        accumulatedAmount: true,
+        status: true,
+        thresholdReachedAt: true,
+        graceExpiresAt: true,
+        blockedAt: true,
+      },
+    });
+
+    if (!progress) {
+      return null;
+    }
+
+    return {
+      beneficiaryUserId,
+      accumulatedAmount: progress.accumulatedAmount.toString(),
+      status: progress.status.toLowerCase() as UserBuybackProgressSnapshot["status"],
+      thresholdReachedAt: progress.thresholdReachedAt?.toISOString() ?? null,
+      graceExpiresAt: progress.graceExpiresAt?.toISOString() ?? null,
+      blockedAt: progress.blockedAt?.toISOString() ?? null,
+    };
+  }
+
+  async upsertUserBuybackProgress(input: {
+    beneficiaryUserId: string;
+    accumulatedAmount: string;
+    status: UserBuybackProgressSnapshot["status"];
+    thresholdReachedAt?: string | null;
+    graceExpiresAt?: string | null;
+    blockedAt?: string | null;
+  }): Promise<UserBuybackProgressSnapshot> {
+    const progress = await this.prisma.userBuybackProgress.upsert({
+      where: {
+        userId: BigInt(input.beneficiaryUserId),
+      },
+      create: {
+        userId: BigInt(input.beneficiaryUserId),
+        accumulatedAmount: input.accumulatedAmount,
+        status: input.status.toUpperCase() as
+          | "CLEAR"
+          | "HELD_PENDING_REPURCHASE"
+          | "BLOCKED_AFTER_EXPIRY",
+        thresholdReachedAt: input.thresholdReachedAt
+          ? new Date(input.thresholdReachedAt)
+          : null,
+        graceExpiresAt: input.graceExpiresAt
+          ? new Date(input.graceExpiresAt)
+          : null,
+        blockedAt: input.blockedAt ? new Date(input.blockedAt) : null,
+      },
+      update: {
+        accumulatedAmount: input.accumulatedAmount,
+        status: input.status.toUpperCase() as
+          | "CLEAR"
+          | "HELD_PENDING_REPURCHASE"
+          | "BLOCKED_AFTER_EXPIRY",
+        thresholdReachedAt: input.thresholdReachedAt
+          ? new Date(input.thresholdReachedAt)
+          : null,
+        graceExpiresAt: input.graceExpiresAt
+          ? new Date(input.graceExpiresAt)
+          : null,
+        blockedAt: input.blockedAt ? new Date(input.blockedAt) : null,
+      },
+      select: {
+        accumulatedAmount: true,
+        status: true,
+        thresholdReachedAt: true,
+        graceExpiresAt: true,
+        blockedAt: true,
+      },
+    });
+
+    return {
+      beneficiaryUserId: input.beneficiaryUserId,
+      accumulatedAmount: progress.accumulatedAmount.toString(),
+      status: progress.status.toLowerCase() as UserBuybackProgressSnapshot["status"],
+      thresholdReachedAt: progress.thresholdReachedAt?.toISOString() ?? null,
+      graceExpiresAt: progress.graceExpiresAt?.toISOString() ?? null,
+      blockedAt: progress.blockedAt?.toISOString() ?? null,
+    };
+  }
+
+  async createBuybackEvent(input: BuybackEventDraft): Promise<void> {
+    await this.prisma.buybackEvent.create({
+      data: {
+        userId: BigInt(input.beneficiaryUserId),
+        triggerAmount: input.triggerAmount,
+        remainingAccumulatedAmount: input.remainingAccumulatedAmount,
+        status: input.status,
+        message: input.message ?? null,
+        referenceType: input.referenceType ?? null,
+        referenceId: input.referenceId ?? null,
+        metadata: (input.metadata as Prisma.InputJsonValue | undefined) ?? undefined,
+      },
+    });
   }
 
   async finalizeCommissionEntry(
@@ -258,13 +503,13 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
           | "DIRECT"
           | "UNI"
           | "POOL"
-          | "CASHBACK",
+          | "CASHBACK"
+          | "TEAM_2LEG"
+          | "TEAM_3LEG"
+          | "MATCHING_L1"
+          | "MATCHING_L2",
         sourceRefId: BigInt(input.sourceRefId),
-        bonusType: input.sourceType.toUpperCase() as
-          | "DIRECT"
-          | "UNI"
-          | "POOL"
-          | "CASHBACK",
+        bonusType: mapCommissionSourceTypeToPrisma(input.sourceType),
         amount: input.amount,
         reason: input.reasonCode,
       },
@@ -289,6 +534,10 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
               | "UNI"
               | "POOL"
               | "CASHBACK"
+              | "TEAM_2LEG"
+              | "TEAM_3LEG"
+              | "MATCHING_L1"
+              | "MATCHING_L2"
           : undefined,
       };
     const entries = await this.prisma.commissionLedger.findMany({
@@ -310,6 +559,10 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
         rate: true,
         basePv: true,
         commissionAmount: true,
+        grossAmount: true,
+        finalPayableAmount: true,
+        discardedAmount: true,
+        releaseStatus: true,
         status: true,
         companyFallbackReason: true,
         createdAt: true,
@@ -327,6 +580,10 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
       rate: entry.rate.toString(),
       basePv: entry.basePv.toString(),
       amount: entry.commissionAmount.toString(),
+      grossAmount: entry.grossAmount.toString(),
+      finalPayableAmount: entry.finalPayableAmount.toString(),
+      discardedAmount: entry.discardedAmount.toString(),
+      releaseStatus: entry.releaseStatus.toLowerCase(),
       status: entry.status.toLowerCase(),
       companyFallbackReason: entry.companyFallbackReason,
       createdAt: entry.createdAt.toISOString(),
@@ -362,6 +619,10 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
               | "UNI"
               | "POOL"
               | "CASHBACK"
+              | "TEAM_2LEG"
+              | "TEAM_3LEG"
+              | "MATCHING_L1"
+              | "MATCHING_L2"
           : undefined,
       };
     const entries = await this.prisma.companyBonusLedger.findMany({

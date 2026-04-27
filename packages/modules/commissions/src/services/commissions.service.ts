@@ -4,16 +4,25 @@ import {
   ApprovedOrderCommissionFlowResult,
   BonusToCycleAllocationInput,
   BonusToCycleAllocationResult,
+  CommissionReleaseStatus,
   CommissionCandidatePath,
   CommissionFinalizationInput,
   CommissionFinalizationResult,
+  CommissionSourceType,
   DirectCommissionFinalizationResult,
+  UserBuybackProgressSnapshot,
 } from "../domain/commissions.types";
 import {
+  addDecimalStrings,
   compareDecimalStrings,
+  minDecimalString,
   multiplyDecimalStrings,
+  subtractDecimalStrings,
 } from "../../../../shared/utils/src/money.util";
-import { parseCommissionSettingsSnapshot } from "../../../../shared/utils/src/commission-settings.util";
+import {
+  parseCommissionSettingsSnapshot,
+  readCommissionSettings,
+} from "../../../../shared/utils/src/commission-settings.util";
 import { MembersService } from "../../../members/src/services/members.service";
 import { MembersServiceContract } from "../../../members/src/services/members.service";
 import { OrdersService } from "../../../orders/src/services/orders.service";
@@ -44,7 +53,7 @@ export interface CommissionsServiceContract {
   ): Promise<CommissionFinalizationResult>;
 
   createCompanyFallback(input: {
-    sourceType: CommissionFinalizationInput["sourceType"];
+    sourceType: CommissionSourceType;
     sourceRefId: string;
     amount: string;
     reasonCode: string;
@@ -68,6 +77,10 @@ export interface CommissionsServiceContract {
         rate: string;
         basePv: string;
         amount: string;
+        grossAmount: string;
+        finalPayableAmount: string;
+        discardedAmount: string;
+        releaseStatus: string;
         status: string;
         companyFallbackReason: string | null;
         createdAt: string;
@@ -84,6 +97,10 @@ export interface CommissionsServiceContract {
           rate: string;
           basePv: string;
           amount: string;
+          grossAmount: string;
+          finalPayableAmount: string;
+          discardedAmount: string;
+          releaseStatus: string;
           status: string;
           companyFallbackReason: string | null;
           createdAt: string;
@@ -329,7 +346,35 @@ export class CommissionsService implements CommissionsServiceContract {
     input: CommissionFinalizationInput,
   ): Promise<CommissionFinalizationResult> {
     if (!input.beneficiaryUserId) {
-      return this.buildMissingBeneficiaryFinalization();
+      return this.buildMissingBeneficiaryFinalization(input.amount);
+    }
+
+    const commissionConfig =
+      input.commissionConfig ?? this.readCommissionConfigFallback();
+    const grossAmount = input.grossAmount ?? input.amount;
+    const capSnapshot =
+      await this.commissionsRepository.getDailyCommissionCapSnapshot({
+        beneficiaryUserId: input.beneficiaryUserId,
+        capDate: this.toBangkokBusinessDate(input.evaluationAt),
+        capAmount: commissionConfig.dailyCommissionCapAmount,
+      });
+    const remainingCap = this.maxZeroDecimal(
+      subtractDecimalStrings(capSnapshot.capAmount, capSnapshot.usedAmount),
+    );
+    const finalPayableAmount = minDecimalString(grossAmount, remainingCap);
+    const discardedAmount = this.maxZeroDecimal(
+      subtractDecimalStrings(grossAmount, finalPayableAmount),
+    );
+    if (compareDecimalStrings(finalPayableAmount, "0") <= 0) {
+      return {
+        commissionStatus: "approved",
+        beneficiaryCycleId: null,
+        fallbackReason: null,
+        grossAmount,
+        finalPayableAmount: "0",
+        discardedAmount,
+        releaseStatus: "withdrawable",
+      };
     }
 
     const candidateCycles = await this.membersService.getMemberCycles(
@@ -339,16 +384,42 @@ export class CommissionsService implements CommissionsServiceContract {
     const allocation = await this.allocateBonusToCycle({
       beneficiaryUserId: input.beneficiaryUserId,
       evaluationAt: input.evaluationAt,
-      bonusAmount: input.amount,
+      bonusAmount: finalPayableAmount,
       sourceType: input.sourceType,
       candidateCycles,
     });
 
-    return this.buildFinalizationFromAllocation(allocation);
+    if (allocation.fallbackToCompany) {
+      return this.buildFinalizationFromAllocation(
+        allocation,
+        grossAmount,
+        finalPayableAmount,
+        discardedAmount,
+        "withdrawable",
+      );
+    }
+
+    const buybackDecision = await this.evaluateBuybackRelease({
+      beneficiaryUserId: input.beneficiaryUserId,
+      evaluationAt: input.evaluationAt,
+      finalPayableAmount,
+      buybackThresholdAmount: commissionConfig.buybackThresholdAmount,
+      buybackGraceDays: commissionConfig.buybackGraceDays,
+      sourceType: input.sourceType,
+      sourceRefId: input.sourceRefId,
+    });
+
+    return this.buildFinalizationFromAllocation(
+      allocation,
+      grossAmount,
+      finalPayableAmount,
+      discardedAmount,
+      buybackDecision.releaseStatus,
+    );
   }
 
   async createCompanyFallback(input: {
-    sourceType: CommissionFinalizationInput["sourceType"];
+    sourceType: CommissionSourceType;
     sourceRefId: string;
     amount: string;
     reasonCode: string;
@@ -393,14 +464,22 @@ export class CommissionsService implements CommissionsServiceContract {
       return [];
     }
 
-    const allocation = await this.allocateBonusToCycle({
+    const commissionConfig = {
+      dailyCommissionCapAmount: commissionSettings.dailyCommissionCapAmount,
+      buybackThresholdAmount: commissionSettings.buybackThresholdAmount,
+      buybackGraceDays: commissionSettings.buybackGraceDays,
+    };
+    const finalization = await this.finalizeCommissionItem({
+      sourceType: "cashback",
+      sourceRefId: sourceOrderId,
+      sourceUserId,
       beneficiaryUserId: sourceUserId,
       evaluationAt,
-      bonusAmount: amount,
-      sourceType: "cashback",
-      candidateCycles: [],
+      basePv,
+      rate,
+      amount,
+      commissionConfig,
     });
-    const finalization = this.buildFinalizationFromAllocation(allocation);
 
     await this.persistCommissionItem(
       {
@@ -412,6 +491,7 @@ export class CommissionsService implements CommissionsServiceContract {
         basePv,
         rate,
         amount,
+        commissionConfig,
       },
       finalization,
     );
@@ -425,7 +505,7 @@ export class CommissionsService implements CommissionsServiceContract {
         rate,
         basePv,
         amount,
-        allocation,
+        allocation: null,
         finalization,
       },
     ];
@@ -440,6 +520,7 @@ export class CommissionsService implements CommissionsServiceContract {
     levelNo: number,
     rate: string,
     candidateUserId: string | null,
+    commissionSettings: ReturnType<typeof parseCommissionSettingsSnapshot>,
   ): Promise<
     | {
         sourceType: "direct";
@@ -470,9 +551,17 @@ export class CommissionsService implements CommissionsServiceContract {
       : -1;
     const rollupDepth = candidateIndex >= 0 ? Math.max(candidateIndex - (levelNo - 1), 0) : 0;
     const rollupApplied = rollupDepth > 0;
+    const commissionConfig = {
+      dailyCommissionCapAmount: commissionSettings.dailyCommissionCapAmount,
+      buybackThresholdAmount: commissionSettings.buybackThresholdAmount,
+      buybackGraceDays: commissionSettings.buybackGraceDays,
+    };
 
     if (!candidateUserId) {
-      const finalization = this.buildDirectFallbackFinalization("no_active_sponsor");
+      const finalization = this.buildDirectFallbackFinalization(
+        "no_active_sponsor",
+        amount,
+      );
       await this.persistCommissionItem({
         sourceType: "direct",
         sourceRefId: sourceOrderId,
@@ -483,6 +572,7 @@ export class CommissionsService implements CommissionsServiceContract {
         rate,
         amount,
         levelNo,
+        commissionConfig,
       }, finalization);
 
       return {
@@ -502,13 +592,20 @@ export class CommissionsService implements CommissionsServiceContract {
       };
     }
 
-    const allocation = await this.allocateBonusToCycle({
-      beneficiaryUserId: candidateUserId,
-      evaluationAt,
-      bonusAmount: amount,
-      candidateCycles: [],
-    });
-    const finalization = this.buildDirectFinalizationFromAllocation(allocation);
+    const finalization = this.toDirectFinalizationResult(
+      await this.finalizeCommissionItem({
+        sourceType: "direct",
+        sourceRefId: sourceOrderId,
+        sourceUserId,
+        beneficiaryUserId: candidateUserId,
+        evaluationAt,
+        basePv,
+        rate,
+        amount,
+        levelNo,
+        commissionConfig,
+      }),
+    );
     await this.persistCommissionItem(
       {
         sourceType: "direct",
@@ -520,6 +617,7 @@ export class CommissionsService implements CommissionsServiceContract {
         rate,
         amount,
         levelNo,
+        commissionConfig,
       },
       finalization,
     );
@@ -537,7 +635,7 @@ export class CommissionsService implements CommissionsServiceContract {
       candidateUserId,
       rollupApplied,
       rollupDepth,
-      allocation,
+      allocation: null,
       finalization,
     };
   }
@@ -563,6 +661,7 @@ export class CommissionsService implements CommissionsServiceContract {
           index + 1,
           rate,
           directCandidateUserIds[index] ?? null,
+          commissionSettings,
         ),
       ),
     );
@@ -575,53 +674,100 @@ export class CommissionsService implements CommissionsServiceContract {
     );
   }
 
-  private buildMissingBeneficiaryFinalization(): CommissionFinalizationResult {
+  private buildMissingBeneficiaryFinalization(
+    grossAmount: string,
+  ): CommissionFinalizationResult {
     return {
       commissionStatus: "fallback",
       beneficiaryCycleId: null,
       fallbackReason: "no_beneficiary_user",
+      grossAmount,
+      finalPayableAmount: "0",
+      discardedAmount: grossAmount,
+      releaseStatus: "withdrawable",
     };
   }
 
   private buildFinalizationFromAllocation(
     allocation: BonusToCycleAllocationResult,
+    grossAmount: string,
+    finalPayableAmount: string,
+    discardedAmount: string,
+    releaseStatus: CommissionReleaseStatus,
   ): CommissionFinalizationResult {
     if (allocation.fallbackToCompany) {
       return {
         commissionStatus: "fallback",
         beneficiaryCycleId: null,
         fallbackReason: allocation.fallbackReason,
+        grossAmount,
+        finalPayableAmount,
+        discardedAmount,
+        releaseStatus,
       };
     }
 
     return {
-      commissionStatus: "approved",
+      commissionStatus:
+        releaseStatus === "withdrawable" ? "approved" : "held",
       beneficiaryCycleId: allocation.assignedCycleId,
       fallbackReason: null,
+      grossAmount,
+      finalPayableAmount,
+      discardedAmount,
+      releaseStatus,
     };
   }
 
   private buildDirectFinalizationFromAllocation(
     allocation: BonusToCycleAllocationResult,
+    grossAmount: string,
+    finalPayableAmount: string,
+    discardedAmount: string,
+    releaseStatus: CommissionReleaseStatus,
   ): DirectCommissionFinalizationResult {
     if (allocation.fallbackToCompany) {
-      return this.buildDirectFallbackFinalization(allocation.fallbackReason);
+      return this.buildDirectFallbackFinalization(
+        allocation.fallbackReason,
+        grossAmount,
+      );
     }
 
     return {
-      commissionStatus: "approved",
+      commissionStatus:
+        releaseStatus === "withdrawable" ? "approved" : "held",
       beneficiaryCycleId: allocation.assignedCycleId,
       fallbackReason: null,
+      grossAmount,
+      finalPayableAmount,
+      discardedAmount,
+      releaseStatus,
     };
   }
 
   private buildDirectFallbackFinalization(
     fallbackReason: "no_active_sponsor" | BonusToCycleAllocationResult["fallbackReason"],
+    grossAmount: string,
   ): DirectCommissionFinalizationResult {
     return {
       commissionStatus: "fallback",
       beneficiaryCycleId: null,
       fallbackReason,
+      grossAmount,
+      finalPayableAmount: grossAmount,
+      discardedAmount: "0",
+      releaseStatus: "withdrawable",
+    };
+  }
+
+  private toDirectFinalizationResult(
+    finalization: CommissionFinalizationResult,
+  ): DirectCommissionFinalizationResult {
+    return {
+      ...finalization,
+      fallbackReason:
+        (finalization.fallbackReason as DirectCommissionFinalizationResult["fallbackReason"]) ??
+        null,
     };
   }
 
@@ -634,6 +780,7 @@ export class CommissionsService implements CommissionsServiceContract {
     candidateUserId: string | null,
     levelNo: number,
     rate: string,
+    commissionSettings: ReturnType<typeof parseCommissionSettingsSnapshot>,
   ): Promise<
     | {
         sourceType: "uni";
@@ -661,18 +808,26 @@ export class CommissionsService implements CommissionsServiceContract {
       ? candidateUserIds.indexOf(candidateUserId)
       : -1;
     const rollupApplied = candidateIndex >= 0 ? candidateIndex > levelNo - 1 : false;
-    const allocation = candidateUserId
-      ? await this.allocateBonusToCycle({
-          beneficiaryUserId: candidateUserId,
-          evaluationAt,
-          bonusAmount: amount,
-          candidateCycles: [],
-        })
-      : null;
+    const commissionConfig = {
+      dailyCommissionCapAmount: commissionSettings.dailyCommissionCapAmount,
+      buybackThresholdAmount: commissionSettings.buybackThresholdAmount,
+      buybackGraceDays: commissionSettings.buybackGraceDays,
+    };
     const finalization =
-      candidateUserId && allocation
-        ? this.buildFinalizationFromAllocation(allocation)
-        : this.buildUniMissingBeneficiaryFinalization();
+      candidateUserId
+        ? await this.finalizeCommissionItem({
+            sourceType: "uni",
+            sourceRefId: sourceOrderId,
+            sourceUserId,
+            beneficiaryUserId: candidateUserId,
+            evaluationAt,
+            basePv,
+            rate,
+            amount,
+            levelNo,
+            commissionConfig,
+          })
+        : this.buildUniMissingBeneficiaryFinalization(amount);
     await this.persistCommissionItem(
       {
         sourceType: "uni",
@@ -684,6 +839,7 @@ export class CommissionsService implements CommissionsServiceContract {
         rate,
         amount,
         levelNo,
+        commissionConfig,
       },
       finalization,
     );
@@ -699,7 +855,7 @@ export class CommissionsService implements CommissionsServiceContract {
       rate,
       amount,
       rollupApplied,
-      allocation,
+      allocation: null,
       finalization,
     };
   }
@@ -725,6 +881,7 @@ export class CommissionsService implements CommissionsServiceContract {
           uniCandidateUserIds[index] ?? null,
           index + 1,
           rate,
+          commissionSettings,
         ),
       ),
     );
@@ -744,11 +901,17 @@ export class CommissionsService implements CommissionsServiceContract {
     );
   }
 
-  private buildUniMissingBeneficiaryFinalization(): CommissionFinalizationResult {
+  private buildUniMissingBeneficiaryFinalization(
+    grossAmount: string,
+  ): CommissionFinalizationResult {
     return {
       commissionStatus: "fallback",
       beneficiaryCycleId: null,
       fallbackReason: "no_active_upline",
+      grossAmount,
+      finalPayableAmount: grossAmount,
+      discardedAmount: "0",
+      releaseStatus: "withdrawable",
     };
   }
 
@@ -761,20 +924,199 @@ export class CommissionsService implements CommissionsServiceContract {
     }
 
     const { commissionId } =
-      await this.commissionsRepository.createCommissionDraft(input);
+      await this.commissionsRepository.createCommissionDraft({
+        ...input,
+        grossAmount: finalization.grossAmount,
+        finalPayableAmount: finalization.finalPayableAmount,
+        discardedAmount: finalization.discardedAmount,
+        releaseStatus: finalization.releaseStatus,
+      });
 
     await this.commissionsRepository.finalizeCommissionEntry(
       commissionId,
       finalization,
     );
 
+    if (
+      input.beneficiaryUserId &&
+      finalization.commissionStatus !== "fallback" &&
+      compareDecimalStrings(finalization.finalPayableAmount, "0") > 0
+    ) {
+      const commissionConfig =
+        input.commissionConfig ?? this.readCommissionConfigFallback();
+
+      await this.commissionsRepository.incrementDailyCommissionCapUsage({
+        beneficiaryUserId: input.beneficiaryUserId,
+        capDate: this.toBangkokBusinessDate(input.evaluationAt),
+        capAmount: commissionConfig.dailyCommissionCapAmount,
+        amount: finalization.finalPayableAmount,
+      });
+    }
+
     if (finalization.commissionStatus === "fallback" && finalization.fallbackReason) {
+      if (compareDecimalStrings(finalization.finalPayableAmount, "0") <= 0) {
+        return;
+      }
+
       await this.createCompanyFallback({
         sourceType: input.sourceType,
         sourceRefId: input.sourceRefId,
-        amount: input.amount,
+        amount: finalization.finalPayableAmount,
         reasonCode: finalization.fallbackReason,
       });
     }
+  }
+
+  private readCommissionConfigFallback(): Required<
+    NonNullable<CommissionFinalizationInput["commissionConfig"]>
+  > {
+    const settings = readCommissionSettings();
+
+    return {
+      dailyCommissionCapAmount: settings.dailyCommissionCapAmount,
+      buybackThresholdAmount: settings.buybackThresholdAmount,
+      buybackGraceDays: settings.buybackGraceDays,
+    };
+  }
+
+  private toBangkokBusinessDate(value: string): string {
+    const formatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Bangkok",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    const parts = formatter.formatToParts(new Date(value));
+    const year = parts.find((part) => part.type === "year")?.value ?? "1970";
+    const month = parts.find((part) => part.type === "month")?.value ?? "01";
+    const day = parts.find((part) => part.type === "day")?.value ?? "01";
+
+    return `${year}-${month}-${day}`;
+  }
+
+  private maxZeroDecimal(value: string): string {
+    return compareDecimalStrings(value, "0") >= 0 ? value : "0";
+  }
+
+  private async evaluateBuybackRelease(input: {
+    beneficiaryUserId: string;
+    evaluationAt: string;
+    finalPayableAmount: string;
+    buybackThresholdAmount: string;
+    buybackGraceDays: number;
+    sourceType: CommissionSourceType;
+    sourceRefId: string;
+  }): Promise<{
+    releaseStatus: CommissionReleaseStatus;
+    progress: UserBuybackProgressSnapshot | null;
+  }> {
+    const existing =
+      await this.commissionsRepository.getUserBuybackProgress(
+        input.beneficiaryUserId,
+      );
+
+    if (
+      existing?.status === "blocked_after_expiry" &&
+      existing.graceExpiresAt &&
+      new Date(input.evaluationAt) >= new Date(existing.graceExpiresAt)
+    ) {
+      return {
+        releaseStatus: "blocked_after_expiry",
+        progress: existing,
+      };
+    }
+
+    if (existing?.status === "held_pending_repurchase") {
+      if (
+        existing.graceExpiresAt &&
+        new Date(input.evaluationAt) >= new Date(existing.graceExpiresAt)
+      ) {
+        const blockedProgress =
+          await this.commissionsRepository.upsertUserBuybackProgress({
+            beneficiaryUserId: input.beneficiaryUserId,
+            accumulatedAmount: existing.accumulatedAmount,
+            status: "blocked_after_expiry",
+            thresholdReachedAt: existing.thresholdReachedAt,
+            graceExpiresAt: existing.graceExpiresAt,
+            blockedAt: input.evaluationAt,
+          });
+        await this.commissionsRepository.createBuybackEvent({
+          beneficiaryUserId: input.beneficiaryUserId,
+          triggerAmount: input.finalPayableAmount,
+          remainingAccumulatedAmount: blockedProgress.accumulatedAmount,
+          status: "BLOCKED_AFTER_EXPIRY",
+          message: "Buyback grace period expired before repurchase completion.",
+          referenceType: input.sourceType,
+          referenceId: input.sourceRefId,
+        });
+
+        return {
+          releaseStatus: "blocked_after_expiry",
+          progress: blockedProgress,
+        };
+      }
+
+      return {
+        releaseStatus: "held_pending_repurchase",
+        progress: existing,
+      };
+    }
+
+    const nextAccumulatedAmount = addDecimalStrings(
+      existing?.accumulatedAmount ?? "0",
+      input.finalPayableAmount,
+    );
+
+    if (
+      compareDecimalStrings(nextAccumulatedAmount, input.buybackThresholdAmount) >
+      0
+    ) {
+      const heldProgress = await this.commissionsRepository.upsertUserBuybackProgress({
+        beneficiaryUserId: input.beneficiaryUserId,
+        accumulatedAmount: nextAccumulatedAmount,
+        status: "held_pending_repurchase",
+        thresholdReachedAt: input.evaluationAt,
+        graceExpiresAt: this.addBangkokCalendarDays(
+          input.evaluationAt,
+          input.buybackGraceDays,
+        ),
+      });
+      await this.commissionsRepository.createBuybackEvent({
+        beneficiaryUserId: input.beneficiaryUserId,
+        triggerAmount: input.finalPayableAmount,
+        remainingAccumulatedAmount: heldProgress.accumulatedAmount,
+        status: "HELD_PENDING_REPURCHASE",
+        message: "Commission held pending member-initiated repurchase.",
+        referenceType: input.sourceType,
+        referenceId: input.sourceRefId,
+      });
+
+      return {
+        releaseStatus: "held_pending_repurchase",
+        progress: heldProgress,
+      };
+    }
+
+    if (existing) {
+      await this.commissionsRepository.upsertUserBuybackProgress({
+        beneficiaryUserId: input.beneficiaryUserId,
+        accumulatedAmount: nextAccumulatedAmount,
+        status: "clear",
+        thresholdReachedAt: null,
+        graceExpiresAt: null,
+        blockedAt: null,
+      });
+    }
+
+    return {
+      releaseStatus: "withdrawable",
+      progress: existing,
+    };
+  }
+
+  private addBangkokCalendarDays(value: string, days: number): string {
+    const date = new Date(value);
+    date.setUTCDate(date.getUTCDate() + days);
+    return date.toISOString();
   }
 }

@@ -2,11 +2,32 @@ export interface CommissionItemSummary {
   commissionId: string;
 }
 
+export type CommissionSourceType =
+  | "direct"
+  | "uni"
+  | "pool"
+  | "cashback"
+  | "team_2leg"
+  | "team_3leg"
+  | "matching_l1"
+  | "matching_l2";
+
+export type CommissionReleaseStatus =
+  | "withdrawable"
+  | "held_pending_repurchase"
+  | "released_after_repurchase"
+  | "blocked_after_expiry";
+
+export type BuybackProgressStatus =
+  | "clear"
+  | "held_pending_repurchase"
+  | "blocked_after_expiry";
+
 export interface BonusToCycleAllocationInput {
   beneficiaryUserId: string;
   evaluationAt: string;
   bonusAmount: string;
-  sourceType?: "direct" | "uni" | "pool" | "cashback";
+  sourceType?: CommissionSourceType;
   candidateCycles: Array<{
     cycleId: string;
     activatedAt: string;
@@ -36,7 +57,7 @@ export interface BonusToCycleAllocationResult {
 }
 
 export interface CommissionFinalizationInput {
-  sourceType: "direct" | "uni" | "pool" | "cashback";
+  sourceType: CommissionSourceType;
   sourceRefId: string;
   sourceUserId: string;
   beneficiaryUserId: string | null;
@@ -44,8 +65,19 @@ export interface CommissionFinalizationInput {
   basePv: string;
   rate: string;
   amount: string;
+  grossAmount?: string;
+  finalPayableAmount?: string;
+  discardedAmount?: string;
+  releaseStatus?: CommissionReleaseStatus;
+  sourceCommissionLedgerId?: string | null;
+  metadata?: Record<string, unknown> | null;
   levelNo?: number | null;
   tierNo?: number | null;
+  commissionConfig?: {
+    dailyCommissionCapAmount: string;
+    buybackThresholdAmount: string;
+    buybackGraceDays: number;
+  };
 }
 
 export interface CommissionFinalizationResult {
@@ -56,6 +88,10 @@ export interface CommissionFinalizationResult {
     | "withdrawable";
   beneficiaryCycleId: string | null;
   fallbackReason: string | null;
+  grossAmount: string;
+  finalPayableAmount: string;
+  discardedAmount: string;
+  releaseStatus: CommissionReleaseStatus;
 }
 
 export type DirectCommissionFallbackReason =
@@ -66,6 +102,33 @@ export type DirectCommissionFallbackReason =
 export interface DirectCommissionFinalizationResult
   extends Omit<CommissionFinalizationResult, "fallbackReason"> {
   fallbackReason: DirectCommissionFallbackReason | null;
+}
+
+export interface DailyCommissionCapSnapshot {
+  beneficiaryUserId: string;
+  capDate: string;
+  capAmount: string;
+  usedAmount: string;
+}
+
+export interface UserBuybackProgressSnapshot {
+  beneficiaryUserId: string;
+  accumulatedAmount: string;
+  status: BuybackProgressStatus;
+  thresholdReachedAt: string | null;
+  graceExpiresAt: string | null;
+  blockedAt: string | null;
+}
+
+export interface BuybackEventDraft {
+  beneficiaryUserId: string;
+  triggerAmount: string;
+  remainingAccumulatedAmount: string;
+  status: string;
+  message?: string | null;
+  referenceType?: string | null;
+  referenceId?: string | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface CommissionSourceOrder {

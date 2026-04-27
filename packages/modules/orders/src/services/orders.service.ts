@@ -865,7 +865,7 @@ export class OrdersService implements OrdersServiceContract {
     );
     const approvedEntries = commissionEntries.filter(
       (entry) =>
-        entry.status === "approved" &&
+        (entry.status === "approved" || entry.status === "held") &&
         entry.beneficiaryUserId &&
         compareDecimalStrings(entry.amount, "0") > 0,
     );

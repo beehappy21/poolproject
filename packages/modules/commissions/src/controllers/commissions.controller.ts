@@ -25,10 +25,14 @@ export class CommissionsController {
       normalizedCommissionType !== "direct" &&
       normalizedCommissionType !== "uni" &&
       normalizedCommissionType !== "pool" &&
-      normalizedCommissionType !== "cashback"
+      normalizedCommissionType !== "cashback" &&
+      normalizedCommissionType !== "team_2leg" &&
+      normalizedCommissionType !== "team_3leg" &&
+      normalizedCommissionType !== "matching_l1" &&
+      normalizedCommissionType !== "matching_l2"
     ) {
       throw new BadRequestException(
-        "commissionType must be direct, uni, pool, or cashback.",
+        "commissionType must be direct, uni, pool, cashback, team_2leg, team_3leg, matching_l1, or matching_l2.",
       );
     }
 
@@ -57,10 +61,14 @@ export class CommissionsController {
       normalizedSourceType !== "direct" &&
       normalizedSourceType !== "uni" &&
       normalizedSourceType !== "pool" &&
-      normalizedSourceType !== "cashback"
+      normalizedSourceType !== "cashback" &&
+      normalizedSourceType !== "team_2leg" &&
+      normalizedSourceType !== "team_3leg" &&
+      normalizedSourceType !== "matching_l1" &&
+      normalizedSourceType !== "matching_l2"
     ) {
       throw new BadRequestException(
-        "sourceType must be direct, uni, pool, or cashback.",
+        "sourceType must be direct, uni, pool, cashback, team_2leg, team_3leg, matching_l1, or matching_l2.",
       );
     }
 
