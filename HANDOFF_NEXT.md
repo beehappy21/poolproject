@@ -1,12 +1,12 @@
 Handoff Next
 
-Updated: 2026-04-27 22:22 +07
+Updated: 2026-04-28 02:05 +07
 Branch: `main`
 
 Current Goal
 
-Continue the Stephub commission-plan refactor after `COMM-05` completion.
-Do not go back to the old receipt/PDF work unless explicitly asked.
+Keep `COMM-05` closed, use the THB/PV referral-commission plan only, and continue from the active BAO/WAP surfaces only.
+Do not go back to deprecated commission screens, `CommissionMainPlan`, or the old custom admin UI unless explicitly asked.
 
 What Was Completed In This Round
 
@@ -158,42 +158,87 @@ Runtime Verification Completed This Round
     - `totalPayablePv: 750`
     - `totalBonusAmount: 225`
   - no item reverted back to `planned`
+- BAO commission UI was cleaned up to match the active plan only
+  - removed `Commission Setting` from the Orchid menu
+  - `Commission Report` now exposes only:
+    - `overview`
+    - `direct`
+    - `team`
+    - `matching`
+    - `pool`
+  - report query/export/view logic now uses only active commission channels
+  - fixed a real Postgres query bug in team/matching report filtering caused by quoted `commissionType` `whereIn(...)`
+- deprecated admin/member commission surfaces were removed from active use and archived
+  - archived old custom Nest admin UI from `apps/api/public/admin`
+  - archived deprecated Orchid `CommissionMainPlanReportScreen`
+  - archived WAP `CommissionMainPlan.tsx`
+  - archived old `commission-main-plan` docs, view files, and helper scripts to:
+    - `tmp/archived_admin_ui_2026-04-28/`
+- `/admin` on the Nest side now redirects to Orchid BAO instead of serving the old custom admin shell
+- active-tree reference cleanup was completed
+  - removed active references to:
+    - `CommissionMainPlan`
+    - `commission-main-plan`
+    - old commission setting/report routes for `unilevel`, `matrix`, `cashback`, and the old root settings screen
+- WAP member-team follow-up was corrected to the proper surface
+  - earlier `Team volume` work had briefly been attempted on `Commission`, but that was the wrong screen for the requested mock
+  - latest work moved the `Team volume` block to `TeamMember` to match the real target screen and left `Commission` focused on commission data only
+  - `TeamMember` now shows:
+    - a `Team volume` summary strip
+    - `DIRECT / L / M / R` counts
+    - filtered member-tree results below the strip on the same page
+  - member direct-referral payloads now include `placementSide`, which the WAP team view uses to count `L / M / R`
+  - latest commits:
+    - `b506494c` `Move team volume UI to TeamMember`
+    - `e4153eeb` `Add team volume section to TeamMember`
 
 Current Working Files
 
 - [HANDOFF_NEXT.md](/Users/macbook/poolproject/HANDOFF_NEXT.md:1)
 - [CHECKLIST_LIVE_OPERATIONS.md](/Users/macbook/poolproject/CHECKLIST_LIVE_OPERATIONS.md:1)
 - [docs/technical-design/referral_commission_plan_thb.md](/Users/macbook/poolproject/docs/technical-design/referral_commission_plan_thb.md:1)
+- [apps/api/src/admin-ui.controller.ts](/Users/macbook/poolproject/apps/api/src/admin-ui.controller.ts:1)
 - [packages/modules/commissions/src/controllers/commissions.controller.ts](/Users/macbook/poolproject/packages/modules/commissions/src/controllers/commissions.controller.ts:1)
 - [packages/modules/commissions/src/domain/commissions.types.ts](/Users/macbook/poolproject/packages/modules/commissions/src/domain/commissions.types.ts:1)
 - [packages/modules/commissions/src/repositories/commissions.repository.ts](/Users/macbook/poolproject/packages/modules/commissions/src/repositories/commissions.repository.ts:1)
 - [packages/modules/commissions/src/services/commissions.service.ts](/Users/macbook/poolproject/packages/modules/commissions/src/services/commissions.service.ts:1)
 - [packages/modules/orders/src/services/orders.service.ts](/Users/macbook/poolproject/packages/modules/orders/src/services/orders.service.ts:1)
-- [apps/api/public/admin/index.html](/Users/macbook/poolproject/apps/api/public/admin/index.html:1)
+- [stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/PlatformProvider.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/PlatformProvider.php:1)
+- [stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Commission/CommissionReportScreen.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Commission/CommissionReportScreen.php:1)
+- [stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Commission/CommissionSettingsScreen.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Commission/CommissionSettingsScreen.php:1)
+- [stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Support/CommissionReportBuilder.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Support/CommissionReportBuilder.php:1)
+- [stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/resources/views/commission/report.blade.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/resources/views/commission/report.blade.php:1)
+- [stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/routes/platform.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/routes/platform.php:1)
+- [packages/modules/members/src/repositories/members.repository.ts](/Users/macbook/poolproject/packages/modules/members/src/repositories/members.repository.ts:956)
+- [packages/modules/members/src/services/members.service.ts](/Users/macbook/poolproject/packages/modules/members/src/services/members.service.ts:129)
+- [stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/TeamMember.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/TeamMember.tsx:1)
 
 Current Working Tree
 
 - modified:
   - `CHECKLIST_LIVE_OPERATIONS.md`
   - `HANDOFF_NEXT.md`
-  - `apps/api/public/admin/index.html`
-  - `apps/api/src/admin-settings.controller.ts`
-  - `packages/modules/auth/src/controllers/auth.controller.ts`
-  - `packages/modules/commissions/src/controllers/commissions.controller.ts`
-  - `packages/modules/commissions/src/domain/commissions.types.ts`
-  - `packages/modules/commissions/src/repositories/commissions.repository.ts`
-  - `packages/modules/commissions/src/services/commissions.service.ts`
-  - `packages/modules/members/src/repositories/members.repository.ts`
-  - `packages/modules/members/src/services/members.service.ts`
-  - `packages/modules/orders/src/services/orders.service.ts`
-  - `packages/modules/qualification/src/domain/qualification.types.ts`
-  - `packages/shared/utils/src/commission-settings.util.ts`
-  - `prisma/schema.prisma`
+  - `apps/api/src/admin-ui.controller.ts`
+  - `docs/uat/2026-04-03-bao-wap-runtime-audit.md`
+  - `package.json`
+  - `stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Http/Controllers/Platform/CommissionReportController.php`
+  - `stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Http/Controllers/Platform/CommissionSettingsController.php`
+  - `stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/PlatformProvider.php`
+  - `stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Commission/CommissionReportScreen.php`
+  - `stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Commission/CommissionSettingsScreen.php`
+  - `stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Support/CommissionReportBuilder.php`
+  - `stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/resources/views/commission/report.blade.php`
+  - `stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/routes/platform.php`
+  - `stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/navigation/StackNavigator.tsx`
+  - `stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/index.tsx`
 - untracked:
-  - `docs/technical-design/referral_commission_plan_thb.md`
+  - `tmp/archived_admin_ui_2026-04-28/`
   - `tmp/archived_commission_plan_2026-04-27/`
 - unrelated existing file to ignore unless user asks:
   - Thai-named `.xlsx` file in repo root
+- note:
+  - `TeamMember.tsx` was force-added and committed because the `stephub/` tree is ignored by repo rules
+  - if later WAP file changes are meant to be committed, expect to use `git add -f` again for those specific paths
 
 Exactly What To Do Next
 
@@ -206,20 +251,35 @@ Treat `COMM-05` as complete. Do not redo cap/gating or team/matching core runtim
 - treat current backend adjustment work as the active focus, not recipient-positive pool testing
 - do not spend more time trying to force a pool-eligible sample from the current dataset
 - if more plan cleanup is needed, capture it in handoff/checklist first before reopening runtime verification
-- UI work for the new commission display can start from here
+- BAO commission report cleanup is now the active admin surface
+- any further commission UI work must continue from the active Orchid report pages only
 - treat matrix as soft-disabled unless the business explicitly asks to revive it
 
-3. Keep the locked runtime order intact in every later smoke flow
+3. Do not restore deprecated commission surfaces
+- do not bring back:
+  - `apps/api/public/admin/*`
+  - `CommissionMainPlan.tsx`
+  - `CommissionMainPlanReportScreen.php`
+  - old `commission-main-plan` docs or helper scripts
+- if historical reference is needed, use:
+  - `tmp/archived_admin_ui_2026-04-28/`
+
+4. Keep the locked runtime order intact in every later smoke flow
 - `team -> buyback side effect -> pool`
 - do not reorder these batches during further verification or test wiring
 
-4. Defer pool recipient-positive testing until after adjustment planning is fully settled
+5. Defer pool recipient-positive testing until after adjustment planning is fully settled
 - current `2025-11-27` sample already proves rerun behavior
 - recipient-positive pool verification remains a later phase
 - when returning to it, use a date or fixture that naturally produces eligible recipients instead of stretching the current sample data
 
 6. Use the new THB/PV referral and commission plan as the only source of truth
 - use [docs/technical-design/referral_commission_plan_thb.md](/Users/macbook/poolproject/docs/technical-design/referral_commission_plan_thb.md:1)
+
+7. Keep WAP screen targeting explicit before changing member UI
+- if the requested mock or screenshot shows `127.0.0.1:3002/TeamMember`, implement it on `TeamMember`, not `Commission`
+- keep `Commission` for commission-value surfaces
+- keep `TeamMember` for team-tree / team-volume surfaces
 - treat older commission-plan docs as archived material only
 - new referral flow must use `referralCode` and `/SignUp?ref=...`
 - commission basis is approved order PV from real catalog data:
@@ -242,7 +302,7 @@ When the team is ready to resume pool work, do it in this order:
 6. verify held pool payouts land in the held wallet bucket when applicable
 7. verify rerunning the same pool date returns `reprocessed: true` and does not duplicate payouts or wallet credits
 
-5. If a formal automated test harness is introduced later
+6. If a formal automated test harness is introduced later
 - port the three existing smoke checks into durable automated coverage:
   - one-leg carry-forward
   - matching from team `finalPayableAmount`
@@ -286,12 +346,12 @@ Recommended First Files Next Session
 
 1. [HANDOFF_NEXT.md](/Users/macbook/poolproject/HANDOFF_NEXT.md:1)
 2. [docs/technical-design/referral_commission_plan_thb.md](/Users/macbook/poolproject/docs/technical-design/referral_commission_plan_thb.md:1)
-3. [packages/modules/commissions/src/services/commissions.service.ts](/Users/macbook/poolproject/packages/modules/commissions/src/services/commissions.service.ts:1)
-4. [packages/modules/commissions/src/repositories/commissions.repository.ts](/Users/macbook/poolproject/packages/modules/commissions/src/repositories/commissions.repository.ts:1)
-5. [packages/modules/commissions/src/controllers/commissions.controller.ts](/Users/macbook/poolproject/packages/modules/commissions/src/controllers/commissions.controller.ts:1)
+3. [stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/PlatformProvider.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/PlatformProvider.php:1)
+4. [stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Support/CommissionReportBuilder.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Support/CommissionReportBuilder.php:1)
+5. [stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/resources/views/commission/report.blade.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/resources/views/commission/report.blade.php:1)
 
 Bottom Line
 
 The repo has moved past the `COMM-04` cap/gating milestone.
 `COMM-05` backend runtime and close-out hardening are effectively complete, with runtime verification on the local stack for processed-date reruns, concurrent reruns, one-leg carry-forward, and matching-from-final-payable.
-Pool payout creation also runs through the shared finalize path; the next person should treat `COMM-05` as done, begin the new commission UI if needed, and come back to recipient-positive pool verification as a separate phase. Matrix is currently soft-disabled across runtime and primary admin/member surfaces.
+Pool payout creation also runs through the shared finalize path. BAO now uses the cleaned Orchid commission report surface only, while old custom admin and `CommissionMainPlan` surfaces have been archived out of active use. The next person should treat `COMM-05` as done, continue only from the active BAO/WAP surfaces, and return to recipient-positive pool verification as a separate later phase. Matrix is currently soft-disabled across runtime and primary admin/member surfaces.

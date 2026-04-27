@@ -21,16 +21,10 @@ Date: 2026-04-03
 
 | Area | Route / Menu | Action-backed | Persist / Read-back | Status | Notes |
 | --- | --- | --- | --- | --- | --- |
-| Commission root settings | `/admin/commission/settings` | Yes | Local code now supports real forms on root page; remote still needs deploy | Misleading UI on remote, fixed locally | Root page previously looked production-ready but only partially saved data before the local fix |
-| Direct bonus | `platform.commission.direct` | Yes | Settings write through `CommissionSettingsController::saveCommission` | Needs validation | Save flow exists; page wording now aligned to live runtime |
-| Unilevel bonus | `platform.commission.unilevel` | Yes | Settings write through `CommissionSettingsController::saveCommission` | Needs validation | Save flow exists; page wording now aligned to live runtime |
-| Matrix bonus | `platform.commission.matrix` | Yes | Settings write through `CommissionSettingsController::saveMatrix` | Needs validation | Matrix and board thresholds are runtime-backed |
-| Reentry rules | `platform.commission.reentry` | Yes | Settings write through `CommissionSettingsController::saveMatrix` | Needs validation | Reentry CW, Firm, and PV are runtime-backed |
-| Pool / Cashback | `platform.commission.pool` and `platform.commission.cashback` | Yes | Settings write through `CommissionSettingsController::saveCommission` | Needs validation | Save flow exists; page wording now aligned to live runtime |
+| Commission report | `platform.commission.report*` | Yes | Read-back from report queries/export | Confirmed usable | Active BAO commission surface now only exposes overview, direct, team, matching, and pool reports |
 | Manual payment | `platform.commission.manualPayment` | Yes | Writes account/promptpay/QR into runtime settings | Confirmed usable | Existing save controller and runtime read-back are in place |
 | Signup share | `platform.commission.signupShare` | Yes | Writes share messages into runtime settings | Confirmed usable | Previously UAT-covered and runtime-backed |
 | LINE status | `platform.line.status` | Yes | Read-back comes from live route/env probes | Confirmed usable | Operator probe page, not a config writer |
-| Commission report | `platform.commission.report*` | Yes | Read-back from report queries/export | Confirmed usable | Report routes and export route exist |
 | Delivered orders | `platform.order.delivered` | Yes | Existing order state read-back | Confirmed usable | Exposed in BAO menu now |
 | Wallet top-up requests | `platform.wallet.topup.*` | Yes | Previously smoke-tested | Confirmed usable | Admin approve/reject flow is runtime-backed |
 | KYC requests | `platform.kyc.*` | Yes | Previously smoke-tested through business API | Confirmed usable | Admin approve/reject now goes through central API |
