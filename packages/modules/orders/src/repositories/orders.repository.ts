@@ -2387,6 +2387,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
       commissionSettingsSnapshot: string | null;
       items: Array<{
         lineTotalPv: string;
+        lineTotalUsdt: string;
         poolRateMode?: "default_50_percent" | "custom_rate" | "disabled";
         poolRate?: string;
       }>;
@@ -2395,6 +2396,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
     const range = buildBangkokSingleDayRange(poolDate);
     const orderItemSelect = {
       lineTotalPv: true,
+      lineTotalUsdt: true,
       poolRateMode: true,
       unitPoolRate: true,
     } satisfies Prisma.OrderItemSelect;
@@ -2425,6 +2427,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
       commissionSettingsSnapshot: order.commissionSettingsSnapshot,
       items: order.orderItems.map((item) => ({
         lineTotalPv: toDecimalString(item.lineTotalPv),
+        lineTotalUsdt: toDecimalString(item.lineTotalUsdt),
         poolRateMode: item.poolRateMode?.toString().toLowerCase() as
           | "default_50_percent"
           | "custom_rate"

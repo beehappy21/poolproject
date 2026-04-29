@@ -6,6 +6,17 @@ function readSignupFile(fileName: string): string {
   return readFileSync(join(process.cwd(), "apps/api/public/signup", fileName), "utf8");
 }
 
+function readAdminHtmlFile(fileName: string): string {
+  return readFileSync(join(process.cwd(), "apps/api/public/admin", fileName), "utf8");
+}
+
+function readArchivedAdminAsset(fileName: string): string {
+  return readFileSync(
+    join(process.cwd(), "tmp/archived_admin_ui_2026-04-28/admin", fileName),
+    "utf8",
+  );
+}
+
 function readMemberAppFile(fileName: string): string {
   return readFileSync(join(process.cwd(), "apps/api/public/app", fileName), "utf8");
 }
@@ -26,25 +37,25 @@ export class AdminUiController {
   ) {
     void authorization;
     void cookieHeader;
-    return this.renderDeprecatedAdminRedirect();
+    return readAdminHtmlFile("index.html");
   }
 
   @Get("admin/index.html")
   @Header("Content-Type", "text/html; charset=utf-8")
   getAdminIndex() {
-    return this.renderDeprecatedAdminRedirect();
+    return readAdminHtmlFile("index.html");
   }
 
   @Get("admin/styles.css")
   @Header("Content-Type", "text/css; charset=utf-8")
   getAdminStyles() {
-    return "/* Deprecated admin UI. Use Orchid BAO at http://127.0.0.1:8001/admin/main */";
+    return readArchivedAdminAsset("styles.css");
   }
 
   @Get("admin/app.js")
   @Header("Content-Type", "application/javascript; charset=utf-8")
   getAdminScript() {
-    return "console.warn('Deprecated admin UI. Use Orchid BAO at http://127.0.0.1:8001/admin/main');";
+    return readArchivedAdminAsset("app.js");
   }
 
   @Get("signup")
@@ -93,22 +104,5 @@ export class AdminUiController {
   @Header("Content-Type", "application/javascript; charset=utf-8")
   getMemberAppScript() {
     return readMemberAppFile("app.js");
-  }
-
-  private renderDeprecatedAdminRedirect(): string {
-    const target = "http://127.0.0.1:8001/admin/main";
-
-    return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta http-equiv="refresh" content="0; url=${target}" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Admin UI Moved</title>
-  </head>
-  <body>
-    <p>Admin UI moved to <a href="${target}">${target}</a>.</p>
-  </body>
-</html>`;
   }
 }

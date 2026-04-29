@@ -2,6 +2,20 @@ export interface CommissionItemSummary {
   commissionId: string;
 }
 
+export interface EndOfDayCommissionBatchResult {
+  settlementDate: string;
+  teamSettlement: TeamSettlementBatchProcessResult;
+  pool: {
+    poolDate: string;
+    fundingTotalApprovedPv: string;
+    poolFund: string;
+    eligibleMemberCount: number;
+    payoutPerMember: string;
+    companyFallbackAmount: string;
+    reprocessed?: boolean;
+  };
+}
+
 export type CommissionSourceType =
   | "direct"
   | "uni"
@@ -78,6 +92,7 @@ export interface CommissionFinalizationInput {
     buybackThresholdAmount: string;
     buybackGraceDays: number;
   };
+  applyDailyCap?: boolean;
 }
 
 export interface CommissionFinalizationResult {

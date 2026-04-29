@@ -6,6 +6,7 @@ import {
   BonusToCycleAllocationResult,
   CommissionReleaseStatus,
   CommissionCandidatePath,
+  EndOfDayCommissionBatchResult,
   CommissionFinalizationInput,
   CommissionFinalizationResult,
   CommissionSourceType,
@@ -31,6 +32,7 @@ import { MembersService } from "../../../members/src/services/members.service";
 import { MembersServiceContract } from "../../../members/src/services/members.service";
 import { OrdersService } from "../../../orders/src/services/orders.service";
 import { OrdersServiceContract } from "../../../orders/src/services/orders.service";
+import { PoolService } from "../../../pool/src/services/pool.service";
 import { QualificationService } from "../../../qualification/src/services/qualification.service";
 import { QualificationServiceContract } from "../../../qualification/src/services/qualification.service";
 import { PrismaCommissionsRepository } from "../repositories/commissions.repository";
@@ -154,6 +156,10 @@ export interface CommissionsServiceContract {
     settlementDate: string,
   ): Promise<TeamSettlementBatchProcessResult>;
 
+  processEndOfDayCommissionBatch(
+    settlementDate: string,
+  ): Promise<EndOfDayCommissionBatchResult>;
+
   getTeamSettlementBatchSnapshot(
     settlementDate: string,
   ): Promise<TeamSettlementBatchSnapshotResult>;
@@ -184,6 +190,8 @@ export class CommissionsService implements CommissionsServiceContract {
     private readonly membersService: MembersService,
     private readonly qualificationService: QualificationService,
     private readonly commissionsRepository: PrismaCommissionsRepository,
+    @Inject(forwardRef(() => PoolService))
+    private readonly poolService: PoolService,
   ) {}
 
   async handleApprovedOrderCommissionSource(
@@ -198,16 +206,7 @@ export class CommissionsService implements CommissionsServiceContract {
       sourceOrder.sourceUserId,
       sourceOrder.approvedAt,
     );
-    const cashbackDrafts =
-      commissionSettings.appVisibility.cashback === false
-        ? []
-        : await this.buildCashbackDrafts(
-            sourceOrder.orderId,
-            sourceOrder.sourceUserId,
-            sourceOrder.approvedAt,
-            sourceOrder.totalPv,
-            commissionSettings,
-          );
+    const cashbackDrafts: ApprovedOrderCommissionFlowResult["cashbackDrafts"] = [];
 
     const directCandidateUserIds =
       commissionSettings.appVisibility.direct === false
@@ -231,27 +230,7 @@ export class CommissionsService implements CommissionsServiceContract {
             directCandidateUserIds,
             commissionSettings,
           );
-    const uniCandidateUserIds =
-      commissionSettings.appVisibility.unilevel === false
-        ? []
-        : await this.resolveUniBonusCandidatePath({
-            sourceUserId: sourceOrder.sourceUserId,
-            evaluationAt: sourceOrder.approvedAt,
-            candidateUserIds,
-            uniLevelCount: commissionSettings.uniLevelRates.length,
-          });
-    const uniDrafts =
-      commissionSettings.appVisibility.unilevel === false
-        ? []
-        : await this.buildUniDrafts(
-            sourceOrder.orderId,
-            sourceOrder.sourceUserId,
-            sourceOrder.approvedAt,
-            sourceOrder.totalPv,
-            candidateUserIds,
-            uniCandidateUserIds,
-            commissionSettings,
-          );
+    const uniDrafts: ApprovedOrderCommissionFlowResult["uniDrafts"] = [];
 
     return {
       sourceOrderId: sourceOrder.orderId,
@@ -385,19 +364,19 @@ export class CommissionsService implements CommissionsServiceContract {
     const commissionConfig =
       input.commissionConfig ?? this.readCommissionConfigFallback();
     const grossAmount = input.grossAmount ?? input.amount;
-    const capSnapshot =
-      await this.commissionsRepository.getDailyCommissionCapSnapshot({
-        beneficiaryUserId: input.beneficiaryUserId,
-        capDate: this.toBangkokBusinessDate(input.evaluationAt),
-        capAmount: commissionConfig.dailyCommissionCapAmount,
-      });
-    const remainingCap = this.maxZeroDecimal(
-      subtractDecimalStrings(capSnapshot.capAmount, capSnapshot.usedAmount),
-    );
-    const finalPayableAmount = minDecimalString(grossAmount, remainingCap);
-    const discardedAmount = this.maxZeroDecimal(
-      subtractDecimalStrings(grossAmount, finalPayableAmount),
-    );
+    const shouldApplyDailyCap = this.shouldApplyDailyCap(input);
+    const finalPayableAmount = shouldApplyDailyCap
+      ? await this.resolveCappedFinalPayableAmount(
+          input,
+          grossAmount,
+          commissionConfig,
+        )
+      : grossAmount;
+    const discardedAmount = shouldApplyDailyCap
+      ? this.maxZeroDecimal(
+          subtractDecimalStrings(grossAmount, finalPayableAmount),
+        )
+      : "0";
     if (compareDecimalStrings(finalPayableAmount, "0") <= 0) {
       return {
         commissionStatus: "approved",
@@ -631,6 +610,20 @@ export class CommissionsService implements CommissionsServiceContract {
       settlementDate,
       items: processedStatuses,
     });
+  }
+
+  async processEndOfDayCommissionBatch(
+    settlementDate: string,
+  ): Promise<EndOfDayCommissionBatchResult> {
+    const teamSettlement =
+      await this.processTeamSettlementBatch(settlementDate);
+    const pool = await this.poolService.closePool(settlementDate);
+
+    return {
+      settlementDate,
+      teamSettlement,
+      pool,
+    };
   }
 
   async getTeamSettlementBatchSnapshot(
@@ -1471,7 +1464,8 @@ export class CommissionsService implements CommissionsServiceContract {
     if (
       input.beneficiaryUserId &&
       finalization.commissionStatus !== "fallback" &&
-      compareDecimalStrings(finalization.finalPayableAmount, "0") > 0
+      compareDecimalStrings(finalization.finalPayableAmount, "0") > 0 &&
+      this.shouldApplyDailyCap(input)
     ) {
       const commissionConfig =
         input.commissionConfig ?? this.readCommissionConfigFallback();
@@ -1510,6 +1504,34 @@ export class CommissionsService implements CommissionsServiceContract {
       buybackThresholdAmount: settings.buybackThresholdAmount,
       buybackGraceDays: settings.buybackGraceDays,
     };
+  }
+
+  private shouldApplyDailyCap(input: CommissionFinalizationInput): boolean {
+    if (input.applyDailyCap !== undefined) {
+      return input.applyDailyCap;
+    }
+
+    return input.sourceType === "team_2leg" || input.sourceType === "team_3leg";
+  }
+
+  private async resolveCappedFinalPayableAmount(
+    input: CommissionFinalizationInput,
+    grossAmount: string,
+    commissionConfig: Required<
+      NonNullable<CommissionFinalizationInput["commissionConfig"]>
+    >,
+  ): Promise<string> {
+    const capSnapshot =
+      await this.commissionsRepository.getDailyCommissionCapSnapshot({
+        beneficiaryUserId: input.beneficiaryUserId!,
+        capDate: this.toBangkokBusinessDate(input.evaluationAt),
+        capAmount: commissionConfig.dailyCommissionCapAmount,
+      });
+    const remainingCap = this.maxZeroDecimal(
+      subtractDecimalStrings(capSnapshot.capAmount, capSnapshot.usedAmount),
+    );
+
+    return minDecimalString(grossAmount, remainingCap);
   }
 
   private toBangkokBusinessDate(value: string): string {

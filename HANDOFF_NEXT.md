@@ -1,15 +1,206 @@
 Handoff Next
 
-Updated: 2026-04-28 02:10 +07
+Updated: 2026-04-29 17:08 +07
 Branch: `main`
 
 Current Goal
 
-Keep `COMM-05` closed, use the THB/PV referral-commission plan only, and continue from the active BAO/WAP surfaces only.
-Do not go back to deprecated commission screens, `CommissionMainPlan`, or the old custom admin UI unless explicitly asked.
+Lock the new commission runtime direction before implementation:
+
+- `Direct` pays immediately on approved orders
+- `2leg / 3leg`, `Matching`, and `Pool` run after end of day
+- daily cap applies only to `2leg / 3leg`
+- buyback / recycle stays unchanged
+- pool uses daily approved PV funding with a per-member `3% of real paid amount` payout ceiling
+
+Use BAO/WAP for normal operations.
+Use `/admin` local quick actions when you need commission runtime controls such as team scaffold, team-only process, end-of-day process, pool close, or runtime verification.
+Do not go back to deprecated commission screens or `CommissionMainPlan`.
+
+Current Locked Spec
+
+- Primary working spec for this round:
+  - [docs/technical-design/pool_daily_eod_spec.md](/Users/macbook/poolproject/docs/technical-design/pool_daily_eod_spec.md:1)
+- Direct rule:
+  - calculate immediately when an order becomes `approved`
+- End-of-day rules:
+  - calculate `2leg / 3leg`
+  - apply daily cap only to `2leg / 3leg`
+  - calculate `Matching` from team `finalPayableAmount` after cap
+  - calculate `Pool` after the end-of-day team/matching flow
+- Pool rule:
+  - fund from same-day approved PV only
+  - member who qualifies today starts receiving on the next day
+  - member stays eligible daily until the related `memberPackageCycle` ends
+  - member daily pool payout cannot exceed `3%` of real paid purchase amount from pool-enabled products on that day
+- Buyback / recycle:
+  - unchanged in this round
+
+Session Close Rule
+
+- At the end of every implementation session, update both:
+  - [HANDOFF_NEXT.md](/Users/macbook/poolproject/HANDOFF_NEXT.md:1)
+  - [CHECKLIST_LIVE_OPERATIONS.md](/Users/macbook/poolproject/CHECKLIST_LIVE_OPERATIONS.md:1)
+- Do this even when the session changes only spec, runtime assumptions, or verification notes.
 
 What Was Completed In This Round
 
+- Started implementing the locked daily commission runtime:
+  - `Direct` immediate-on-approval flow now skips same-day `cashback` and `uni`
+  - shared daily-cap finalization now applies cap only to `team_2leg` and `team_3leg`
+  - added end-of-day orchestration endpoint:
+    - `POST /commissions/end-of-day/:settlementDate/process`
+  - end-of-day orchestration currently runs:
+    - team settlement process
+    - pool close for the same Bangkok business date
+  - pool order loading now also exposes per-line `lineTotalUsdt`
+  - pool eligibility now moves closer to the locked rule:
+    - prior-day qualification check for own/direct/direct-buyer history
+    - active `memberPackageCycle` requirement
+    - same-day real-paid amount snapshot for pool-enabled order lines
+  - pool payout request is now capped per member by `3%` of same-day real paid pool-enabled purchase amount
+- Validation for this implementation round:
+  - `npx prisma validate --schema prisma/schema.prisma` passed
+  - `npm run lint` passed
+- Runtime verification for this implementation round:
+  - restarted local stack with `npm run dev:restart`
+  - verified `Direct` immediate flow on fixture order `150`
+    - `cashbackCount: 0`
+    - `directCount: 1`
+    - `uniCount: 0`
+    - only the direct beneficiary received a wallet posting
+  - verified end-of-day orchestration on `2025-11-27`
+    - `POST /commissions/end-of-day/2025-11-27/process` returned processed team settlement plus pool close result
+  - verified direct pool close on `2025-11-27`
+    - `POST /pool/2025-11-27/close` now returns:
+      - `fundingTotalApprovedPv: 2000`
+      - `poolFund: 2000`
+      - `eligibleMemberCount: 0`
+      - `companyFallbackAmount: 2000`
+    - `GET /pool/2025-11-27/snapshot` matches the same values after rerun
+  - verified recipient-positive pool cap fixture on `2030-01-16`
+    - fixture created exactly `1` eligible recipient with same-day real paid pool-enabled amount `100`
+    - same-day total pool funding PV = `1100`
+    - `POST /pool/2030-01-16/close` returned:
+      - `poolFund: 1100`
+      - `eligibleMemberCount: 1`
+      - `payoutPerMember: 1100`
+      - `companyFallbackAmount: 1097`
+    - `GET /pool/2030-01-16/snapshot` returned:
+      - `payoutCount: 1`
+    - approved payout row amount `3`
+    - linked `commissionLedgerId` present
+    - this confirms the new per-member daily pool ceiling is limiting payout to `3%` of real paid amount
+- Restored the local `/admin` surface for commission operations:
+  - `GET /admin` now serves the local admin HTML again instead of redirecting immediately to BAO
+  - `GET /admin/app.js` and `GET /admin/styles.css` now serve the archived working admin assets
+  - quick actions now expose:
+    - `Team Only` for `POST /commissions/team-settlement-batches/:settlementDate/process`
+    - `End Of Day` for `POST /commissions/end-of-day/:settlementDate/process`
+    - `Close Pool Only` for manual pool-only reruns
+  - the action panel now documents the locked runtime rule:
+    - `Direct` runs on approval
+    - `2leg / 3leg`, `Matching`, and `Pool` run after end of day
+    - pool eligibility starts the next day
+    - pool payout is capped at `3%` of real paid pool-enabled amount
+- Operator smoke for the restored `/admin` flow is now verified through the same API route the UI uses:
+  - runtime health was `ok` at `GET /health`
+  - current working local operator login is:
+    - identifier: `TH0000013`
+    - password: `a1a1a1`
+  - `GET /auth/me` with that token succeeded for user `TH0000013`
+  - `POST /commissions/end-of-day/2025-11-27/process` succeeded with that token and returned:
+    - team batch `status: processed`
+    - `processedUsers: 1`
+    - `carriedForwardUsers: 5`
+    - `totalPayablePv: 750`
+    - `totalBonusAmount: 225`
+    - pool summary `fundingTotalApprovedPv: 2000`
+    - pool summary `poolFund: 2000`
+    - pool summary `eligibleMemberCount: 0`
+    - pool summary `companyFallbackAmount: 2000`
+    - pool summary `reprocessed: true`
+  - `GET /commissions/team-settlement-batches/2025-11-27/snapshot` still matched the same processed totals after the rerun
+  - `/admin` login hint is now updated to the working local credential placeholder:
+    - identifier placeholder `TH0000013 or member email`
+    - password placeholder `a1a1a1`
+    - hint text `Current local login: TH0000013 / a1a1a1`
+  - member app sign-in placeholders are now neutralized as well:
+    - identifier placeholder `Member code, email, or phone`
+    - password placeholder `Enter password`
+    - this removes the old dev-password example from the public member sign-in surface
+- Deployment bundle for this session is prepared as a zip:
+  - zip file: [commission-runtime-2026-04-29.zip](/Users/macbook/poolproject/deploy/releases/commission-runtime-2026-04-29.zip)
+  - release notes: [commission-runtime-2026-04-29-release.md](/Users/macbook/poolproject/deploy/commission-runtime-2026-04-29-release.md:1)
+  - bundle contains the commission runtime source changes, admin surface changes, spec, and handoff/checklist files for this round
+  - intended usage:
+    - copy the zip to the server
+    - unzip from the project root
+    - rebuild/restart the API runtime
+  - uploaded to target server:
+    - host: `202.94.169.245`
+    - remote path: `/home/nc-user/commission-runtime-2026-04-29.zip`
+    - remote project root observed at: `/home/nc-user/poolproject`
+    - remote archive listing verified successfully after upload
+  - deployed on target server:
+    - archive was unzipped into `/home/nc-user/poolproject`
+    - rebuilt images: `api`, `wap`
+    - recreated runtime services: `api`, `wap`, `nginx`
+    - container health verified after restart:
+      - `poolproject-uat-api-1`
+      - `poolproject-uat-wap-1`
+      - `poolproject-uat-nginx-1`
+  - UAT post-deploy verification:
+    - `curl http://127.0.0.1:3000/health` returned `{"status":"ok"}`
+    - `curl -I http://127.0.0.1:3000/admin` returned `200 OK`
+    - production-style member login on UAT does not allow dev impersonation password
+    - verified working UAT admin member session:
+      - identifier: `TH0000013`
+      - password: `005613`
+    - first `POST /commissions/end-of-day/2025-11-27/process` failed because the UAT database schema was behind the deployed code:
+      - missing table `public.TeamSettlementBatch`
+    - fixed by syncing the UAT database schema from the deployed container:
+      - `docker exec poolproject-uat-api-1 npx prisma db push --schema prisma/schema.prisma`
+    - after schema sync, `POST /commissions/end-of-day/2025-11-27/process` succeeded on UAT and returned:
+      - team settlement `status: processed`
+      - `totalUsers: 0`
+      - `processedUsers: 0`
+      - `carriedForwardUsers: 0`
+      - `totalPayablePv: 0`
+      - `totalBonusAmount: 0`
+      - pool summary `fundingTotalApprovedPv: 2000`
+      - pool summary `poolFund: 2000`
+      - pool summary `eligibleMemberCount: 0`
+      - pool summary `companyFallbackAmount: 2000`
+    - `GET /pool/2025-11-27/snapshot` with the same UAT session returned:
+      - cycle `status: closed`
+      - `fundingTotalApprovedPv: 2000`
+      - `poolFund: 2000`
+      - `eligibleMemberCount: 0`
+      - `payoutCount: 0`
+  - important operator note:
+    - the deployed `/admin` page currently shows the local-dev login hint `TH0000013 / a1a1a1`
+    - that hint is correct for local non-production runtime only
+    - UAT / production-style runtime currently requires the real member password instead
+  - uploaded to Google Drive:
+    - `nutrientlife.co.ltd@gmail.com`:
+      - `/Users/macbook/Library/CloudStorage/GoogleDrive-nutrientlife.co.ltd@gmail.com/My Drive/commission-runtime-2026-04-29.zip`
+      - `/Users/macbook/Library/CloudStorage/GoogleDrive-nutrientlife.co.ltd@gmail.com/My Drive/commission-runtime-2026-04-29-release.md`
+    - `chaiyanut.og@gmail.com`:
+      - `/Users/macbook/Library/CloudStorage/GoogleDrive-chaiyanut.og@gmail.com/My Drive/commission-runtime-2026-04-29.zip`
+      - `/Users/macbook/Library/CloudStorage/GoogleDrive-chaiyanut.og@gmail.com/My Drive/commission-runtime-2026-04-29-release.md`
+- Locked the new commission / pool direction in a dedicated spec:
+  - [docs/technical-design/pool_daily_eod_spec.md](/Users/macbook/poolproject/docs/technical-design/pool_daily_eod_spec.md:1)
+- Locked these business rules for the next implementation step:
+  - `Direct` runs immediately on approved orders
+  - `2leg / 3leg`, `Matching`, and `Pool` run after end of day
+  - daily cap applies only to `2leg / 3leg`
+  - `Matching` stays based on team `finalPayableAmount` after cap
+  - `Pool` uses daily approved PV funding
+  - pool qualification becomes `qualified today -> receive tomorrow`
+  - pool eligibility continues daily until the relevant `memberPackageCycle` ends
+  - per-member pool payout is capped at `3%` of real paid pool-enabled purchase amount per day
+- Updated the live operations checklist so the next session reuses the same locked rules and always refreshes handoff + checklist on close-out.
 - `COMM-04` is now complete.
 - The shared commission finalize path now computes and persists:
   - `grossAmount`
@@ -224,13 +415,19 @@ Current Working Files
 
 - [HANDOFF_NEXT.md](/Users/macbook/poolproject/HANDOFF_NEXT.md:1)
 - [CHECKLIST_LIVE_OPERATIONS.md](/Users/macbook/poolproject/CHECKLIST_LIVE_OPERATIONS.md:1)
+- [docs/technical-design/pool_daily_eod_spec.md](/Users/macbook/poolproject/docs/technical-design/pool_daily_eod_spec.md:1)
 - [docs/technical-design/referral_commission_plan_thb.md](/Users/macbook/poolproject/docs/technical-design/referral_commission_plan_thb.md:1)
+- [packages/modules/commissions/src/commissions.module.ts](/Users/macbook/poolproject/packages/modules/commissions/src/commissions.module.ts:1)
 - [apps/api/src/admin-ui.controller.ts](/Users/macbook/poolproject/apps/api/src/admin-ui.controller.ts:1)
 - [packages/modules/commissions/src/controllers/commissions.controller.ts](/Users/macbook/poolproject/packages/modules/commissions/src/controllers/commissions.controller.ts:1)
 - [packages/modules/commissions/src/domain/commissions.types.ts](/Users/macbook/poolproject/packages/modules/commissions/src/domain/commissions.types.ts:1)
 - [packages/modules/commissions/src/repositories/commissions.repository.ts](/Users/macbook/poolproject/packages/modules/commissions/src/repositories/commissions.repository.ts:1)
 - [packages/modules/commissions/src/services/commissions.service.ts](/Users/macbook/poolproject/packages/modules/commissions/src/services/commissions.service.ts:1)
 - [packages/modules/orders/src/services/orders.service.ts](/Users/macbook/poolproject/packages/modules/orders/src/services/orders.service.ts:1)
+- [packages/modules/orders/src/repositories/orders.repository.ts](/Users/macbook/poolproject/packages/modules/orders/src/repositories/orders.repository.ts:2390)
+- [packages/modules/pool/src/domain/pool.types.ts](/Users/macbook/poolproject/packages/modules/pool/src/domain/pool.types.ts:1)
+- [packages/modules/pool/src/repositories/pool.repository.ts](/Users/macbook/poolproject/packages/modules/pool/src/repositories/pool.repository.ts:1)
+- [packages/modules/pool/src/services/pool.service.ts](/Users/macbook/poolproject/packages/modules/pool/src/services/pool.service.ts:1)
 - [stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/PlatformProvider.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/PlatformProvider.php:1)
 - [stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Commission/CommissionReportScreen.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Commission/CommissionReportScreen.php:1)
 - [stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Commission/CommissionSettingsScreen.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/Commission/CommissionSettingsScreen.php:1)
@@ -246,7 +443,17 @@ Current Working Tree
 
 - modified:
   - `HANDOFF_NEXT.md`
+  - `CHECKLIST_LIVE_OPERATIONS.md`
+  - `packages/modules/commissions/src/commissions.module.ts`
+  - `packages/modules/commissions/src/controllers/commissions.controller.ts`
+  - `packages/modules/commissions/src/domain/commissions.types.ts`
+  - `packages/modules/commissions/src/services/commissions.service.ts`
+  - `packages/modules/orders/src/repositories/orders.repository.ts`
+  - `packages/modules/pool/src/domain/pool.types.ts`
+  - `packages/modules/pool/src/repositories/pool.repository.ts`
+  - `packages/modules/pool/src/services/pool.service.ts`
 - untracked:
+  - `docs/technical-design/pool_daily_eod_spec.md`
   - `tmp/archived_admin_ui_2026-04-28/`
 - unrelated existing file to ignore unless user asks:
   - Thai-named `.xlsx` file in repo root

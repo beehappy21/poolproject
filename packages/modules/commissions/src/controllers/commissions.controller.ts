@@ -108,6 +108,15 @@ export class CommissionsController {
     );
   }
 
+  @Post("end-of-day/:settlementDate/process")
+  async processEndOfDayCommissionBatch(
+    @Param("settlementDate") settlementDate: string,
+  ) {
+    return this.commissionsService.processEndOfDayCommissionBatch(
+      requireDateOnlyString(settlementDate, "settlementDate"),
+    );
+  }
+
   @Get("team-settlement-batches/:settlementDate/snapshot")
   async getTeamSettlementBatchSnapshot(
     @Param("settlementDate") settlementDate: string,

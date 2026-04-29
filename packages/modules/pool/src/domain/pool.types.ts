@@ -17,6 +17,7 @@ export interface PoolSourceOrder {
   totalPv: string;
   items?: Array<{
     lineTotalPv: string;
+    lineTotalUsdt?: string;
     poolRateMode?: "default_50_percent" | "custom_rate" | "disabled";
     poolRate?: string;
   }>;
@@ -36,6 +37,7 @@ export interface PoolEligibilityMemberSnapshot {
   hasOwnApprovedOrder: boolean;
   activeDirectReferralCount: number;
   activeDirectBuyerCount: number;
+  realPaidPoolEnabledAmount?: string;
   latestQualifiedBoardCompletedAt?: string | null;
   evaluationAt?: string;
 }

@@ -175,21 +175,25 @@ export class PoolService implements PoolServiceContract {
     return snapshots.map((snapshot) => ({
       userId: snapshot.userId,
       eligible:
+        snapshot.memberActive &&
         snapshot.hasOwnApprovedOrder &&
         snapshot.activeDirectReferralCount >= minDirects &&
         snapshot.activeDirectBuyerCount >= minDirects,
       reasonCode:
+        snapshot.memberActive &&
         snapshot.hasOwnApprovedOrder &&
         snapshot.activeDirectReferralCount >= minDirects &&
         snapshot.activeDirectBuyerCount >= minDirects
           ? "daily_pool_qualified"
-          : !snapshot.hasOwnApprovedOrder
+          : !snapshot.memberActive
+            ? "no_receivable_cycle"
+            : !snapshot.hasOwnApprovedOrder
             ? "missing_own_purchase_order"
             : snapshot.activeDirectReferralCount < minDirects
               ? "missing_three_direct_referrals"
               : "missing_three_direct_buyer_orders",
       memberActive: snapshot.memberActive,
-      activeDirectReferralCount: snapshot.activeDirectBuyerCount,
+      activeDirectReferralCount: snapshot.activeDirectReferralCount,
     }));
   }
 
@@ -223,7 +227,8 @@ export class PoolService implements PoolServiceContract {
         poolRateMode: "daily_fixed_rate",
         dailyPoolRate: commissionSettings.poolRate,
         timezone: "Asia/Bangkok",
-        eligibilityRule: "own_purchase_and_three_direct_buyers",
+        eligibilityRule: "cycle_active_and_prior_day_qualification",
+        memberDailyPoolCapRate: "0.03",
       }),
       eligibleMemberCount: flow.eligibleRecipientCount,
       payoutPerMember: flow.payoutPerMember,
@@ -321,6 +326,9 @@ export class PoolService implements PoolServiceContract {
       approvedOrders,
     });
     const eligibilityDecisions = await this.evaluatePoolEligibility(snapshots);
+    const snapshotByUserId = new Map(
+      snapshots.map((snapshot) => [snapshot.userId, snapshot] as const),
+    );
     const eligibleUserIds = eligibilityDecisions
       .filter((decision) => decision.eligible)
       .map((decision) => decision.userId);
@@ -376,7 +384,12 @@ export class PoolService implements PoolServiceContract {
 
     const recipientDrafts = await Promise.all(
       eligibleUserIds.map((userId) =>
-        this.buildRecipientDraft(evaluationAt, userId, payoutPerMember),
+        this.buildRecipientDraft(
+          evaluationAt,
+          userId,
+          payoutPerMember,
+          snapshotByUserId.get(userId) ?? null,
+        ),
       ),
     );
     const recipientLevelFallbackAmount = recipientDrafts.reduce(
@@ -414,6 +427,7 @@ export class PoolService implements PoolServiceContract {
     evaluationAt: string,
     userId: string,
     requestedAmount: string,
+    snapshot: PoolEligibilityMemberSnapshot | null,
   ): Promise<PoolRecipientDraftResult> {
     const candidateCycles = await this.membersService.getMemberCycles(
       userId,
@@ -428,15 +442,20 @@ export class PoolService implements PoolServiceContract {
 
         return left.activatedAt.localeCompare(right.activatedAt);
       });
+    const cappedRequestedAmount =
+      this.resolveMemberRequestedPoolAmount(snapshot, requestedAmount);
     const partialCycle = orderedCycles.find(
       (cycle) =>
         compareDecimalStrings(
-          this.resolveMaxPoolPayoutForCycle(cycle, requestedAmount),
+          this.resolveMaxPoolPayoutForCycle(
+            cycle,
+            cappedRequestedAmount,
+          ),
           "0",
         ) > 0,
     );
     const approvedAmount = partialCycle
-      ? this.resolveMaxPoolPayoutForCycle(partialCycle, requestedAmount)
+      ? this.resolveMaxPoolPayoutForCycle(partialCycle, cappedRequestedAmount)
       : "0";
     const fallbackAmount =
       compareDecimalStrings(requestedAmount, approvedAmount) > 0
@@ -541,6 +560,31 @@ export class PoolService implements PoolServiceContract {
       (total, order) => addDecimalStrings(total, order.totalPv || "0"),
       "0",
     );
+  }
+
+  private resolveMemberRequestedPoolAmount(
+    snapshot: PoolEligibilityMemberSnapshot | null,
+    requestedAmount: string,
+  ): string {
+    if (!snapshot) {
+      return requestedAmount;
+    }
+
+    return minDecimalString(
+      requestedAmount,
+      this.resolveRecipientDailyPoolCap(snapshot),
+    );
+  }
+
+  private resolveRecipientDailyPoolCap(
+    snapshot: PoolEligibilityMemberSnapshot,
+  ): string {
+    const realPaidAmount = snapshot.realPaidPoolEnabledAmount ?? "0";
+    if (compareDecimalStrings(realPaidAmount, "0") <= 0) {
+      return "0";
+    }
+
+    return multiplyDecimalStrings(realPaidAmount, "0.03");
   }
 
   private async postPoolWalletEntries(poolDate: string): Promise<void> {

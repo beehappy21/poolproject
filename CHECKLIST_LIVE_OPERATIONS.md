@@ -1,6 +1,6 @@
 # Live Operations Checklist
 
-Updated: 2026-04-27
+Updated: 2026-04-29
 
 Use this checklist before starting real data entry and real day-to-day usage on the current local/runtime stack.
 
@@ -9,11 +9,14 @@ Use this checklist before starting real data entry and real day-to-day usage on 
 Use this section first if the current task is the Stephub commission refactor and you want to continue without re-reading older handoff notes.
 
 - [ ] Open [HANDOFF_NEXT.md](/Users/macbook/poolproject/HANDOFF_NEXT.md:1)
+- [ ] Open [docs/technical-design/pool_daily_eod_spec.md](/Users/macbook/poolproject/docs/technical-design/pool_daily_eod_spec.md:1)
 - [ ] Open [docs/technical-design/referral_commission_plan_thb.md](/Users/macbook/poolproject/docs/technical-design/referral_commission_plan_thb.md:1)
 - [ ] Ignore old receipt/PDF work unless the user explicitly asks for it
 - [ ] Confirm these still pass before touching more code:
   - [ ] `npx prisma validate --schema prisma/schema.prisma`
   - [ ] `npm run lint`
+- [ ] At the end of the session, update both `HANDOFF_NEXT.md` and `CHECKLIST_LIVE_OPERATIONS.md`
+- [ ] If the session is for server handoff, prepare a zip bundle under `deploy/releases/`
 - [ ] Treat `COMM-04` as complete
 - [ ] Treat `COMM-05` backend scope as complete
 - [ ] Treat `COMM-05` close-out as complete unless a real bug is found
@@ -22,6 +25,7 @@ Use this section first if the current task is the Stephub commission refactor an
 - [ ] Do not restart team/matching implementation unless a bug is found
 - [ ] Team scaffold exists already via `POST /commissions/team-settlement-batches/:settlementDate/scaffold`
 - [ ] Team process endpoint exists via `POST /commissions/team-settlement-batches/:settlementDate/process`
+- [ ] End-of-day process endpoint exists via `POST /commissions/end-of-day/:settlementDate/process`
 - [ ] Current scaffold already captures per-leg `memberCount + totalPv` and computes payout/carry-forward math
 - [ ] Matching is now created from actual team final payable after cap during team process
 - [ ] Rerun guard exists for repeated team process calls on the same settlement date
@@ -35,8 +39,9 @@ Use this section first if the current task is the Stephub commission refactor an
 - [ ] `closePool(poolDate)` now reruns and reports `reprocessed` when the cycle already existed
 - [ ] Team snapshot endpoint exists: `GET /commissions/team-settlement-batches/:settlementDate/snapshot`
 - [ ] Pool snapshot endpoint exists: `GET /pool/:poolDate/snapshot`
-- [ ] Admin quick actions expose team `Scaffold / Process / Snapshot`
+- [ ] Admin quick actions expose team `Scaffold / Team Only / End Of Day / Snapshot`
 - [ ] Admin quick actions expose pool `Snapshot / Payouts`
+- [ ] `/admin` local surface is available again for commission runtime controls
 - [ ] Matrix is soft-disabled in runtime unless business explicitly asks to turn it back on
 - [ ] BAO matrix panels and matrix source filter are hidden when matrix visibility is off
 - [ ] One-leg carry-forward smoke exists: `npm run smoke:commissions:team-carry-forward`
@@ -61,6 +66,7 @@ Use this section first if the current task is the Stephub commission refactor an
   - [ ] `commissionLedgerId` linkage is present on pool payouts
   - [ ] held pool payouts land in the held wallet bucket when applicable
   - [ ] rerun returns `reprocessed: true` without duplicate payout/wallet effects
+  - [ ] reuse the verified recipient-positive cap fixture pattern from `2030-01-16` when validating future pool changes
 
 Locked rules for next session:
 
@@ -68,16 +74,22 @@ Locked rules for next session:
 - [ ] New sign-up links use `/SignUp?ref=...`
 - [ ] Team structure is `L / M / R`
 - [ ] Daily cap is `5000 THB`
-- [ ] Cap applies across all commission channels combined
+- [ ] Daily cap applies only to `2leg / 3leg`
 - [ ] Buyback threshold uses `final payable after cap`
 - [ ] No auto-deducted recycle purchase
 - [ ] Excess above threshold is held pending member-initiated repurchase for `3` calendar days in `Asia/Bangkok`
 - [ ] If not completed in time, status becomes `BLOCKED_AFTER_EXPIRY`
-- [ ] Pool basis is `100% of approved PV`
+- [ ] `Direct` pays immediately when an order becomes `approved`
+- [ ] `2leg / 3leg`, `Matching`, and `Pool` run after end of day
+- [ ] Matching is based on actual team payable after the team-only daily cap
+- [ ] Pool basis is same-day approved PV from pool-enabled products
+- [ ] Pool qualification timing is `qualify today -> receive tomorrow`
+- [ ] Pool can continue daily until the related `memberPackageCycle` ends
+- [ ] Pool payout per member is capped at `3%` of real paid pool-enabled purchase amount for that day
+- [ ] Immediate approved-order flow should create `Direct` only, not same-day `cashback` or `uni`
 - [ ] Commission basis uses approved order PV from real catalog items: `sum(quantity x unitPv)`
 - [ ] Commission payout interprets `1 PV = 1 THB`
 - [ ] Pool qualification needs member own purchase + `3` directs + each direct has `1` purchase order
-- [ ] Matching is based on actual team payable after cap
 - [ ] Locked daily order is `team -> buyback side effect -> pool`
 - [ ] If 3-team has only 2 payable legs, fall back to the 2-leg rule
 
@@ -89,6 +101,20 @@ Locked rules for next session:
 - [ ] Confirm you are not using `DEV_RESET_BASELINE=1`
 - [ ] Confirm you are not running smoke/reset scripts
 - [ ] Create a fresh DB backup before starting
+- [ ] If deploying this 2026-04-29 commission runtime round, use:
+  - [ ] [commission-runtime-2026-04-29.zip](/Users/macbook/poolproject/deploy/releases/commission-runtime-2026-04-29.zip)
+  - [ ] [commission-runtime-2026-04-29-release.md](/Users/macbook/poolproject/deploy/commission-runtime-2026-04-29-release.md:1)
+  - [ ] uploaded server copy exists at `/home/nc-user/commission-runtime-2026-04-29.zip`
+  - [ ] Google Drive copy exists at `nutrientlife.co.ltd@gmail.com/My Drive/commission-runtime-2026-04-29.zip`
+  - [ ] Google Drive release note exists at `nutrientlife.co.ltd@gmail.com/My Drive/commission-runtime-2026-04-29-release.md`
+  - [ ] Google Drive copy exists at `chaiyanut.og@gmail.com/My Drive/commission-runtime-2026-04-29.zip`
+  - [ ] Google Drive release note exists at `chaiyanut.og@gmail.com/My Drive/commission-runtime-2026-04-29-release.md`
+  - [ ] target project root is `/home/nc-user/poolproject`
+  - [ ] unzip into `/home/nc-user/poolproject`
+  - [ ] rebuild `api` and `wap`
+  - [ ] recreate `api`, `wap`, and `nginx`
+  - [ ] if UAT `end-of-day` fails with missing `TeamSettlementBatch`, sync schema with:
+    - [ ] `docker exec poolproject-uat-api-1 npx prisma db push --schema prisma/schema.prisma`
 
 Dangerous commands to avoid unless intentionally resetting:
 
@@ -106,11 +132,30 @@ Dangerous commands to avoid unless intentionally resetting:
 ## Admin Access
 
 - [ ] BAO login works at `http://127.0.0.1:8001/admin/login`
+- [ ] Local commission console works at `http://127.0.0.1:3000/admin`
 - [ ] App works at `http://127.0.0.1:3002`
 - [ ] API health works at `http://127.0.0.1:3000/health`
 - [ ] Superadmin account is available
 - [ ] Team roles/permissions are correct
 - [ ] `Delivered Orders` appears in the BAO menu
+- [ ] Current local operator login is verified
+  - [ ] identifier `TH0000013`
+  - [ ] password `a1a1a1`
+- [ ] Current UAT operator login is verified
+  - [ ] identifier `TH0000013`
+  - [ ] password `005613`
+- [ ] `/admin` shows:
+  - [ ] `Close Pool Only`
+  - [ ] `Team Only`
+  - [ ] `End Of Day`
+  - [ ] runtime note for direct-vs-end-of-day commission flow
+  - [ ] current local login hint `TH0000013 / a1a1a1`
+- [ ] Remember `/admin` login hint is local-dev guidance only; UAT production-style auth does not accept the dev impersonation password
+- [ ] Member app sign-in placeholders are neutral:
+  - [ ] identifier `Member code, email, or phone`
+  - [ ] password `Enter password`
+- [ ] `POST /commissions/end-of-day/2025-11-27/process` succeeds with the verified local operator token
+- [ ] `POST /commissions/end-of-day/2025-11-27/process` succeeds on UAT after schema sync
 
 ## Members
 

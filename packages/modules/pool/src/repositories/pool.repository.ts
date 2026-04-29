@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 
 import {
   PoolEligibilityDecision,
@@ -7,6 +8,60 @@ import {
   PoolRecipientDraftResult,
 } from "../domain/pool.types";
 import { PrismaService } from "../../../../infrastructure/src/prisma/prisma.service";
+import { addDecimalStrings } from "../../../../shared/utils/src/money.util";
+
+const BANGKOK_UTC_OFFSET_HOURS = 7;
+
+function parseDateOnlyParts(dateOnly: string) {
+  const [year, month, day] = dateOnly.split("-").map((part) => Number(part));
+  return { year, month, day };
+}
+
+function toBangkokUtcDate(input: {
+  year: number;
+  month: number;
+  day: number;
+  hour?: number;
+  minute?: number;
+  second?: number;
+  millisecond?: number;
+}) {
+  return new Date(
+    Date.UTC(
+      input.year,
+      input.month - 1,
+      input.day,
+      (input.hour ?? 0) - BANGKOK_UTC_OFFSET_HOURS,
+      input.minute ?? 0,
+      input.second ?? 0,
+      input.millisecond ?? 0,
+    ),
+  );
+}
+
+function buildBangkokSingleDayRange(dateOnly: string) {
+  const { year, month, day } = parseDateOnlyParts(dateOnly);
+  return {
+    gte: toBangkokUtcDate({
+      year,
+      month,
+      day,
+      hour: 0,
+      minute: 0,
+      second: 0,
+      millisecond: 0,
+    }),
+    lte: toBangkokUtcDate({
+      year,
+      month,
+      day,
+      hour: 23,
+      minute: 59,
+      second: 59,
+      millisecond: 999,
+    }),
+  } satisfies Prisma.DateTimeFilter;
+}
 
 export interface PoolRepository {
   listPoolCycles(filters?: {
@@ -403,8 +458,38 @@ export class PrismaPoolRepository implements PoolRepository {
     poolDate: string;
     evaluationAt: string;
   }): Promise<PoolEligibilityMemberSnapshot[]> {
-    const dayStart = new Date(`${input.poolDate}T00:00:00.000Z`);
-    const dayEnd = new Date(`${input.poolDate}T23:59:59.999Z`);
+    const dayRange = buildBangkokSingleDayRange(input.poolDate);
+    const dayStart = dayRange.gte;
+    const evaluationAt = new Date(input.evaluationAt);
+    const sameDayOrders = await this.prisma.order.findMany({
+      where: {
+        approvalStatus: "APPROVED",
+        orderSourceType: "NORMAL",
+        approvedAt: dayRange,
+      },
+      select: {
+        userId: true,
+        orderItems: {
+          select: {
+            lineTotalUsdt: true,
+            poolRateMode: true,
+          },
+        },
+      },
+    });
+    const realPaidPoolEnabledAmountByUser = new Map<string, string>();
+
+    for (const order of sameDayOrders) {
+      const userId = order.userId.toString();
+      const nextAmount = order.orderItems
+        .filter((item) => item.poolRateMode !== "DISABLED")
+        .reduce(
+          (total, item) => addDecimalStrings(total, item.lineTotalUsdt.toString()),
+          realPaidPoolEnabledAmountByUser.get(userId) ?? "0",
+        );
+
+      realPaidPoolEnabledAmountByUser.set(userId, nextAmount);
+    }
 
     const users = await this.prisma.user.findMany({
       where: {
@@ -413,9 +498,20 @@ export class PrismaPoolRepository implements PoolRepository {
       },
       select: {
         id: true,
-        _count: {
+        packageCycles: {
+          where: {
+            status: "ACTIVE",
+            earningStatus: "ACTIVE",
+            isReceivable: true,
+            activatedAt: {
+              lte: evaluationAt,
+            },
+            activeUntil: {
+              gte: evaluationAt,
+            },
+          },
           select: {
-            directReferrals: true,
+            id: true,
           },
         },
         orders: {
@@ -423,8 +519,7 @@ export class PrismaPoolRepository implements PoolRepository {
             approvalStatus: "APPROVED",
             orderSourceType: "NORMAL",
             approvedAt: {
-              gte: dayStart,
-              lte: dayEnd,
+              lt: dayStart,
             },
           },
           select: {
@@ -443,8 +538,7 @@ export class PrismaPoolRepository implements PoolRepository {
                 approvalStatus: "APPROVED",
                 orderSourceType: "NORMAL",
                 approvedAt: {
-                  gte: dayStart,
-                  lte: dayEnd,
+                  lt: dayStart,
                 },
               },
               select: {
@@ -458,12 +552,15 @@ export class PrismaPoolRepository implements PoolRepository {
 
     return users.map((user) => {
       const hasOwnApprovedOrder = user.orders.length > 0;
-      const activeDirectReferralCount = user._count.directReferrals;
+      const activeDirectReferralCount = user.directReferrals.length;
       const activeDirectBuyerCount = user.directReferrals.filter(
         (directReferral) => directReferral.orders.length > 0,
       ).length;
-      const memberActive = hasOwnApprovedOrder;
+      const realPaidPoolEnabledAmount =
+        realPaidPoolEnabledAmountByUser.get(user.id.toString()) ?? "0";
+      const memberActive = user.packageCycles.length > 0;
       const eligible =
+        memberActive &&
         hasOwnApprovedOrder &&
         activeDirectReferralCount >= 3 &&
         activeDirectBuyerCount >= 3;
@@ -474,6 +571,7 @@ export class PrismaPoolRepository implements PoolRepository {
         hasOwnApprovedOrder,
         activeDirectReferralCount,
         activeDirectBuyerCount,
+        realPaidPoolEnabledAmount,
         latestQualifiedBoardCompletedAt: null,
         evaluationAt: input.evaluationAt,
       };
