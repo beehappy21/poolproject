@@ -267,6 +267,14 @@ export class AdminSettingsController {
     const payload = body ?? {};
 
     return writeWalletSettings({
+      firmEnabled:
+        payload.firmEnabled === true ||
+        payload.firmEnabled === "true" ||
+        payload.firmEnabled === "1",
+      autoBuybackEnabled:
+        payload.autoBuybackEnabled === true ||
+        payload.autoBuybackEnabled === "true" ||
+        payload.autoBuybackEnabled === "1",
       commissionToShoppingEnabled:
         payload.commissionToShoppingEnabled === true ||
         payload.commissionToShoppingEnabled === "true" ||

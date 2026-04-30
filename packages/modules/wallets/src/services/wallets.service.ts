@@ -501,6 +501,10 @@ export class WalletsService implements WalletsServiceContract {
   async creditFirmWalletFromApprovedOrder(input: {
     orderId: string;
   }): Promise<FirmOrderWalletCreditResult | null> {
+    if (!readWalletSettings().firmEnabled) {
+      return null;
+    }
+
     return this.walletsRepository.creditFirmWalletFromApprovedOrder(input);
   }
 
@@ -509,6 +513,17 @@ export class WalletsService implements WalletsServiceContract {
     matrixEventId: string;
     amount: string;
   }): Promise<FirmWalletCreditResult> {
+    if (!readWalletSettings().autoBuybackEnabled) {
+      const wallet = await this.walletsRepository.getWalletState(input.userId);
+
+      return {
+        userId: input.userId,
+        amount: "0",
+        firmBalance: wallet?.firmBalance ?? "0",
+        sourceMatrixEventId: input.matrixEventId,
+      };
+    }
+
     return this.walletsRepository.creditFirmWalletFromMatrixAutoOrder(input);
   }
 

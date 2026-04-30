@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { AuthModule } from "../../../packages/modules/auth";
+import { CapModule } from "../../../packages/modules/cap";
 import { AdminMatrixSettingsController } from "./admin-matrix-settings.controller";
 import { MatrixModule } from "../../../packages/modules/matrix/src";
 import { MembersModule } from "../../../packages/modules/members";
@@ -17,6 +18,7 @@ import { ShippingController } from "./shipping.controller";
 @Module({
   imports: [
     AuthModule,
+    CapModule,
     MembersModule,
     MatrixModule,
     PackagesModule,

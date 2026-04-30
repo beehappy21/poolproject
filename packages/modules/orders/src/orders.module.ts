@@ -1,6 +1,7 @@
 import { Module, forwardRef } from "@nestjs/common";
 
 import { PrismaModule } from "../../../infrastructure";
+import { CapModule } from "../../cap";
 import { CommissionsModule } from "../../commissions";
 import { MatrixModule } from "../../matrix/src";
 import { MembersModule } from "../../members";
@@ -15,6 +16,7 @@ import { OrdersService } from "./services/orders.service";
 @Module({
   imports: [
     PrismaModule,
+    CapModule,
     MembersModule,
     QualificationModule,
     RiskModule,

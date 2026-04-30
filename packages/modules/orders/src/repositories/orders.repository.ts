@@ -1178,6 +1178,11 @@ export class PrismaOrdersRepository implements OrdersRepository {
     }));
     const requestedFirmAmount = input.firmWalletAmount ?? "0";
     const firmOrderRequested = compareDecimalStrings(requestedFirmAmount, "0") > 0;
+    const walletSettings = readWalletSettings();
+
+    if (firmOrderRequested && !walletSettings.firmEnabled) {
+      throw new Error("Firm wallet redemption is disabled.");
+    }
 
     if (normalizedItems.some((item) => !item.productDetailId && !item.packageId)) {
       throw new Error("Order item is missing a product detail.");
@@ -1267,7 +1272,6 @@ export class PrismaOrdersRepository implements OrdersRepository {
       throw new Error("Product detail not found.");
     }
 
-    const walletSettings = readWalletSettings();
     const wallet = await this.prisma.wallet.findUnique({
       where: { userId },
       select: { shoppingBalance: true, discountBalance: true },
@@ -1924,6 +1928,10 @@ export class PrismaOrdersRepository implements OrdersRepository {
     amount: string;
     pv: string;
   }) {
+    if (!readWalletSettings().autoBuybackEnabled) {
+      throw new BadRequestException("Matrix auto order / auto buyback is disabled.");
+    }
+
     const approvalBatchRef = buildMatrixAutoOrderAuditRef(input.matrixEventId);
     const existing = await this.prisma.order.findFirst({
       where: {

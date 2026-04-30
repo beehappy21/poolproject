@@ -331,6 +331,7 @@ export interface OrdersServiceContract {
 }
 
 import { ApprovedOrderCommissionFlowResult } from "../../../commissions/src/domain/commissions.types";
+import { CapService } from "../../../cap";
 import { CommissionsService } from "../../../commissions/src/services/commissions.service";
 import { CommissionsServiceContract } from "../../../commissions/src/services/commissions.service";
 import { MatrixService } from "../../../matrix/src/services/matrix.service";
@@ -344,6 +345,7 @@ import { RiskService } from "../../../risk/src/services/risk.service";
 import { RiskServiceContract } from "../../../risk/src/services/risk.service";
 import { WalletsService } from "../../../wallets/src/services/wallets.service";
 import { WalletsServiceContract } from "../../../wallets/src/services/wallets.service";
+import { readWalletSettings } from "../../../../shared/utils/src/wallet-settings.util";
 import { ApprovedOrderOrchestrationResult } from "../domain/orders.types";
 import { PrismaOrdersRepository } from "../repositories/orders.repository";
 
@@ -362,6 +364,7 @@ export class OrdersService implements OrdersServiceContract {
     private readonly matrixService: MatrixService,
     private readonly riskService: RiskService,
     private readonly walletsService: WalletsService,
+    private readonly capService: CapService,
   ) {}
 
   async createOrder(input: {
@@ -604,6 +607,7 @@ export class OrdersService implements OrdersServiceContract {
       );
 
       if (existingCommissionEntries.length > 0) {
+        await this.capService.grantCapForApprovedOrder(orderId);
         const matrixFlow =
           commissionSettings.appVisibility.matrix === false
             ? this.buildSkippedMatrixFlow(approvedOrder)
@@ -628,6 +632,7 @@ export class OrdersService implements OrdersServiceContract {
       }
 
       await this.activateSourceMemberCyclesFromApprovedOrder(approvedOrder);
+      await this.capService.grantCapForApprovedOrder(orderId);
 
       await this.qualificationService.evaluateMemberQualification({
         userId: approvedOrder.sourceUserId,
@@ -729,6 +734,10 @@ export class OrdersService implements OrdersServiceContract {
       reentryPvAmount: string;
     }>;
   }) {
+    if (!readWalletSettings().autoBuybackEnabled) {
+      return;
+    }
+
     const openedAutoOrders =
       matrixFlow.openedAutoOrders ??
       matrixFlow.openedReentries?.map((entry) => ({

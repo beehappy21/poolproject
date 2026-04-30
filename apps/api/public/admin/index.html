@@ -790,18 +790,18 @@
                     </label>
                     <label>
                       <span>Firm Enabled</span>
-                      <select id="productDetailFirmEnabledSelect">
+                      <select id="productDetailFirmEnabledSelect" disabled title="FIRM is disabled in phase 1">
                         <option value="false">No</option>
                         <option value="true">Yes</option>
                       </select>
                     </label>
                     <label>
                       <span>Firm -> DCW</span>
-                      <input id="productDetailFirmDcwRewardInput" type="text" placeholder="0" value="0" />
+                      <input id="productDetailFirmDcwRewardInput" type="text" placeholder="0" value="0" disabled title="FIRM is disabled in phase 1" />
                     </label>
                   </div>
                   <p class="form-hint">Enter pool as percent. Example: 10 = 10%</p>
-                  <p class="form-hint">Firm products must belong to category code `firm` and pass the 30% cost guard.</p>
+                  <p class="form-hint">FIRM is disabled in phase 1. Historical FIRM balances remain read-only and are not converted to CAP.</p>
                   <p class="form-hint">DCW reward is configured on the sale package/offer below.</p>
                   <p class="form-hint">Image URLs: one per line, maximum 10 images.</p>
                   <article class="product-detail-media-preview" id="productDetailMediaPreview">

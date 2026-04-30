@@ -230,6 +230,29 @@ enum WalletTransactionStatus {
   REVERSED
 }
 
+enum CapBucketStatus {
+  OPEN
+  EXHAUSTED
+  REVERSED
+  CANCELLED
+}
+
+enum CapLedgerMovementType {
+  GRANT
+  COMMISSION_COMMIT
+  DCW_RESERVE
+  DCW_COMMIT
+  DCW_RELEASE
+  ADMIN_ADJUST
+  REVERSAL
+}
+
+enum CapLedgerStatus {
+  PENDING
+  POSTED
+  REVERSED
+}
+
 enum PayoutLockStatus {
   UNLOCKED
   HOLD
@@ -431,6 +454,9 @@ model User {
   dailyPoolEligibilitySnapshots  DailyPoolEligibilitySnapshot[]
   dailyPoolPayouts               DailyPoolPayout[]
   wallet                         Wallet?
+  capBuckets                     CapBucket[]
+  capLedgers                     CapLedger[]                    @relation("CapLedgerUser")
+  capLedgerActorEntries          CapLedger[]                    @relation("CapLedgerActorUser")
   walletTransactions             WalletTransaction[]            @relation("WalletTransactionUser")
   counterpartyWalletTransactions WalletTransaction[]            @relation("WalletTransactionCounterpartyUser")
   walletTopupRequests            WalletTopupRequest[]           @relation("WalletTopupRequestUser")
@@ -747,6 +773,8 @@ model MemberPackageCycle {
   package           Package?           @relation(fields: [packageId], references: [id])
   productDetail     ProductDetail?     @relation(fields: [productDetailId], references: [id])
   commissionLedgers CommissionLedger[]
+  capBuckets        CapBucket[]
+  capLedgers        CapLedger[]        @relation("CapLedgerMemberPackageCycle")
   dailyPoolPayouts  DailyPoolPayout[]
 
   @@unique([userId, cycleNo])
@@ -807,6 +835,9 @@ model Order {
   shippingAddress          MemberShippingAddress?    @relation(fields: [shippingAddressId], references: [id])
   orderItems               OrderItem[]
   commissionLedgers        CommissionLedger[]
+  capBuckets               CapBucket[]               @relation("CapBucketSourceOrder")
+  capLedgers               CapLedger[]               @relation("CapLedgerSourceOrder")
+  relatedCapLedgers        CapLedger[]               @relation("CapLedgerRelatedOrder")
   matrixSourcePositions    MatrixPosition[]          @relation("MatrixPositionSourceOrder")
   matrixPayouts            MatrixPayout[]            @relation("MatrixPayoutSourceOrder")
   matrixAccumulationEvents MatrixAccumulationEvent[] @relation("MatrixAccumulationSourceOrder")
@@ -842,8 +873,10 @@ model OrderItem {
   createdAt                 DateTime     @default(now())
   updatedAt                 DateTime     @updatedAt
 
-  order   Order    @relation(fields: [orderId], references: [id])
-  package Package? @relation(fields: [packageId], references: [id])
+  order      Order       @relation(fields: [orderId], references: [id])
+  package    Package?    @relation(fields: [packageId], references: [id])
+  capBuckets CapBucket[]
+  CapLedger  CapLedger[]
 
   @@index([orderId])
 }
@@ -893,6 +926,7 @@ model CommissionLedger {
   originalTargetUser       User?               @relation("CommissionOriginalTargetUser", fields: [originalTargetUserId], references: [id])
   rollupFromUser           User?               @relation("CommissionRollupFromUser", fields: [rollupFromUserId], references: [id])
   dailyPoolPayouts         DailyPoolPayout[]
+  capLedgers               CapLedger[]         @relation("CapLedgerRelatedCommission")
 
   @@index([beneficiaryUserId, status])
   @@index([beneficiaryCycleId, status])
@@ -1156,6 +1190,73 @@ model WalletTransaction {
   @@index([userId, createdAt])
   @@index([refType, refId])
   @@index([balanceBucket, status])
+}
+
+model CapBucket {
+  id                   BigInt          @id @default(autoincrement())
+  userId               BigInt
+  memberPackageCycleId BigInt?
+  sourceOrderId        BigInt?
+  sourceOrderItemId    BigInt?
+  sourceType           String          @db.VarChar(50)
+  grantIndex           Int             @default(0)
+  grantedAmount        Decimal         @default(0) @db.Decimal(18, 8)
+  usedCommissionAmount Decimal         @default(0) @db.Decimal(18, 8)
+  reservedDcwAmount    Decimal         @default(0) @db.Decimal(18, 8)
+  usedDcwAmount        Decimal         @default(0) @db.Decimal(18, 8)
+  adjustedAmount       Decimal         @default(0) @db.Decimal(18, 8)
+  status               CapBucketStatus @default(OPEN)
+  sourceApprovedAt     DateTime?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  user               User                @relation(fields: [userId], references: [id])
+  memberPackageCycle MemberPackageCycle? @relation(fields: [memberPackageCycleId], references: [id])
+  sourceOrder        Order?              @relation("CapBucketSourceOrder", fields: [sourceOrderId], references: [id])
+  sourceOrderItem    OrderItem?          @relation(fields: [sourceOrderItemId], references: [id])
+  ledgers            CapLedger[]
+
+  @@unique([sourceOrderItemId, grantIndex])
+  @@index([userId, status, sourceApprovedAt, id])
+  @@index([sourceOrderId])
+  @@index([memberPackageCycleId])
+}
+
+model CapLedger {
+  id                        BigInt                @id @default(autoincrement())
+  bucketId                  BigInt?
+  userId                    BigInt
+  memberPackageCycleId      BigInt?
+  sourceOrderId             BigInt?
+  sourceOrderItemId         BigInt?
+  sourceType                String                @db.VarChar(50)
+  movementType              CapLedgerMovementType
+  amount                    Decimal               @default(0) @db.Decimal(18, 8)
+  status                    CapLedgerStatus       @default(POSTED)
+  relatedOrderId            BigInt?
+  relatedCommissionLedgerId BigInt?
+  actorUserId               BigInt?
+  idempotencyKey            String?               @unique @db.VarChar(150)
+  metadata                  Json?
+  postedAt                  DateTime?
+  createdAt                 DateTime              @default(now())
+  updatedAt                 DateTime              @updatedAt
+
+  bucket                  CapBucket?          @relation(fields: [bucketId], references: [id])
+  user                    User                @relation("CapLedgerUser", fields: [userId], references: [id])
+  memberPackageCycle      MemberPackageCycle? @relation("CapLedgerMemberPackageCycle", fields: [memberPackageCycleId], references: [id])
+  sourceOrder             Order?              @relation("CapLedgerSourceOrder", fields: [sourceOrderId], references: [id])
+  sourceOrderItem         OrderItem?          @relation(fields: [sourceOrderItemId], references: [id])
+  relatedOrder            Order?              @relation("CapLedgerRelatedOrder", fields: [relatedOrderId], references: [id])
+  relatedCommissionLedger CommissionLedger?   @relation("CapLedgerRelatedCommission", fields: [relatedCommissionLedgerId], references: [id])
+  actorUser               User?               @relation("CapLedgerActorUser", fields: [actorUserId], references: [id])
+
+  @@index([bucketId, status])
+  @@index([userId, createdAt])
+  @@index([sourceOrderId])
+  @@index([relatedOrderId])
+  @@index([relatedCommissionLedgerId])
+  @@index([movementType, status])
 }
 
 model WalletTopupRequest {

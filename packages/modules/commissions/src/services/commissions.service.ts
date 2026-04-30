@@ -28,6 +28,7 @@ import {
   parseCommissionSettingsSnapshot,
   readCommissionSettings,
 } from "../../../../shared/utils/src/commission-settings.util";
+import { readWalletSettings } from "../../../../shared/utils/src/wallet-settings.util";
 import { MembersService } from "../../../members/src/services/members.service";
 import { MembersServiceContract } from "../../../members/src/services/members.service";
 import { OrdersService } from "../../../orders/src/services/orders.service";
@@ -1565,6 +1566,13 @@ export class CommissionsService implements CommissionsServiceContract {
     releaseStatus: CommissionReleaseStatus;
     progress: UserBuybackProgressSnapshot | null;
   }> {
+    if (!readWalletSettings().autoBuybackEnabled) {
+      return {
+        releaseStatus: "withdrawable",
+        progress: null,
+      };
+    }
+
     const existing =
       await this.commissionsRepository.getUserBuybackProgress(
         input.beneficiaryUserId,

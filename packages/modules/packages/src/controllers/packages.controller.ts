@@ -11,6 +11,7 @@ import {
   requirePositiveIntegerString,
   rethrowHttpError,
 } from "../../../../../apps/api/src/http/request.util";
+import { readWalletSettings } from "../../../../shared/utils/src/wallet-settings.util";
 import { PackagesService } from "../services/packages.service";
 
 @Controller("packages")
@@ -136,6 +137,15 @@ export class PackagesController {
         );
       }
 
+      const firmEnabled =
+        body.firmEnabled === true ||
+        body.firmEnabled === "true" ||
+        body.firmEnabled === "1";
+
+      if (firmEnabled && !readWalletSettings().firmEnabled) {
+        throw new BadRequestException("FIRM product flags are disabled in phase 1.");
+      }
+
       return await this.packagesService.createProductDetail({
         productId: requirePositiveIntegerString(body.productId, "productId"),
         code: requireNonEmptyString(body.code, "code"),
@@ -172,10 +182,7 @@ export class PackagesController {
         earningCapAmount: optionalString(body.earningCapAmount)
           ? requireDecimalString(body.earningCapAmount, "earningCapAmount")
           : undefined,
-        firmEnabled:
-          body.firmEnabled === true ||
-          body.firmEnabled === "true" ||
-          body.firmEnabled === "1",
+        firmEnabled,
         firmOverrideCostGuard:
           body.firmOverrideCostGuard === true ||
           body.firmOverrideCostGuard === "true" ||
