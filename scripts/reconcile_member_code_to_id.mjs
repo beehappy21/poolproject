@@ -27,10 +27,10 @@ begin;
 
 update public."User"
 set
-  "memberCode" = "id"::text,
+  "memberCode" = 'TH' || lpad("id"::text, 7, '0'),
   "updatedAt" = now()
 where coalesce("isAdmin", false) = false
-  and "memberCode" is distinct from "id"::text;
+  and "memberCode" is distinct from ('TH' || lpad("id"::text, 7, '0'));
 
 update public."User"
 set
@@ -48,7 +48,7 @@ function verificationSql() {
 select count(*)::text as mismatch_count
 from public."User"
 where coalesce("isAdmin", false) = false
-  and "memberCode" is distinct from "id"::text;
+  and "memberCode" is distinct from ('TH' || lpad("id"::text, 7, '0'));
 `.trim();
 }
 

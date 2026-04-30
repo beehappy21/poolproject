@@ -6,7 +6,7 @@ Reset local data so we can rebuild member plan logic (2-leg/3-leg), starting fro
 Target outcomes:
 - Remove existing non-admin members and sales/commission/wallet runtime data.
 - Re-import members from `member003.xlsx`.
-- Reconcile member identity so `memberCode = id` for all non-admin users.
+- Reconcile member identity so `memberCode = TH0000000` format derived from `User.id` for all non-admin users.
 
 ## Scope and Safety
 - Local only.
@@ -73,7 +73,7 @@ npm run reconcile:member-code:id:apply
 ```
 
 This updates non-admin users:
-- `memberCode = id::text`
+- `memberCode = 'TH' || lpad(id::text, 7, '0')`
 - `referralCode = memberCode`
 
 ## Step 5: Validation SQL checks
@@ -86,7 +86,7 @@ where coalesce("isAdmin", false) = false;
 select count(*) as membercode_mismatch
 from public."User"
 where coalesce("isAdmin", false) = false
-  and "memberCode" is distinct from "id"::text;
+  and "memberCode" is distinct from ('TH' || lpad("id"::text, 7, '0'));
 
 select count(*) as orders_left from public."Order";
 select count(*) as order_items_left from public."OrderItem";

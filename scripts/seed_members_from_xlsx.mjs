@@ -8,6 +8,10 @@ const xlsxPath = process.argv[2] ?? "member003.xlsx";
 const defaultPassword = process.argv[3] ?? "123456";
 const apply = process.argv.includes("--apply");
 const sqlOnly = process.argv.includes("--sql-only");
+const container = process.env.POSTGRES_DOCKER_CONTAINER || "poolproject-postgres";
+const databaseUrl =
+  process.env.DATABASE_URL ||
+  "postgresql://postgres:postgres@127.0.0.1:5432/poolproject";
 
 function hashPassword(password) {
   const salt = randomBytes(16).toString("hex");
@@ -113,10 +117,10 @@ where "email" is not null
     [
       "exec",
       "-i",
-      "poolproject-postgres",
+      container,
       "psql",
       "-At",
-      "postgresql://postgres:postgres@127.0.0.1:5432/poolproject",
+      databaseUrl,
       "-c",
       query,
     ],
@@ -241,11 +245,11 @@ function applySql(sql) {
       [
         "exec",
         "-i",
-        "poolproject-postgres",
+        container,
         "psql",
         "-v",
         "ON_ERROR_STOP=1",
-        "postgresql://postgres:postgres@127.0.0.1:5432/poolproject",
+        databaseUrl,
       ],
       {
         input: sql,
@@ -306,6 +310,8 @@ function main() {
   console.log(`password_from_national_id=${passwordFromNationalId}`);
   console.log(`password_fallback_default=${passwordFallbackCount}`);
   console.log(`fallback_password=${defaultPassword}`);
+  console.log(`container=${container}`);
+  console.log(`database_url=${databaseUrl}`);
 
   if (!apply) {
     console.log("dry_run=yes");
