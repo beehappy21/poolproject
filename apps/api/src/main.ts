@@ -165,9 +165,8 @@ function shouldSkipRateLimit(method: string, path: string): boolean {
   }
 
   if (
-    path.startsWith("/app/") ||
     path.startsWith("/admin/") ||
-    path.startsWith("/signup/")
+    path === "/admin"
   ) {
     return true;
   }
@@ -186,14 +185,6 @@ function resolveRouteAccess(
   if (
     path === "/health" ||
     path === "/" ||
-    path === "/app" ||
-    path === "/app/index.html" ||
-    path === "/app/styles.css" ||
-    path === "/app/app.js" ||
-    path === "/signup" ||
-    path === "/signup/index.html" ||
-    path === "/signup/styles.css" ||
-    path === "/signup/app.js" ||
     path === "/auth/login" ||
     path === "/auth/line-login" ||
     path === "/admin" ||
