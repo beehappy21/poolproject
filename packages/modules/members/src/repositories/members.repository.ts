@@ -1155,6 +1155,23 @@ export class PrismaMembersRepository implements MembersRepository {
           },
         });
 
+        const placement = await this.resolvePlacementForNewDirectReferral(
+          tx,
+          sponsorId!,
+        );
+        await tx.memberProfile.upsert({
+          where: { userId: createdMember.id },
+          create: {
+            userId: createdMember.id,
+            uplineUserId: placement.uplineUserId,
+            placementSide: placement.placementSide,
+          },
+          update: {
+            uplineUserId: placement.uplineUserId,
+            placementSide: placement.placementSide,
+          },
+        });
+
         if (input.lineBinding?.lineUserId) {
           await tx.lineBinding.create({
             data: {
@@ -1192,6 +1209,75 @@ export class PrismaMembersRepository implements MembersRepository {
       }
 
       throw error;
+    }
+  }
+
+  private async resolvePlacementForNewDirectReferral(
+    tx: Prisma.TransactionClient,
+    sponsorId: bigint,
+  ): Promise<{
+    uplineUserId: bigint;
+    placementSide: "LEFT" | "MIDDLE" | "RIGHT";
+  }> {
+    const directReferrals = await tx.user.findMany({
+      where: { sponsorId },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      select: { id: true, memberCode: true },
+    });
+
+    const directIndex = directReferrals.length;
+    const topSides: Array<"LEFT" | "MIDDLE" | "RIGHT"> = [
+      "LEFT",
+      "MIDDLE",
+      "RIGHT",
+    ];
+
+    if (directIndex <= 2) {
+      return {
+        uplineUserId: sponsorId,
+        placementSide: topSides[directIndex],
+      };
+    }
+
+    const topThree = directReferrals.slice(0, 3);
+    const branchIndex = (directIndex - 3) % 3;
+    const branchRootUserId = topThree[branchIndex].id;
+    const downline = await this.resolveSpilloverLinePlacement(tx, branchRootUserId);
+    return downline;
+  }
+
+  private async resolveSpilloverLinePlacement(
+    tx: Prisma.TransactionClient,
+    startUserId: bigint,
+  ): Promise<{
+    uplineUserId: bigint;
+    placementSide: "LEFT" | "RIGHT";
+  }> {
+    let currentUserId = startUserId;
+
+    while (true) {
+      const children = await tx.memberProfile.findMany({
+        where: { uplineUserId: currentUserId },
+        orderBy: [{ user: { memberCode: "asc" } }, { userId: "asc" }],
+        select: {
+          userId: true,
+          placementSide: true,
+        },
+      });
+
+      if (children.length === 0) {
+        return { uplineUserId: currentUserId, placementSide: "LEFT" };
+      }
+      if (children.length === 1) {
+        const firstSide = children[0].placementSide;
+        return {
+          uplineUserId: currentUserId,
+          placementSide: firstSide === "LEFT" ? "RIGHT" : "LEFT",
+        };
+      }
+
+      const next = children[0];
+      currentUserId = next.userId;
     }
   }
 

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import React, {useEffect, useState} from 'react';
+import {useNavigate} from 'react-router-dom';
 
 import {URLS} from '../config';
 import {theme} from '../constants';
@@ -35,11 +36,13 @@ type TreePayload = {
 };
 
 export const TeamMember: React.FC = () => {
+  const navigate = useNavigate();
   const user = hooks.useAppSelector((state: RootState) => state.userSlice.user);
   const initialMemberCode = user?.memberCode?.trim().toUpperCase() || '';
   const [selectedFilter, setSelectedFilter] = useState<
     'DIRECT' | 'LEFT' | 'MIDDLE' | 'RIGHT'
   >('DIRECT');
+  const [viewMode, setViewMode] = useState<'TREE' | 'CHART'>('TREE');
   const [rootCodeInput, setRootCodeInput] = useState(
     initialMemberCode,
   );
@@ -65,6 +68,8 @@ export const TeamMember: React.FC = () => {
     MIDDLE: 0,
     RIGHT: 0,
   });
+  const [chartLoading, setChartLoading] = useState(false);
+  const [memberNavHistory, setMemberNavHistory] = useState<string[]>([]);
 
   const fetchTreeLevel = async (memberCode: string): Promise<TreePayload> => {
     const headers = user?.accessToken
@@ -102,6 +107,16 @@ export const TeamMember: React.FC = () => {
     } finally {
       setScreenLoading(false);
     }
+  };
+
+  const openMember = (memberCode: string, pushHistory: boolean) => {
+    if (!memberCode || memberCode === activeRootCode) {
+      return;
+    }
+    if (pushHistory && activeRootCode) {
+      setMemberNavHistory(current => [...current, activeRootCode]);
+    }
+    loadRootLevel(memberCode);
   };
 
   useEffect(() => {
@@ -156,6 +171,163 @@ export const TeamMember: React.FC = () => {
   const leftCount = rootLegTotals.LEFT;
   const middleCount = rootLegTotals.MIDDLE;
   const rightCount = rootLegTotals.RIGHT;
+  const sideOrder: Array<'LEFT' | 'MIDDLE' | 'RIGHT'> = ['LEFT', 'MIDDLE', 'RIGHT'];
+
+  const findNodeBySide = (
+    nodes: TreeNode[],
+    side: 'LEFT' | 'MIDDLE' | 'RIGHT',
+  ): TreeNode | null => {
+    return nodes.find(node => node.placementSide === side) || null;
+  };
+
+  useEffect(() => {
+    if (viewMode !== 'CHART' || screenLoading || errorMessage) {
+      return;
+    }
+
+    const parentCodes = rootChildren.map(node => node.memberCode);
+    const missing = parentCodes.filter(code => !childrenByCode[code]);
+    if (missing.length === 0) {
+      return;
+    }
+
+    let cancelled = false;
+    setChartLoading(true);
+
+    Promise.all(
+      missing.map(async code => {
+        const payload = await fetchTreeLevel(code);
+        return {code, children: payload.directReferrals};
+      }),
+    )
+      .then(results => {
+        if (cancelled) {
+          return;
+        }
+        setChildrenByCode(current => {
+          const next = {...current};
+          for (const row of results) {
+            next[row.code] = row.children;
+          }
+          return next;
+        });
+      })
+      .catch(error => {
+        console.error(error);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setChartLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, screenLoading, errorMessage, activeRootCode, rootChildren.length]);
+
+  const renderChartCard = (
+    node: TreeNode | null,
+    size: 'root' | 'child' | 'grandchild',
+    slotLabel: string,
+    emptySponsorCode?: string,
+  ): JSX.Element => {
+    const isRoot = size === 'root';
+    const isEmpty = !node;
+    const canOpenMember = Boolean(node?.memberCode);
+
+    return (
+      <div
+        key={slotLabel + (node?.memberCode || 'empty')}
+        onClick={() => {
+          if (!node?.memberCode) {
+            return;
+          }
+          openMember(node.memberCode, true);
+        }}
+        style={{
+          border: '1px solid #D4DDEB',
+          borderRadius: 12,
+          backgroundColor: isEmpty ? '#F8FAFC' : '#FFFFFF',
+          minHeight: isRoot ? 92 : 82,
+          padding: isRoot ? '14px 12px' : '12px 10px',
+          display: 'grid',
+          gap: 6,
+          alignContent: 'center',
+          textAlign: 'center',
+          cursor: canOpenMember ? 'pointer' : 'default',
+        }}
+      >
+        <div
+          style={{
+            color: '#64748B',
+            fontSize: 12,
+            letterSpacing: '0.06em',
+            ...theme.fonts.Mulish_700Bold,
+          }}
+        >
+          {slotLabel}
+        </div>
+        {isEmpty ? (
+          <>
+            <div
+              style={{
+                color: '#94A3B8',
+                fontSize: 13,
+                ...theme.fonts.Mulish_600SemiBold,
+              }}
+            >
+              ไม่มีสมาชิก
+            </div>
+            {emptySponsorCode ? (
+              <button
+                type='button'
+                onClick={event => {
+                  event.stopPropagation();
+                  navigate(`/SignUp?ref=${encodeURIComponent(emptySponsorCode)}`);
+                }}
+                style={{
+                  marginTop: 2,
+                  border: '1px solid #CBD5E1',
+                  backgroundColor: '#FFFFFF',
+                  color: theme.colors.mainColor,
+                  borderRadius: 8,
+                  padding: '4px 8px',
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  ...theme.fonts.Mulish_600SemiBold,
+                }}
+              >
+                สมัครสมาชิกใหม่
+              </button>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <div
+              style={{
+                color: theme.colors.mainColor,
+                fontSize: isRoot ? 20 : 16,
+                ...theme.fonts.Mulish_700Bold,
+              }}
+            >
+              {node.memberCode}
+            </div>
+            <div
+              style={{
+                color: theme.colors.textColor,
+                fontSize: 13,
+                ...theme.fonts.Mulish_400Regular,
+              }}
+            >
+              {node.name}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
 
   const renderNode = (node: TreeNode, level: number): JSX.Element => {
     const children = childrenByCode[node.memberCode];
@@ -290,8 +462,35 @@ export const TeamMember: React.FC = () => {
               ...theme.fonts.Mulish_600SemiBold,
             }}
           >
-            Tree
+            {viewMode === 'TREE' ? 'Tree' : 'ผังแนะนำ'}
           </p>
+        </section>
+
+        <section style={{display: 'flex', gap: 8, marginBottom: 14}}>
+          {[
+            {key: 'TREE' as const, label: 'Tree'},
+            {key: 'CHART' as const, label: 'ผังแนะนำ'},
+          ].map(item => {
+            const isActive = viewMode === item.key;
+            return (
+              <button
+                key={item.key}
+                type='button'
+                onClick={() => setViewMode(item.key)}
+                style={{
+                  border: `1px solid ${isActive ? theme.colors.mainColor : '#CBD5E1'}`,
+                  backgroundColor: isActive ? theme.colors.mainColor : '#FFFFFF',
+                  color: isActive ? '#FFFFFF' : theme.colors.mainColor,
+                  borderRadius: 10,
+                  padding: '8px 14px',
+                  cursor: 'pointer',
+                  ...theme.fonts.Mulish_700Bold,
+                }}
+              >
+                {item.label}
+              </button>
+            );
+          })}
         </section>
 
         <section
@@ -401,6 +600,7 @@ export const TeamMember: React.FC = () => {
                 if (!nextCode) {
                   return;
                 }
+                setMemberNavHistory([]);
                 loadRootLevel(nextCode);
               }}
               style={{
@@ -441,33 +641,159 @@ export const TeamMember: React.FC = () => {
                   style={{
                     marginBottom: 12,
                     color: theme.colors.textColor,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 10,
                     ...theme.fonts.Mulish_400Regular,
                   }}
                 >
-                  {activeRootCode}
-                  {rootMemberName ? ` ${rootMemberName}` : ''}
+                  <span>
+                    {activeRootCode}
+                    {rootMemberName ? ` ${rootMemberName}` : ''}
+                  </span>
+                  {memberNavHistory.length > 0 ? (
+                    <button
+                      type='button'
+                      onClick={() => {
+                        const lastCode =
+                          memberNavHistory[memberNavHistory.length - 1];
+                        if (!lastCode) {
+                          return;
+                        }
+                        setMemberNavHistory(current => current.slice(0, -1));
+                        loadRootLevel(lastCode);
+                      }}
+                      style={{
+                        border: '1px solid #CBD5E1',
+                        backgroundColor: '#FFFFFF',
+                        color: theme.colors.mainColor,
+                        borderRadius: 8,
+                        padding: '4px 10px',
+                        fontSize: 12,
+                        cursor: 'pointer',
+                        ...theme.fonts.Mulish_700Bold,
+                      }}
+                    >
+                      ย้อนกลับ
+                    </button>
+                  ) : null}
                 </div>
-                {filteredRootChildren.length === 0 ? (
-                  <div
-                    style={{
-                      color: theme.colors.textColor,
-                      lineHeight: 1.7,
-                      ...theme.fonts.Mulish_400Regular,
-                    }}
-                  >
-                    ยังไม่มีสมาชิกในกลุ่ม{' '}
-                    {selectedFilter === 'DIRECT'
-                      ? 'direct'
-                      : selectedFilter === 'LEFT'
-                        ? 'L'
-                        : selectedFilter === 'MIDDLE'
-                          ? 'M'
-                          : 'R'}
-                  </div>
+                {viewMode === 'TREE' ? (
+                  filteredRootChildren.length === 0 ? (
+                    <div
+                      style={{
+                        color: theme.colors.textColor,
+                        lineHeight: 1.7,
+                        ...theme.fonts.Mulish_400Regular,
+                      }}
+                    >
+                      ยังไม่มีสมาชิกในกลุ่ม{' '}
+                      {selectedFilter === 'DIRECT'
+                        ? 'direct'
+                        : selectedFilter === 'LEFT'
+                          ? 'L'
+                          : selectedFilter === 'MIDDLE'
+                            ? 'M'
+                            : 'R'}
+                    </div>
+                  ) : (
+                    <ul style={{margin: 0, paddingLeft: 0, display: 'grid', gap: 10}}>
+                      {filteredRootChildren.map(node => renderNode(node, 0))}
+                    </ul>
+                  )
                 ) : (
-                  <ul style={{margin: 0, paddingLeft: 0, display: 'grid', gap: 10}}>
-                    {filteredRootChildren.map(node => renderNode(node, 0))}
-                  </ul>
+                  <div style={{display: 'grid', gap: 12}}>
+                    <div
+                      style={{
+                        color: theme.colors.textColor,
+                        fontSize: 13,
+                        ...theme.fonts.Mulish_600SemiBold,
+                      }}
+                    >
+                      ผังแนะนำ 3 ชั้น (1-3-9)
+                    </div>
+                    {chartLoading ? (
+                      <div
+                        style={{
+                          color: theme.colors.textColor,
+                          ...theme.fonts.Mulish_400Regular,
+                        }}
+                      >
+                        กำลังโหลดผังแนะนำ...
+                      </div>
+                    ) : null}
+                    {renderChartCard(
+                      {
+                        memberId: activeRootCode,
+                        memberCode: activeRootCode,
+                        referralCode: activeRootCode,
+                        name: rootMemberName,
+                        sponsorId: null,
+                        childCount: rootChildren.length,
+                      },
+                      'root',
+                      'ชั้นที่ 1',
+                    )}
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                        gap: 8,
+                      }}
+                    >
+                      {sideOrder.map(side =>
+                        renderChartCard(
+                          findNodeBySide(rootChildren, side),
+                          'child',
+                          `ชั้นที่ 2 - ${side === 'LEFT' ? 'L' : side === 'MIDDLE' ? 'M' : 'R'}`,
+                          activeRootCode,
+                        ),
+                      )}
+                    </div>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                        gap: 8,
+                      }}
+                    >
+                      {sideOrder.map(parentSide => {
+                        const parentNode = findNodeBySide(rootChildren, parentSide);
+                        const grandchildren = parentNode
+                          ? childrenByCode[parentNode.memberCode] || []
+                          : [];
+                        const parentLabel =
+                          parentSide === 'LEFT'
+                            ? 'L'
+                            : parentSide === 'MIDDLE'
+                              ? 'M'
+                              : 'R';
+                        return (
+                          <div
+                            key={`branch-${parentSide}`}
+                            style={{
+                              border: '1px solid #D9E2EF',
+                              borderRadius: 12,
+                              backgroundColor: '#F8FAFC',
+                              padding: 8,
+                              display: 'grid',
+                              gap: 8,
+                            }}
+                          >
+                            {sideOrder.map(childSide =>
+                              renderChartCard(
+                                findNodeBySide(grandchildren, childSide),
+                                'grandchild',
+                                `${parentLabel}-${childSide === 'LEFT' ? 'L' : childSide === 'MIDDLE' ? 'M' : 'R'}`,
+                                parentNode?.memberCode || undefined,
+                              ),
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 )}
               </>
             )}

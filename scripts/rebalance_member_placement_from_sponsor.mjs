@@ -105,6 +105,22 @@ function buildAssignments(users) {
     placementChildren.set(parentId, kids);
   }
 
+  function placeInSpilloverLine(branchRootId, childId) {
+    let parentId = branchRootId;
+    while (true) {
+      const kids = placementChildren.get(parentId) ?? [];
+      if (kids.length === 0) {
+        markPlacement(parentId, "LEFT", childId);
+        return;
+      }
+      if (kids.length === 1) {
+        markPlacement(parentId, "RIGHT", childId);
+        return;
+      }
+      parentId = kids[0];
+    }
+  }
+
   for (const user of users) {
     if (!user.sponsorId || !byId.has(user.sponsorId)) {
       assignments.set(user.id, { uplineUserId: null, placementSide: null });
@@ -167,45 +183,17 @@ function buildAssignments(users) {
     }
 
     const extra = directChildren.slice(3);
-    for (const child of extra) {
-      const queue = [...firstThree.map((u) => u.id)];
-      const visited = new Set();
-      let placed = false;
-
-      while (queue.length > 0 && !placed) {
-        const parentId = queue.shift();
-        if (!parentId || visited.has(parentId)) {
-          continue;
-        }
-        visited.add(parentId);
-
-        const slot = usedSlots.get(parentId) ?? new Set();
-        if (!slot.has("LEFT")) {
-          markPlacement(parentId, "LEFT", child.id);
-          spilloverPlaced += 1;
-          placed = true;
-          break;
-        }
-        if (!slot.has("RIGHT")) {
-          markPlacement(parentId, "RIGHT", child.id);
-          spilloverPlaced += 1;
-          placed = true;
-          break;
-        }
-
-        const kids = placementChildren.get(parentId) ?? [];
-        for (const k of kids) {
-          queue.push(k);
-        }
-      }
-
-      if (!placed) {
-        // Safety fallback: place back on sponsor using RIGHT if somehow all queues were empty.
+    for (let i = 0; i < extra.length; i += 1) {
+      const child = extra[i];
+      const branchRoot = firstThree[i % 3];
+      if (!branchRoot) {
         const sponsorSlots = usedSlots.get(sponsorId) ?? new Set();
         const fallbackSide = sponsorSlots.has("RIGHT") ? "LEFT" : "RIGHT";
         markPlacement(sponsorId, fallbackSide, child.id);
-        spilloverPlaced += 1;
+      } else {
+        placeInSpilloverLine(branchRoot.id, child.id);
       }
+      spilloverPlaced += 1;
     }
   }
 
