@@ -1,5 +1,11 @@
 const MAIN_URL = 'https://george-fx.github.io/stephub/';
 
+const PUBLIC_WAP_HOSTS = new Set([
+  'wap.blifehealthy.com',
+  'www.blifehealthy.com',
+  'blifehealthy.com',
+]);
+
 const getRuntimeHostname = (): string => {
   if (typeof window === 'undefined') {
     return '';
@@ -10,21 +16,44 @@ const getRuntimeHostname = (): string => {
 
 const getDefaultApiBaseUrl = (): string => {
   const hostname = getRuntimeHostname();
-  void hostname;
+  if (PUBLIC_WAP_HOSTS.has(hostname)) {
+    return 'https://api.blifehealthy.com';
+  }
+
   return '/api';
 };
 
 const getDefaultBaoBaseUrl = (): string => {
   const hostname = getRuntimeHostname();
-  void hostname;
+  if (PUBLIC_WAP_HOSTS.has(hostname)) {
+    return 'https://bao.blifehealthy.com';
+  }
+
   return '/bao-api';
 };
 
+const normalizeConfiguredBaseUrl = (value?: string): string => {
+  const normalized = value?.replace(/\/+$/, '') || '';
+  if (!normalized) {
+    return '';
+  }
+
+  const hostname = getRuntimeHostname();
+  if (normalized === '/api' && PUBLIC_WAP_HOSTS.has(hostname)) {
+    return 'https://api.blifehealthy.com';
+  }
+  if (normalized === '/bao-api' && PUBLIC_WAP_HOSTS.has(hostname)) {
+    return 'https://bao.blifehealthy.com';
+  }
+
+  return normalized;
+};
+
 const API_BASE_URL =
-  process.env.REACT_APP_API_BASE_URL?.replace(/\/+$/, '') ||
+  normalizeConfiguredBaseUrl(process.env.REACT_APP_API_BASE_URL) ||
   getDefaultApiBaseUrl();
 const BAO_BASE_URL =
-  process.env.REACT_APP_BAO_BASE_URL?.replace(/\/+$/, '') ||
+  normalizeConfiguredBaseUrl(process.env.REACT_APP_BAO_BASE_URL) ||
   getDefaultBaoBaseUrl();
 const LINE_LIFF_ID = process.env.REACT_APP_LINE_LIFF_ID?.trim() || '';
 const LINE_OA_ID = process.env.REACT_APP_LINE_OA_ID?.trim() || '';

@@ -293,34 +293,56 @@ const getListPayload = <T,>(value: unknown): T[] => {
   return [];
 };
 
+const getPreferredStorefrontUrls = (): string[] => {
+  const urls: string[] = [];
+
+  if (isPublicWapRuntime() && typeof window !== 'undefined') {
+    urls.push(`${window.location.origin}/api/packages/storefront-products`);
+  }
+
+  urls.push(URLS.GET_STOREFRONT_PRODUCTS);
+
+  const alternateStorefrontUrl = `${URLS.API_BASE_URL}/packages/storefront-products`;
+  if (!urls.includes(alternateStorefrontUrl)) {
+    urls.push(alternateStorefrontUrl);
+  }
+
+  return urls;
+};
+
 export const fetchLiveProducts = async (): Promise<ProductType[]> => {
   let storefrontError: unknown;
 
-  try {
-    const response = await axios.get(URLS.GET_STOREFRONT_PRODUCTS, {
-      timeout: 15000,
-    });
-    const items = getListPayload<StorefrontProduct>(response.data);
-    const mapped = items.reduce<ProductType[]>((result, item, index) => {
-      try {
-        if (safeString(item?.status, 'active') !== 'active') {
-          return result;
+  for (const storefrontUrl of getPreferredStorefrontUrls()) {
+    try {
+      const response = await axios.get(storefrontUrl, {
+        timeout: 15000,
+      });
+      const items = getListPayload<StorefrontProduct>(response.data);
+      const mapped = items.reduce<ProductType[]>((result, item, index) => {
+        try {
+          if (safeString(item?.status, 'active') !== 'active') {
+            return result;
+          }
+
+          result.push(mapStorefrontProductToProduct(item, index));
+        } catch (error) {
+          console.warn('Skipping malformed storefront product', item, error);
         }
 
-        result.push(mapStorefrontProductToProduct(item, index));
-      } catch (error) {
-        console.warn('Skipping malformed storefront product', item, error);
+        return result;
+      }, []);
+
+      if (mapped.length > 0) {
+        return mapped;
       }
-
-      return result;
-    }, []);
-
-    if (mapped.length > 0) {
-      return mapped;
+    } catch (error) {
+      storefrontError = error;
+      console.error(
+        `Unable to load storefront products from ${storefrontUrl}.`,
+        error,
+      );
     }
-  } catch (error) {
-    storefrontError = error;
-    console.error('Unable to load storefront products, falling back to basic catalog.', error);
   }
 
   const fallbackResponse = await axios.get(`${URLS.API_BASE_URL}/products`, {
