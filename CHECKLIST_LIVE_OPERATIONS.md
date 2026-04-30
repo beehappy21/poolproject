@@ -4,6 +4,44 @@ Updated: 2026-04-29
 
 Use this checklist before starting real data entry and real day-to-day usage on the current local/runtime stack.
 
+## CAP/DCW/FIRM Phase Shortcut
+
+Use this section first when continuing the CAP/DCW/FIRM phase. Older FIRM catalog and commission runtime checklist items below are historical unless they are explicitly revalidated for the new phase.
+
+- [x] Treat FIRM as disabled in phase 1.
+- [x] Treat auto buyback as disabled in phase 1.
+- [x] Preserve historical FIRM wallet balances and FIRM wallet transactions.
+- [x] Do not zero, migrate, or convert old FIRM/DCW wallet balances into CAP.
+- [x] Treat CAP as a separate non-wallet entitlement bucket.
+- [x] Treat DCW as a discount mechanism derived from CAP plus product/package rules, not as a new wallet.
+- [x] Settings foundation exists for `firmEnabled=false` and `autoBuybackEnabled=false`.
+- [x] Order creation rejects `firmWalletAmount > 0` when FIRM is disabled.
+- [x] Approved-order FIRM credit path no-ops when FIRM is disabled.
+- [x] Matrix auto/reentry FIRM credit paths no-op when auto buyback is disabled.
+- [x] Matrix auto order / `FIR001` creation is prevented when auto buyback is disabled.
+- [x] Admin FIRM product-detail controls are disabled/read-only with legacy wording.
+- [x] Prisma `CapBucket` and `CapLedger` models exist.
+- [x] Migration exists at `prisma/migrations/20260429_add_cap_bucket_ledger`.
+- [x] `CapModule` and `CapService` foundation exist.
+- [x] `GET /cap/:userId` exists for admin/backend CAP summary checks.
+- [x] Approved eligible orders call the idempotent CAP grant hook.
+- [x] `npm run lint` passed after the CAP/DCW/FIRM foundation changes.
+- [x] `npx prisma validate --schema prisma/schema.prisma` passed after the CAP/DCW/FIRM foundation changes.
+- [ ] Apply the CAP migration to the target DB before runtime testing.
+- [ ] Run `npm run smoke:cap:foundation` only after the migration is applied.
+- [ ] Verify first approved eligible order creates one CAP bucket.
+- [ ] Verify approval retry does not duplicate the CAP grant.
+- [ ] Verify second approved eligible order creates a second CAP bucket, not a mutation of the first.
+- [ ] Verify FIFO allocation plans from oldest open bucket first.
+- [ ] Verify `activeUntil` does not expire CAP remaining.
+- [ ] Add admin CAP audit UI showing source order, granted, used commission, reserved DCW, used DCW, remaining, and status.
+- [ ] Add member UI display for aggregated `cap_remaining`.
+- [ ] Phase 2: replace checkout DCW usage from `Wallet.discountBalance` with CAP FIFO reservation.
+- [ ] Phase 2: release exact CAP bucket reservations when pending DCW orders cancel/reject/fail.
+- [ ] Phase 2: commit exact CAP bucket reservations when DCW orders approve/pay.
+- [ ] Phase 2: wire commission finalization into CAP FIFO consumption.
+- [ ] Do not use legacy `smoke:firm` or `smoke:wallet:dcw` as pass criteria until their expectations are adapted for FIRM-disabled phase 1.
+
 ## Next Session Shortcut
 
 Use this section first if the current task is the Stephub commission refactor and you want to continue without re-reading older handoff notes.
@@ -159,8 +197,14 @@ Dangerous commands to avoid unless intentionally resetting:
 
 ## Members
 
-- [ ] Member codes are correct
-- [ ] Sponsor / upline relationships are correct
+- [x] Member codes are correct (`TH0000000` format mapped from `User.id` on current local baseline)
+- [x] Sponsor / upline relationships are correct on current local baseline
+- [x] `MemberProfile` exists for all imported members in local baseline
+- [x] L/M/R placement validation passed on local baseline:
+  - [x] no duplicate `upline + side` slots
+  - [x] no sponsor/upline cycles
+- [x] Team Member `L/M/R` cards show subtree totals per leg (not direct-only)
+- [x] Team Member search scope is restricted to self + downline only
 - [ ] Name, phone, and email are filled
 - [ ] Default shipping address exists for members who need delivery
 - [ ] Test member can log in to app successfully
@@ -314,5 +358,9 @@ Dangerous commands to avoid unless intentionally resetting:
 - `COMM-04` cap/gating work is complete; next backend milestone is team settlement plus matching.
 - `COMM-05` backend runtime is complete enough for continuation work; current continuation milestone is runtime verification of the new daily pool path plus rerun safety.
 - Current scaffold source for per-leg PV is active-cycle `purchaseBase` overlapping the settlement date.
+- Current CAP/DCW/FIRM phase source of truth is the top `CAP/DCW/FIRM Phase Shortcut` section plus [HANDOFF_NEXT.md](/Users/macbook/poolproject/HANDOFF_NEXT.md:1).
+- Existing checkout still uses legacy `Wallet.discountBalance` for DCW until Phase 2 replaces it with CAP FIFO reservation.
+- Existing commission cap accounting still uses `MemberPackageCycle.earnedTotalInCycle` until Phase 2 wires commission into the CAP ledger.
+- Existing FIRM balances and transactions are legacy/read-only while `firmEnabled=false`.
 - `npm run smoke:bao:withdraw-kyc` covers `Delivered Orders`, `KYC approve/reject`, and `Withdraw approve + paid` on local BAO/API.
 - If member-side withdraw submission fails with `Insufficient withdrawable balance.`, seed or create enough withdrawable balance first; BAO approve/paid flow still validates correctly once a request exists.

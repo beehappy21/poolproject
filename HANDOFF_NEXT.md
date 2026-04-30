@@ -1,9 +1,114 @@
 Handoff Next
 
-Updated: 2026-04-29 17:08 +07
+Updated: 2026-04-29 20:08 +07
 Branch: `main`
 
+Latest Session Update (2026-04-30)
+
+- Local member baseline was reset and re-imported from `member003.xlsx`:
+  - non-admin members = `210`
+  - `memberCode` restored to `TH0000000` format mapped from `User.id`
+- Local tree placement (`upline + L/M/R`) was rebalanced from sponsor rules and validated:
+  - no duplicate `upline + placementSide` slots
+  - no self-loop / cycle in sponsor and upline chains
+- Added local safety tooling and runbook:
+  - `docs/RUNBOOK_LOCAL_MEMBER_RESET.md`
+  - reset/reconcile/validate/fill/rebalance scripts under `scripts/`
+- Team Member runtime behavior updated:
+  - `L/M/R` now show subtree totals per leg (not only direct first level)
+  - member tree search is now restricted to current member and downline only (cannot search upward/outside subtree)
+  - `GET /members/by-code/:memberCode/direct-referrals` is member-session scoped
+
 Current Goal
+
+Continue the CAP/DCW/FIRM phase rollout from the implemented Phase 0 plus safe Phase 1 foundation:
+
+- FIRM is disabled for phase 1
+- auto buyback is disabled for phase 1
+- historical FIRM/DCW wallet data is preserved as legacy data
+- CAP is not a wallet and must not be converted into FIRM or DCW balance
+- DCW is a discount mechanism derived from CAP plus product/package rules
+- full DCW checkout replacement is still Phase 2
+
+Older commission runtime notes below remain useful historical context, but CAP/DCW/FIRM notes in this section take precedence where they conflict.
+
+Current Locked CAP/DCW/FIRM Decisions
+
+- Every approved eligible package/product purchase with pool/CAP condition grants a new CAP bucket.
+- CAP buckets are stored separately per source order/package cycle; do not merge by mutating older buckets.
+- User UI may display aggregated CAP remaining across open buckets.
+- Admin/backend audit must show bucket-level CAP detail by source order.
+- CAP consumption uses FIFO:
+  - oldest approved bucket first
+  - fully exhaust older bucket before newer bucket
+  - order by source approved/created time, then id as tie-breaker
+- CAP is consumed by both commission earning/payout and DCW discount usage.
+- Pending DCW orders must reserve exact FIFO bucket amounts before final payment approval.
+- Cancelled/rejected/failed DCW orders must release the exact bucket reservations.
+- Approved/paid DCW orders must commit the exact reserved bucket amounts.
+- CAP has no time expiry.
+- `activeUntil` must not erase or invalidate CAP remaining.
+- `activeUntil` may still control package qualification/receivable rules if existing commission logic requires it.
+
+What Was Completed In Latest CAP/DCW/FIRM Round
+
+- Phase 0 settings foundation:
+  - added/normalized `firmEnabled` / `firm_enabled`
+  - added/normalized `autoBuybackEnabled` / `auto_buyback_enabled`
+  - both default to `false`
+- FIRM disabled safely:
+  - order creation rejects `firmWalletAmount > 0` when FIRM is disabled
+  - approved-order FIRM credits no-op when FIRM is disabled
+  - matrix auto/reentry FIRM credits no-op when auto buyback is disabled
+  - package product-detail creation rejects new FIRM-enabled setup while FIRM is disabled
+  - admin FIRM fields are disabled/read-only with legacy messaging
+- Auto buyback disabled safely:
+  - matrix auto order / `FIR001` creation is prevented when `autoBuybackEnabled=false`
+  - buyback-release evaluation returns a safe no-progress result when disabled
+- Phase 1 CAP foundation:
+  - added Prisma `CapBucket` and `CapLedger` models
+  - added migration `20260429_add_cap_bucket_ledger`
+  - added `CapModule`
+  - added `CapService.getCapSummary(userId)`
+  - added `CapService.grantCapForApprovedOrder(orderId)`
+  - added `CapService.allocateFifo(userId, amount, purpose)`
+  - added scaffold methods for `reserveDcw`, `releaseDcw`, and `commitDcw`
+  - added placeholder `commitCommission(commissionLedgerId)` for Phase 2 integration
+  - added `GET /cap/:userId`
+  - approved order flow now grants CAP idempotently after approval/paid handling
+  - CAP grant creates separate buckets per eligible order item quantity unit
+  - grant amount uses configured `earningCapAmount` when available, otherwise `10000`
+- Validation completed:
+  - `npx prisma format --schema prisma/schema.prisma` passed
+  - `npx prisma generate --schema prisma/schema.prisma` passed
+  - `npx prisma validate --schema prisma/schema.prisma` passed
+  - `npm run lint` passed
+- Added smoke script:
+  - `npm run smoke:cap:foundation`
+  - not run yet because it requires applying the new DB migration and writes smoke data
+
+Next Safe Steps
+
+- Apply the new CAP migration on the target database before runtime verification.
+- Run `npm run smoke:cap:foundation` after migration is applied.
+- Verify a first approved eligible order creates one CAP bucket.
+- Verify approval retry does not create duplicate CAP buckets.
+- Verify a second approved eligible order creates a second bucket instead of mutating the first.
+- Verify `GET /cap/:userId` returns aggregated totals plus bucket detail.
+- Build admin CAP audit UI around bucket-level source order detail.
+- Build member UI display for aggregated `cap_remaining`.
+- Phase 2: replace checkout DCW source from `Wallet.discountBalance` to CAP FIFO reservation.
+- Phase 2: wire commission finalization into CAP FIFO consumption while keeping current commission behavior safe.
+- Review/adapt legacy `smoke:firm` and `smoke:wallet:dcw` expectations because FIRM is intentionally disabled now.
+
+Known Caveats
+
+- Existing checkout still uses legacy `Wallet.discountBalance` for DCW until Phase 2.
+- Existing `firmBalance` and FIRM wallet transactions remain historical/read-only and are not zeroed.
+- Current commission cap accounting still uses `MemberPackageCycle.earnedTotalInCycle`; CAP ledger commission consumption is a Phase 2 integration point.
+- CAP buckets must not be expired by `activeUntil`; only qualification logic may continue to reference `activeUntil`.
+
+Previous Commission Runtime Goal
 
 Lock the new commission runtime direction before implementation:
 
