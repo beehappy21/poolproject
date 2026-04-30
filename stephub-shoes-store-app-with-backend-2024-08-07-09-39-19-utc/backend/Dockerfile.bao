@@ -1,14 +1,31 @@
+FROM composer:2 AS composer_deps
+
+WORKDIR /app
+
+COPY . .
+
+RUN composer install \
+    --no-dev \
+    --prefer-dist \
+    --no-interaction \
+    --no-progress \
+    --no-scripts \
+    --ignore-platform-reqs \
+    --optimize-autoloader
+
 FROM php:8.3-cli-alpine
 
 WORKDIR /var/www/html/backend
 
 RUN apk add --no-cache \
     freetype-dev \
+    git \
     libjpeg-turbo-dev \
     libpng-dev \
     libwebp-dev \
     postgresql-dev \
     sqlite-dev \
+    unzip \
  && docker-php-ext-configure gd \
     --with-freetype \
     --with-jpeg \
@@ -16,8 +33,12 @@ RUN apk add --no-cache \
  && docker-php-ext-install gd pdo pdo_pgsql pdo_sqlite
 
 COPY . .
+COPY --from=composer_deps /app/vendor ./vendor
 
-RUN chmod +x docker-entrypoint.sh
+RUN mkdir -p bootstrap/cache storage/framework/cache storage/framework/sessions storage/framework/views storage/logs \
+ && rm -f bootstrap/cache/*.php \
+ && php artisan package:discover --ansi || true \
+ && chmod +x docker-entrypoint.sh
 
 EXPOSE 8001
 
