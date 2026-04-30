@@ -143,6 +143,12 @@ export interface MembersServiceContract {
       placementSide?: "LEFT" | "MIDDLE" | "RIGHT" | null;
       childCount: number;
     }>;
+    legTotals: {
+      DIRECT: number;
+      LEFT: number;
+      MIDDLE: number;
+      RIGHT: number;
+    };
   } | null>;
 
   getReferralLink(memberCode: string, baseUrl?: string): Promise<{
@@ -352,7 +358,29 @@ export class MembersService implements MembersServiceContract {
     return this.membersRepository.findMemberByCode(memberCode);
   }
 
-  async getDirectReferralsByMemberCode(memberCode: string) {
+  async getDirectReferralsByMemberCode(
+    memberCode: string,
+    options?: { viewerMemberCode?: string | null },
+  ) {
+    if (options?.viewerMemberCode) {
+      const viewer = await this.membersRepository.findMemberByCode(
+        options.viewerMemberCode,
+      );
+      if (!viewer) {
+        return null;
+      }
+
+      const allowedIds = new Set(
+        await this.membersRepository.findSubtreeMemberIdsBySponsorId(viewer.memberId),
+      );
+      allowedIds.add(viewer.memberId);
+
+      const target = await this.membersRepository.findMemberByCode(memberCode);
+      if (!target || !allowedIds.has(target.memberId)) {
+        return null;
+      }
+    }
+
     return this.membersRepository.findDirectReferralsByMemberCode(memberCode);
   }
 

@@ -9,6 +9,7 @@ import {
   Param,
   Post,
   Query,
+  Req,
   UnauthorizedException,
 } from "@nestjs/common";
 
@@ -126,14 +127,22 @@ export class MembersController {
   }
 
   @Get("by-code/:memberCode/direct-referrals")
-  async getDirectReferralsByMemberCode(@Param("memberCode") memberCode: string) {
+  async getDirectReferralsByMemberCode(
+    @Param("memberCode") memberCode: string,
+    @Req() request: any,
+  ) {
     const validatedMemberCode = requireNonEmptyString(memberCode, "memberCode");
+    const viewerMemberCode = String(request?.authUser?.memberCode ?? "").trim();
+    if (!viewerMemberCode) {
+      throw new UnauthorizedException("Session required.");
+    }
     const result = await this.membersService.getDirectReferralsByMemberCode(
       validatedMemberCode,
+      { viewerMemberCode },
     );
 
     if (!result) {
-      throw new NotFoundException("Member not found.");
+      throw new NotFoundException("Member not found in your downline.");
     }
 
     return result;

@@ -149,7 +149,15 @@ export interface MembersRepository {
       sponsorId: string | null;
       childCount: number;
     }>;
+    legTotals: {
+      DIRECT: number;
+      LEFT: number;
+      MIDDLE: number;
+      RIGHT: number;
+    };
   } | null>;
+
+  findSubtreeMemberIdsBySponsorId(memberId: string): Promise<string[]>;
 
   createMember(input: {
     memberCode?: string | null;
@@ -953,6 +961,35 @@ export class PrismaMembersRepository implements MembersRepository {
     return member ? this.toMemberSummary(member) : null;
   }
 
+  async findSubtreeMemberIdsBySponsorId(memberId: string): Promise<string[]> {
+    const rootId = BigInt(memberId);
+    const visited = new Set<string>();
+    const queue: bigint[] = [rootId];
+    const descendants: string[] = [];
+
+    while (queue.length > 0) {
+      const parentIds = queue.splice(0, 200);
+      const children = await this.prisma.user.findMany({
+        where: {
+          sponsorId: { in: parentIds },
+        },
+        select: { id: true },
+      });
+
+      for (const child of children) {
+        const childId = toIdString(child.id);
+        if (visited.has(childId)) {
+          continue;
+        }
+        visited.add(childId);
+        descendants.push(childId);
+        queue.push(child.id);
+      }
+    }
+
+    return descendants;
+  }
+
   async findDirectReferralsByMemberCode(memberCode: string) {
     const member = await this.prisma.user.findFirst({
       where: { memberCode: { equals: memberCode, mode: "insensitive" } },
@@ -988,9 +1025,10 @@ export class PrismaMembersRepository implements MembersRepository {
 
     const referralsWithCounts = await Promise.all(
       directReferrals.map(async (directReferral) => {
-        const childCount = await this.prisma.user.count({
-          where: { sponsorId: directReferral.id },
-        });
+        const subtreeIds = await this.findSubtreeMemberIdsBySponsorId(
+          toIdString(directReferral.id),
+        );
+        const childCount = subtreeIds.length;
 
         return {
           memberId: toIdString(directReferral.id),
@@ -1006,6 +1044,24 @@ export class PrismaMembersRepository implements MembersRepository {
       }),
     );
 
+    const legTotals = {
+      DIRECT: referralsWithCounts.length,
+      LEFT: 0,
+      MIDDLE: 0,
+      RIGHT: 0,
+    };
+
+    for (const node of referralsWithCounts) {
+      const legSize = node.childCount + 1;
+      if (node.placementSide === "LEFT") {
+        legTotals.LEFT += legSize;
+      } else if (node.placementSide === "MIDDLE") {
+        legTotals.MIDDLE += legSize;
+      } else if (node.placementSide === "RIGHT") {
+        legTotals.RIGHT += legSize;
+      }
+    }
+
     return {
       member: {
         memberId: toIdString(member.id),
@@ -1015,6 +1071,7 @@ export class PrismaMembersRepository implements MembersRepository {
         sponsorId: member.sponsorId ? toIdString(member.sponsorId) : null,
       },
       directReferrals: referralsWithCounts,
+      legTotals,
     };
   }
 

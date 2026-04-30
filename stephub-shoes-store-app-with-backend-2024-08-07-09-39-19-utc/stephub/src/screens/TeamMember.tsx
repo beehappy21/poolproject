@@ -26,6 +26,12 @@ type TreePayload = {
     sponsorId: string | null;
   };
   directReferrals: TreeNode[];
+  legTotals: {
+    DIRECT: number;
+    LEFT: number;
+    MIDDLE: number;
+    RIGHT: number;
+  };
 };
 
 export const TeamMember: React.FC = () => {
@@ -48,10 +54,25 @@ export const TeamMember: React.FC = () => {
   const [loadingCodes, setLoadingCodes] = useState<Record<string, boolean>>({});
   const [screenLoading, setScreenLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
+  const [rootLegTotals, setRootLegTotals] = useState<{
+    DIRECT: number;
+    LEFT: number;
+    MIDDLE: number;
+    RIGHT: number;
+  }>({
+    DIRECT: 0,
+    LEFT: 0,
+    MIDDLE: 0,
+    RIGHT: 0,
+  });
 
   const fetchTreeLevel = async (memberCode: string): Promise<TreePayload> => {
+    const headers = user?.accessToken
+      ? {Authorization: `Bearer ${user.accessToken}`}
+      : undefined;
     const response = await axios.get<TreePayload>(
       URLS.buildMemberDirectReferralsUrl(memberCode),
+      {headers},
     );
 
     return response.data;
@@ -67,10 +88,12 @@ export const TeamMember: React.FC = () => {
       setRootCodeInput(payload.member.memberCode);
       setRootMemberName(payload.member.name);
       setChildrenByCode({[payload.member.memberCode]: payload.directReferrals});
+      setRootLegTotals(payload.legTotals);
       setExpandedCodes({});
       setSelectedFilter('DIRECT');
     } catch (error: any) {
       setChildrenByCode({});
+      setRootLegTotals({DIRECT: 0, LEFT: 0, MIDDLE: 0, RIGHT: 0});
       setRootMemberName('');
       setErrorMessage(
         error?.response?.data?.message ||
@@ -129,10 +152,10 @@ export const TeamMember: React.FC = () => {
       ? rootChildren
       : rootChildren.filter(node => node.placementSide === selectedFilter);
 
-  const directCount = rootChildren.length;
-  const leftCount = rootChildren.filter(node => node.placementSide === 'LEFT').length;
-  const middleCount = rootChildren.filter(node => node.placementSide === 'MIDDLE').length;
-  const rightCount = rootChildren.filter(node => node.placementSide === 'RIGHT').length;
+  const directCount = rootLegTotals.DIRECT;
+  const leftCount = rootLegTotals.LEFT;
+  const middleCount = rootLegTotals.MIDDLE;
+  const rightCount = rootLegTotals.RIGHT;
 
   const renderNode = (node: TreeNode, level: number): JSX.Element => {
     const children = childrenByCode[node.memberCode];

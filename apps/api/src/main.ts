@@ -223,8 +223,16 @@ function resolveRouteAccess(
     return "public";
   }
 
-  if (method === "GET" && path.startsWith("/members/by-code/")) {
+  if (
+    method === "GET" &&
+    path.startsWith("/members/by-code/") &&
+    !path.endsWith("/direct-referrals")
+  ) {
     return "public";
+  }
+
+  if (method === "GET" && path.endsWith("/direct-referrals")) {
+    return "member";
   }
 
   if (method === "GET" && path.startsWith("/matrix/member/by-code/")) {
@@ -271,6 +279,7 @@ function resolveRouteAccess(
 
   if (
     path.startsWith("/packages") ||
+    path.startsWith("/cap") ||
     path.startsWith("/orders") ||
     path.startsWith("/pool") ||
     path.startsWith("/wallets") ||
