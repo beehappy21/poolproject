@@ -1,7 +1,67 @@
 Handoff Next
 
-Updated: 2026-04-29 20:08 +07
+Updated: 2026-05-01 14:10 +07
 Branch: `main`
+
+Latest Session Update (2026-05-01)
+
+- Locked the new commission-round repurchase business rule in the active plan:
+  - first pool qualification requires:
+    - self purchase
+    - `3` directs
+    - each direct has at least `1` approved purchase
+  - later rounds do not require rebuilding the original `3 direct buyers` gate
+  - one commission round completes when member commission accumulation is `>= 10000 THB`
+  - counted channels are:
+    - `Direct`
+    - `Team 2-leg`
+    - `Team 3-leg`
+    - `Matching`
+    - `Pool`
+  - `Company fallback` does not count toward the member round threshold
+  - after round completion, new commission is still calculated for `3` Bangkok calendar days but must be held pending repurchase
+  - a qualifying self repurchase of `1000 THB` opens the next round
+  - if no qualifying self repurchase happens within `3` days, new commission calculation must stop after grace expiry
+- Updated the active source-of-truth plan:
+  - [docs/technical-design/referral_commission_plan_thb.md](/Users/macbook/poolproject/docs/technical-design/referral_commission_plan_thb.md:1)
+- Added implementation spec for the new round model:
+  - [docs/technical-design/commission_round_repurchase_spec.md](/Users/macbook/poolproject/docs/technical-design/commission_round_repurchase_spec.md:1)
+- Updated design index:
+  - [docs/technical-design/README.md](/Users/macbook/poolproject/docs/technical-design/README.md:1)
+- Verified current runtime mismatch that must be addressed before claiming the new rule is implemented:
+  - current runtime buyback/repurchase gate still depends on `autoBuybackEnabled`
+  - current runtime threshold check uses `> 10000`, not `>= 10000`
+  - current runtime does not yet model commission round lifecycle as a first-class entity
+  - current runtime pool behavior is still tied to same-day daily pool cap logic and does not yet follow the new round-renewal rule
+- Local commission scenario verification from the existing `210`-member baseline was completed using product `test 1000 / 350 PV`:
+  - approved orders: `210`
+  - settlement dates processed: `52`
+  - direct/team/matching/fallback rows were created
+  - pool cycles and pool payouts were created
+  - no `POOL` commission ledger rows were created because every pool payout fell back with `cap_blocked_all_receivable_cycles`
+
+Current Goal
+
+Implement the new commission-round repurchase model without reintroducing matrix rules:
+
+- preserve the existing local baseline
+- treat the updated plan docs as the only active source of truth
+- convert current buyback gating into explicit commission-round lifecycle behavior
+- make pool use:
+  - first-time `3 direct buyers` qualification only once
+  - later round renewal by qualifying self repurchase only
+
+Immediate Next Steps
+
+- Add a first-class commission-round data model instead of relying only on `UserBuybackProgress`.
+- Change threshold comparison to `>= 10000`.
+- Split runtime behavior by round state:
+  - `ACTIVE`
+  - `GRACE_HELD`
+  - `BLOCKED_EXPIRED`
+- Keep calculating commission during grace, but hold release.
+- Stop calculating new commission after grace expiry until a qualifying self repurchase reopens the round.
+- Rework pool entitlement so later rounds use self repurchase renewal and do not require rebuilding the initial `3 direct buyers` condition.
 
 Latest Session Update (2026-04-30)
 

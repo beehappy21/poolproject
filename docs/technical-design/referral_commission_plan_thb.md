@@ -1,6 +1,6 @@
 # Referral And Commission Plan (THB/PV)
 
-Updated: 2026-04-27
+Updated: 2026-05-01
 
 This document is the only active business and implementation source of truth for referral and commission behavior in this repository.
 
@@ -142,10 +142,25 @@ Formula:
 
 - Pool basis is `100%` of approved sales PV for the pool date
 - Runtime pool funding uses `poolRate = 1`
-- Pool qualification requires:
+- Pool initial qualification requires:
   - member has own approved purchase
   - member has `3` directs
   - each direct has `1` approved purchase order
+- Once the member has passed the initial qualification gate, later pool rounds do not require re-checking the same `3 direct buyers` condition.
+- After a member completes one commission round, the member must complete a new qualifying self-purchase before becoming eligible for the next pool round.
+
+### 6.6 Commission Round
+
+- A commission round is completed when the member has accumulated commission `>= 10000 THB`.
+- Round accumulation uses member commission `finalPayableAmount` from:
+  - `Direct`
+  - `Team 2-leg`
+  - `Team 3-leg`
+  - `Matching`
+  - `Pool`
+- `Company fallback` is not member commission and must not count toward the round threshold.
+- A member must pass the initial pool qualification gate once.
+- After the first qualification, later rounds use `self repurchase` only as the round-renewal condition.
 
 ## 7. Daily Cap
 
@@ -153,14 +168,27 @@ Formula:
 - The cap applies across all commission channels combined
 - Cap is enforced before final payable posting
 
-## 8. Buyback Gating
+## 8. Round Repurchase Gating
 
-- Buyback threshold is `10000 THB`
-- Threshold uses commission `finalPayableAmount` after cap
+- Round threshold is `10000 THB`
+- Threshold uses member commission `finalPayableAmount` after cap
+- Threshold comparison must be `>= 10000`, not only `> 10000`
+- Required renewal purchase amount is `1000 THB`
 - No auto-deducted recycle purchase
-- Eligible overflow is held for member-initiated repurchase
-- Grace period is `3` calendar days in `Asia/Bangkok`
-- If repurchase is not completed in time, release status becomes `BLOCKED_AFTER_EXPIRY`
+- When a member completes one round:
+  - stop releasing new commission immediately
+  - continue calculating new commission for `3` calendar days in `Asia/Bangkok`
+  - mark newly calculated commission during that grace window as held pending repurchase
+- If the member completes a qualifying self-purchase within the `3`-day grace window:
+  - close the old round
+  - open a new round
+  - reset new-round accumulated commission to `0`
+  - release held commission according to the normal post-repurchase flow
+- If the member does not complete a qualifying self-purchase within the `3`-day grace window:
+  - stop calculating new commission after grace expiry
+  - keep the member blocked from new commission accrual until a qualifying self-purchase opens a new round
+- The repurchase rule resets the commission round only.
+- The repurchase rule does not require rebuilding the original `3 direct buyers` qualification.
 
 ## 9. Locked Runtime Order
 

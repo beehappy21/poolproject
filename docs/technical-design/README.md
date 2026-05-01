@@ -27,6 +27,7 @@ Supporting infrastructure:
 
 Current feature specs:
 - [referral_commission_plan_thb.md](/Users/macbook/poolproject/docs/technical-design/referral_commission_plan_thb.md)
+- [commission_round_repurchase_spec.md](/Users/macbook/poolproject/docs/technical-design/commission_round_repurchase_spec.md)
 - [firm_wallet_spec.md](/Users/macbook/poolproject/docs/technical-design/firm_wallet_spec.md)
 - [matrix_runtime_reentry_spec.md](/Users/macbook/poolproject/docs/technical-design/matrix_runtime_reentry_spec.md) `legacy runtime reference only`
 

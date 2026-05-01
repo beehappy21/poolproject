@@ -1,8 +1,39 @@
 # Live Operations Checklist
 
-Updated: 2026-04-29
+Updated: 2026-05-01
 
 Use this checklist before starting real data entry and real day-to-day usage on the current local/runtime stack.
+
+## Commission Round Repurchase Shortcut
+
+Use this section first when continuing the new commission-round repurchase rule.
+
+- [ ] Open [HANDOFF_NEXT.md](/Users/macbook/poolproject/HANDOFF_NEXT.md:1)
+- [ ] Open [docs/technical-design/referral_commission_plan_thb.md](/Users/macbook/poolproject/docs/technical-design/referral_commission_plan_thb.md:1)
+- [ ] Open [docs/technical-design/commission_round_repurchase_spec.md](/Users/macbook/poolproject/docs/technical-design/commission_round_repurchase_spec.md:1)
+- [ ] Treat the updated commission plan docs above as the only active source of truth for round repurchase behavior
+- [ ] Keep matrix out of scope unless the user explicitly reopens it
+- [ ] Confirm current runtime gap before coding:
+  - [ ] threshold must become `>= 10000`
+  - [ ] grace period remains `3` Bangkok calendar days
+  - [ ] qualifying repurchase amount is `1000 THB`
+  - [ ] direct `3 buyers` is a first-qualification-only gate
+  - [ ] later rounds use self repurchase only
+  - [ ] commission must still calculate during grace but release as held
+  - [ ] commission must stop calculating after grace expiry until qualifying repurchase
+- [ ] Confirm current runtime mismatch is still understood:
+  - [ ] `autoBuybackEnabled` currently gates the old behavior
+  - [ ] current code still uses `> 10000`
+  - [ ] no first-class `CommissionRound` model exists yet
+  - [ ] current pool rule still ties payout to same-day daily pool cap logic
+- [ ] Preserve the existing local baseline of `210` non-admin members
+- [ ] Do not seed extra members for this phase
+- [ ] When touching pool logic, keep the first gate and renewal gate separate:
+  - [ ] first gate = self purchase + `3` directs + `3` direct buyers
+  - [ ] later rounds = self repurchase only
+- [ ] If implementation changes the active rule again, update both:
+  - [ ] [HANDOFF_NEXT.md](/Users/macbook/poolproject/HANDOFF_NEXT.md:1)
+  - [ ] [CHECKLIST_LIVE_OPERATIONS.md](/Users/macbook/poolproject/CHECKLIST_LIVE_OPERATIONS.md:1)
 
 ## CAP/DCW/FIRM Phase Shortcut
 
@@ -49,6 +80,7 @@ Use this section first if the current task is the Stephub commission refactor an
 - [ ] Open [HANDOFF_NEXT.md](/Users/macbook/poolproject/HANDOFF_NEXT.md:1)
 - [ ] Open [docs/technical-design/pool_daily_eod_spec.md](/Users/macbook/poolproject/docs/technical-design/pool_daily_eod_spec.md:1)
 - [ ] Open [docs/technical-design/referral_commission_plan_thb.md](/Users/macbook/poolproject/docs/technical-design/referral_commission_plan_thb.md:1)
+- [ ] Open [docs/technical-design/commission_round_repurchase_spec.md](/Users/macbook/poolproject/docs/technical-design/commission_round_repurchase_spec.md:1)
 - [ ] Ignore old receipt/PDF work unless the user explicitly asks for it
 - [ ] Confirm these still pass before touching more code:
   - [ ] `npx prisma validate --schema prisma/schema.prisma`
@@ -114,9 +146,13 @@ Locked rules for next session:
 - [ ] Daily cap is `5000 THB`
 - [ ] Daily cap applies only to `2leg / 3leg`
 - [ ] Buyback threshold uses `final payable after cap`
+- [ ] Commission round completes at `>= 10000 THB`
+- [ ] Qualifying repurchase amount is `1000 THB`
 - [ ] No auto-deducted recycle purchase
 - [ ] Excess above threshold is held pending member-initiated repurchase for `3` calendar days in `Asia/Bangkok`
 - [ ] If not completed in time, status becomes `BLOCKED_AFTER_EXPIRY`
+- [ ] Commission still calculates during the `3`-day grace window, but new rows are held
+- [ ] New commission stops calculating after grace expiry until qualifying self repurchase
 - [ ] `Direct` pays immediately when an order becomes `approved`
 - [ ] `2leg / 3leg`, `Matching`, and `Pool` run after end of day
 - [ ] Matching is based on actual team payable after the team-only daily cap
@@ -128,6 +164,7 @@ Locked rules for next session:
 - [ ] Commission basis uses approved order PV from real catalog items: `sum(quantity x unitPv)`
 - [ ] Commission payout interprets `1 PV = 1 THB`
 - [ ] Pool qualification needs member own purchase + `3` directs + each direct has `1` purchase order
+- [ ] Pool needs the `3 direct buyers` gate only for first qualification, not for every later round
 - [ ] Locked daily order is `team -> buyback side effect -> pool`
 - [ ] If 3-team has only 2 payable legs, fall back to the 2-leg rule
 
