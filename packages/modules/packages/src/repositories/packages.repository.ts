@@ -299,7 +299,10 @@ export interface PackagesRepository {
     memberPriceUsdt: string;
     retailPriceUsdt: string;
     pv: string;
-    poolRate: string;
+    poolEnabled: boolean;
+    poolCapMultiple: string;
+    commissionCapScope: "pool_only" | "all_commissions";
+    commissionCapMultiple: string;
     firmEnabled: boolean;
     firmOverrideCostGuard?: boolean;
     firmDcwRewardAmount: string;
@@ -415,8 +418,7 @@ export interface PackagesRepository {
     memberPriceUsdt?: string;
     activeDays: number;
     earningCapAmount: string;
-    poolRateMode?: "default_50_percent" | "custom_rate" | "disabled";
-    poolRate?: string;
+    poolEnabled?: boolean;
     poolCapMultiple?: string;
     commissionCapScope?: "pool_only" | "all_commissions";
     commissionCapMultiple?: string;
@@ -740,8 +742,7 @@ export class PrismaPackagesRepository implements PackagesRepository {
     memberPriceUsdt: string;
     retailPriceUsdt: string;
     pv: string;
-    poolRateMode: "default_50_percent" | "custom_rate" | "disabled";
-    poolRate: string;
+    poolEnabled: boolean;
     poolCapMultiple: string;
     commissionCapScope: "pool_only" | "all_commissions";
     commissionCapMultiple: string;
@@ -798,13 +799,8 @@ export class PrismaPackagesRepository implements PackagesRepository {
         memberPriceUsdt: input.memberPriceUsdt,
         retailPriceUsdt: input.retailPriceUsdt,
         pv: input.pv,
-        poolRateMode:
-          input.poolRateMode === "custom_rate"
-            ? "CUSTOM_RATE"
-            : input.poolRateMode === "disabled"
-              ? "DISABLED"
-              : "DEFAULT_50_PERCENT",
-        poolRate: input.poolRate,
+        poolRateMode: input.poolEnabled ? "DEFAULT_50_PERCENT" : "DISABLED",
+        poolRate: "1",
         poolCapMultiple: input.poolCapMultiple,
         commissionCapScope:
           input.commissionCapScope === "all_commissions"
@@ -1090,8 +1086,7 @@ export class PrismaPackagesRepository implements PackagesRepository {
     memberPriceUsdt?: string;
     activeDays: number;
     earningCapAmount: string;
-    poolRateMode?: "default_50_percent" | "custom_rate" | "disabled";
-    poolRate?: string;
+    poolEnabled?: boolean;
     poolCapMultiple?: string;
     commissionCapScope?: "pool_only" | "all_commissions";
     commissionCapMultiple?: string;
@@ -1109,8 +1104,7 @@ export class PrismaPackagesRepository implements PackagesRepository {
       const memberPriceUsdt = input.memberPriceUsdt ?? input.priceUsdt ?? "0";
       const costPriceUsdt = input.costPriceUsdt ?? "0";
       const pv = input.pv ?? "0";
-      const poolRate = input.poolRate ?? "0";
-      const poolRateMode = input.poolRateMode ?? "default_50_percent";
+      const poolEnabled = input.poolEnabled !== false;
       const defaultDcwUsageAmount = computeDefaultDcwUsageAmount({
         costPriceUsdt,
         memberPriceUsdt,
@@ -1126,13 +1120,8 @@ export class PrismaPackagesRepository implements PackagesRepository {
           retailPriceUsdt: memberPriceUsdt,
           priceUsdt: memberPriceUsdt,
           pv,
-          poolRateMode:
-            poolRateMode === "custom_rate"
-              ? "CUSTOM_RATE"
-              : poolRateMode === "disabled"
-                ? "DISABLED"
-                : "DEFAULT_50_PERCENT",
-          poolRate,
+          poolRateMode: poolEnabled ? "DEFAULT_50_PERCENT" : "DISABLED",
+          poolRate: "1",
           poolCapMultiple: input.poolCapMultiple ?? "0",
           commissionCapScope:
             input.commissionCapScope === "all_commissions"
@@ -1231,13 +1220,8 @@ export class PrismaPackagesRepository implements PackagesRepository {
         retailPriceUsdt: `${retailTotal}`,
         priceUsdt: `${memberTotal}`,
         pv: `${pvTotal}`,
-        poolRateMode:
-          (input.poolRateMode ?? "default_50_percent") === "custom_rate"
-            ? "CUSTOM_RATE"
-            : (input.poolRateMode ?? "default_50_percent") === "disabled"
-              ? "DISABLED"
-              : "DEFAULT_50_PERCENT",
-        poolRate: input.poolRate ?? "0",
+        poolRateMode: input.poolEnabled === false ? "DISABLED" : "DEFAULT_50_PERCENT",
+        poolRate: "1",
         poolCapMultiple: input.poolCapMultiple ?? "0",
         commissionCapScope:
           input.commissionCapScope === "all_commissions"

@@ -307,8 +307,8 @@ export interface OrdersServiceContract {
       commissionSettingsSnapshot: string | null;
       items: Array<{
         lineTotalPv: string;
+        lineTotalUsdt: string;
         poolRateMode?: "default_50_percent" | "custom_rate" | "disabled";
-        poolRate?: string;
       }>;
     }>
   >;
@@ -532,8 +532,8 @@ export class OrdersService implements OrdersServiceContract {
       commissionSettingsSnapshot: string | null;
       items: Array<{
         lineTotalPv: string;
+        lineTotalUsdt: string;
         poolRateMode?: "default_50_percent" | "custom_rate" | "disabled";
-        poolRate?: string;
       }>;
     }>
   > {
@@ -549,6 +549,7 @@ export class OrdersService implements OrdersServiceContract {
     orderId: string;
     sourceUserId: string;
     approvedAt: string;
+    totalUsdt: string;
     totalPv: string;
     orderSourceType: "normal" | "matrix_reentry";
     commissionSettingsSnapshot: string | null;
@@ -602,6 +603,17 @@ export class OrdersService implements OrdersServiceContract {
       const commissionSettings = parseCommissionSettingsSnapshot(
         approvedOrder.commissionSettingsSnapshot,
       );
+      await this.commissionsService.handleApprovedSelfPurchaseQualification({
+        beneficiaryUserId: approvedOrder.sourceUserId,
+        approvedOrderId: approvedOrder.orderId,
+        approvedAt: approvedOrder.approvedAt,
+      });
+      await this.commissionsService.handleQualifyingRepurchase({
+        beneficiaryUserId: approvedOrder.sourceUserId,
+        approvedOrderId: approvedOrder.orderId,
+        approvedAt: approvedOrder.approvedAt,
+        orderTotalUsdt: approvedOrder.totalUsdt,
+      });
       const existingCommissionEntries = this.asCommissionEntryArray(
         await this.commissionsService.listCommissions({ orderId }),
       );
@@ -783,6 +795,7 @@ export class OrdersService implements OrdersServiceContract {
       orderId: string;
       sourceUserId: string;
       approvedAt: string;
+      totalUsdt: string;
       commissionSettingsSnapshot: string | null;
       matrixSettingsSnapshot: string | null;
       items: Array<{

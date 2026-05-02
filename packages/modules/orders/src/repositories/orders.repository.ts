@@ -475,6 +475,7 @@ export interface OrdersRepository {
     orderId: string;
     sourceUserId: string;
     approvedAt: string;
+    totalUsdt: string;
     totalPv: string;
     orderSourceType: "normal" | "matrix_reentry";
     commissionSettingsSnapshot: string | null;
@@ -2332,6 +2333,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
     orderId: string;
     sourceUserId: string;
     approvedAt: string;
+    totalUsdt: string;
     totalPv: string;
     orderSourceType: "normal" | "matrix_reentry";
     commissionSettingsSnapshot: string | null;
@@ -2353,6 +2355,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
         id: true,
         userId: true,
         approvedAt: true,
+        totalUsdt: true,
         totalPv: true,
         orderSourceType: true,
         commissionSettingsSnapshot: true,
@@ -2372,6 +2375,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
           orderId: order.id.toString(),
           sourceUserId: order.userId.toString(),
           approvedAt: order.approvedAt?.toISOString() ?? "",
+          totalUsdt: order.totalUsdt.toString(),
           totalPv: order.totalPv.toString(),
           orderSourceType:
             order.orderSourceType === "MATRIX_REENTRY" ? "matrix_reentry" : "normal",
@@ -2397,7 +2401,6 @@ export class PrismaOrdersRepository implements OrdersRepository {
         lineTotalPv: string;
         lineTotalUsdt: string;
         poolRateMode?: "default_50_percent" | "custom_rate" | "disabled";
-        poolRate?: string;
       }>;
     }>
   > {
@@ -2406,7 +2409,6 @@ export class PrismaOrdersRepository implements OrdersRepository {
       lineTotalPv: true,
       lineTotalUsdt: true,
       poolRateMode: true,
-      unitPoolRate: true,
     } satisfies Prisma.OrderItemSelect;
     const orders = await this.prisma.order.findMany({
       where: {
@@ -2433,16 +2435,17 @@ export class PrismaOrdersRepository implements OrdersRepository {
       approvedAt: toIsoString(order.approvedAt),
       totalPv: toDecimalString(order.totalPv),
       commissionSettingsSnapshot: order.commissionSettingsSnapshot,
-      items: order.orderItems.map((item) => ({
-        lineTotalPv: toDecimalString(item.lineTotalPv),
-        lineTotalUsdt: toDecimalString(item.lineTotalUsdt),
-        poolRateMode: item.poolRateMode?.toString().toLowerCase() as
-          | "default_50_percent"
-          | "custom_rate"
-          | "disabled"
-          | undefined,
-        poolRate: toDecimalString(item.unitPoolRate),
-      })),
+      items: order.orderItems
+        .map((item) => ({
+          lineTotalPv: toDecimalString(item.lineTotalPv),
+          lineTotalUsdt: toDecimalString(item.lineTotalUsdt),
+          poolRateMode: item.poolRateMode?.toString().toLowerCase() as
+            | "default_50_percent"
+            | "custom_rate"
+            | "disabled"
+            | undefined,
+        }))
+        .filter((item) => item.poolRateMode !== "disabled"),
     }));
   }
 }

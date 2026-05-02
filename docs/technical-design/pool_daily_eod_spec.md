@@ -51,14 +51,14 @@ This file is the working source of truth for the next implementation round unles
 
 ### 6. Pool Payout Limit
 
-- A member's daily pool payout must not exceed `3%` of that member's real paid purchase amount for pool-enabled products on that same day.
-- The cap basis is `real paid purchase amount`, not `purchaseBase`, and not pure PV.
-- If a member has no real paid purchase amount from pool-enabled products that day, the member's daily pool cap is `0`.
+- A member's pool payout for a close run must not exceed `3%` of the `purchaseBase` on the specific receivable cycle that receives the payout.
+- The cap basis is the receiving cycle `purchaseBase`, not same-day real paid amount, and not pure PV.
+- If the selected receivable cycle has `purchaseBase <= 0`, the member's pool payout for that cycle is `0`.
 
 Suggested formula:
 
-- `memberDailyPoolCap = realPaidPoolEnabledPurchaseAmountOfDay x 0.03`
-- `memberPoolPayable = min(calculatedPoolShare, memberDailyPoolCap)`
+- `memberCyclePoolCap = receivingCycle.purchaseBase x 0.03`
+- `memberPoolPayable = min(calculatedPoolShare, cycleRemainingRoom, memberCyclePoolCap)`
 
 ### 7. Buyback / Recycle
 
@@ -88,12 +88,12 @@ Suggested formula:
 
 - The pool fund uses approved-order PV from the same Bangkok business day.
 - Pool-enabled products decide whether that order line contributes to the pool source.
-- The per-member pool payout limit uses real paid purchase amount, not PV.
+- The per-member pool payout limit uses the receiving cycle `purchaseBase`, not PV.
 
 This means the system intentionally uses:
 
 - `PV` to build the pool fund
-- `real paid amount` to cap each member's daily pool payout
+- `receiving cycle purchaseBase` to cap each member's pool payout
 
 ## Working Terms
 
@@ -111,5 +111,5 @@ This means the system intentionally uses:
 - restrict daily cap logic to `2leg / 3leg` only
 - keep `Matching` based on team `finalPayableAmount` after cap
 - update pool entitlement timing to `qualified today -> payable tomorrow`
-- enforce the `3% of real paid amount` daily pool ceiling per member
+- enforce the `3% of receiving cycle purchaseBase` cap per member payout
 - update handoff and checklist files at the end of every implementation session

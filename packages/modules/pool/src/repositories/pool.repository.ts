@@ -126,6 +126,11 @@ export interface PoolRepository {
     }>;
   }): Promise<void>;
 
+  updatePoolCycleCloseSummary(input: {
+    poolCycleId: string;
+    companyFallbackAmount: string;
+  }): Promise<void>;
+
   getPoolCycle(poolDate: string): Promise<{
     poolCycleId: string;
     poolDate: string;
@@ -357,6 +362,18 @@ export class PrismaPoolRepository implements PoolRepository {
     });
   }
 
+  async updatePoolCycleCloseSummary(input: {
+    poolCycleId: string;
+    companyFallbackAmount: string;
+  }): Promise<void> {
+    await this.prisma.dailyPoolCycle.update({
+      where: { id: BigInt(input.poolCycleId) },
+      data: {
+        companyFallbackAmount: input.companyFallbackAmount,
+      },
+    });
+  }
+
   async getPoolCycle(poolDate: string) {
     const cycle = await this.prisma.dailyPoolCycle.findUnique({
       where: { cycleDate: new Date(`${poolDate}T00:00:00.000Z`) },
@@ -461,35 +478,6 @@ export class PrismaPoolRepository implements PoolRepository {
     const dayRange = buildBangkokSingleDayRange(input.poolDate);
     const dayStart = dayRange.gte;
     const evaluationAt = new Date(input.evaluationAt);
-    const sameDayOrders = await this.prisma.order.findMany({
-      where: {
-        approvalStatus: "APPROVED",
-        orderSourceType: "NORMAL",
-        approvedAt: dayRange,
-      },
-      select: {
-        userId: true,
-        orderItems: {
-          select: {
-            lineTotalUsdt: true,
-            poolRateMode: true,
-          },
-        },
-      },
-    });
-    const realPaidPoolEnabledAmountByUser = new Map<string, string>();
-
-    for (const order of sameDayOrders) {
-      const userId = order.userId.toString();
-      const nextAmount = order.orderItems
-        .filter((item) => item.poolRateMode !== "DISABLED")
-        .reduce(
-          (total, item) => addDecimalStrings(total, item.lineTotalUsdt.toString()),
-          realPaidPoolEnabledAmountByUser.get(userId) ?? "0",
-        );
-
-      realPaidPoolEnabledAmountByUser.set(userId, nextAmount);
-    }
 
     const users = await this.prisma.user.findMany({
       where: {
@@ -519,11 +507,18 @@ export class PrismaPoolRepository implements PoolRepository {
             approvalStatus: "APPROVED",
             orderSourceType: "NORMAL",
             approvedAt: {
-              lt: dayStart,
+              lte: evaluationAt,
             },
           },
           select: {
             id: true,
+            approvedAt: true,
+            orderItems: {
+              select: {
+                lineTotalUsdt: true,
+                poolRateMode: true,
+              },
+            },
           },
         },
         directReferrals: {
@@ -547,30 +542,74 @@ export class PrismaPoolRepository implements PoolRepository {
             },
           },
         },
+        buybackProgress: {
+          select: {
+            status: true,
+            lastQualifyingOrderId: true,
+          },
+        },
       },
     });
 
     return users.map((user) => {
-      const hasOwnApprovedOrder = user.orders.length > 0;
+      const priorApprovedOrders = user.orders.filter(
+        (order) => order.approvedAt != null && order.approvedAt < dayStart,
+      );
+      const sameDayApprovedOrders = user.orders.filter(
+        (order) =>
+          order.approvedAt != null &&
+          order.approvedAt >= dayRange.gte &&
+          order.approvedAt <= dayRange.lte,
+      );
+      const hasOwnApprovedOrder = priorApprovedOrders.length > 0;
       const activeDirectReferralCount = user.directReferrals.length;
       const activeDirectBuyerCount = user.directReferrals.filter(
         (directReferral) => directReferral.orders.length > 0,
       ).length;
-      const realPaidPoolEnabledAmount =
-        realPaidPoolEnabledAmountByUser.get(user.id.toString()) ?? "0";
       const memberActive = user.packageCycles.length > 0;
+      const hasPersistedInitialQualification =
+        user.buybackProgress?.lastQualifyingOrderId != null;
+      const hasPassedInitialQualification =
+        hasPersistedInitialQualification ||
+        (hasOwnApprovedOrder &&
+          activeDirectReferralCount >= 3 &&
+          activeDirectBuyerCount >= 3);
+      const roundStatus =
+        user.buybackProgress?.status?.toLowerCase() as
+          | "clear"
+          | "held_pending_repurchase"
+          | "blocked_after_expiry"
+          | undefined;
       const eligible =
         memberActive &&
-        hasOwnApprovedOrder &&
-        activeDirectReferralCount >= 3 &&
-        activeDirectBuyerCount >= 3;
+        hasPassedInitialQualification &&
+        roundStatus !== "blocked_after_expiry";
+      const realPaidPoolEnabledAmount = sameDayApprovedOrders.reduce(
+        (orderTotal, order) =>
+          addDecimalStrings(
+            orderTotal,
+            order.orderItems.reduce((itemTotal, item) => {
+              if (item.poolRateMode?.toString().toLowerCase() === "disabled") {
+                return itemTotal;
+              }
+
+              return addDecimalStrings(
+                itemTotal,
+                item.lineTotalUsdt?.toString() ?? "0",
+              );
+            }, "0"),
+          ),
+        "0",
+      );
 
       return {
         userId: user.id.toString(),
         memberActive,
+        hasPassedInitialQualification,
         hasOwnApprovedOrder,
         activeDirectReferralCount,
         activeDirectBuyerCount,
+        roundStatus: roundStatus ?? null,
         realPaidPoolEnabledAmount,
         latestQualifiedBoardCompletedAt: null,
         evaluationAt: input.evaluationAt,

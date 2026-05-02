@@ -133,6 +133,8 @@ export interface UserBuybackProgressSnapshot {
   thresholdReachedAt: string | null;
   graceExpiresAt: string | null;
   blockedAt: string | null;
+  currentBuybackCycleId?: string | null;
+  lastQualifyingOrderId?: string | null;
 }
 
 export interface BuybackEventDraft {

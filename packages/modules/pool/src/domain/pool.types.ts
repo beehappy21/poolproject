@@ -6,7 +6,6 @@ export interface PoolFundingInput {
   poolDate: string;
   approvedOrderCount: number;
   fundingTotalApprovedPv: string;
-  poolRate: string;
   approvedOrders?: PoolSourceOrder[];
 }
 
@@ -19,7 +18,6 @@ export interface PoolSourceOrder {
     lineTotalPv: string;
     lineTotalUsdt?: string;
     poolRateMode?: "default_50_percent" | "custom_rate" | "disabled";
-    poolRate?: string;
   }>;
 }
 
@@ -34,9 +32,11 @@ export interface PoolFundingResult {
 export interface PoolEligibilityMemberSnapshot {
   userId: string;
   memberActive: boolean;
+  hasPassedInitialQualification: boolean;
   hasOwnApprovedOrder: boolean;
   activeDirectReferralCount: number;
   activeDirectBuyerCount: number;
+  roundStatus?: "clear" | "held_pending_repurchase" | "blocked_after_expiry" | null;
   realPaidPoolEnabledAmount?: string;
   latestQualifiedBoardCompletedAt?: string | null;
   evaluationAt?: string;

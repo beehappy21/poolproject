@@ -147,13 +147,13 @@ export class PoolService implements PoolServiceContract {
               addDecimalStrings(total, this.calculatePoolContributionForOrder(order)),
             "0",
           )
-        : multiplyDecimalStrings(input.fundingTotalApprovedPv, input.poolRate);
+        : input.fundingTotalApprovedPv;
 
     return {
       poolDate: input.poolDate,
       approvedOrderCount: input.approvedOrderCount,
       fundingTotalApprovedPv: input.fundingTotalApprovedPv,
-      poolRate: input.poolRate,
+      poolRate: "1",
       poolFund,
     };
   }
@@ -176,17 +176,17 @@ export class PoolService implements PoolServiceContract {
       userId: snapshot.userId,
       eligible:
         snapshot.memberActive &&
-        snapshot.hasOwnApprovedOrder &&
-        snapshot.activeDirectReferralCount >= minDirects &&
-        snapshot.activeDirectBuyerCount >= minDirects,
+        snapshot.hasPassedInitialQualification &&
+        snapshot.roundStatus !== "blocked_after_expiry",
       reasonCode:
         snapshot.memberActive &&
-        snapshot.hasOwnApprovedOrder &&
-        snapshot.activeDirectReferralCount >= minDirects &&
-        snapshot.activeDirectBuyerCount >= minDirects
+        snapshot.hasPassedInitialQualification &&
+        snapshot.roundStatus !== "blocked_after_expiry"
           ? "daily_pool_qualified"
           : !snapshot.memberActive
             ? "no_receivable_cycle"
+            : snapshot.roundStatus === "blocked_after_expiry"
+              ? "repurchase_grace_expired"
             : !snapshot.hasOwnApprovedOrder
             ? "missing_own_purchase_order"
             : snapshot.activeDirectReferralCount < minDirects
@@ -199,8 +199,17 @@ export class PoolService implements PoolServiceContract {
 
   async closePool(poolDate: string): Promise<PoolCloseResult> {
     const existingCycle = await this.poolRepository.getPoolCycle(poolDate);
-    const commissionSettings = readCommissionSettings();
-
+    if (existingCycle) {
+      return {
+        poolDate: existingCycle.poolDate,
+        fundingTotalApprovedPv: existingCycle.fundingTotalApprovedPv,
+        poolFund: existingCycle.poolFund,
+        eligibleMemberCount: existingCycle.eligibleMemberCount,
+        payoutPerMember: existingCycle.payoutPerMember,
+        companyFallbackAmount: existingCycle.companyFallbackAmount,
+        reprocessed: true,
+      };
+    }
     const approvedOrders =
       await this.ordersService.listApprovedOrdersForPoolDate(poolDate);
     const evaluationAt = this.resolvePoolEvaluationAt(poolDate);
@@ -208,7 +217,6 @@ export class PoolService implements PoolServiceContract {
       poolDate,
       approvedOrderCount: approvedOrders.length,
       fundingTotalApprovedPv: this.sumApprovedOrderPv(approvedOrders),
-      poolRate: commissionSettings.poolRate,
       approvedOrders,
     });
     const eligibilitySnapshots = await this.poolRepository.listWeeklyEligibilitySnapshots({
@@ -224,11 +232,11 @@ export class PoolService implements PoolServiceContract {
       ...funding,
       evaluationAt,
       settingsSnapshot: JSON.stringify({
-        poolRateMode: "daily_fixed_rate",
-        dailyPoolRate: commissionSettings.poolRate,
+        poolFundingRule: "approved_pool_enabled_pv_full_amount",
         timezone: "Asia/Bangkok",
         eligibilityRule: "cycle_active_and_prior_day_qualification",
-        memberDailyPoolCapRate: "0.03",
+        recipientPayoutRule: "pay_if_recipient_can_receive_commission_up_to_cycle_purchase_base_cap",
+        recipientCyclePoolCapRate: readCommissionSettings().poolMaxEntitlementShareRate,
       }),
       eligibleMemberCount: flow.eligibleRecipientCount,
       payoutPerMember: flow.payoutPerMember,
@@ -272,6 +280,18 @@ export class PoolService implements PoolServiceContract {
       poolCycleId,
       recipientDrafts: poolCommissionResults,
     });
+    const finalizedPayoutAmount = poolCommissionResults.reduce(
+      (total, payout) => addDecimalStrings(total, payout.payoutAmount),
+      "0",
+    );
+    const finalizedCompanyFallbackAmount =
+      compareDecimalStrings(funding.poolFund, finalizedPayoutAmount) > 0
+        ? subtractDecimalStrings(funding.poolFund, finalizedPayoutAmount)
+        : "0";
+    await this.poolRepository.updatePoolCycleCloseSummary({
+      poolCycleId,
+      companyFallbackAmount: finalizedCompanyFallbackAmount,
+    });
     await this.postPoolWalletEntries(poolDate);
 
     return {
@@ -280,13 +300,12 @@ export class PoolService implements PoolServiceContract {
       poolFund: funding.poolFund,
       eligibleMemberCount: flow.eligibleRecipientCount,
       payoutPerMember: flow.payoutPerMember,
-      companyFallbackAmount: flow.companyFallback.amount,
+      companyFallbackAmount: finalizedCompanyFallbackAmount,
       reprocessed: !!existingCycle,
     };
   }
 
   async loadApprovedOrderFunding(poolDate: string): Promise<PoolFundingInput> {
-    const commissionSettings = readCommissionSettings();
     const approvedOrders =
       await this.ordersService.listApprovedOrdersForPoolDate(poolDate);
 
@@ -294,7 +313,6 @@ export class PoolService implements PoolServiceContract {
       poolDate,
       approvedOrderCount: approvedOrders.length,
       fundingTotalApprovedPv: this.sumApprovedOrderPv(approvedOrders),
-      poolRate: commissionSettings.poolRate,
       approvedOrders,
     };
   }
@@ -322,7 +340,6 @@ export class PoolService implements PoolServiceContract {
       poolDate,
       approvedOrderCount: approvedOrders.length,
       fundingTotalApprovedPv: this.sumApprovedOrderPv(approvedOrders),
-      poolRate: readCommissionSettings().poolRate,
       approvedOrders,
     });
     const eligibilityDecisions = await this.evaluatePoolEligibility(snapshots);
@@ -518,6 +535,13 @@ export class PoolService implements PoolServiceContract {
       cycle.earningCap,
       cycle.earnedTotalInCycle,
     );
+    const perPayoutCycleCap =
+      compareDecimalStrings(cycle.purchaseBase ?? "0", "0") > 0
+        ? multiplyDecimalStrings(
+            cycle.purchaseBase,
+            readCommissionSettings().poolMaxEntitlementShareRate,
+          )
+        : "0";
 
     if (
       cycle.commissionCapScope === "all_commissions" &&
@@ -552,12 +576,20 @@ export class PoolService implements PoolServiceContract {
       return "0";
     }
 
-    return minDecimalString(remaining, requestedAmount);
+    if (compareDecimalStrings(perPayoutCycleCap, "0") <= 0) {
+      return "0";
+    }
+
+    return minDecimalString(
+      minDecimalString(remaining, requestedAmount),
+      perPayoutCycleCap,
+    );
   }
 
   private sumApprovedOrderPv(approvedOrders: PoolSourceOrder[]): string {
     return approvedOrders.reduce(
-      (total, order) => addDecimalStrings(total, order.totalPv || "0"),
+      (total, order) =>
+        addDecimalStrings(total, this.calculatePoolContributionForOrder(order)),
       "0",
     );
   }
@@ -566,25 +598,7 @@ export class PoolService implements PoolServiceContract {
     snapshot: PoolEligibilityMemberSnapshot | null,
     requestedAmount: string,
   ): string {
-    if (!snapshot) {
-      return requestedAmount;
-    }
-
-    return minDecimalString(
-      requestedAmount,
-      this.resolveRecipientDailyPoolCap(snapshot),
-    );
-  }
-
-  private resolveRecipientDailyPoolCap(
-    snapshot: PoolEligibilityMemberSnapshot,
-  ): string {
-    const realPaidAmount = snapshot.realPaidPoolEnabledAmount ?? "0";
-    if (compareDecimalStrings(realPaidAmount, "0") <= 0) {
-      return "0";
-    }
-
-    return multiplyDecimalStrings(realPaidAmount, "0.03");
+    return snapshot ? requestedAmount : requestedAmount;
   }
 
   private async postPoolWalletEntries(poolDate: string): Promise<void> {
@@ -618,6 +632,16 @@ export class PoolService implements PoolServiceContract {
   }
 
   private calculatePoolContributionForOrder(order: PoolSourceOrder): string {
-    return multiplyDecimalStrings(order.totalPv, readCommissionSettings().poolRate);
+    if (!order.items) {
+      return order.totalPv;
+    }
+
+    return order.items.reduce((total, item) => {
+      if (item.poolRateMode?.toLowerCase() === "disabled") {
+        return total;
+      }
+
+      return addDecimalStrings(total, item.lineTotalPv);
+    }, "0");
   }
 }

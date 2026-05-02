@@ -14,6 +14,36 @@ import {
 import { readWalletSettings } from "../../../../shared/utils/src/wallet-settings.util";
 import { PackagesService } from "../services/packages.service";
 
+function normalizePoolEnabledInput(input: {
+  poolEnabled?: boolean | string;
+  poolRateMode?: string;
+}) {
+  if (input.poolEnabled === true || input.poolEnabled === "true" || input.poolEnabled === "1") {
+    return true;
+  }
+
+  if (
+    input.poolEnabled === false ||
+    input.poolEnabled === "false" ||
+    input.poolEnabled === "0"
+  ) {
+    return false;
+  }
+
+  const normalizedMode = optionalString(input.poolRateMode)?.toLowerCase();
+  if (!normalizedMode || normalizedMode === "enabled") {
+    return true;
+  }
+
+  if (normalizedMode === "disabled") {
+    return false;
+  }
+
+  throw new BadRequestException(
+    "poolEnabled must be true/false, or poolRateMode must be enabled/disabled.",
+  );
+}
+
 @Controller("packages")
 export class PackagesController {
   constructor(private readonly packagesService: PackagesService) {}
@@ -97,8 +127,8 @@ export class PackagesController {
       memberPriceUsdt: string;
       retailPriceUsdt: string;
       pv: string;
+      poolEnabled?: boolean | string;
       poolRateMode?: string;
-      poolRate?: string;
       poolCapMultiple?: string;
       commissionCapScope?: string;
       commissionCapMultiple?: string;
@@ -112,18 +142,7 @@ export class PackagesController {
     },
   ) {
     try {
-      const normalizedPoolRateMode = (
-        optionalString(body.poolRateMode) ?? "default_50_percent"
-      ).toLowerCase();
-      if (
-        normalizedPoolRateMode !== "default_50_percent" &&
-        normalizedPoolRateMode !== "custom_rate" &&
-        normalizedPoolRateMode !== "disabled"
-      ) {
-        throw new BadRequestException(
-          "poolRateMode must be default_50_percent, custom_rate, or disabled.",
-        );
-      }
+      const poolEnabled = normalizePoolEnabledInput(body);
 
       const normalizedCommissionCapScope = (
         optionalString(body.commissionCapScope) ?? "pool_only"
@@ -156,14 +175,7 @@ export class PackagesController {
         memberPriceUsdt: requireDecimalString(body.memberPriceUsdt, "memberPriceUsdt"),
         retailPriceUsdt: requireDecimalString(body.retailPriceUsdt, "retailPriceUsdt"),
         pv: requireDecimalString(body.pv, "pv"),
-        poolRateMode: normalizedPoolRateMode as
-          | "default_50_percent"
-          | "custom_rate"
-          | "disabled",
-        poolRate:
-          normalizedPoolRateMode === "custom_rate"
-            ? requireDecimalRateString(body.poolRate, "poolRate")
-            : "0",
+        poolEnabled,
         poolCapMultiple: optionalString(body.poolCapMultiple)
           ? requireDecimalString(body.poolCapMultiple, "poolCapMultiple")
           : "0",
@@ -228,8 +240,8 @@ export class PackagesController {
       memberPriceUsdt?: string;
       activeDays: number;
       earningCapAmount: string;
+      poolEnabled?: boolean | string;
       poolRateMode?: string;
-      poolRate?: string;
       poolCapMultiple?: string;
       commissionCapScope?: string;
       commissionCapMultiple?: string;
@@ -242,18 +254,7 @@ export class PackagesController {
     },
   ) {
     try {
-      const normalizedPoolRateMode = (
-        optionalString(body.poolRateMode) ?? "default_50_percent"
-      ).toLowerCase();
-      if (
-        normalizedPoolRateMode !== "default_50_percent" &&
-        normalizedPoolRateMode !== "custom_rate" &&
-        normalizedPoolRateMode !== "disabled"
-      ) {
-        throw new BadRequestException(
-          "poolRateMode must be default_50_percent, custom_rate, or disabled.",
-        );
-      }
+      const poolEnabled = normalizePoolEnabledInput(body);
 
       const normalizedCommissionCapScope = (
         optionalString(body.commissionCapScope) ?? "pool_only"
@@ -301,14 +302,7 @@ export class PackagesController {
           body.earningCapAmount,
           "earningCapAmount",
         ),
-        poolRateMode: normalizedPoolRateMode as
-          | "default_50_percent"
-          | "custom_rate"
-          | "disabled",
-        poolRate:
-          normalizedPoolRateMode === "custom_rate"
-            ? requireDecimalRateString(body.poolRate, "poolRate")
-            : undefined,
+        poolEnabled,
         poolCapMultiple: optionalString(body.poolCapMultiple)
           ? requireDecimalString(body.poolCapMultiple, "poolCapMultiple")
           : undefined,

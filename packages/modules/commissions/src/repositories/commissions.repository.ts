@@ -96,7 +96,41 @@ export interface CommissionsRepository {
     thresholdReachedAt?: string | null;
     graceExpiresAt?: string | null;
     blockedAt?: string | null;
+    currentBuybackCycleId?: string | null;
+    lastQualifyingOrderId?: string | null;
   }): Promise<UserBuybackProgressSnapshot>;
+
+  listHeldRepurchaseCommissions(input: {
+    beneficiaryUserId: string;
+  }): Promise<
+    Array<{
+      commissionId: string;
+      amount: string;
+    }>
+  >;
+
+  getInitialQualificationSnapshot(input: {
+    beneficiaryUserId: string;
+  }): Promise<{
+    hasOwnApprovedOrder: boolean;
+    activeDirectReferralCount: number;
+    activeDirectBuyerCount: number;
+  }>;
+
+  markHeldCommissionsReleased(input: {
+    beneficiaryUserId: string;
+    releasedAt: string;
+  }): Promise<
+    Array<{
+      commissionId: string;
+      amount: string;
+    }>
+  >;
+
+  markHeldCommissionsBlocked(input: {
+    beneficiaryUserId: string;
+    blockedAt: string;
+  }): Promise<void>;
 
   createBuybackEvent(input: BuybackEventDraft): Promise<void>;
 
@@ -384,6 +418,8 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
         thresholdReachedAt: true,
         graceExpiresAt: true,
         blockedAt: true,
+        currentBuybackCycleId: true,
+        lastQualifyingOrderId: true,
       },
     });
 
@@ -398,6 +434,8 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
       thresholdReachedAt: progress.thresholdReachedAt?.toISOString() ?? null,
       graceExpiresAt: progress.graceExpiresAt?.toISOString() ?? null,
       blockedAt: progress.blockedAt?.toISOString() ?? null,
+      currentBuybackCycleId: progress.currentBuybackCycleId ?? null,
+      lastQualifyingOrderId: progress.lastQualifyingOrderId?.toString() ?? null,
     };
   }
 
@@ -408,6 +446,8 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
     thresholdReachedAt?: string | null;
     graceExpiresAt?: string | null;
     blockedAt?: string | null;
+    currentBuybackCycleId?: string | null;
+    lastQualifyingOrderId?: string | null;
   }): Promise<UserBuybackProgressSnapshot> {
     const progress = await this.prisma.userBuybackProgress.upsert({
       where: {
@@ -427,6 +467,10 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
           ? new Date(input.graceExpiresAt)
           : null,
         blockedAt: input.blockedAt ? new Date(input.blockedAt) : null,
+        currentBuybackCycleId: input.currentBuybackCycleId ?? null,
+        lastQualifyingOrderId: input.lastQualifyingOrderId
+          ? BigInt(input.lastQualifyingOrderId)
+          : null,
       },
       update: {
         accumulatedAmount: input.accumulatedAmount,
@@ -441,6 +485,10 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
           ? new Date(input.graceExpiresAt)
           : null,
         blockedAt: input.blockedAt ? new Date(input.blockedAt) : null,
+        currentBuybackCycleId: input.currentBuybackCycleId ?? null,
+        lastQualifyingOrderId: input.lastQualifyingOrderId
+          ? BigInt(input.lastQualifyingOrderId)
+          : null,
       },
       select: {
         accumulatedAmount: true,
@@ -448,6 +496,8 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
         thresholdReachedAt: true,
         graceExpiresAt: true,
         blockedAt: true,
+        currentBuybackCycleId: true,
+        lastQualifyingOrderId: true,
       },
     });
 
@@ -458,7 +508,143 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
       thresholdReachedAt: progress.thresholdReachedAt?.toISOString() ?? null,
       graceExpiresAt: progress.graceExpiresAt?.toISOString() ?? null,
       blockedAt: progress.blockedAt?.toISOString() ?? null,
+      currentBuybackCycleId: progress.currentBuybackCycleId ?? null,
+      lastQualifyingOrderId: progress.lastQualifyingOrderId?.toString() ?? null,
     };
+  }
+
+  async listHeldRepurchaseCommissions(input: {
+    beneficiaryUserId: string;
+  }): Promise<
+    Array<{
+      commissionId: string;
+      amount: string;
+    }>
+  > {
+    const rows = await this.prisma.commissionLedger.findMany({
+      where: {
+        beneficiaryUserId: BigInt(input.beneficiaryUserId),
+        status: "HELD",
+        releaseStatus: "HELD_PENDING_REPURCHASE",
+      },
+      orderBy: [{ evaluationAt: "asc" }, { id: "asc" }],
+      select: {
+        id: true,
+        finalPayableAmount: true,
+      },
+    });
+
+    return rows.map((row) => ({
+      commissionId: row.id.toString(),
+      amount: row.finalPayableAmount.toString(),
+    }));
+  }
+
+  async getInitialQualificationSnapshot(input: {
+    beneficiaryUserId: string;
+  }): Promise<{
+    hasOwnApprovedOrder: boolean;
+    activeDirectReferralCount: number;
+    activeDirectBuyerCount: number;
+  }> {
+    const user = await this.prisma.user.findUnique({
+      where: {
+        id: BigInt(input.beneficiaryUserId),
+      },
+      select: {
+        orders: {
+          where: {
+            approvalStatus: "APPROVED",
+            orderSourceType: "NORMAL",
+          },
+          select: {
+            id: true,
+          },
+          take: 1,
+        },
+        directReferrals: {
+          where: {
+            status: "ACTIVE",
+          },
+          select: {
+            id: true,
+            orders: {
+              where: {
+                approvalStatus: "APPROVED",
+                orderSourceType: "NORMAL",
+              },
+              select: {
+                id: true,
+              },
+              take: 1,
+            },
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      return {
+        hasOwnApprovedOrder: false,
+        activeDirectReferralCount: 0,
+        activeDirectBuyerCount: 0,
+      };
+    }
+
+    return {
+      hasOwnApprovedOrder: user.orders.length > 0,
+      activeDirectReferralCount: user.directReferrals.length,
+      activeDirectBuyerCount: user.directReferrals.filter(
+        (directReferral) => directReferral.orders.length > 0,
+      ).length,
+    };
+  }
+
+  async markHeldCommissionsReleased(input: {
+    beneficiaryUserId: string;
+    releasedAt: string;
+  }): Promise<
+    Array<{
+      commissionId: string;
+      amount: string;
+    }>
+  > {
+    const heldRows = await this.listHeldRepurchaseCommissions(input);
+
+    if (heldRows.length === 0) {
+      return [];
+    }
+
+    const commissionIds = heldRows.map((row) => BigInt(row.commissionId));
+    await this.prisma.commissionLedger.updateMany({
+      where: {
+        id: { in: commissionIds },
+      },
+      data: {
+        status: "APPROVED",
+        releaseStatus: "RELEASED_AFTER_REPURCHASE",
+        releasedToWithdrawableAt: new Date(input.releasedAt),
+      },
+    });
+
+    return heldRows;
+  }
+
+  async markHeldCommissionsBlocked(input: {
+    beneficiaryUserId: string;
+    blockedAt: string;
+  }): Promise<void> {
+    await this.prisma.commissionLedger.updateMany({
+      where: {
+        beneficiaryUserId: BigInt(input.beneficiaryUserId),
+        status: "HELD",
+        releaseStatus: "HELD_PENDING_REPURCHASE",
+      },
+      data: {
+        releaseStatus: "BLOCKED_AFTER_EXPIRY",
+        finalizedAt: new Date(input.blockedAt),
+      },
+    });
   }
 
   async createBuybackEvent(input: BuybackEventDraft): Promise<void> {

@@ -20,10 +20,8 @@ Smoke helpers:
   Runs a focused Firm wallet redemption smoke against the local API and Postgres by creating a firm-category product, a matching package bridge, and one member order paid fully by Firm wallet, then verifies the firm debit plus DCW credit wallet rows.
 - `npm run smoke:matrix:spill`
   Runs a focused matrix legacy-parity smoke against the local API and Postgres by forcing a `Board 1 round 2` completion and verifying that the nearest upline with an open `Board 2 round 1` receives one synthetic spill point and payout.
-- `npm run smoke:commissions:direct-uni`
-  Runs a focused direct + unilevel runtime smoke against the local API and Postgres by creating a three-member sponsor chain, processing one approved order, and verifying commission ledger plus wallet-credit rows end to end.
 - `npm run smoke:pool:rules`
-  Resets local state and verifies custom-rate, disabled, and all-commissions pool-cap behavior, including rerun idempotency for repeated pool close calls on the same date.
+  Resets local state and verifies full-PV pool funding for enabled items, disabled-item exclusion, and rerun idempotency for repeated pool close calls on the same date.
 - `npm run smoke:pool:weekly`
   Resets local state and verifies the weekly pool rule set: only Sunday close is allowed, the funding window covers the full Bangkok week, pool fund uses 30% of weekly PV, and an eligible member with 2 directs plus recent B1 completion receives the payout.
 - `npm run smoke:bao:cashback`

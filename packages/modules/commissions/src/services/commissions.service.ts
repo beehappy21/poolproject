@@ -16,6 +16,7 @@ import {
   TeamSettlementBatchScaffoldResult,
   TeamSettlementBatchSnapshotResult,
   UserBuybackProgressSnapshot,
+  BuybackProgressStatus,
 } from "../domain/commissions.types";
 import {
   addDecimalStrings,
@@ -28,7 +29,6 @@ import {
   parseCommissionSettingsSnapshot,
   readCommissionSettings,
 } from "../../../../shared/utils/src/commission-settings.util";
-import { readWalletSettings } from "../../../../shared/utils/src/wallet-settings.util";
 import { MembersService } from "../../../members/src/services/members.service";
 import { MembersServiceContract } from "../../../members/src/services/members.service";
 import { OrdersService } from "../../../orders/src/services/orders.service";
@@ -36,6 +36,7 @@ import { OrdersServiceContract } from "../../../orders/src/services/orders.servi
 import { PoolService } from "../../../pool/src/services/pool.service";
 import { QualificationService } from "../../../qualification/src/services/qualification.service";
 import { QualificationServiceContract } from "../../../qualification/src/services/qualification.service";
+import { WalletsService } from "../../../wallets/src/services/wallets.service";
 import { PrismaCommissionsRepository } from "../repositories/commissions.repository";
 
 export interface CommissionsServiceContract {
@@ -181,6 +182,30 @@ export interface CommissionsServiceContract {
     commissionStatus: CommissionFinalizationResult["commissionStatus"];
     fallbackReason: string | null;
   } | null>;
+
+  handleQualifyingRepurchase(input: {
+    beneficiaryUserId: string;
+    approvedOrderId: string;
+    approvedAt: string;
+    orderTotalUsdt: string;
+  }): Promise<{
+    resetApplied: boolean;
+    previousStatus: BuybackProgressStatus | null;
+    releasedHeldCommissionCount: number;
+  }>;
+
+  handleApprovedSelfPurchaseQualification(input: {
+    beneficiaryUserId: string;
+    approvedOrderId: string;
+    approvedAt: string;
+  }): Promise<{
+    qualificationLocked: boolean;
+    alreadyQualified: boolean;
+  }>;
+
+  getUserBuybackProgress(
+    beneficiaryUserId: string,
+  ): Promise<UserBuybackProgressSnapshot | null>;
 }
 
 @Injectable()
@@ -193,6 +218,7 @@ export class CommissionsService implements CommissionsServiceContract {
     private readonly commissionsRepository: PrismaCommissionsRepository,
     @Inject(forwardRef(() => PoolService))
     private readonly poolService: PoolService,
+    private readonly walletsService: WalletsService,
   ) {}
 
   async handleApprovedOrderCommissionSource(
@@ -457,6 +483,168 @@ export class CommissionsService implements CommissionsServiceContract {
     pageSize?: number;
   }) {
     return this.commissionsRepository.listCompanyFallbackEntries(filters);
+  }
+
+  async getUserBuybackProgress(
+    beneficiaryUserId: string,
+  ): Promise<UserBuybackProgressSnapshot | null> {
+    return this.commissionsRepository.getUserBuybackProgress(beneficiaryUserId);
+  }
+
+  async handleQualifyingRepurchase(input: {
+    beneficiaryUserId: string;
+    approvedOrderId: string;
+    approvedAt: string;
+    orderTotalUsdt: string;
+  }): Promise<{
+    resetApplied: boolean;
+    previousStatus: BuybackProgressStatus | null;
+    releasedHeldCommissionCount: number;
+  }> {
+    const settings = readCommissionSettings();
+    if (
+      compareDecimalStrings(
+        input.orderTotalUsdt,
+        settings.buybackRepurchaseAmount,
+      ) < 0
+    ) {
+      return {
+        resetApplied: false,
+        previousStatus: null,
+        releasedHeldCommissionCount: 0,
+      };
+    }
+
+    const existing =
+      await this.commissionsRepository.getUserBuybackProgress(
+        input.beneficiaryUserId,
+      );
+
+    if (
+      !existing ||
+      (existing.status !== "held_pending_repurchase" &&
+        existing.status !== "blocked_after_expiry")
+    ) {
+      return {
+        resetApplied: false,
+        previousStatus: existing?.status ?? null,
+        releasedHeldCommissionCount: 0,
+      };
+    }
+
+    const releasedHeldCommissions =
+      existing.status === "held_pending_repurchase"
+        ? await this.commissionsRepository.markHeldCommissionsReleased({
+            beneficiaryUserId: input.beneficiaryUserId,
+            releasedAt: input.approvedAt,
+          })
+        : [];
+
+    for (const commission of releasedHeldCommissions) {
+      await this.walletsService.releaseHeldCommissionCredit({
+        userId: input.beneficiaryUserId,
+        commissionId: commission.commissionId,
+        amount: commission.amount,
+      });
+    }
+
+    const nextCycleId =
+      existing.currentBuybackCycleId && existing.currentBuybackCycleId.length > 0
+        ? `${existing.currentBuybackCycleId}:renewed:${input.approvedOrderId}`
+        : `order:${input.approvedOrderId}`;
+
+    await this.commissionsRepository.upsertUserBuybackProgress({
+      beneficiaryUserId: input.beneficiaryUserId,
+      accumulatedAmount: "0",
+      status: "clear",
+      thresholdReachedAt: null,
+      graceExpiresAt: null,
+      blockedAt: null,
+      currentBuybackCycleId: nextCycleId,
+      lastQualifyingOrderId: input.approvedOrderId,
+    });
+
+    await this.commissionsRepository.createBuybackEvent({
+      beneficiaryUserId: input.beneficiaryUserId,
+      triggerAmount: input.orderTotalUsdt,
+      remainingAccumulatedAmount: "0",
+      status: "RELEASED_AFTER_REPURCHASE",
+      message: "Qualifying self repurchase opened the next commission round.",
+      referenceType: "repurchase_order",
+      referenceId: input.approvedOrderId,
+    });
+
+    return {
+      resetApplied: true,
+      previousStatus: existing.status,
+      releasedHeldCommissionCount: releasedHeldCommissions.length,
+    };
+  }
+
+  async handleApprovedSelfPurchaseQualification(input: {
+    beneficiaryUserId: string;
+    approvedOrderId: string;
+    approvedAt: string;
+  }): Promise<{
+    qualificationLocked: boolean;
+    alreadyQualified: boolean;
+  }> {
+    const existing =
+      await this.commissionsRepository.getUserBuybackProgress(
+        input.beneficiaryUserId,
+      );
+
+    if (existing?.lastQualifyingOrderId) {
+      return {
+        qualificationLocked: false,
+        alreadyQualified: true,
+      };
+    }
+
+    const qualificationSnapshot =
+      await this.commissionsRepository.getInitialQualificationSnapshot({
+        beneficiaryUserId: input.beneficiaryUserId,
+      });
+
+    const qualifiesInitially =
+      qualificationSnapshot.hasOwnApprovedOrder &&
+      qualificationSnapshot.activeDirectReferralCount >= 3 &&
+      qualificationSnapshot.activeDirectBuyerCount >= 3;
+
+    if (!qualifiesInitially) {
+      return {
+        qualificationLocked: false,
+        alreadyQualified: false,
+      };
+    }
+
+    await this.commissionsRepository.upsertUserBuybackProgress({
+      beneficiaryUserId: input.beneficiaryUserId,
+      accumulatedAmount: existing?.accumulatedAmount ?? "0",
+      status: existing?.status ?? "clear",
+      thresholdReachedAt: existing?.thresholdReachedAt ?? null,
+      graceExpiresAt: existing?.graceExpiresAt ?? null,
+      blockedAt: existing?.blockedAt ?? null,
+      currentBuybackCycleId:
+        existing?.currentBuybackCycleId ?? `qualified:${input.approvedOrderId}`,
+      lastQualifyingOrderId: input.approvedOrderId,
+    });
+
+    await this.commissionsRepository.createBuybackEvent({
+      beneficiaryUserId: input.beneficiaryUserId,
+      triggerAmount: "0",
+      remainingAccumulatedAmount: existing?.accumulatedAmount ?? "0",
+      status: "INITIAL_QUALIFICATION_LOCKED",
+      message:
+        "Member passed the first pool qualification gate and opened the initial commission round.",
+      referenceType: "qualification_order",
+      referenceId: input.approvedOrderId,
+    });
+
+    return {
+      qualificationLocked: true,
+      alreadyQualified: false,
+    };
   }
 
   async scaffoldTeamSettlementBatch(
@@ -1448,6 +1636,10 @@ export class CommissionsService implements CommissionsServiceContract {
       return null;
     }
 
+    if (finalization.releaseStatus === "blocked_after_expiry") {
+      return null;
+    }
+
     const { commissionId } =
       await this.commissionsRepository.createCommissionDraft({
         ...input,
@@ -1566,23 +1758,12 @@ export class CommissionsService implements CommissionsServiceContract {
     releaseStatus: CommissionReleaseStatus;
     progress: UserBuybackProgressSnapshot | null;
   }> {
-    if (!readWalletSettings().autoBuybackEnabled) {
-      return {
-        releaseStatus: "withdrawable",
-        progress: null,
-      };
-    }
-
     const existing =
       await this.commissionsRepository.getUserBuybackProgress(
         input.beneficiaryUserId,
       );
 
-    if (
-      existing?.status === "blocked_after_expiry" &&
-      existing.graceExpiresAt &&
-      new Date(input.evaluationAt) >= new Date(existing.graceExpiresAt)
-    ) {
+    if (existing?.status === "blocked_after_expiry") {
       return {
         releaseStatus: "blocked_after_expiry",
         progress: existing,
@@ -1602,7 +1783,13 @@ export class CommissionsService implements CommissionsServiceContract {
             thresholdReachedAt: existing.thresholdReachedAt,
             graceExpiresAt: existing.graceExpiresAt,
             blockedAt: input.evaluationAt,
+            currentBuybackCycleId: existing.currentBuybackCycleId ?? null,
+            lastQualifyingOrderId: existing.lastQualifyingOrderId ?? null,
           });
+        await this.commissionsRepository.markHeldCommissionsBlocked({
+          beneficiaryUserId: input.beneficiaryUserId,
+          blockedAt: input.evaluationAt,
+        });
         await this.commissionsRepository.createBuybackEvent({
           beneficiaryUserId: input.beneficiaryUserId,
           triggerAmount: input.finalPayableAmount,
@@ -1631,9 +1818,13 @@ export class CommissionsService implements CommissionsServiceContract {
     );
 
     if (
-      compareDecimalStrings(nextAccumulatedAmount, input.buybackThresholdAmount) >
+      compareDecimalStrings(nextAccumulatedAmount, input.buybackThresholdAmount) >=
       0
     ) {
+      const nextCycleId =
+        existing?.currentBuybackCycleId && existing.currentBuybackCycleId.length > 0
+          ? existing.currentBuybackCycleId
+          : `threshold:${input.sourceType}:${input.sourceRefId}`;
       const heldProgress = await this.commissionsRepository.upsertUserBuybackProgress({
         beneficiaryUserId: input.beneficiaryUserId,
         accumulatedAmount: nextAccumulatedAmount,
@@ -1643,6 +1834,9 @@ export class CommissionsService implements CommissionsServiceContract {
           input.evaluationAt,
           input.buybackGraceDays,
         ),
+        blockedAt: null,
+        currentBuybackCycleId: nextCycleId,
+        lastQualifyingOrderId: existing?.lastQualifyingOrderId ?? null,
       });
       await this.commissionsRepository.createBuybackEvent({
         beneficiaryUserId: input.beneficiaryUserId,
@@ -1668,6 +1862,22 @@ export class CommissionsService implements CommissionsServiceContract {
         thresholdReachedAt: null,
         graceExpiresAt: null,
         blockedAt: null,
+        currentBuybackCycleId:
+          existing.currentBuybackCycleId ??
+          existing.lastQualifyingOrderId ??
+          null,
+        lastQualifyingOrderId: existing.lastQualifyingOrderId ?? null,
+      });
+    } else {
+      await this.commissionsRepository.upsertUserBuybackProgress({
+        beneficiaryUserId: input.beneficiaryUserId,
+        accumulatedAmount: nextAccumulatedAmount,
+        status: "clear",
+        thresholdReachedAt: null,
+        graceExpiresAt: null,
+        blockedAt: null,
+        currentBuybackCycleId: null,
+        lastQualifyingOrderId: null,
       });
     }
 
