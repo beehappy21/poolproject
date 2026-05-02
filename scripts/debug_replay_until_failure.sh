@@ -19,7 +19,7 @@ normalize_member_code() {
 
 login_json="$(curl -s -X POST "$API_BASE_URL/auth/login" \
   -H 'content-type: application/json' \
-  -d '{"identifier":"TH0000013","password":"a1a1a1"}')"
+  -d '{"identifier":"dev-admin@example.com","password":"472121"}')"
 token="$(printf '%s' "$login_json" | jq -r '.accessToken // empty')"
 
 if [[ -z "$token" ]]; then

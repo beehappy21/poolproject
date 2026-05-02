@@ -6,8 +6,8 @@ const { URL } = require("node:url");
 
 const API_BASE_URL = process.env.API_BASE_URL || "http://127.0.0.1:3000";
 const WORKBOOK_PATH = process.env.SALETEST_WORKBOOK || "saletest05042026.xlsx";
-const ADMIN_IDENTIFIER = process.env.SALETEST_ADMIN_IDENTIFIER || "TH0000013";
-const ADMIN_PASSWORD = process.env.SALETEST_ADMIN_PASSWORD || "a1a1a1";
+const ADMIN_IDENTIFIER = process.env.SALETEST_ADMIN_IDENTIFIER || "dev-admin@example.com";
+const ADMIN_PASSWORD = process.env.SALETEST_ADMIN_PASSWORD || "472121";
 const SOURCE_TAG = process.env.SALETEST_SOURCE_TAG || "saletest05042026";
 const PRODUCT_CODE = process.env.SALETEST_PRODUCT_CODE || "LON001";
 const LIMIT = Number.parseInt(process.env.SALETEST_LIMIT || "0", 10) || 0;

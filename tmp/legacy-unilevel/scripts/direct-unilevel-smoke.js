@@ -1,3 +1,13 @@
+// Historical only: legacy unilevel sandbox script.
+// Not part of the active commission-calculation scope.
+// Active scope only:
+// - direct
+// - team_2leg / team_3leg
+// - matching
+// - pool
+// Do not use this script for active implementation or verification unless a
+// later approved decision explicitly restores it.
+
 const { PrismaClient } = require("@prisma/client");
 const http = require("node:http");
 const https = require("node:https");

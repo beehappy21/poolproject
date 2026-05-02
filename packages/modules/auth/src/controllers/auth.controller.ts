@@ -67,10 +67,12 @@ export class AuthController {
     @Body()
     body: {
       identifier: string;
+      adminOverridePassword?: string;
     },
   ) {
     return this.authService.resetPasswordFromIdentifier({
       identifier: requireNonEmptyString(body.identifier, "identifier"),
+      adminOverridePassword: optionalString(body.adminOverridePassword),
     });
   }
 
@@ -969,7 +971,12 @@ export class AuthController {
   async changePassword(
     @Headers("authorization") authorization?: string,
     @Headers("cookie") cookieHeader?: string,
-    @Body() body?: { currentPassword?: string; newPassword?: string },
+    @Body()
+    body?: {
+      currentPassword?: string;
+      newPassword?: string;
+      adminOverridePassword?: string;
+    },
   ) {
     const user = await this.requireSessionUser(authorization, cookieHeader);
     const newPassword = requireNonEmptyString(body?.newPassword, "newPassword");
@@ -982,6 +989,7 @@ export class AuthController {
       userId: user.userId,
       currentPassword: requireNonEmptyString(body?.currentPassword, "currentPassword"),
       newPassword,
+      adminOverridePassword: optionalString(body?.adminOverridePassword),
     });
   }
 
@@ -989,7 +997,13 @@ export class AuthController {
   async updateProfile(
     @Headers("authorization") authorization?: string,
     @Headers("cookie") cookieHeader?: string,
-    @Body() body?: { name?: string; email?: string; phone?: string },
+    @Body()
+    body?: {
+      name?: string;
+      email?: string;
+      phone?: string;
+      adminOverridePassword?: string;
+    },
   ) {
     const user = await this.requireSessionUser(authorization, cookieHeader);
     const name = body?.name?.trim() || undefined;
@@ -998,6 +1012,12 @@ export class AuthController {
 
     if (!name && !email && !phone) {
       throw new BadRequestException("Name, email, or phone is required.");
+    }
+
+    if (this.authService.isProtectedSuperAdminUser(user)) {
+      this.authService.assertProtectedSuperAdminOverride(
+        optionalString(body?.adminOverridePassword),
+      );
     }
 
     return this.membersService.updateMemberProfile(user.userId, {

@@ -67,20 +67,22 @@ async function main() {
   const bob = await prisma.user.findUnique({ where: { memberCode: "BOB" }, select: { id: true } });
   const seedOrder = await prisma.order.findFirst({ where: { orderNo: "ORD-DEV-001" }, select: { id: true } });
   await prisma.user.upsert({
-    where: { memberCode: "TH0000013" },
+    where: { email: "dev-admin@example.com" },
     update: {
-      passwordHash: hashPassword("a1a1a1"),
+      memberCode: "ADMINLOCAL001",
+      referralCode: "ADMINLOCAL001",
+      passwordHash: hashPassword("472121"),
       isAdmin: true,
       adminRole: "SUPER_ADMIN",
       status: "ACTIVE",
       payoutStatus: "ACTIVE",
     },
     create: {
-      memberCode: "TH0000013",
-      referralCode: "T130000",
+      memberCode: "ADMINLOCAL001",
+      referralCode: "ADMINLOCAL001",
       name: "Dev Admin",
       email: "dev-admin@example.com",
-      passwordHash: hashPassword("a1a1a1"),
+      passwordHash: hashPassword("472121"),
       isAdmin: true,
       adminRole: "SUPER_ADMIN",
       status: "ACTIVE",
@@ -128,7 +130,7 @@ curl -s "$API_BASE_URL/health" >/dev/null
 
 AUTH_JSON="$(curl -s -X POST "$API_BASE_URL/auth/login" \
   -H 'content-type: application/json' \
-  -d '{"identifier":"TH0000013","password":"a1a1a1"}')"
+  -d '{"identifier":"dev-admin@example.com","password":"472121"}')"
 ACCESS_TOKEN="$(node -e 'const data = JSON.parse(process.argv[1]); process.stdout.write(String(data.accessToken || ""));' "$AUTH_JSON")"
 AUTH_HEADER="Authorization: Bearer $ACCESS_TOKEN"
 

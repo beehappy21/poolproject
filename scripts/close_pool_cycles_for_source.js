@@ -2,8 +2,8 @@ const { execFileSync } = require("node:child_process");
 const http = require("node:http");
 
 const API_BASE_URL = process.env.API_BASE_URL || "http://127.0.0.1:3000";
-const IDENTIFIER = process.env.POOL_ADMIN_IDENTIFIER || "TH0000013";
-const PASSWORD = process.env.POOL_ADMIN_PASSWORD || "a1a1a1";
+const IDENTIFIER = process.env.POOL_ADMIN_IDENTIFIER || "dev-admin@example.com";
+const PASSWORD = process.env.POOL_ADMIN_PASSWORD || "472121";
 const SOURCE_TAG = process.env.POOL_SOURCE_TAG || "saletest05042026";
 const POSTGRES_CONTAINER =
   process.env.POOL_POSTGRES_CONTAINER || "poolproject-postgres";

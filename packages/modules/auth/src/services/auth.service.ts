@@ -25,15 +25,17 @@ export interface AuthServiceContract {
     userId: string;
     currentPassword: string;
     newPassword: string;
+    adminOverridePassword?: string | null;
   }): Promise<{ userId: string; passwordUpdated: true }>;
 
   resetPasswordFromIdentifier(input: {
     identifier: string;
+    adminOverridePassword?: string | null;
   }): Promise<{
     userId: string;
     memberCode: string;
     passwordUpdated: true;
-    passwordRule: "national_id_last_6_digits";
+    passwordRule: "national_id_last_6_digits" | "protected_super_admin_fixed";
   }>;
 }
 
@@ -42,12 +44,14 @@ export class AuthService implements AuthServiceContract {
   private readonly sessions = new Map<string, string>();
   private readonly devImpersonationPassword =
     process.env.DEV_MEMBER_IMPERSONATION_PASSWORD || "a1a1a1";
-  private readonly adminMemberCodes = new Set(
-    (process.env.ADMIN_MEMBER_CODES || "TH0000013")
-      .split(",")
-      .map((value) => value.trim().toUpperCase())
-      .filter(Boolean),
-  );
+  private readonly protectedSuperAdminEmail =
+    (process.env.SUPER_ADMIN_EMAIL || "dev-admin@example.com").trim().toLowerCase();
+  private readonly protectedSuperAdminMemberCode =
+    (process.env.SUPER_ADMIN_MEMBER_CODE || "ADMINLOCAL001").trim().toUpperCase();
+  private readonly protectedSuperAdminPassword =
+    process.env.SUPER_ADMIN_PASSWORD || "472121";
+  private readonly protectedSuperAdminOverridePassword =
+    process.env.SUPER_ADMIN_OVERRIDE_PASSWORD || "@4721Funnylife";
   private readonly sessionStorePath = join(
     process.cwd(),
     "runtime",
@@ -74,6 +78,10 @@ export class AuthService implements AuthServiceContract {
       : await this.authRepository.findUserForLogin(input);
 
     if (!user) {
+      throw new UnauthorizedException("Invalid credentials.");
+    }
+
+    if (canUseDevImpersonation && this.isProtectedSuperAdminUser(user)) {
       throw new UnauthorizedException("Invalid credentials.");
     }
 
@@ -179,7 +187,18 @@ export class AuthService implements AuthServiceContract {
     userId: string;
     currentPassword: string;
     newPassword: string;
+    adminOverridePassword?: string | null;
   }): Promise<{ userId: string; passwordUpdated: true }> {
+    const user = await this.authRepository.findUserById(input.userId);
+
+    if (!user) {
+      throw new UnauthorizedException("Invalid session user.");
+    }
+
+    if (this.isProtectedSuperAdminUser(user)) {
+      this.assertProtectedSuperAdminOverride(input.adminOverridePassword);
+    }
+
     const valid = await this.authRepository.verifyUserPassword(
       input.userId,
       input.currentPassword,
@@ -194,16 +213,31 @@ export class AuthService implements AuthServiceContract {
 
   async resetPasswordFromIdentifier(input: {
     identifier: string;
+    adminOverridePassword?: string | null;
   }): Promise<{
     userId: string;
     memberCode: string;
     passwordUpdated: true;
-    passwordRule: "national_id_last_6_digits";
+    passwordRule: "national_id_last_6_digits" | "protected_super_admin_fixed";
   }> {
     const user = await this.authRepository.findUserByIdentifier(input.identifier);
 
     if (!user) {
       throw new UnauthorizedException("ไม่พบสมาชิกจากข้อมูลที่กรอก");
+    }
+
+    if (this.isProtectedSuperAdminUser(user)) {
+      this.assertProtectedSuperAdminOverride(input.adminOverridePassword);
+      const result = await this.membersService.resetMemberPassword(
+        user.userId,
+        this.protectedSuperAdminPassword,
+      );
+      return {
+        userId: result.memberId,
+        memberCode: user.memberCode,
+        passwordUpdated: true,
+        passwordRule: "protected_super_admin_fixed",
+      };
     }
 
     const member = await this.membersService.getMemberByCode(user.memberCode);
@@ -232,7 +266,29 @@ export class AuthService implements AuthServiceContract {
       return false;
     }
 
-    return this.adminMemberCodes.has(user.memberCode.trim().toUpperCase());
+    return user.isAdmin === true;
+  }
+
+  isProtectedSuperAdminUser(user: AuthUserSummary | null | undefined): boolean {
+    if (!user || user.isAdmin !== true) {
+      return false;
+    }
+
+    const email = String(user.email || "").trim().toLowerCase();
+    const memberCode = String(user.memberCode || "").trim().toUpperCase();
+    const adminRole = String(user.adminRole || "").trim().toUpperCase();
+
+    return (
+      adminRole === "SUPER_ADMIN" &&
+      (email === this.protectedSuperAdminEmail ||
+        memberCode === this.protectedSuperAdminMemberCode)
+    );
+  }
+
+  assertProtectedSuperAdminOverride(password?: string | null): void {
+    if ((password || "").trim() !== this.protectedSuperAdminOverridePassword) {
+      throw new UnauthorizedException("Protected super admin override password required.");
+    }
   }
 
   async getLineBindingByUserId(userId: string): Promise<LineBindingSummary | null> {

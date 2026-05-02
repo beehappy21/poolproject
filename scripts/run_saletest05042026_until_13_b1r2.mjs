@@ -22,9 +22,9 @@ const OUTPUT_PATH =
   process.env.SALETEST_RUNTIME_OUTPUT_PATH ||
   path.join(ROOT, "runtime", "saletest05042026-until-13-b1r2-report.json");
 const ADMIN_IDENTIFIER =
-  process.env.SALETEST_ADMIN_IDENTIFIER || "TH0000013";
+  process.env.SALETEST_ADMIN_IDENTIFIER || "dev-admin@example.com";
 const ADMIN_PASSWORD =
-  process.env.SALETEST_ADMIN_PASSWORD || "a1a1a1";
+  process.env.SALETEST_ADMIN_PASSWORD || "472121";
 const START_RUNTIME_SEQUENCE =
   Number.parseInt(process.env.SALETEST_RUNTIME_START_SEQUENCE || "1", 10) || 1;
 const MAX_ORDERS =

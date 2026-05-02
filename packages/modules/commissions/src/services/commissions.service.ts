@@ -1,5 +1,14 @@
 import { Inject, Injectable, forwardRef } from "@nestjs/common";
 
+// Active commission-calculation scope:
+// - direct
+// - team_2leg / team_3leg
+// - matching
+// - pool
+// Do not use unrelated plans or older sandbox directions here, including
+// unilevel, legacy/member003 research notes, or deprecated CommissionMainPlan
+// assumptions, unless a later approved spec explicitly restores them.
+
 import {
   ApprovedOrderCommissionFlowResult,
   BonusToCycleAllocationInput,

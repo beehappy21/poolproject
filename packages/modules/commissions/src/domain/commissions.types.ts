@@ -1,3 +1,12 @@
+// Active commission-calculation scope:
+// - direct
+// - team_2leg / team_3leg
+// - matching
+// - pool
+// Types in this module must be interpreted through that four-plan runtime
+// scope only. Older unilevel, legacy/member003 sandbox, and unrelated archived
+// plans must not be treated as active calculation rules.
+
 export interface CommissionItemSummary {
   commissionId: string;
 }

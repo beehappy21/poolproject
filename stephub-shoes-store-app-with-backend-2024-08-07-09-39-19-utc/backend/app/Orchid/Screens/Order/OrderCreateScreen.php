@@ -633,7 +633,7 @@ class OrderCreateScreen extends Screen
         $identifier = trim((string) (
             env('BAO_API_ADMIN_IDENTIFIER')
             ?: env('APP_BAO_API_ADMIN_IDENTIFIER')
-            ?: 'TH0000013'
+            ?: 'dev-admin@example.com'
         ));
         $password = trim((string) (
             env('BAO_API_ADMIN_PASSWORD')

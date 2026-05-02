@@ -8,6 +8,8 @@ export interface AuthUserSummary {
   name: string;
   email: string | null;
   phone: string | null;
+  isAdmin: boolean;
+  adminRole?: string | null;
   matrixAutoOrderEnabled?: boolean;
   matrixReentryEnabled: boolean;
 }

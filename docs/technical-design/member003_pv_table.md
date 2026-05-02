@@ -1,5 +1,19 @@
 # Member003 PV Table
 
+## Historical Only
+
+This file is historical fixture material only.
+
+It is not part of the active commission-calculation scope.
+Active commission work in this repository is limited to:
+
+- `direct`
+- `2leg / 3leg`
+- `matching`
+- `pool`
+
+Do not use this file for active implementation, runtime decisions, testing scope, or user answers unless an explicit later decision restores it.
+
 This fixture is paired with [`member003-members.json`](/Users/macbook/poolproject/scripts/member003-members.json) for commission sandbox testing.
 
 Current test rule:

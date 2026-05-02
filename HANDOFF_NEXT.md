@@ -189,6 +189,15 @@ Lock the new commission runtime direction before implementation:
 - daily cap applies only to `2leg / 3leg`
 - buyback / recycle stays unchanged
 - pool uses daily approved PV funding with a per-member `3% of real paid amount` payout ceiling
+- only these four commission plans are active for current implementation and verification:
+  - `Direct`
+  - `2leg / 3leg`
+  - `Matching`
+  - `Pool`
+- do not use unrelated plans for active commission work:
+  - `unilevel`
+  - legacy/member003 sandbox analysis
+  - deprecated `CommissionMainPlan`
 
 Use BAO/WAP for normal operations.
 Use `/admin` local quick actions when you need commission runtime controls such as team scaffold, team-only process, end-of-day process, pool close, or runtime verification.
@@ -283,9 +292,9 @@ What Was Completed In This Round
 - Operator smoke for the restored `/admin` flow is now verified through the same API route the UI uses:
   - runtime health was `ok` at `GET /health`
   - current working local operator login is:
-    - identifier: `TH0000013`
-    - password: `a1a1a1`
-  - `GET /auth/me` with that token succeeded for user `TH0000013`
+    - identifier: `dev-admin@example.com`
+    - password: `472121`
+  - `GET /auth/me` with that token succeeded for local admin `dev-admin@example.com`
   - `POST /commissions/end-of-day/2025-11-27/process` succeeded with that token and returned:
     - team batch `status: processed`
     - `processedUsers: 1`
@@ -299,9 +308,9 @@ What Was Completed In This Round
     - pool summary `reprocessed: true`
   - `GET /commissions/team-settlement-batches/2025-11-27/snapshot` still matched the same processed totals after the rerun
   - `/admin` login hint is now updated to the working local credential placeholder:
-    - identifier placeholder `TH0000013 or member email`
-    - password placeholder `a1a1a1`
-    - hint text `Current local login: TH0000013 / a1a1a1`
+    - identifier placeholder `dev-admin@example.com`
+    - password placeholder `472121`
+    - hint text `Current local admin login: dev-admin@example.com / 472121`
   - member app sign-in placeholders are now neutralized as well:
     - identifier placeholder `Member code, email, or phone`
     - password placeholder `Enter password`
@@ -332,7 +341,7 @@ What Was Completed In This Round
     - `curl -I http://127.0.0.1:3000/admin` returned `200 OK`
     - production-style member login on UAT does not allow dev impersonation password
     - verified working UAT admin member session:
-      - identifier: `TH0000013`
+      - identifier: `admin@stephub.local`
       - password: `005613`
     - first `POST /commissions/end-of-day/2025-11-27/process` failed because the UAT database schema was behind the deployed code:
       - missing table `public.TeamSettlementBatch`
@@ -356,7 +365,7 @@ What Was Completed In This Round
       - `eligibleMemberCount: 0`
       - `payoutCount: 0`
   - important operator note:
-    - the deployed `/admin` page currently shows the local-dev login hint `TH0000013 / a1a1a1`
+    - the deployed `/admin` page currently shows the local-dev admin login hint `dev-admin@example.com / 472121`
     - that hint is correct for local non-production runtime only
     - UAT / production-style runtime currently requires the real member password instead
   - uploaded to Google Drive:

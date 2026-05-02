@@ -1,5 +1,15 @@
 #!/usr/bin/env python3
 
+# Historical only: legacy unilevel sandbox script.
+# Not part of the active commission-calculation scope.
+# Active scope only:
+# - direct
+# - team_2leg / team_3leg
+# - matching
+# - pool
+# Do not use this script for active implementation or verification unless a
+# later approved decision explicitly restores it.
+
 import json
 import sys
 import zipfile
@@ -127,3 +137,12 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+# Historical only: legacy unilevel sandbox script.
+# Not part of the active commission-calculation scope.
+# Active scope only:
+# - direct
+# - team_2leg / team_3leg
+# - matching
+# - pool
+# Do not use this script for active implementation or verification unless a
+# later approved decision explicitly restores it.

@@ -85,7 +85,7 @@ function request(requestPath, options = {}) {
 
 async function loginAdmin() {
   const candidates = [
-    { identifier: "TH0000013", password: "a1a1a1" },
+    { identifier: "dev-admin@example.com", password: "472121" },
     { identifier: "superadmin@blifehealthy.com", password: "472121" },
   ];
 

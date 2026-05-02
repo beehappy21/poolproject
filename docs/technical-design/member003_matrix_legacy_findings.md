@@ -1,5 +1,19 @@
 # Member003 Matrix Legacy Findings
 
+## Historical Only
+
+This file is historical research and sandbox material only.
+
+It is not part of the active commission-calculation scope.
+Active commission work in this repository is limited to:
+
+- `direct`
+- `2leg / 3leg`
+- `matching`
+- `pool`
+
+Do not use this file for active implementation, runtime decisions, testing scope, or user answers unless an explicit later decision restores it.
+
 ## Scope
 
 This note compares the current matrix implementation and the sandbox behavior against the legacy board expectations provided during test design.

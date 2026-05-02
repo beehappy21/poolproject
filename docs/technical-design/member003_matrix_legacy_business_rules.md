@@ -1,5 +1,19 @@
 # Member003 Matrix Legacy Business Rules
 
+## Historical Only
+
+This file is historical research and sandbox material only.
+
+It is not part of the active commission-calculation scope.
+Active commission work in this repository is limited to:
+
+- `direct`
+- `2leg / 3leg`
+- `matching`
+- `pool`
+
+Do not use this file for active implementation, runtime decisions, testing scope, or user answers unless an explicit later decision restores it.
+
 ## Purpose
 
 This document converts the current reverse-engineered sandbox result into business rules that can be used as the working real-world reference for legacy matrix behavior.

@@ -214,17 +214,17 @@ Dangerous commands to avoid unless intentionally resetting:
 - [ ] Team roles/permissions are correct
 - [ ] `Delivered Orders` appears in the BAO menu
 - [ ] Current local operator login is verified
-  - [ ] identifier `TH0000013`
-  - [ ] password `a1a1a1`
+  - [ ] identifier `dev-admin@example.com`
+  - [ ] password `472121`
 - [ ] Current UAT operator login is verified
-  - [ ] identifier `TH0000013`
+  - [ ] identifier `admin@stephub.local`
   - [ ] password `005613`
 - [ ] `/admin` shows:
   - [ ] `Close Pool Only`
   - [ ] `Team Only`
   - [ ] `End Of Day`
   - [ ] runtime note for direct-vs-end-of-day commission flow
-  - [ ] current local login hint `TH0000013 / a1a1a1`
+  - [ ] current local login hint `dev-admin@example.com / 472121`
 - [ ] Remember `/admin` login hint is local-dev guidance only; UAT production-style auth does not accept the dev impersonation password
 - [ ] Member app sign-in placeholders are neutral:
   - [ ] identifier `Member code, email, or phone`

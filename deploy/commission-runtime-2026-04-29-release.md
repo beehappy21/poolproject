@@ -41,4 +41,4 @@ This bundle contains the commission and admin runtime changes completed on 2026-
    - `/admin`
    - `POST /commissions/end-of-day/:settlementDate/process`
 4. Current local operator login reference:
-   - `TH0000013 / a1a1a1`
+   - `dev-admin@example.com / 472121`

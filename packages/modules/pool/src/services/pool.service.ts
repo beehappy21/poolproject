@@ -1,6 +1,15 @@
 import { Inject, Injectable, forwardRef } from "@nestjs/common";
 import { BadRequestException } from "@nestjs/common";
 
+// Active commission-calculation scope:
+// - direct
+// - team_2leg / team_3leg
+// - matching
+// - pool
+// Pool runtime must follow only the currently approved four-plan commission
+// direction. Do not pull in unrelated unilevel, legacy/member003 sandbox, or
+// deprecated plan assumptions unless a later approved spec says otherwise.
+
 import {
   DailyPoolFlowResult,
   PoolCloseResult,

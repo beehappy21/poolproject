@@ -2,6 +2,16 @@
 
 Minimal design binding for the current scaffold.
 
+Active commission-calculation scope:
+- `direct`
+- `2leg / 3leg`
+- `matching`
+- `pool`
+
+Do not use unrelated plans for active commission decisions, including
+`unilevel`, legacy/member003 sandbox research, or deprecated commission-plan
+documents, unless a later approved revision explicitly restores them.
+
 Source of truth:
 - [referral_commission_plan_thb.md](/Users/macbook/poolproject/docs/technical-design/referral_commission_plan_thb.md)
 
@@ -25,10 +35,12 @@ Supporting infrastructure:
 - API app shell: `apps/api`
 - worker app shell: `apps/worker`
 
-Current feature specs:
+Current active feature specs:
 - [referral_commission_plan_thb.md](/Users/macbook/poolproject/docs/technical-design/referral_commission_plan_thb.md)
 - [commission_round_repurchase_spec.md](/Users/macbook/poolproject/docs/technical-design/commission_round_repurchase_spec.md)
 - [firm_wallet_spec.md](/Users/macbook/poolproject/docs/technical-design/firm_wallet_spec.md)
+
+Historical-only references:
 - [matrix_runtime_reentry_spec.md](/Users/macbook/poolproject/docs/technical-design/matrix_runtime_reentry_spec.md) `legacy runtime reference only`
 
 ## Bonus-to-Cycle Allocation (Draft Rule)

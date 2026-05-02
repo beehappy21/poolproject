@@ -12,8 +12,8 @@ process.env.DATABASE_URL =
 
 const prisma = new PrismaClient();
 const API_BASE_URL = process.env.API_BASE_URL || "http://127.0.0.1:3000";
-const ADMIN_IDENTIFIER = process.env.ADMIN_IDENTIFIER || "TH0000013";
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "a1a1a1";
+const ADMIN_IDENTIFIER = process.env.ADMIN_IDENTIFIER || "dev-admin@example.com";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "472121";
 const SETTLEMENT_DATE = process.env.SETTLEMENT_DATE || "2030-01-15";
 const DEFAULT_MATCHING_LEVEL_RATES = ["0.05", "0.05"];
 const DEFAULT_TEAM_TWO_LEG_RATE = "0.3";

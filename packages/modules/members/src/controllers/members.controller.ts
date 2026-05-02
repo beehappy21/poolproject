@@ -289,11 +289,43 @@ export class MembersController {
   @Post(":memberId/reset-password")
   async resetPassword(
     @Param("memberId") memberId: string,
-    @Body() body: { newPassword: string },
+    @Body() body: { newPassword: string; adminOverridePassword?: string },
   ) {
     try {
+      const validatedMemberId = requirePositiveIntegerString(memberId, "memberId");
+      const targetUser = await this.prisma.user.findUnique({
+        where: { id: BigInt(validatedMemberId) },
+        select: {
+          isAdmin: true,
+          adminRole: true,
+          email: true,
+          memberCode: true,
+        },
+      });
+
+      const isProtectedSuperAdmin =
+        targetUser?.isAdmin === true &&
+        String(targetUser.adminRole || "").trim().toUpperCase() === "SUPER_ADMIN" &&
+        (String(targetUser.email || "").trim().toLowerCase() ===
+          (process.env.SUPER_ADMIN_EMAIL || "dev-admin@example.com").trim().toLowerCase() ||
+          String(targetUser.memberCode || "").trim().toUpperCase() ===
+            (process.env.SUPER_ADMIN_MEMBER_CODE || "ADMINLOCAL001").trim().toUpperCase());
+
+      if (isProtectedSuperAdmin) {
+        if (
+          requireNonEmptyString(
+            body.adminOverridePassword ?? "",
+            "adminOverridePassword",
+          ) !== (process.env.SUPER_ADMIN_OVERRIDE_PASSWORD || "@4721Funnylife")
+        ) {
+          throw new UnauthorizedException(
+            "Protected super admin override password required.",
+          );
+        }
+      }
+
       return await this.membersService.resetMemberPassword(
-        requirePositiveIntegerString(memberId, "memberId"),
+        validatedMemberId,
         requireNonEmptyString(body.newPassword, "newPassword"),
       );
     } catch (error) {

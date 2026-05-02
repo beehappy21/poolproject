@@ -2,6 +2,17 @@
 
 Updated: 2026-04-29
 
+## Active Scope Guardrail
+
+This spec is part of the current four-plan commission runtime only:
+
+- `direct`
+- `2leg / 3leg`
+- `matching`
+- `pool`
+
+Do not use unrelated plans for this runtime, including `unilevel`, legacy/member003 sandbox analysis, or deprecated commission-plan documents, unless a later approved revision explicitly restores them.
+
 ## Goal
 
 Lock the current business rules for:
