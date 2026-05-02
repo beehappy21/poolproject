@@ -45,6 +45,12 @@ export interface WalletsRepository {
     result: WalletPostingResult,
   ): Promise<WalletPostingResult>;
 
+  releaseHeldCommissionCredit(input: {
+    userId: string;
+    commissionId: string;
+    amount: string;
+  }): Promise<void>;
+
   applyNegativeOffsetResult(
     userId: string,
     result: WalletNegativeOffsetResult,
@@ -485,6 +491,86 @@ export class PrismaWalletsRepository implements WalletsRepository {
     });
 
     return result;
+  }
+
+  async releaseHeldCommissionCredit(input: {
+    userId: string;
+    commissionId: string;
+    amount: string;
+  }): Promise<void> {
+    const existingRelease = await this.prisma.walletTransaction.findFirst({
+      where: {
+        userId: BigInt(input.userId),
+        txType: "BUYBACK_RELEASE",
+        refType: "COMMISSION",
+        refId: BigInt(input.commissionId),
+        status: "POSTED",
+      },
+      select: { id: true },
+    });
+
+    if (existingRelease) {
+      return;
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const wallet = await tx.wallet.upsert({
+        where: { userId: BigInt(input.userId) },
+        update: {},
+        create: { userId: BigInt(input.userId) },
+        select: {
+          approvedBalance: true,
+          heldBalance: true,
+          withdrawableBalance: true,
+          shoppingBalance: true,
+          discountBalance: true,
+          negativeOffsetBalance: true,
+        },
+      });
+
+      const releasableAmount = minDecimalString(
+        wallet.heldBalance.toString(),
+        input.amount,
+      );
+
+      if (compareDecimalStrings(releasableAmount, "0") <= 0) {
+        return;
+      }
+
+      await tx.wallet.update({
+        where: { userId: BigInt(input.userId) },
+        data: {
+          approvedBalance: wallet.approvedBalance.toString(),
+          heldBalance: maxDecimalString(
+            subtractDecimalStrings(wallet.heldBalance.toString(), releasableAmount),
+            "0",
+          ),
+          withdrawableBalance: maxDecimalString(
+            addDecimalStrings(
+              wallet.withdrawableBalance.toString(),
+              releasableAmount,
+            ),
+            "0",
+          ),
+          shoppingBalance: wallet.shoppingBalance.toString(),
+          discountBalance: wallet.discountBalance.toString(),
+          negativeOffsetBalance: wallet.negativeOffsetBalance.toString(),
+        },
+      });
+
+      await tx.walletTransaction.create({
+        data: {
+          userId: BigInt(input.userId),
+          txType: "BUYBACK_RELEASE",
+          direction: "CREDIT",
+          balanceBucket: "WITHDRAWABLE",
+          refType: "COMMISSION",
+          refId: BigInt(input.commissionId),
+          amount: releasableAmount,
+          status: "POSTED",
+        },
+      });
+    });
   }
 
   async applyNegativeOffsetResult(

@@ -45,6 +45,12 @@ export interface WalletsServiceContract {
 
   postApprovedEarning(input: WalletPostingInput): Promise<WalletPostingResult>;
 
+  releaseHeldCommissionCredit(input: {
+    userId: string;
+    commissionId: string;
+    amount: string;
+  }): Promise<void>;
+
   applyNegativeOffset(
     input: WalletNegativeOffsetInput,
   ): Promise<WalletNegativeOffsetResult>;
@@ -272,6 +278,14 @@ export class WalletsService implements WalletsServiceContract {
     };
 
     return this.walletsRepository.recordWalletPosting(input, result);
+  }
+
+  async releaseHeldCommissionCredit(input: {
+    userId: string;
+    commissionId: string;
+    amount: string;
+  }): Promise<void> {
+    await this.walletsRepository.releaseHeldCommissionCredit(input);
   }
 
   async applyNegativeOffset(

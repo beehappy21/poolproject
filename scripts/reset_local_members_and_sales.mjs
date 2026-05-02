@@ -78,6 +78,8 @@ delete from public."CompanyBonusLedger";
 delete from public."CommissionLedger";
 delete from public."BuybackEvent";
 delete from public."UserBuybackProgress";
+delete from public."CapLedger";
+delete from public."CapBucket";
 delete from public."OrderItem";
 delete from public."Order";
 delete from public."ProductReview";
@@ -106,6 +108,8 @@ alter sequence if exists public."WalletTopupRequest_id_seq" restart with 1;
 alter sequence if exists public."WithdrawRequest_id_seq" restart with 1;
 alter sequence if exists public."MemberProfile_id_seq" restart with 1;
 alter sequence if exists public."LineBinding_id_seq" restart with 1;
+alter sequence if exists public."CapBucket_id_seq" restart with 1;
+alter sequence if exists public."CapLedger_id_seq" restart with 1;
 
 commit;
 `.trimStart();
