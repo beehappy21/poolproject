@@ -39,8 +39,9 @@ if ! command -v npm >/dev/null 2>&1; then
   exit 1
 fi
 
-run_step "Restart latest local stack for WAP + BAO" npm run dev:restart
-run_step "Verify local stack" npm run dev:check
+run_step "Ensure API + BAO runtime is available" npm run dev:check
+run_step "Build and restart latest Stephub WAP" npm run wap:refresh
+run_step "Verify local stack after WAP refresh" npm run dev:check
 
 print_step "Open local WAP and BAO"
 open "$WAP_URL"
@@ -50,6 +51,6 @@ print_step "Ready"
 echo "WAP: $WAP_URL"
 echo "BAO: $BAO_URL"
 echo "API: $API_HEALTH_URL"
-echo "This flow preserves current local data and uses the latest WAP proxy fixes."
+echo "This flow preserves current local data and rebuilds the latest WAP bundle before opening."
 
 pause_if_interactive

@@ -162,22 +162,34 @@ export const TeamMember: React.FC = () => {
   };
 
   const rootChildren = childrenByCode[activeRootCode] || [];
+  const chartSlots = [0, 1, 2] as const;
+  const slotNodes = chartSlots.map(index => rootChildren[index] || null);
   const filteredRootChildren =
     selectedFilter === 'DIRECT'
       ? rootChildren
-      : rootChildren.filter(node => node.placementSide === selectedFilter);
+      : selectedFilter === 'LEFT'
+        ? slotNodes[0]
+          ? [slotNodes[0]]
+          : []
+        : selectedFilter === 'MIDDLE'
+          ? slotNodes[1]
+            ? [slotNodes[1]]
+            : []
+          : slotNodes[2]
+            ? [slotNodes[2]]
+            : [];
 
   const directCount = rootLegTotals.DIRECT;
-  const leftCount = rootLegTotals.LEFT;
-  const middleCount = rootLegTotals.MIDDLE;
-  const rightCount = rootLegTotals.RIGHT;
-  const sideOrder: Array<'LEFT' | 'MIDDLE' | 'RIGHT'> = ['LEFT', 'MIDDLE', 'RIGHT'];
+  const chartBranchTotals = chartSlots.map(index => {
+    const node = rootChildren[index];
+    return node ? node.childCount + 1 : 0;
+  });
 
-  const findNodeBySide = (
+  const findNodeByIndex = (
     nodes: TreeNode[],
-    side: 'LEFT' | 'MIDDLE' | 'RIGHT',
+    index: number,
   ): TreeNode | null => {
-    return nodes.find(node => node.placementSide === side) || null;
+    return nodes[index] || null;
   };
 
   useEffect(() => {
@@ -523,9 +535,21 @@ export const TeamMember: React.FC = () => {
           >
             {[
               {key: 'DIRECT' as const, label: 'DIRECT', count: directCount},
-              {key: 'LEFT' as const, label: 'L', count: leftCount},
-              {key: 'MIDDLE' as const, label: 'M', count: middleCount},
-              {key: 'RIGHT' as const, label: 'R', count: rightCount},
+              {
+                key: 'LEFT' as const,
+                label: '1',
+                count: chartBranchTotals[0],
+              },
+              {
+                key: 'MIDDLE' as const,
+                label: '2',
+                count: chartBranchTotals[1],
+              },
+              {
+                key: 'RIGHT' as const,
+                label: '3',
+                count: chartBranchTotals[2],
+              },
             ].map(item => {
               const isActive = selectedFilter === item.key;
 
@@ -692,10 +716,10 @@ export const TeamMember: React.FC = () => {
                       {selectedFilter === 'DIRECT'
                         ? 'direct'
                         : selectedFilter === 'LEFT'
-                          ? 'L'
+                          ? '1'
                           : selectedFilter === 'MIDDLE'
-                            ? 'M'
-                            : 'R'}
+                            ? '2'
+                            : '3'}
                     </div>
                   ) : (
                     <ul style={{margin: 0, paddingLeft: 0, display: 'grid', gap: 10}}>
@@ -742,11 +766,11 @@ export const TeamMember: React.FC = () => {
                         gap: 8,
                       }}
                     >
-                      {sideOrder.map(side =>
+                      {chartSlots.map(index =>
                         renderChartCard(
-                          findNodeBySide(rootChildren, side),
+                          findNodeByIndex(rootChildren, index),
                           'child',
-                          `ชั้นที่ 2 - ${side === 'LEFT' ? 'L' : side === 'MIDDLE' ? 'M' : 'R'}`,
+                          `ชั้นที่ 2 - ${index + 1}`,
                           activeRootCode,
                         ),
                       )}
@@ -758,20 +782,14 @@ export const TeamMember: React.FC = () => {
                         gap: 8,
                       }}
                     >
-                      {sideOrder.map(parentSide => {
-                        const parentNode = findNodeBySide(rootChildren, parentSide);
+                      {chartSlots.map(parentIndex => {
+                        const parentNode = findNodeByIndex(rootChildren, parentIndex);
                         const grandchildren = parentNode
                           ? childrenByCode[parentNode.memberCode] || []
                           : [];
-                        const parentLabel =
-                          parentSide === 'LEFT'
-                            ? 'L'
-                            : parentSide === 'MIDDLE'
-                              ? 'M'
-                              : 'R';
                         return (
                           <div
-                            key={`branch-${parentSide}`}
+                            key={`branch-${parentIndex + 1}`}
                             style={{
                               border: '1px solid #D9E2EF',
                               borderRadius: 12,
@@ -781,11 +799,11 @@ export const TeamMember: React.FC = () => {
                               gap: 8,
                             }}
                           >
-                            {sideOrder.map(childSide =>
+                            {chartSlots.map(childIndex =>
                               renderChartCard(
-                                findNodeBySide(grandchildren, childSide),
+                                findNodeByIndex(grandchildren, childIndex),
                                 'grandchild',
-                                `${parentLabel}-${childSide === 'LEFT' ? 'L' : childSide === 'MIDDLE' ? 'M' : 'R'}`,
+                                `${parentIndex + 1}-${childIndex + 1}`,
                                 parentNode?.memberCode || undefined,
                               ),
                             )}
