@@ -22,10 +22,10 @@ Use this section first when continuing the new commission-round repurchase rule.
   - [ ] commission must still calculate during grace but release as held
   - [ ] commission must stop calculating after grace expiry until qualifying repurchase
 - [ ] Confirm current runtime mismatch is still understood:
-  - [ ] `autoBuybackEnabled` currently gates the old behavior
-  - [ ] current code still uses `> 10000`
   - [ ] no first-class `CommissionRound` model exists yet
-  - [ ] current pool rule still ties payout to same-day daily pool cap logic
+  - [ ] `CommissionLedger` and pool payout rows still do not carry an explicit round id
+  - [ ] historically qualified members may still need a one-time backfill for locked initial qualification
+  - [ ] the updated runtime still needs a fresh baseline verification run after the latest code changes
 - [ ] Preserve the existing local baseline of `210` non-admin members
 - [ ] Do not seed extra members for this phase
 - [ ] When touching pool logic, keep the first gate and renewal gate separate:

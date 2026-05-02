@@ -1,10 +1,22 @@
 Handoff Next
 
-Updated: 2026-05-01 14:10 +07
+Updated: 2026-05-01 15:05 +07
 Branch: `main`
 
 Latest Session Update (2026-05-01)
 
+- Continued the commission-round repurchase runtime implementation in code:
+  - shared commission finalization no longer short-circuits on `autoBuybackEnabled`
+  - round threshold comparison is now `>= 10000`
+  - pre-threshold accumulation is now persisted even before the first threshold hit
+  - approved self-purchase now locks first qualification when the member has:
+    - self approved purchase
+    - `3` active directs
+    - `3` direct buyers
+  - qualifying repurchase now releases held commission rows and moves held wallet credit to withdrawable
+  - pool eligibility now respects persisted first qualification and does not require rebuilding the original `3 direct buyers` gate after qualification has been locked
+- Validation completed for the current code round:
+  - `npm run lint` passed
 - Locked the new commission-round repurchase business rule in the active plan:
   - first pool qualification requires:
     - self purchase
@@ -28,11 +40,11 @@ Latest Session Update (2026-05-01)
   - [docs/technical-design/commission_round_repurchase_spec.md](/Users/macbook/poolproject/docs/technical-design/commission_round_repurchase_spec.md:1)
 - Updated design index:
   - [docs/technical-design/README.md](/Users/macbook/poolproject/docs/technical-design/README.md:1)
-- Verified current runtime mismatch that must be addressed before claiming the new rule is implemented:
-  - current runtime buyback/repurchase gate still depends on `autoBuybackEnabled`
-  - current runtime threshold check uses `> 10000`, not `>= 10000`
-  - current runtime does not yet model commission round lifecycle as a first-class entity
-  - current runtime pool behavior is still tied to same-day daily pool cap logic and does not yet follow the new round-renewal rule
+- Remaining runtime gaps before claiming the new rule is fully implemented:
+  - current runtime still uses `UserBuybackProgress` as the primary round-state store instead of a first-class `CommissionRound` entity
+  - `CommissionLedger` and pool payout rows are not yet linked to an explicit round id
+  - previously qualified members may still need a backfill path to lock `lastQualifyingOrderId` without waiting for a new qualifying self-purchase
+  - the updated round runtime has not yet been re-verified against the local `210`-member baseline after this code change
 - Local commission scenario verification from the existing `210`-member baseline was completed using product `test 1000 / 350 PV`:
   - approved orders: `210`
   - settlement dates processed: `52`
@@ -54,14 +66,14 @@ Implement the new commission-round repurchase model without reintroducing matrix
 Immediate Next Steps
 
 - Add a first-class commission-round data model instead of relying only on `UserBuybackProgress`.
-- Change threshold comparison to `>= 10000`.
-- Split runtime behavior by round state:
-  - `ACTIVE`
-  - `GRACE_HELD`
-  - `BLOCKED_EXPIRED`
-- Keep calculating commission during grace, but hold release.
-- Stop calculating new commission after grace expiry until a qualifying self repurchase reopens the round.
-- Rework pool entitlement so later rounds use self repurchase renewal and do not require rebuilding the initial `3 direct buyers` condition.
+- Add explicit round linkage on `CommissionLedger` and pool payout rows for BAO/WAP traceability.
+- Decide and implement a safe backfill strategy for members who already passed first qualification historically.
+- Re-run the local `210`-member commission baseline and inspect:
+  - threshold transition to held
+  - held wallet postings
+  - repurchase release
+  - post-expiry commission blocking
+  - pool eligibility after a locked first qualification
 
 Latest Session Update (2026-04-30)
 
