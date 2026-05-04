@@ -71,6 +71,8 @@
     "seed:members:random-referrals:rebalance": "node scripts/rebalance_random_referral_members.js",
     "test:commissions:summary": "node scripts/query_commission_runtime_summary.js",
     "test:commissions:member003-baseline": "node scripts/seed_member003_test_baseline.js",
+    "testsystem:reset:sales-commissions": "node testsystem/reset_sales_commission_runtime.mjs",
+    "testsystem:reset:sales-commissions:apply": "ALLOW_DESTRUCTIVE_LOCAL_RESET=1 node testsystem/reset_sales_commission_runtime.mjs --apply",
     "test:matrix:legacy-benchmarks": "bash scripts/run_member003_matrix_legacy_benchmarks.sh",
     "test:matrix:runtime-benchmarks": "bash scripts/run_member003_matrix_runtime_benchmarks.sh",
     "cleanup:cashback-smoke": "node scripts/backfills/cleanup-cashback-smoke-artifacts.js",
