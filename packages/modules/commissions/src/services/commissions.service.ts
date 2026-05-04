@@ -725,6 +725,7 @@ export class CommissionsService implements CommissionsServiceContract {
   ): Promise<TeamSettlementBatchProcessResult> {
     const commissionSettings = readCommissionSettings();
     const evaluationAt = `${settlementDate}T12:00:00+07:00`;
+    await this.scaffoldTeamSettlementBatch(settlementDate);
     const items =
       await this.commissionsRepository.listTeamSettlementBatchItems(
         settlementDate,
@@ -815,7 +816,9 @@ export class CommissionsService implements CommissionsServiceContract {
   ): Promise<EndOfDayCommissionBatchResult> {
     const teamSettlement =
       await this.processTeamSettlementBatch(settlementDate);
-    const pool = await this.poolService.closePool(settlementDate);
+    const pool = await this.poolService.closePool(settlementDate, {
+      forceReprocess: true,
+    });
 
     return {
       settlementDate,

@@ -1,7 +1,44 @@
 Handoff Next
 
-Updated: 2026-05-01 15:05 +07
+Updated: 2026-05-02 13:30 +07
 Branch: `main`
+
+Latest Session Update (2026-05-02)
+
+- Closed the missing pool-payout gap in the local commission baseline by making pool reruns explicitly force reprocessing:
+  - [packages/modules/pool/src/services/pool.service.ts](/Users/macbook/poolproject/packages/modules/pool/src/services/pool.service.ts:209)
+    - `closePool()` now accepts `forceReprocess`
+  - [packages/modules/commissions/src/services/commissions.service.ts](/Users/macbook/poolproject/packages/modules/commissions/src/services/commissions.service.ts:813)
+    - end-of-day pool close now runs with force reprocess enabled
+  - [packages/modules/pool/src/controllers/pool.controller.ts](/Users/macbook/poolproject/packages/modules/pool/src/controllers/pool.controller.ts:57)
+    - added `POST /pool/:poolDate/close?force=1`
+- Re-ran the local baseline after restarting the API and confirmed the main payout families are present again:
+  - `Direct` present
+  - `2leg / 3leg` present
+  - `Matching` present
+  - `Pool` present
+- Confirmed from [runtime/commission-test-baseline-result.json](/Users/macbook/poolproject/runtime/commission-test-baseline-result.json:1):
+  - `2025-11-17`
+    - `poolLedgerAmount = 60`
+    - `poolPayoutCount = 2`
+  - `2025-11-18`
+    - `poolLedgerAmount = 60`
+    - `poolPayoutCount = 2`
+  - `2025-12-02`
+    - `poolLedgerAmount = 360`
+    - `poolPayoutCount = 12`
+- Direct pool rerun validation after the fix also succeeded:
+  - `POST /pool/2025-11-22/close?force=1`
+  - returned `eligibleMemberCount = 6`
+  - this confirms the pool reprocess path is working against a recipient-positive date
+- Remaining limitation:
+  - the local baseline dataset is still not a perfectly clean reset because earlier reruns left some inflated order/PV totals on certain dates
+  - the current result is good enough to confirm logic correctness
+  - if a final report with fully clean numbers is needed, first clear the baseline test orders and rerun the baseline once from scratch
+- Immediate next step for the next operator:
+  - do a clean baseline reset
+  - rerun the baseline once
+  - freeze the final report from that clean run before making more commission-runtime changes
 
 Latest Session Update (2026-05-01)
 
@@ -44,13 +81,13 @@ Latest Session Update (2026-05-01)
   - current runtime still uses `UserBuybackProgress` as the primary round-state store instead of a first-class `CommissionRound` entity
   - `CommissionLedger` and pool payout rows are not yet linked to an explicit round id
   - previously qualified members may still need a backfill path to lock `lastQualifyingOrderId` without waiting for a new qualifying self-purchase
-  - the updated round runtime has not yet been re-verified against the local `210`-member baseline after this code change
+  - the updated round runtime has now been re-verified against the existing local `210`-member baseline after the force-reprocess fix, but not yet from a perfectly clean reset
 - Local commission scenario verification from the existing `210`-member baseline was completed using product `test 1000 / 350 PV`:
   - approved orders: `210`
   - settlement dates processed: `52`
   - direct/team/matching/fallback rows were created
   - pool cycles and pool payouts were created
-  - no `POOL` commission ledger rows were created because every pool payout fell back with `cap_blocked_all_receivable_cycles`
+  - after the force-reprocess fix, recipient-positive dates now create `POOL` commission ledger rows again
 
 Current Goal
 
@@ -69,6 +106,7 @@ Immediate Next Steps
 - Add explicit round linkage on `CommissionLedger` and pool payout rows for BAO/WAP traceability.
 - Decide and implement a safe backfill strategy for members who already passed first qualification historically.
 - Re-run the local `210`-member commission baseline and inspect:
+  - if the goal is final clean reporting, first clear old baseline test orders before rerunning
   - threshold transition to held
   - held wallet postings
   - repurchase release

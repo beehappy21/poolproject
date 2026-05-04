@@ -1,6 +1,6 @@
 # Live Operations Checklist
 
-Updated: 2026-05-01
+Updated: 2026-05-02
 
 Use this checklist before starting real data entry and real day-to-day usage on the current local/runtime stack.
 
@@ -25,7 +25,8 @@ Use this section first when continuing the new commission-round repurchase rule.
   - [ ] no first-class `CommissionRound` model exists yet
   - [ ] `CommissionLedger` and pool payout rows still do not carry an explicit round id
   - [ ] historically qualified members may still need a one-time backfill for locked initial qualification
-  - [ ] the updated runtime still needs a fresh baseline verification run after the latest code changes
+  - [ ] the updated runtime now passes a reused baseline rerun after the latest pool force-reprocess fix
+  - [ ] if reporting needs clean final numbers, do one fully clean baseline reset and rerun before freezing results
 - [ ] Preserve the existing local baseline of `210` non-admin members
 - [ ] Do not seed extra members for this phase
 - [ ] When touching pool logic, keep the first gate and renewal gate separate:
@@ -131,7 +132,7 @@ Use this section first if the current task is the Stephub commission refactor an
 - [ ] When resuming pool phase, use a date or fixture with at least `1` eligible recipient before judging payout-path behavior
 - [ ] When resuming pool phase, verify in order:
   - [ ] `team -> buyback side effect -> pool`
-  - [ ] `POST /pool/:poolDate/close` yields non-zero eligible recipients
+  - [ ] `POST /pool/:poolDate/close?force=1` yields non-zero eligible recipients on a known positive date
   - [ ] `GET /pool/:poolDate/snapshot` shows payout rows and correct summary counts
   - [ ] `commissionLedgerId` linkage is present on pool payouts
   - [ ] held pool payouts land in the held wallet bucket when applicable

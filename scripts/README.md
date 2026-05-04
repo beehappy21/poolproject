@@ -41,6 +41,8 @@ Smoke helpers:
 - `npm run test:commissions:summary`
   Reads live commission runtime data directly through Prisma and prints one summary for `CommissionLedger`, `MatrixPayout`, `DailyPoolPayout`, and `CompanyBonusLedger`.
   Supports `MEMBER_CODE`, `DATE_FROM`, `DATE_TO`, `POOL_DATE`, `LIMIT_ROWS`, and `OUTPUT=json`.
+- `npm run test:commissions:member003-baseline -- --apply`
+  Creates the commission-test baseline on the local `member003` dataset by ensuring product `test` (`1000 THB / 350 PV`) exists, creating one approved order per non-admin member grouped by signup day and sorted by `memberCode` within each day, then running the real `End Of Day` settlement after the last code of each day. It continues until all `210` member codes are processed and writes the daily summary plus BAO gap notes under `runtime/`.
 - `npm run test:commissions:real`
   Runs a reusable real-data commission test flow for the new main plan: optional binary-tree member seeding, runtime order seeding through the live API, weekly pool close, then beneficiary and all-member summaries.
   Useful env vars include `REAL_TEST_SEED_TREE=1`, `MAIN_PLAN_BENEFICIARY=TH0000023`, `MAIN_PLAN_POOL_DATE=2026-04-05`, `DATE_FROM`, `DATE_TO`, and `LIMIT_ROWS`.

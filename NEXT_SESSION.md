@@ -1,6 +1,6 @@
 # Next Session
 
-Updated: 2026-03-23
+Updated: 2026-05-02
 
 ## Branch
 
@@ -27,12 +27,13 @@ Updated: 2026-03-23
 
 ## What To Do Next
 
-1. If deployment work continues, follow `DEPLOY_CHECKLIST.md`
-2. Use `docs/technical-design/commission_plan_summary.md` as the single summary for plan-calculation status
-3. If wallet/DCW work continues, the next high-value slice is member-facing CW/SW/DCW UI and/or richer admin review tooling beyond the current local admin panel
-4. If member work continues, the next obvious slice is a reusable member import/reset helper plus explicit login/reset guidance in admin beyond the current list-page note
-5. Reuse the BAO browser-check scripts before deploys or after commission/order-report changes
-6. Keep `member003` legacy matrix analysis positioned as research/sandbox work unless we explicitly want to productionize it further
+1. If the commission-round / pool baseline work continues, first clean the local baseline test orders and rerun the baseline once for a final clean report
+2. If deployment work continues, follow `DEPLOY_CHECKLIST.md`
+3. Use `docs/technical-design/commission_plan_summary.md` as the single summary for plan-calculation status
+4. If wallet/DCW work continues, the next high-value slice is member-facing CW/SW/DCW UI and/or richer admin review tooling beyond the current local admin panel
+5. If member work continues, the next obvious slice is a reusable member import/reset helper plus explicit login/reset guidance in admin beyond the current list-page note
+6. Reuse the BAO browser-check scripts before deploys or after commission/order-report changes
+7. Keep `member003` legacy matrix analysis positioned as research/sandbox work unless we explicitly want to productionize it further
 
 ## Latest Verified Status
 
@@ -43,6 +44,15 @@ Updated: 2026-03-23
   - `POOL_ONLY` partial payout to cap
   - `ALL_COMMISSIONS` partial payout to remaining combined cap
   - `ALL_COMMISSIONS` full-flow accumulation from real `process-approved` direct/uni commissions before next-day pool close
+- Pool rerun behavior now has an explicit force-reprocess path across runtime and API:
+  - `closePool()` in `pool.service.ts` accepts `forceReprocess`
+  - end-of-day processing calls pool close with `forceReprocess`
+  - `POST /pool/:poolDate/close?force=1` is available for direct rerun validation
+- Local baseline rerun after the force-reprocess fix now confirms recipient-positive pool payouts again:
+  - `2025-11-17` -> `poolLedgerAmount = 60`, `poolPayoutCount = 2`
+  - `2025-11-18` -> `poolLedgerAmount = 60`, `poolPayoutCount = 2`
+  - `2025-12-02` -> `poolLedgerAmount = 360`, `poolPayoutCount = 12`
+- Direct validation of `2025-11-22` after the fix returned `eligibleMemberCount = 6`, confirming pool reprocess is working
 - Pool funding now snapshots rate config on `OrderItem`, so later package edits do not retroactively change historical pool funding
 - Effective pool-rate snapshots were updated to use decimal-safe math instead of JS `Number`
 - Commission plan summary doc is up to date and can be used as the current handoff source for direct / unilevel / pool / matrix / cashback status
@@ -78,6 +88,8 @@ Updated: 2026-03-23
 ## Review Notes
 
 - No open merge blocker remains from the configurable pool rules, BAO browser-check, wallet/payment work, and member import/login updates that landed in PR `#15`, PR `#16`, `#17`, `#18`, and `#19`
+- The latest local commission baseline is functionally correct for direct / team / matching / pool, but the working dataset is not yet a fully clean reset because older reruns still affect some order/PV totals
+- If a final report is needed, the next operator should clear the baseline test orders and rerun once from a clean state before freezing numbers
 - The previously requested browser verification of BAO cashback and Stephub shipment-state flows is now covered by local reusable smoke scripts
 - Wallet smoke now covers:
   - commission credit
