@@ -13,7 +13,7 @@ Active commission-calculation scope in this repository:
 
 Do not reintroduce unrelated plans into active implementation or answers, including `unilevel`, legacy/member003 sandbox analysis, or deprecated archived commission plans, unless a later approved revision explicitly restores them.
 
-Any older commission-plan document is archived in `tmp/archived_commission_plan_2026-04-27/` and must not override this file.
+Any older commission-plan document is archived in `docs/archive/tmp-archived/archived_commission_plan_2026-04-27/` and must not override this file.
 
 ## 1. Scope
 

@@ -11,7 +11,7 @@
 ## Main References
 
 เอกสาร handoff หลักของรอบก่อน:
-- [testmatrix.md](/Users/macbook/poolproject/testmatrix.md)
+- [testmatrix.md](/Users/macbook/poolproject/docs/archive/legacy-root-notes/testmatrix.md)
 
 ไฟล์โค้ดหลักที่มีงานค้าง:
 - [packages/modules/matrix/src/services/matrix.service.ts](/Users/macbook/poolproject/packages/modules/matrix/src/services/matrix.service.ts)
@@ -74,7 +74,7 @@ bug หลักที่ยังค้างจาก setup เดิม:
 ## Recommended Next Use
 
 ถ้าจะย้อนกลับมาดู setup เดิม ให้เริ่มจาก:
-1. อ่าน [testmatrix.md](/Users/macbook/poolproject/testmatrix.md)
+1. อ่าน [testmatrix.md](/Users/macbook/poolproject/docs/archive/legacy-root-notes/testmatrix.md)
 2. เปิด diff ของ [packages/modules/matrix/src/services/matrix.service.ts](/Users/macbook/poolproject/packages/modules/matrix/src/services/matrix.service.ts)
 3. โฟกัสประเด็น `28` ที่หลุดไป `13 B1R2`
 

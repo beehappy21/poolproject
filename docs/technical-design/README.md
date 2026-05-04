@@ -41,7 +41,7 @@ Current active feature specs:
 - [firm_wallet_spec.md](/Users/macbook/poolproject/docs/technical-design/firm_wallet_spec.md)
 
 Historical-only references:
-- [matrix_runtime_reentry_spec.md](/Users/macbook/poolproject/docs/technical-design/matrix_runtime_reentry_spec.md) `legacy runtime reference only`
+- [matrix_runtime_reentry_spec.md](/Users/macbook/poolproject/docs/archive/technical-design-legacy/matrix_runtime_reentry_spec.md) `legacy runtime reference only`
 
 ## Bonus-to-Cycle Allocation (Draft Rule)
 

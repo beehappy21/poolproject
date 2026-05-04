@@ -220,8 +220,8 @@ Root files only. Directory-level review is covered elsewhere in this report.
 | [Start_WAP_BAO_Latest.command](/Users/macbook/poolproject/Start_WAP_BAO_Latest.command) | no live repo references outside prior cleanup audit | manual-use uncertainty | human confirmation |
 | [Book1.xlsx](/Users/macbook/poolproject/Book1.xlsx) | `NEXT_SESSION.md` only | unclear workbook purpose | human confirmation |
 | [saletest05042026.xlsx](/Users/macbook/poolproject/saletest05042026.xlsx) | `scripts/build_saletest05042026_runtime_sequence.py`, `scripts/import_saletest05042026_orders.js` | local test data only | archive first |
-| [matrix2x2oldsetup.md](/Users/macbook/poolproject/matrix2x2oldsetup.md) | links to `testmatrix.md` | legacy matrix note | archive first |
-| [testmatrix.md](/Users/macbook/poolproject/testmatrix.md) | linked from `matrix2x2oldsetup.md` | legacy matrix note | archive first |
+| [matrix2x2oldsetup.md](/Users/macbook/poolproject/docs/archive/legacy-root-notes/matrix2x2oldsetup.md) | links to `testmatrix.md` | legacy matrix note | archive first |
+| [testmatrix.md](/Users/macbook/poolproject/docs/archive/legacy-root-notes/testmatrix.md) | linked from `matrix2x2oldsetup.md` | legacy matrix note | archive first |
 | [web3_ecommerce_planning_pack_detailed.md](/Users/macbook/poolproject/web3_ecommerce_planning_pack_detailed.md) | `docs/web3-ecommerce-design/*` | current design source for that doc set | keep |
 | `.env.staging.example` | env example only | low | human confirmation |
 | `.dockerignore` | Docker build context | medium | keep |
@@ -238,11 +238,11 @@ Root files only. Directory-level review is covered elsewhere in this report.
 | [docs/technical-design/commission_round_repurchase_spec.md](/Users/macbook/poolproject/docs/technical-design/commission_round_repurchase_spec.md) | technical-design README | active feature spec | keep |
 | [docs/technical-design/firm_wallet_spec.md](/Users/macbook/poolproject/docs/technical-design/firm_wallet_spec.md) | technical-design README | active feature spec | keep |
 | [docs/technical-design/pool_daily_eod_spec.md](/Users/macbook/poolproject/docs/technical-design/pool_daily_eod_spec.md) | current pool behavior work | active technical spec | keep |
-| [docs/technical-design/matrix_runtime_reentry_spec.md](/Users/macbook/poolproject/docs/technical-design/matrix_runtime_reentry_spec.md) | technical-design README | explicitly marked legacy runtime reference | archive first |
+| [docs/archive/technical-design-legacy/matrix_runtime_reentry_spec.md](/Users/macbook/poolproject/docs/archive/technical-design-legacy/matrix_runtime_reentry_spec.md) | technical-design README | explicitly marked legacy runtime reference | archive first |
 | [docs/technical-design/member003_direct_test.md](/Users/macbook/poolproject/docs/technical-design/member003_direct_test.md) | member003 workbook/test flow | test reference | keep |
 | [docs/technical-design/member003_matrix_test.md](/Users/macbook/poolproject/docs/technical-design/member003_matrix_test.md) | matrix test flow | active or recent test reference | keep |
-| [docs/technical-design/member003_matrix_legacy_business_rules.md](/Users/macbook/poolproject/docs/technical-design/member003_matrix_legacy_business_rules.md) | legacy member003 research | historical cross-check | archive first |
-| [docs/technical-design/member003_matrix_legacy_findings.md](/Users/macbook/poolproject/docs/technical-design/member003_matrix_legacy_findings.md) | legacy member003 research | historical cross-check | archive first |
+| [docs/archive/technical-design-legacy/member003_matrix_legacy_business_rules.md](/Users/macbook/poolproject/docs/archive/technical-design-legacy/member003_matrix_legacy_business_rules.md) | legacy member003 research | historical cross-check | archive first |
+| [docs/archive/technical-design-legacy/member003_matrix_legacy_findings.md](/Users/macbook/poolproject/docs/archive/technical-design-legacy/member003_matrix_legacy_findings.md) | legacy member003 research | historical cross-check | archive first |
 | [docs/technical-design/member003_matrix_legacy_routing_design.md](/Users/macbook/poolproject/docs/technical-design/member003_matrix_legacy_routing_design.md) | legacy routing research | historical cross-check | archive first |
 | [docs/technical-design/member003_matrix_no_reentry_order_map.md](/Users/macbook/poolproject/docs/technical-design/member003_matrix_no_reentry_order_map.md) | matrix historical mapping | test/reference | human confirmation |
 | [docs/technical-design/member003_pv_table.md](/Users/macbook/poolproject/docs/technical-design/member003_pv_table.md) | member003 data mapping | test/reference | keep |
@@ -251,12 +251,12 @@ Root files only. Directory-level review is covered elsewhere in this report.
 | [docs/web3-ecommerce-design/design_update_locked_decisions.md](/Users/macbook/poolproject/docs/web3-ecommerce-design/design_update_locked_decisions.md) | references root planning pack | active design dependency | keep |
 | [docs/web3-ecommerce-design/schema_spec.md](/Users/macbook/poolproject/docs/web3-ecommerce-design/schema_spec.md) | references root planning pack | active design dependency | keep |
 | [docs/web3-ecommerce-design/implementation_readiness_review.md](/Users/macbook/poolproject/docs/web3-ecommerce-design/implementation_readiness_review.md) | references root planning pack | active design dependency | keep |
-| [docs/uat/2026-03-27-stephub-bao-uat-checklist.md](/Users/macbook/poolproject/docs/uat/2026-03-27-stephub-bao-uat-checklist.md) | dated UAT note | historical UAT snapshot | archive first |
-| [docs/uat/2026-04-02-bao-wap-signup-share-uat-checklist.md](/Users/macbook/poolproject/docs/uat/2026-04-02-bao-wap-signup-share-uat-checklist.md) | dated UAT note | historical UAT snapshot | archive first |
-| [docs/uat/2026-04-03-bao-wap-runtime-audit.md](/Users/macbook/poolproject/docs/uat/2026-04-03-bao-wap-runtime-audit.md) | dated UAT note | historical UAT snapshot | archive first |
-| [docs/uat/2026-04-03-wap-matrix-mobile-layout-regression.md](/Users/macbook/poolproject/docs/uat/2026-04-03-wap-matrix-mobile-layout-regression.md) | dated regression note | historical UAT snapshot | archive first |
-| [docs/uat/2026-04-06-phase1-service-review.md](/Users/macbook/poolproject/docs/uat/2026-04-06-phase1-service-review.md) | dated review note | historical review | archive first |
-| [docs/uat/2026-04-11-bao-wap-baseline.md](/Users/macbook/poolproject/docs/uat/2026-04-11-bao-wap-baseline.md) | dated baseline note | historical baseline | archive first |
+| [docs/archive/uat-history/2026-03-27-stephub-bao-uat-checklist.md](/Users/macbook/poolproject/docs/archive/uat-history/2026-03-27-stephub-bao-uat-checklist.md) | dated UAT note | historical UAT snapshot | archive first |
+| [docs/archive/uat-history/2026-04-02-bao-wap-signup-share-uat-checklist.md](/Users/macbook/poolproject/docs/archive/uat-history/2026-04-02-bao-wap-signup-share-uat-checklist.md) | dated UAT note | historical UAT snapshot | archive first |
+| [docs/archive/uat-history/2026-04-03-bao-wap-runtime-audit.md](/Users/macbook/poolproject/docs/archive/uat-history/2026-04-03-bao-wap-runtime-audit.md) | dated UAT note | historical UAT snapshot | archive first |
+| [docs/archive/uat-history/2026-04-03-wap-matrix-mobile-layout-regression.md](/Users/macbook/poolproject/docs/archive/uat-history/2026-04-03-wap-matrix-mobile-layout-regression.md) | dated regression note | historical UAT snapshot | archive first |
+| [docs/archive/uat-history/2026-04-06-phase1-service-review.md](/Users/macbook/poolproject/docs/archive/uat-history/2026-04-06-phase1-service-review.md) | dated review note | historical review | archive first |
+| [docs/archive/uat-history/2026-04-11-bao-wap-baseline.md](/Users/macbook/poolproject/docs/archive/uat-history/2026-04-11-bao-wap-baseline.md) | dated baseline note | historical baseline | archive first |
 | [docs/RUNBOOK_LOCAL_MEMBER_RESET.md](/Users/macbook/poolproject/docs/RUNBOOK_LOCAL_MEMBER_RESET.md) | member reset flow | active operator runbook | keep |
 | [docs/cleanup/pre-deploy-cleanup-audit.md](/Users/macbook/poolproject/docs/cleanup/pre-deploy-cleanup-audit.md) | previous audit base | superseded baseline | keep as audit history |
 
@@ -338,13 +338,13 @@ These may still carry historical value, but they do not look production-critical
 | [deploy/releases/commission-runtime-2026-04-29.zip](/Users/macbook/poolproject/deploy/releases/commission-runtime-2026-04-29.zip) | referenced by handoff/checklist as release artifact; historical trace matters |
 | [deploy/commission-runtime-2026-04-29-release.md](/Users/macbook/poolproject/deploy/commission-runtime-2026-04-29-release.md) | referenced by handoff/checklist; historical release note |
 | [tmp/archived_admin_ui_2026-04-28](/Users/macbook/poolproject/tmp/archived_admin_ui_2026-04-28) | explicitly archived admin UI snapshot |
-| [tmp/archived_commission_plan_2026-04-27](/Users/macbook/poolproject/tmp/archived_commission_plan_2026-04-27) | explicitly archived commission-plan snapshot |
+| [docs/archive/tmp-archived/archived_commission_plan_2026-04-27](/Users/macbook/poolproject/docs/archive/tmp-archived/archived_commission_plan_2026-04-27) | explicitly archived commission-plan snapshot |
 | [tmp/legacy-unilevel](/Users/macbook/poolproject/tmp/legacy-unilevel) | legacy flow not listed in current active technical-design scope |
 | [tmp/experimental](/Users/macbook/poolproject/tmp/experimental) | experimental scripts, not part of main script surface |
-| [docs/uat/2026-03-27-stephub-bao-uat-checklist.md](/Users/macbook/poolproject/docs/uat/2026-03-27-stephub-bao-uat-checklist.md) | dated UAT history |
-| [docs/uat/2026-04-02-bao-wap-signup-share-uat-checklist.md](/Users/macbook/poolproject/docs/uat/2026-04-02-bao-wap-signup-share-uat-checklist.md) | dated UAT history |
-| [docs/uat/2026-04-03-bao-wap-runtime-audit.md](/Users/macbook/poolproject/docs/uat/2026-04-03-bao-wap-runtime-audit.md) | dated runtime audit history |
-| [docs/uat/2026-04-03-wap-matrix-mobile-layout-regression.md](/Users/macbook/poolproject/docs/uat/2026-04-03-wap-matrix-mobile-layout-regression.md) | dated regression history |
+| [docs/archive/uat-history/2026-03-27-stephub-bao-uat-checklist.md](/Users/macbook/poolproject/docs/archive/uat-history/2026-03-27-stephub-bao-uat-checklist.md) | dated UAT history |
+| [docs/archive/uat-history/2026-04-02-bao-wap-signup-share-uat-checklist.md](/Users/macbook/poolproject/docs/archive/uat-history/2026-04-02-bao-wap-signup-share-uat-checklist.md) | dated UAT history |
+| [docs/archive/uat-history/2026-04-03-bao-wap-runtime-audit.md](/Users/macbook/poolproject/docs/archive/uat-history/2026-04-03-bao-wap-runtime-audit.md) | dated runtime audit history |
+| [docs/archive/uat-history/2026-04-03-wap-matrix-mobile-layout-regression.md](/Users/macbook/poolproject/docs/archive/uat-history/2026-04-03-wap-matrix-mobile-layout-regression.md) | dated regression history |
 
 ## 11. Human confirmation needed
 
@@ -357,8 +357,8 @@ These items were not proven safe to remove in this audit.
 | `allmember.xlsx` | still used in legacy scripts/docs |
 | `allsaletes.xlsx` | no clear active reference; local workbook only |
 | `Thai-named tax workbook` | no references found; business/legal context unknown |
-| [matrix2x2oldsetup.md](/Users/macbook/poolproject/matrix2x2oldsetup.md) | likely legacy, but still linked to `testmatrix.md` |
-| [testmatrix.md](/Users/macbook/poolproject/testmatrix.md) | linked from `matrix2x2oldsetup.md` |
+| [docs/archive/legacy-root-notes/matrix2x2oldsetup.md](/Users/macbook/poolproject/docs/archive/legacy-root-notes/matrix2x2oldsetup.md) | archived in PR 2; legacy matrix note only |
+| [docs/archive/legacy-root-notes/testmatrix.md](/Users/macbook/poolproject/docs/archive/legacy-root-notes/testmatrix.md) | archived in PR 2; linked from archived matrix note |
 | [docker-compose.yml](/Users/macbook/poolproject/docker-compose.yml) | not main production stack, but still referenced by readiness doc |
 | [PRODUCTION_SIZING_SUMMARY.md](/Users/macbook/poolproject/PRODUCTION_SIZING_SUMMARY.md) | low-signal doc, but not proven obsolete |
 | [apps/api/src/modules/api-modules.placeholder.ts](/Users/macbook/poolproject/apps/api/src/modules/api-modules.placeholder.ts) | no import references, but documents intended module surface |
@@ -378,6 +378,11 @@ These items were not proven safe to remove in this audit.
 - move dated UAT notes and explicitly historical docs into an archive location
 - move release artifact docs if the team wants a slimmer root/deploy surface
 - update links after archive move
+- status:
+  - completed in `chore/archive-legacy-docs` for root legacy notes, selected technical-design legacy docs, UAT history docs, and `archived_commission_plan_2026-04-27`
+  - excluded from this PR:
+    - `tmp/archived_admin_ui_2026-04-28` because `apps/api/src/admin-ui.controller.ts` still references it
+    - `docs/technical-design/member003_matrix_legacy_routing_design.md` because `scripts/member003-matrix-legacy-benchmarks.json` still references it
 
 ### PR 3: remove safe unused files
 
@@ -422,13 +427,13 @@ npm run smoke:pool:all
 1. [deploy/releases/commission-runtime-2026-04-29.zip](/Users/macbook/poolproject/deploy/releases/commission-runtime-2026-04-29.zip)
 2. [deploy/commission-runtime-2026-04-29-release.md](/Users/macbook/poolproject/deploy/commission-runtime-2026-04-29-release.md)
 3. [tmp/archived_admin_ui_2026-04-28](/Users/macbook/poolproject/tmp/archived_admin_ui_2026-04-28)
-4. [tmp/archived_commission_plan_2026-04-27](/Users/macbook/poolproject/tmp/archived_commission_plan_2026-04-27)
+4. [docs/archive/tmp-archived/archived_commission_plan_2026-04-27](/Users/macbook/poolproject/docs/archive/tmp-archived/archived_commission_plan_2026-04-27)
 5. [tmp/legacy-unilevel](/Users/macbook/poolproject/tmp/legacy-unilevel)
 6. [tmp/experimental](/Users/macbook/poolproject/tmp/experimental)
-7. [docs/uat/2026-03-27-stephub-bao-uat-checklist.md](/Users/macbook/poolproject/docs/uat/2026-03-27-stephub-bao-uat-checklist.md)
-8. [docs/uat/2026-04-02-bao-wap-signup-share-uat-checklist.md](/Users/macbook/poolproject/docs/uat/2026-04-02-bao-wap-signup-share-uat-checklist.md)
-9. [docs/uat/2026-04-03-bao-wap-runtime-audit.md](/Users/macbook/poolproject/docs/uat/2026-04-03-bao-wap-runtime-audit.md)
-10. [docs/uat/2026-04-03-wap-matrix-mobile-layout-regression.md](/Users/macbook/poolproject/docs/uat/2026-04-03-wap-matrix-mobile-layout-regression.md)
+7. [docs/archive/uat-history/2026-03-27-stephub-bao-uat-checklist.md](/Users/macbook/poolproject/docs/archive/uat-history/2026-03-27-stephub-bao-uat-checklist.md)
+8. [docs/archive/uat-history/2026-04-02-bao-wap-signup-share-uat-checklist.md](/Users/macbook/poolproject/docs/archive/uat-history/2026-04-02-bao-wap-signup-share-uat-checklist.md)
+9. [docs/archive/uat-history/2026-04-03-bao-wap-runtime-audit.md](/Users/macbook/poolproject/docs/archive/uat-history/2026-04-03-bao-wap-runtime-audit.md)
+10. [docs/archive/uat-history/2026-04-03-wap-matrix-mobile-layout-regression.md](/Users/macbook/poolproject/docs/archive/uat-history/2026-04-03-wap-matrix-mobile-layout-regression.md)
 
 ## Top 10 do-not-delete-before-server candidates
 
