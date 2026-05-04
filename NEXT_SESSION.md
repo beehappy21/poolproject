@@ -1,12 +1,12 @@
 # Next Session
 
-Updated: 2026-05-02
+Updated: 2026-05-04
 
 ## Branch
 
 - Current branch: `main`
-- Latest merged PR: `#19` `https://github.com/beehappy21/poolproject/pull/19`
-- Main is currently at merge commit `05b20f0`
+- Latest merged PR: `#120` `https://github.com/beehappy21/poolproject/pull/120`
+- Main is currently at merge commit `8fd80b7a`
 
 ## Recently Merged Work
 
@@ -16,6 +16,7 @@ Updated: 2026-05-02
 - PR `#17` is already merged into `main`
 - PR `#18` is already merged into `main`
 - PR `#19` is already merged into `main`
+- PR `#120` is already merged into `main`
 - Recent pool/commission/browser-check commits:
   - `03632e5` Add configurable pool rule coverage and commission summaries
   - `9e652b6` Snapshot pool item rates on orders and fix pool-rate precision
@@ -24,6 +25,7 @@ Updated: 2026-05-02
   - `ffa680f` Merge PR `#17` into `main`
   - `cde35ea` Merge PR `#18` into `main`
   - `05b20f0` Merge PR `#19` into `main`
+  - `8fd80b7a` Fix team settlement PV source and force pool reruns (`#120`)
 
 ## What To Do Next
 
@@ -48,11 +50,21 @@ Updated: 2026-05-02
   - `closePool()` in `pool.service.ts` accepts `forceReprocess`
   - end-of-day processing calls pool close with `forceReprocess`
   - `POST /pool/:poolDate/close?force=1` is available for direct rerun validation
+- Team settlement candidates now use approved-order PV from the Bangkok business day instead of `memberPackageCycle.purchaseBase`
+- This fixes the Team Bonus case where product `test` (`1000 THB / 350 PV`) could previously appear as if team base PV were `1000`
 - Local baseline rerun after the force-reprocess fix now confirms recipient-positive pool payouts again:
   - `2025-11-17` -> `poolLedgerAmount = 60`, `poolPayoutCount = 2`
   - `2025-11-18` -> `poolLedgerAmount = 60`, `poolPayoutCount = 2`
   - `2025-12-02` -> `poolLedgerAmount = 360`, `poolPayoutCount = 12`
 - Direct validation of `2025-11-22` after the fix returned `eligibleMemberCount = 6`, confirming pool reprocess is working
+- Local `member003` baseline helper is now available:
+  - `npm run test:commissions:member003-baseline -- --apply`
+- Latest baseline helper rerun completed with:
+  - `210` non-admin members
+  - `52` signup-day batches
+  - `createdOrdersSummary.created = 0`
+  - `createdOrdersSummary.existing = 210`
+  - `endOfDaySummary.processed = 52`
 - Pool funding now snapshots rate config on `OrderItem`, so later package edits do not retroactively change historical pool funding
 - Effective pool-rate snapshots were updated to use decimal-safe math instead of JS `Number`
 - Commission plan summary doc is up to date and can be used as the current handoff source for direct / unilevel / pool / matrix / cashback status
