@@ -63,10 +63,17 @@ export class PoolController {
   }
 
   @Post(":poolDate/close")
-  async closePool(@Param("poolDate") poolDate: string) {
+  async closePool(
+    @Param("poolDate") poolDate: string,
+    @Query("force") force?: string,
+  ) {
     try {
       return await this.poolService.closePool(
         requireDateOnlyString(poolDate, "poolDate"),
+        {
+          forceReprocess:
+            force === "1" || force === "true" || force === "yes",
+        },
       );
     } catch (error) {
       rethrowHttpError(error);

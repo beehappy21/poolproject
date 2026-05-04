@@ -20,6 +20,55 @@ import { PrismaService } from "../../../../infrastructure/src/prisma/prisma.serv
 import { toQualificationCycleSnapshot } from "../../../../infrastructure/src/prisma/prisma.mappers";
 import { addDecimalStrings } from "../../../../shared/utils/src/money.util";
 
+const BANGKOK_UTC_OFFSET_HOURS = 7;
+
+function toBangkokUtcDate(input: {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+  millisecond: number;
+}): Date {
+  return new Date(
+    Date.UTC(
+      input.year,
+      input.month - 1,
+      input.day,
+      input.hour - BANGKOK_UTC_OFFSET_HOURS,
+      input.minute,
+      input.second,
+      input.millisecond,
+    ),
+  );
+}
+
+function buildBangkokSingleDayRange(dateOnly: string) {
+  const [year, month, day] = dateOnly.split("-").map((value) => Number(value));
+
+  return {
+    gte: toBangkokUtcDate({
+      year,
+      month,
+      day,
+      hour: 0,
+      minute: 0,
+      second: 0,
+      millisecond: 0,
+    }),
+    lte: toBangkokUtcDate({
+      year,
+      month,
+      day,
+      hour: 23,
+      minute: 59,
+      second: 59,
+      millisecond: 999,
+    }),
+  };
+}
+
 function mapCommissionSourceTypeToPrisma(
   sourceType: CommissionSourceType,
 ):
@@ -665,71 +714,64 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
   async listTeamSettlementCandidates(
     settlementDate: string,
   ): Promise<TeamSettlementCandidateSnapshot[]> {
-    const start = new Date(`${settlementDate}T00:00:00.000Z`);
-    const nextDay = new Date(start);
-    nextDay.setUTCDate(nextDay.getUTCDate() + 1);
-
-    const users = await this.prisma.user.findMany({
+    const approvedAtRange = buildBangkokSingleDayRange(settlementDate);
+    const orders = await this.prisma.order.findMany({
       where: {
-        memberProfile: {
-          is: {
-            uplineUserId: {
-              not: null,
-            },
-            placementSide: {
-              not: null,
-            },
-          },
-        },
-        packageCycles: {
-          some: {
-            status: "ACTIVE",
-            activatedAt: {
-              lt: nextDay,
-            },
-            activeUntil: {
-              gte: start,
+        approvalStatus: "APPROVED",
+        approvedAt: approvedAtRange,
+        orderSourceType: "NORMAL",
+        user: {
+          memberProfile: {
+            is: {
+              uplineUserId: {
+                not: null,
+              },
+              placementSide: {
+                not: null,
+              },
             },
           },
         },
       },
       select: {
-        id: true,
-        memberProfile: {
+        userId: true,
+        totalPv: true,
+        user: {
           select: {
-            uplineUserId: true,
-            placementSide: true,
-          },
-        },
-        packageCycles: {
-          where: {
-            status: "ACTIVE",
-            activatedAt: {
-              lt: nextDay,
+            memberProfile: {
+              select: {
+                uplineUserId: true,
+                placementSide: true,
+              },
             },
-            activeUntil: {
-              gte: start,
-            },
-          },
-          select: {
-            purchaseBase: true,
           },
         },
       },
-      orderBy: {
-        id: "asc",
-      },
+      orderBy: [{ approvedAt: "asc" }, { id: "asc" }],
     });
 
-    return users.map((user) => ({
-      userId: user.id.toString(),
-      uplineUserId: user.memberProfile?.uplineUserId?.toString() ?? null,
-      placementSide: user.memberProfile?.placementSide ?? null,
-      totalPv: user.packageCycles.reduce(
-        (sum, cycle) => addDecimalStrings(sum, cycle.purchaseBase?.toString() ?? "0"),
-        "0",
-      ),
-    }));
+    const grouped = new Map<string, TeamSettlementCandidateSnapshot>();
+
+    for (const order of orders) {
+      const userId = order.userId.toString();
+      const existing = grouped.get(userId);
+      const totalPv = order.totalPv.toString();
+
+      if (existing) {
+        existing.totalPv = addDecimalStrings(existing.totalPv, totalPv);
+        continue;
+      }
+
+      grouped.set(userId, {
+        userId,
+        uplineUserId:
+          order.user.memberProfile?.uplineUserId?.toString() ?? null,
+        placementSide: order.user.memberProfile?.placementSide ?? null,
+        totalPv,
+      });
+    }
+
+    return [...grouped.values()];
   }
 
   async replaceTeamSettlementBatchScaffold(input: {

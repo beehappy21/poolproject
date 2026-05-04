@@ -90,7 +90,12 @@ export interface PoolServiceContract {
     snapshots: PoolEligibilityMemberSnapshot[],
   ): Promise<PoolEligibilityDecision[]>;
 
-  closePool(poolDate: string): Promise<PoolCloseResult>;
+  closePool(
+    poolDate: string,
+    options?: {
+      forceReprocess?: boolean;
+    },
+  ): Promise<PoolCloseResult>;
 
   loadApprovedOrderFunding(poolDate: string): Promise<PoolFundingInput>;
 
@@ -206,9 +211,14 @@ export class PoolService implements PoolServiceContract {
     }));
   }
 
-  async closePool(poolDate: string): Promise<PoolCloseResult> {
+  async closePool(
+    poolDate: string,
+    options?: {
+      forceReprocess?: boolean;
+    },
+  ): Promise<PoolCloseResult> {
     const existingCycle = await this.poolRepository.getPoolCycle(poolDate);
-    if (existingCycle) {
+    if (existingCycle && options?.forceReprocess !== true) {
       return {
         poolDate: existingCycle.poolDate,
         fundingTotalApprovedPv: existingCycle.fundingTotalApprovedPv,
