@@ -15,7 +15,7 @@ import { AuthService } from "./services/auth.service";
 @Module({
   imports: [
     PrismaModule,
-    MembersModule,
+    forwardRef(() => MembersModule),
     OrdersModule,
     PackagesModule,
     forwardRef(() => WalletsModule),
