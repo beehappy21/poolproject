@@ -1,6 +1,6 @@
 import { Module, forwardRef } from "@nestjs/common";
 import { PrismaModule } from "../../../infrastructure";
-import { WalletsModule } from "../../wallets";
+import { WalletsModule } from "../../wallets/src/wallets.module";
 import { MembersController } from "./controllers/members.controller";
 import { PrismaMembersRepository } from "./repositories/members.repository";
 import { MembersService } from "./services/members.service";

@@ -5,6 +5,34 @@ import { WorkerAppModule } from "./app.module";
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.createApplicationContext(WorkerAppModule);
   app.enableShutdownHooks();
+
+  let shuttingDown = false;
+
+  const keepAlive = setInterval(() => {
+    // Keep the worker event loop alive while background providers run.
+  }, 60_000);
+
+  const shutdown = async (signal: string): Promise<void> => {
+    if (shuttingDown) {
+      return;
+    }
+
+    shuttingDown = true;
+    process.stdout.write(`[worker] received ${signal}, shutting down\n`);
+
+    clearInterval(keepAlive);
+    await app.close();
+    process.exit(0);
+  };
+
+  process.once("SIGTERM", () => {
+    void shutdown("SIGTERM");
+  });
+
+  process.once("SIGINT", () => {
+    void shutdown("SIGINT");
+  });
+
   process.stdout.write("[worker] started\n");
 }
 
