@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, UnauthorizedException, forwardRef } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -8,7 +8,7 @@ import {
   AuthUserSummary,
   LineBindingSummary,
 } from "../domain/auth.types";
-import { MembersService } from "../../../members";
+import { MembersService } from "../../../members/src/services/members.service";
 import { PrismaAuthRepository } from "../repositories/auth.repository";
 
 export interface AuthServiceContract {
@@ -60,6 +60,7 @@ export class AuthService implements AuthServiceContract {
 
   constructor(
     private readonly authRepository: PrismaAuthRepository,
+    @Inject(forwardRef(() => MembersService))
     private readonly membersService: MembersService,
   ) {
     this.loadSessionsFromDisk();

@@ -4,11 +4,11 @@ import { PrismaModule } from "../../../infrastructure";
 import { CapModule } from "../../cap";
 import { CommissionsModule } from "../../commissions";
 import { MatrixModule } from "../../matrix/src";
-import { MembersModule } from "../../members";
+import { MembersModule } from "../../members/src/members.module";
 import { PoolModule } from "../../pool";
 import { QualificationModule } from "../../qualification";
 import { RiskModule } from "../../risk/src";
-import { WalletsModule } from "../../wallets";
+import { WalletsModule } from "../../wallets/src/wallets.module";
 import { OrdersController } from "./controllers/orders.controller";
 import { PrismaOrdersRepository } from "./repositories/orders.repository";
 import { OrdersService } from "./services/orders.service";
@@ -17,10 +17,10 @@ import { OrdersService } from "./services/orders.service";
   imports: [
     PrismaModule,
     CapModule,
-    MembersModule,
+    forwardRef(() => MembersModule),
     QualificationModule,
     RiskModule,
-    WalletsModule,
+    forwardRef(() => WalletsModule),
     MatrixModule,
     forwardRef(() => CommissionsModule),
     forwardRef(() => PoolModule),
