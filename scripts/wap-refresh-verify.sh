@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_DIR="$ROOT_DIR/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub"
 BUILD_DIR="$APP_DIR/build"
+BUILD_INDEX="$BUILD_DIR/index.html"
 SERVE_SCRIPT="$ROOT_DIR/scripts/serve_stephub_build.mjs"
 VERIFY_ONLY="${1:-}"
 LOCAL_URL="http://127.0.0.1:3002"
@@ -22,6 +23,10 @@ info() {
   echo "==> $*"
 }
 
+build_is_usable() {
+  [[ -f "$BUILD_INDEX" && -d "$BUILD_DIR/static" ]]
+}
+
 extract_main_hash() {
   local url="$1"
   curl -s "$url" | perl -ne 'print "$1\n" if m{/static/js/(main\.[a-z0-9]+\.js)}'
@@ -37,6 +42,12 @@ wait_for_local() {
   until curl -s "$LOCAL_ROUTE" >/dev/null 2>&1; do
     attempts=$((attempts + 1))
     if [[ "$attempts" -ge 30 ]]; then
+      if [[ "$VERIFY_ONLY" == "--verify-only" ]]; then
+        if build_is_usable; then
+          fail "Local WAP server did not become ready on $LOCAL_ROUTE. 'npm run wap:verify' does not start the local WAP server. Start it first with 'npm run wap:refresh', or manually serve the local Stephub app with 'bash scripts/run_local_stephub_app.sh' when a usable static build already exists, then rerun 'npm run wap:verify'."
+        fi
+        fail "Local WAP server did not become ready on $LOCAL_ROUTE. 'npm run wap:verify' does not start the local WAP server, and no local Stephub build was found at $BUILD_INDEX. Run 'npm run wap:refresh' to build and serve WAP locally first. If you want a manual path instead, create a usable static build and then run 'bash scripts/run_local_stephub_app.sh' before rerunning 'npm run wap:verify'."
+      fi
       fail "Local WAP server did not become ready on $LOCAL_ROUTE"
     fi
     sleep 1
@@ -56,6 +67,8 @@ if [[ "$VERIFY_ONLY" != "--verify-only" ]]; then
   info "Starting WAP build server"
   nohup env HOST=127.0.0.1 PORT=3002 node "$SERVE_SCRIPT" "$BUILD_DIR" >"$LOG_FILE" 2>&1 &
   sleep 1
+else
+  info "Verify-only mode: expecting an existing local WAP server on $LOCAL_ROUTE"
 fi
 
 wait_for_local
