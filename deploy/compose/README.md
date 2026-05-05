@@ -260,6 +260,141 @@ docker compose --env-file deploy/compose/.env -f deploy/compose/docker-compose.y
   < scripts/migrations/create_stephub_compat_views.sql
 ```
 
+## VPS Dry-Run Readiness Flow
+
+Use this sequence for the safest pre-server deployment dry-run. It separates local validation, VPS pre-boot checks, internal service validation, and public DNS verification so failures are easier to classify.
+
+### Stage 1: Local pre-copy verification
+
+Run these on the source machine before copying the repo to the VPS:
+
+```bash
+npm run ops:check:deploy-env
+npm run ops:preflight:deploy
+docker compose --env-file deploy/compose/.env -f deploy/compose/docker-compose.yml config
+```
+
+Expected purpose:
+
+- validate env template structure and placeholder coverage
+- confirm the Stephub BAO/WAP source trees still exist at the expected build paths
+- catch obvious compose syntax/config issues before copying to the VPS
+
+### Stage 2: VPS pre-boot verification
+
+Run these on the VPS after the repo and real env files are in place, but before the first full boot:
+
+```bash
+npm run ops:check:deploy-env
+npm run ops:preflight:deploy
+docker compose --env-file deploy/compose/.env -f deploy/compose/docker-compose.yml config
+docker compose --env-file deploy/compose/.env -f deploy/compose/docker-compose.yml build
+```
+
+Expected purpose:
+
+- confirm that real VPS env files still pass validation
+- confirm Docker can resolve the full compose stack on the VPS
+- confirm the BAO/WAP build contexts are complete on the target machine before any service startup
+
+### Stage 3: VPS post-boot internal verification
+
+Boot the stack in a controlled order and verify it from inside the VPS before touching public DNS:
+
+```bash
+docker compose --env-file deploy/compose/.env -f deploy/compose/docker-compose.yml up -d postgres redis
+docker compose --env-file deploy/compose/.env -f deploy/compose/docker-compose.yml --profile tools run --rm migrate
+docker compose --env-file deploy/compose/.env -f deploy/compose/docker-compose.yml exec -T postgres \
+  psql -U postgres -d poolproject \
+  < scripts/migrations/create_stephub_compat_views.sql
+docker compose --env-file deploy/compose/.env -f deploy/compose/docker-compose.yml up -d api bao wap nginx
+docker compose --profile worker --env-file deploy/compose/.env -f deploy/compose/docker-compose.yml up -d worker
+docker compose --env-file deploy/compose/.env -f deploy/compose/docker-compose.yml exec nginx nginx -t
+curl -H "Host: api.blifehealthy.com" http://127.0.0.1/health
+curl -I -H "Host: bao.blifehealthy.com" http://127.0.0.1/admin/login
+curl -I -H "Host: wap.blifehealthy.com" http://127.0.0.1/
+npm run ops:check:compose-stack
+```
+
+Expected purpose:
+
+- validate migration/bootstrap order
+- validate Nginx syntax inside the container
+- validate API, BAO, and WAP routing through local Host-header checks before any Cloudflare or DNS dependency
+
+### Stage 4: Public DNS / Cloudflare verification
+
+Only run these after DNS records point to the VPS and the internal Host-header checks already pass:
+
+```bash
+npm run ops:check:public-urls
+npm run smoke:wap:surface
+npm run smoke:bao:all
+npm run smoke:pool:all
+```
+
+Expected purpose:
+
+- validate public DNS reachability and reverse-proxy routing
+- validate the public WAP/BAO entry surfaces
+- validate smoke checks that depend on external domains
+
+## Command Classification
+
+Safe before DNS:
+
+- `npm run ops:check:deploy-env`
+- `npm run ops:preflight:deploy`
+- `docker compose --env-file deploy/compose/.env -f deploy/compose/docker-compose.yml config`
+
+Requires Docker on VPS:
+
+- `docker compose --env-file deploy/compose/.env -f deploy/compose/docker-compose.yml build`
+- `docker compose --env-file deploy/compose/.env -f deploy/compose/docker-compose.yml up -d postgres redis`
+- `docker compose --env-file deploy/compose/.env -f deploy/compose/docker-compose.yml --profile tools run --rm migrate`
+- `docker compose --env-file deploy/compose/.env -f deploy/compose/docker-compose.yml exec -T postgres ...`
+- `docker compose --env-file deploy/compose/.env -f deploy/compose/docker-compose.yml up -d api bao wap nginx`
+- `docker compose --profile worker --env-file deploy/compose/.env -f deploy/compose/docker-compose.yml up -d worker`
+- `docker compose --env-file deploy/compose/.env -f deploy/compose/docker-compose.yml exec nginx nginx -t`
+- `npm run ops:check:compose-stack`
+
+Requires live public DNS:
+
+- `npm run ops:check:public-urls`
+- `npm run smoke:wap:surface`
+- `npm run smoke:bao:all`
+- `npm run smoke:pool:all`
+
+May fail because of external DNS or network:
+
+- `npm run ops:check:public-urls`
+- `npm run smoke:wap:surface`
+- `npm run smoke:bao:all`
+- `npm run smoke:pool:all`
+
+## Failure Notes
+
+`getaddrinfo ENOTFOUND ...`
+
+- DNS resolution is not available in the current environment.
+- Do not treat this as proof of app regression by itself.
+- Re-check whether public DNS is live from the machine running the command.
+
+`docker compose ... config` failure
+
+- Usually means env/config mismatch, missing env files, or invalid compose interpolation.
+- Fix the env/config issue before trying to build or boot the stack.
+
+`nginx -t` failure
+
+- Usually means Nginx config syntax is invalid or a required mount/cert path is missing.
+- Fix Nginx configuration or volume mounts before opening public traffic.
+
+`npm run ops:check:compose-stack` curl Host-header failure
+
+- Usually means the target service has not booted cleanly yet, or local Host-header routing through Nginx is still wrong.
+- Check `docker compose ps` and service logs before assuming a code regression.
+
 4. If needed, migrate legacy LINE bindings.
 
 ```bash
