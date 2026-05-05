@@ -32,10 +32,22 @@ Latest Session Update (2026-05-05)
     - `nginx`
   - compatibility views were applied successfully
   - host-header checks passed for API / BAO / WAP
+- Worker is now stable on VPS:
+  - `docker compose ps worker` shows stable `Up`
+  - logs show `[worker] started`
+  - no remaining Nest bootstrap import error
+- Stage 4 started:
+  - `npm run smoke:wap:surface` passed
+  - `npm run smoke:bao:all` is blocked on VPS host because `./node_modules/.bin/prisma` is missing there
+  - `npm run smoke:pool:all` is blocked by the destructive reset guard:
+    - `Refusing to run destructive pool-cap smoke reset. Set ALLOW_DESTRUCTIVE_LOCAL_RESET=1 to continue.`
 - Safest next operator step:
-  - rebuild/restart worker on VPS from merged `main`
-  - confirm worker remains `Up`
-  - then continue Stage 4 public DNS / Cloudflare verification using the runbook added in PR `#128`
+  - inspect BAO/pool smoke scripts before forcing anything
+  - decide whether those smokes are intended for:
+    - VPS host execution
+    - local-only execution
+    - or a dockerized/disposable test runner
+  - do not set `ALLOW_DESTRUCTIVE_LOCAL_RESET=1` on the VPS unless using a disposable/test DB
 
 Latest Session Update (2026-05-02)
 

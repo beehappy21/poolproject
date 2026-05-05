@@ -24,23 +24,32 @@ Updated: 2026-05-05
   - Stage 3 core stack passed for `postgres`, `redis`, `api`, `bao`, `wap`, and `nginx`
   - compatibility views were applied
   - host-header checks passed for API / BAO / WAP
+- Worker is now stable on VPS after the merged bootstrap fix:
+  - `docker compose ps worker` reached stable `Up`
+  - logs show `[worker] started`
+  - no remaining Nest module/import bootstrap error
+- Stage 4 status so far:
+  - `npm run smoke:wap:surface` passed
+  - `npm run smoke:bao:all` is blocked on the VPS host because `./node_modules/.bin/prisma` is missing there
+  - `npm run smoke:pool:all` is blocked by the destructive reset guard and should not be forced on a non-disposable VPS DB
 - Important worker note:
   - worker stability was not solved by source sync alone
   - worker needed the module-bootstrap fix from PR `#129`
   - stale Docker cache was explicitly ruled out with a `--no-cache` worker rebuild during investigation
 - Current safest next step:
-  - re-run the final VPS worker verification from merged `main`
-  - then continue to public DNS / Cloudflare verification and smoke checks from the VPS dry-run runbook
+  - inspect the BAO and pool smoke scripts
+  - decide whether each smoke is intended for VPS host execution, local-only execution, or a dockerized smoke runner
+  - do not force `ALLOW_DESTRUCTIVE_LOCAL_RESET=1` on the VPS unless using a disposable/test DB
 
 ## Immediate Next Steps
 
-1. On VPS, rebuild/restart the worker from merged `main` and confirm `docker compose ps worker` stays `Up`
-2. If worker stays healthy, proceed to Stage 4 public verification:
-   - `npm run ops:check:public-urls`
-   - `npm run smoke:wap:surface`
-   - `npm run smoke:bao:all`
-   - `npm run smoke:pool:all`
-3. If commission-round / pool baseline work resumes after deploy verification, first clean the local baseline test orders and rerun the baseline once for a final clean report
+1. Inspect `smoke:bao:all` and determine whether it assumes host-installed `node_modules` / Prisma tooling on the VPS
+2. Inspect `smoke:pool:all` and determine whether it is intentionally local-only because of destructive reset behavior
+3. Decide whether BAO/pool smoke should run:
+   - on local only
+   - in Docker on the VPS
+   - or against a disposable VPS test DB
+4. If commission-round / pool baseline work resumes after deploy verification, first clean the local baseline test orders and rerun the baseline once for a final clean report
 
 ## Recently Merged Work
 
