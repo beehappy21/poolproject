@@ -99,12 +99,12 @@ Notes:
 | `npm run lint` | passed | TypeScript no-emit checks completed without reported errors |
 | `npm run ops:check:deploy-env` | passed | API/BAO/WAP env example files contain required keys |
 | `npm run ops:preflight:deploy` | passed | Env validation, Stephub tree check, secret placeholder check, and compose validation completed |
-| `npm run wap:verify` | failed | Local WAP server did not become ready on `http://127.0.0.1:3002/TabNavigator` |
+| `npm run wap:verify` | failed | Local WAP server did not become ready on `http://127.0.0.1:3002/TabNavigator`; `wap:verify` is verify-only and expects a build-backed local WAP server to already be running |
 
 ## 7. Remaining risks before server
 
 - Real server secrets and server-specific env values still need final validation outside local repo checks.
-- `wap:verify` currently fails because the local WAP endpoint did not become ready; this is a runtime-readiness issue, not a cleanup-structure issue.
+- `wap:verify` currently fails because the local WAP endpoint did not become ready; this is a runtime-readiness issue, not a cleanup-structure issue. The command is verify-only and should usually be preceded by `npm run wap:refresh`, or by a manual local static-build serve flow when the WAP build already exists.
 - BAO/WAP source tree still remains a hard dependency for deploy and must stay intact.
 - Docker availability and actual server compose execution still need live environment confirmation.
 - Smoke coverage beyond these checks, especially full BAO/WAP/browser flows, should still be run before final server cutover.
