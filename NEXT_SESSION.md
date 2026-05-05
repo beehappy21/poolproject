@@ -1,12 +1,46 @@
 # Next Session
 
-Updated: 2026-05-02
+Updated: 2026-05-05
 
 ## Branch
 
 - Current branch: `main`
-- Latest merged PR: `#19` `https://github.com/beehappy21/poolproject/pull/19`
-- Main is currently at merge commit `05b20f0`
+- Latest merged PR: `#129` `https://github.com/beehappy21/poolproject/pull/129`
+- Main is currently at merge commit `9cab767b`
+
+## Latest Session Update
+
+- PR `#129` is merged into `main`:
+  - worker bootstrap circular-dependency fix
+  - direct module-file imports in the auth/members/wallets/commissions/worker chain
+  - `AuthCoreModule` added to narrow the auth dependency surface used by wallets
+  - temporary `AuthModule` debug logging removed before merge
+- Local validation passed before merge:
+  - `npm run lint`
+  - `npm run build`
+- VPS dry-run status reached a usable pre-server checkpoint:
+  - Stage 1 local pre-copy verification passed
+  - Stage 2 VPS pre-boot verification passed after installing user-level `nvm` and `Node 20`
+  - Stage 3 core stack passed for `postgres`, `redis`, `api`, `bao`, `wap`, and `nginx`
+  - compatibility views were applied
+  - host-header checks passed for API / BAO / WAP
+- Important worker note:
+  - worker stability was not solved by source sync alone
+  - worker needed the module-bootstrap fix from PR `#129`
+  - stale Docker cache was explicitly ruled out with a `--no-cache` worker rebuild during investigation
+- Current safest next step:
+  - re-run the final VPS worker verification from merged `main`
+  - then continue to public DNS / Cloudflare verification and smoke checks from the VPS dry-run runbook
+
+## Immediate Next Steps
+
+1. On VPS, rebuild/restart the worker from merged `main` and confirm `docker compose ps worker` stays `Up`
+2. If worker stays healthy, proceed to Stage 4 public verification:
+   - `npm run ops:check:public-urls`
+   - `npm run smoke:wap:surface`
+   - `npm run smoke:bao:all`
+   - `npm run smoke:pool:all`
+3. If commission-round / pool baseline work resumes after deploy verification, first clean the local baseline test orders and rerun the baseline once for a final clean report
 
 ## Recently Merged Work
 

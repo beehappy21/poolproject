@@ -1,7 +1,41 @@
 Handoff Next
 
-Updated: 2026-05-02 13:30 +07
+Updated: 2026-05-05 13:10 +07
 Branch: `main`
+
+Latest Session Update (2026-05-05)
+
+- Merged PR `#129` into `main`:
+  - `fix: stabilize worker module bootstrap`
+  - merge commit on `main`: `9cab767b`
+- Root cause that was verified during VPS dry-run:
+  - worker restart was not caused by DB schema drift
+  - worker restart was not caused by stale VPS source after host-copy sync
+  - worker restart was not caused by Docker cache after a `--no-cache` worker rebuild check
+  - remaining issue was current Nest module bootstrap wiring in the auth/members/wallets/commissions/worker chain
+- Fix shape that landed:
+  - replace barrel-based Nest module imports with direct module-file imports in the circular chain
+  - add `AuthCoreModule` so `WalletsModule` depends on the narrower auth service/repository wiring instead of the full `AuthModule` graph
+  - remove temporary debug logging before merge
+- Local validation completed:
+  - `npm run lint` passed
+  - `npm run build` passed
+- VPS dry-run checkpoint:
+  - Stage 1 local pre-copy verification passed
+  - Stage 2 VPS pre-boot verification passed after installing user-level `nvm` and `Node 20`
+  - Stage 3 passed for:
+    - `postgres`
+    - `redis`
+    - `api`
+    - `bao`
+    - `wap`
+    - `nginx`
+  - compatibility views were applied successfully
+  - host-header checks passed for API / BAO / WAP
+- Safest next operator step:
+  - rebuild/restart worker on VPS from merged `main`
+  - confirm worker remains `Up`
+  - then continue Stage 4 public DNS / Cloudflare verification using the runbook added in PR `#128`
 
 Latest Session Update (2026-05-02)
 
