@@ -2,11 +2,15 @@
 
 namespace App\Http\Controllers\Platform;
 
+use App\Support\BaoAdminApiClient;
+use App\Support\CommissionBaselineDayRunner;
 use App\Support\CommissionReportBuilder;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\File;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Orchid\Support\Facades\Alert;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
@@ -17,6 +21,61 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class CommissionReportController extends Controller
 {
     private const PDF_EXPORT_ROW_LIMIT = 500;
+
+    public function processSingleDay(Request $request, BaoAdminApiClient $apiClient): RedirectResponse
+    {
+        $validated = $request->validate([
+            'settlement_date' => ['nullable', 'date_format:Y-m-d'],
+            'report_mode' => ['nullable', 'string'],
+            'member_from' => ['nullable', 'string'],
+            'member_to' => ['nullable', 'string'],
+            'date_from' => ['nullable', 'string'],
+            'date_to' => ['nullable', 'string'],
+            'page_size' => ['nullable', 'string'],
+            'format' => ['nullable', 'string'],
+        ]);
+
+        $mode = CommissionReportBuilder::normalizeMode((string) ($validated['report_mode'] ?? 'overview'));
+        if (CommissionBaselineDayRunner::nextActionDate() === null) {
+            Alert::warning('ไม่พบวันที่รอคำนวณเพิ่มเติมแล้ว');
+
+            return redirect()
+                ->route($this->routeNameForMode($mode), $this->queryParamsForRedirect($validated));
+        }
+
+        try {
+            $run = CommissionBaselineDayRunner::runNextDay($apiClient);
+        } catch (\Throwable $exception) {
+            Alert::error($exception->getMessage());
+
+            return redirect()
+                ->route($this->routeNameForMode($mode), $this->queryParamsForRedirect($validated));
+        }
+
+        $message = 'คำนวณคอมมิชชั่นรายวันสำหรับวันที่ ' . $run['settlementDate'] . ' เรียบร้อยแล้ว';
+        if (!empty($run['seeded'])) {
+            $message .= sprintf(
+                ' พร้อมสร้าง order baseline %d รายการ',
+                (int) ($run['createdOrderCount'] ?? 0)
+            );
+        }
+        if (!empty($run['processedExistingOrderCount'])) {
+            $message .= sprintf(
+                ' และประมวลผล order ค้างเดิมต่อ %d รายการ',
+                (int) ($run['processedExistingOrderCount'] ?? 0)
+            );
+        }
+        if (!empty($run['reusedOrderCount'])) {
+            $message .= sprintf(
+                ' (reuse order เดิม %d รายการ)',
+                (int) ($run['reusedOrderCount'] ?? 0)
+            );
+        }
+        Alert::info($message);
+
+        return redirect()
+            ->route($this->routeNameForMode($mode), $this->queryParamsForRedirect($validated));
+    }
 
     public function export(Request $request, ?string $reportMode = 'overview'): StreamedResponse
     {
@@ -170,6 +229,29 @@ class CommissionReportController extends Controller
             number_format((float) $row['rate'], 2, '.', ''),
             number_format((float) $row['amount'], 2, '.', ''),
         ];
+    }
+
+    private function routeNameForMode(string $mode): string
+    {
+        return match ($mode) {
+            'direct' => 'platform.commission.report.direct',
+            'team' => 'platform.commission.report.team',
+            'matching' => 'platform.commission.report.matching',
+            'pool' => 'platform.commission.report.pool',
+            default => 'platform.commission.report',
+        };
+    }
+
+    private function queryParamsForRedirect(array $validated): array
+    {
+        return array_filter([
+            'member_from' => $validated['member_from'] ?? null,
+            'member_to' => $validated['member_to'] ?? null,
+            'date_from' => $validated['date_from'] ?? null,
+            'date_to' => $validated['date_to'] ?? null,
+            'page_size' => $validated['page_size'] ?? null,
+            'format' => $validated['format'] ?? null,
+        ], static fn ($value) => $value !== null && $value !== '');
     }
 
     private function tabularData(string $mode, $rows): array

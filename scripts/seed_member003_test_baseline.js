@@ -14,6 +14,7 @@ const POSTGRES_USER = process.env.POSTGRES_USER || "postgres";
 const ADMIN_IDENTIFIER =
   process.env.BASELINE_ADMIN_IDENTIFIER || "dev-admin@example.com";
 const ADMIN_PASSWORD = process.env.BASELINE_ADMIN_PASSWORD || "472121";
+const INTERNAL_BAO_TOKEN = (process.env.INTERNAL_RECEIPT_TOKEN || "").trim();
 const ROOT = path.resolve(__dirname, "..");
 const RUNTIME_DIR = path.join(ROOT, "runtime");
 const SOURCE_TAG =
@@ -99,6 +100,9 @@ function request(requestPath, options = {}) {
         method: options.method || "GET",
         headers: {
           ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
+          ...(options.internalBaoToken
+            ? { "x-internal-bao-token": options.internalBaoToken }
+            : {}),
           ...(payload
             ? {
                 "content-type": "application/json",
@@ -183,6 +187,20 @@ async function loginAdmin() {
     },
   });
   return response.accessToken;
+}
+
+async function resolveApiAuth() {
+  if (INTERNAL_BAO_TOKEN) {
+    return {
+      mode: "internal-bao-token",
+      internalBaoToken: INTERNAL_BAO_TOKEN,
+    };
+  }
+
+  return {
+    mode: "bearer",
+    token: await loginAdmin(),
+  };
 }
 
 function parseMemberRows(raw) {
@@ -522,15 +540,11 @@ function backfillOrderDates(orderId, userId, approvedAtIso) {
   const quoted = sqlLiteral(approvedAtIso);
   runPsql(`
     update "Order"
-    set "createdAt" = ${quoted}::timestamptz,
-        "updatedAt" = ${quoted}::timestamptz,
-        "paidAt" = coalesce("paidAt", ${quoted}::timestamptz),
-        "approvedAt" = ${quoted}::timestamptz
+    set "updatedAt" = ${quoted}::timestamptz
     where id = ${sqlLiteral(orderId)}::bigint;
 
     update "OrderItem"
-    set "createdAt" = ${quoted}::timestamptz,
-        "updatedAt" = ${quoted}::timestamptz
+    set "updatedAt" = ${quoted}::timestamptz
     where "orderId" = ${sqlLiteral(orderId)}::bigint;
 
     update "CommissionLedger"
@@ -582,7 +596,24 @@ function backfillOrderDates(orderId, userId, approvedAtIso) {
   `);
 }
 
-async function seedOrders({ members, productDetailId, token }) {
+function prepareOrderForApprovedProcessing(orderId, approvedAtIso) {
+  const quoted = sqlLiteral(approvedAtIso);
+  runPsql(`
+    update "Order"
+    set "createdAt" = ${quoted}::timestamptz,
+        "updatedAt" = ${quoted}::timestamptz,
+        "paidAt" = coalesce("paidAt", ${quoted}::timestamptz),
+        "approvedAt" = ${quoted}::timestamptz
+    where id = ${sqlLiteral(orderId)}::bigint;
+
+    update "OrderItem"
+    set "createdAt" = ${quoted}::timestamptz,
+        "updatedAt" = ${quoted}::timestamptz
+    where "orderId" = ${sqlLiteral(orderId)}::bigint;
+  `);
+}
+
+async function seedOrders({ members, productDetailId, auth }) {
   const existingOrders = loadExistingOrders();
   const createdOrders = [];
 
@@ -616,9 +647,11 @@ async function seedOrders({ members, productDetailId, token }) {
       continue;
     }
 
-    const created = await expectOk("/orders", {
+    const orderCreatePath = auth.internalBaoToken ? "/internal/bao/orders" : "/orders";
+    const created = await expectOk(orderCreatePath, {
       method: "POST",
-      token,
+      token: auth.token,
+      internalBaoToken: auth.internalBaoToken,
       body: {
         userId: member.userId,
         productDetailId,
@@ -632,13 +665,22 @@ async function seedOrders({ members, productDetailId, token }) {
       },
     });
 
-    await expectOk(`/orders/${created.orderId}/approve`, {
+    const approvePath = auth.internalBaoToken
+      ? `/internal/bao/orders/${created.orderId}/approve`
+      : `/orders/${created.orderId}/approve`;
+    await expectOk(approvePath, {
       method: "POST",
-      token,
+      token: auth.token,
+      internalBaoToken: auth.internalBaoToken,
     });
-    await expectOk(`/orders/${created.orderId}/process-approved`, {
+    prepareOrderForApprovedProcessing(created.orderId, approvedAtIso);
+    const processApprovedPath = auth.internalBaoToken
+      ? `/internal/bao/orders/${created.orderId}/process-approved`
+      : `/orders/${created.orderId}/process-approved`;
+    await expectOk(processApprovedPath, {
       method: "POST",
-      token,
+      token: auth.token,
+      internalBaoToken: auth.internalBaoToken,
     });
     backfillOrderDates(created.orderId, member.userId, approvedAtIso);
 
@@ -654,7 +696,7 @@ async function seedOrders({ members, productDetailId, token }) {
   return createdOrders;
 }
 
-async function processEndOfDayByDate({ dates, token }) {
+async function processEndOfDayByDate({ dates, auth }) {
   const results = [];
   for (const settlementDate of dates) {
     if (!APPLY) {
@@ -665,13 +707,14 @@ async function processEndOfDayByDate({ dates, token }) {
       continue;
     }
 
-    const result = await expectOk(
-      `/commissions/end-of-day/${settlementDate}/process`,
-      {
+    const processPath = auth.internalBaoToken
+      ? `/internal/bao/commissions/end-of-day/${settlementDate}/process`
+      : `/commissions/end-of-day/${settlementDate}/process`;
+    const result = await expectOk(processPath, {
       method: "POST",
-      token,
-      },
-    );
+      token: auth.token,
+      internalBaoToken: auth.internalBaoToken,
+    });
     results.push({
       settlementDate,
       status: "processed",
@@ -930,15 +973,15 @@ async function main() {
     return;
   }
 
-  const token = await loginAdmin();
+  const auth = await resolveApiAuth();
   const createdOrders = await seedOrders({
     members,
     productDetailId: catalog.productDetailId,
-    token,
+    auth,
   });
   const endOfDayRuns = await processEndOfDayByDate({
     dates: uniqueDates,
-    token,
+    auth,
   });
   const dailySummary = loadDailySummary(members);
   const bao = buildBaoSummary(dailySummary);

@@ -2,6 +2,7 @@
 
 namespace App\Orchid\Screens\Commission;
 
+use App\Support\CommissionBaselineDayRunner;
 use App\Support\CommissionReportBuilder;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -42,6 +43,7 @@ class CommissionReportScreen extends Screen
             'commissionReportRows' => $paginator,
             'commissionReportTotals' => $reportTotals,
             'commissionReportSummaryCards' => $report['summaryCards'],
+            'nextPendingSettlementDate' => CommissionBaselineDayRunner::nextActionDate(),
             'commissionNav' => CommissionSettingsScreen::commissionNav($mode, $request->except('page')),
             'commissionSection' => [
                 'title' => $report['title'],

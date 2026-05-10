@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 
 const apply = process.argv.includes("--apply");
 const sqlOnly = process.argv.includes("--sql-only");
+const dropAdminUsers = process.argv.includes("--drop-admin-users");
 const allowDestructiveReset = process.env.ALLOW_DESTRUCTIVE_LOCAL_RESET === "1";
 const container = process.env.POSTGRES_DOCKER_CONTAINER || "poolproject-postgres";
 const databaseUrl =
@@ -24,6 +25,8 @@ function runPsql(args, input) {
 function preflightCounts() {
   const sql = `
 select 'users_total' as metric, count(*)::text as value from public."User"
+union all
+select 'users_admin', count(*)::text from public."User" where coalesce("isAdmin", false) = true
 union all
 select 'users_non_admin', count(*)::text from public."User" where coalesce("isAdmin", false) = false
 union all
@@ -94,10 +97,10 @@ delete from public."MemberProfile";
 update public."User"
 set "sponsorId" = null,
     "updatedAt" = now()
-where coalesce("isAdmin", false) = false;
+where ${dropAdminUsers ? "true" : 'coalesce("isAdmin", false) = false'};
 
 delete from public."User"
-where coalesce("isAdmin", false) = false;
+where ${dropAdminUsers ? "true" : 'coalesce("isAdmin", false) = false'};
 
 -- 4) Reset identities for key tables.
 alter sequence if exists public."User_id_seq" restart with 1;
@@ -125,6 +128,7 @@ function main() {
 
   process.stdout.write(`container=${container}\n`);
   process.stdout.write(`database_url=${databaseUrl}\n`);
+  process.stdout.write(`drop_admin_users=${dropAdminUsers ? "yes" : "no"}\n`);
   process.stdout.write("preflight_before\n");
   process.stdout.write(before + "\n");
 

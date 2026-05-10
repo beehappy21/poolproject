@@ -155,6 +155,8 @@ Route::middleware('admin.access:'.AdminPermissions::COMMISSIONS_MANAGE)->group(f
 
   Route::get('commission/report/export/{reportMode?}', [CommissionReportController::class, 'export'])
     ->name('platform.commission.report.export');
+  Route::post('commission/report/process-single-day', [CommissionReportController::class, 'processSingleDay'])
+    ->name('platform.commission.report.processSingleDay');
 
   Route::post('commission/save', [CommissionSettingsController::class, 'saveCommission'])
     ->name('platform.commission.save');

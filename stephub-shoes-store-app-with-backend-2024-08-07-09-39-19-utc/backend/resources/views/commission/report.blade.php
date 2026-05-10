@@ -8,6 +8,7 @@
     $accent = $section['accent'] ?? '#2563eb';
     $reportMode = $reportMode ?? 'overview';
     $selectedFormat = strtolower((string) request('format', 'csv'));
+    $nextPendingSettlementDate = $nextPendingSettlementDate ?? null;
     $resultCount = $rows instanceof \Illuminate\Contracts\Pagination\Paginator
         ? (int) $rows->total()
         : (is_countable($rows) ? count($rows) : 0);
@@ -49,6 +50,7 @@
     .commission-button { display:inline-flex; align-items:center; justify-content:center; border:0; border-radius:10px; padding:.8rem 1rem; font-weight:700; color:#fff; background:{{ $accent }}; text-decoration:none; }
     .commission-button.is-secondary { background:#e2e8f0; color:#334155; }
     .commission-button.is-ghost { background:#fff; color:#334155; border:1px solid #cbd5e1; }
+    .commission-button.is-warning { background:#b45309; color:#fff; }
     .commission-filter-summary { display:flex; flex-wrap:wrap; gap:.6rem; margin-top:1rem; }
     .commission-chip { display:inline-flex; align-items:center; gap:.4rem; padding:.45rem .75rem; border-radius:999px; background:color-mix(in srgb, {{ $accent }} 8%, #fff); color:#334155; font-size:.88rem; border:1px solid color-mix(in srgb, {{ $accent }} 18%, #dbe2ea); }
     .commission-table-wrap { overflow:auto; }
@@ -71,10 +73,13 @@
     .commission-pagination-wrap { margin-top:1rem; }
     .commission-export-select { max-width:160px; }
     .commission-form { display:block; }
+    .commission-calc-inline { display:flex; gap:.75rem; flex-wrap:wrap; align-items:flex-end; margin-top:1rem; padding:1rem; border:1px dashed color-mix(in srgb, {{ $accent }} 24%, #cbd5e1); border-radius:14px; background:color-mix(in srgb, {{ $accent }} 4%, #fff); }
+    .commission-calc-inline .commission-field { min-width:220px; margin:0; }
     @media (max-width:640px) {
         .commission-actions { flex-direction:column; align-items:stretch; }
         .commission-export-select { max-width:none; width:100%; }
         .commission-button { width:100%; }
+        .commission-calc-inline { align-items:stretch; }
     }
     @media (max-width:980px) { .commission-shell { grid-template-columns:1fr; } }
 </style>
@@ -160,9 +165,38 @@
                         ส่งออกไฟล์
                     </button>
                 </div>
-                <div class="commission-inline-note">
-                    PDF เหมาะกับรายงานขนาดเล็ก และรองรับการส่งออกได้ไม่เกิน 500 แถวต่อครั้ง หากข้อมูลมากกว่านี้แนะนำให้ใช้ CSV หรือ Excel
+                <div class="commission-calc-inline">
+                    <div class="commission-field">
+                        <label>วันถัดไปที่รอคำนวณ</label>
+                        <input
+                            type="text"
+                            value="{{ $nextPendingSettlementDate ?? 'คำนวณครบทุกวันแล้ว' }}"
+                            readonly
+                        >
+                    </div>
+                    <button
+                        type="button"
+                        id="commission-process-single-day-button"
+                        class="commission-button is-warning"
+                        @disabled(!$nextPendingSettlementDate)
+                    >
+                        คำนวณวันถัดไป
+                    </button>
                 </div>
+                <div class="commission-inline-note">
+                    ปุ่มนี้จะสร้าง order ของวันถัดไปตามวันสมัครและเรียงตามรหัสสมาชิกด้วยสินค้าทดสอบ 1000 บาท / 350 PV หากวันนั้นยังไม่มี baseline order จากนั้นจะคำนวณ end-of-day ของวันนั้นทันที ถ้าวันก่อนหน้าถูกสร้างไว้แล้วแต่ยังไม่คำนวณ ระบบจะใช้วันค้างนั้นก่อน ส่วน PDF เหมาะกับรายงานขนาดเล็ก และรองรับการส่งออกได้ไม่เกิน 500 แถวต่อครั้ง หากข้อมูลมากกว่านี้แนะนำให้ใช้ CSV หรือ Excel
+                </div>
+            </form>
+            <form id="commission-single-day-form" method="POST" action="{{ route('platform.commission.report.processSingleDay') }}">
+                @csrf
+                <input type="hidden" name="settlement_date" value="{{ $nextPendingSettlementDate ?? '' }}">
+                <input type="hidden" name="report_mode" value="{{ $reportMode }}">
+                <input type="hidden" name="member_from" value="{{ $filters['memberFrom'] ?? '' }}">
+                <input type="hidden" name="member_to" value="{{ $filters['memberTo'] ?? '' }}">
+                <input type="hidden" name="date_from" value="{{ $filters['dateFrom'] ?? '' }}">
+                <input type="hidden" name="date_to" value="{{ $filters['dateTo'] ?? '' }}">
+                <input type="hidden" name="page_size" value="{{ $filters['pageSize'] ?? 25 }}">
+                <input type="hidden" name="format" value="{{ $selectedFormat }}">
             </form>
         </div>
 
@@ -291,8 +325,10 @@
     (() => {
         const form = document.getElementById('commission-report-form');
         const exportButton = document.getElementById('commission-export-button');
+        const processSingleDayButton = document.getElementById('commission-process-single-day-button');
+        const processSingleDayForm = document.getElementById('commission-single-day-form');
 
-        if (!form || !exportButton) {
+        if (!form) {
             return;
         }
 
@@ -314,11 +350,19 @@
             return params;
         };
 
-        exportButton.addEventListener('click', () => {
-            const params = buildParams();
-            const exportUrl = exportButton.dataset.exportUrl || '';
-            const targetUrl = params.toString() !== '' ? `${exportUrl}?${params.toString()}` : exportUrl;
-            window.open(targetUrl, '_blank', 'noopener');
-        });
+        if (exportButton) {
+            exportButton.addEventListener('click', () => {
+                const params = buildParams();
+                const exportUrl = exportButton.dataset.exportUrl || '';
+                const targetUrl = params.toString() !== '' ? `${exportUrl}?${params.toString()}` : exportUrl;
+                window.open(targetUrl, '_blank', 'noopener');
+            });
+        }
+
+        if (processSingleDayButton && processSingleDayForm && !processSingleDayButton.disabled) {
+            processSingleDayButton.addEventListener('click', () => {
+                processSingleDayForm.submit();
+            });
+        }
     })();
 </script>
