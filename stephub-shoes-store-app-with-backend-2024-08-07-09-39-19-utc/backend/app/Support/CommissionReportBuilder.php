@@ -27,6 +27,8 @@ class CommissionReportBuilder
         'pool' => 'รายงานพูลโบนัส',
     ];
 
+    private const REPORT_DATE_SQL = 'coalesce(cl."commissionDate", ((cl."evaluationAt" + interval \'7 hour\')::date), ((cl."createdAt" + interval \'7 hour\')::date))';
+
     public static function normalizeMode(?string $mode): string
     {
         $mode = (string) ($mode ?? 'overview');
@@ -36,12 +38,16 @@ class CommissionReportBuilder
 
     public static function filtersFromRequest(Request $request): array
     {
+        $pageSizeInput = trim((string) $request->input('page_size', '25'));
+        $showAll = strtolower($pageSizeInput) === 'all';
+
         return [
             'memberFrom' => trim((string) $request->input('member_from', '')),
             'memberTo' => trim((string) $request->input('member_to', '')),
             'dateFrom' => trim((string) $request->input('date_from', '')),
             'dateTo' => trim((string) $request->input('date_to', '')),
-            'pageSize' => max(10, min(100, (int) $request->input('page_size', 25))),
+            'pageSize' => $showAll ? null : max(10, min(100, (int) $request->input('page_size', 25))),
+            'pageSizeInput' => $showAll ? 'all' : (string) max(10, min(100, (int) $request->input('page_size', 25))),
         ];
     }
 
@@ -73,16 +79,16 @@ class CommissionReportBuilder
     {
         $row = DB::connection('poolproject')->selectOne(<<<'SQL'
             with approved_dates as (
-                select distinct to_char("approvedAt" at time zone 'Asia/Bangkok', 'YYYY-MM-DD') as settlement_date
+                select distinct to_char(("approvedAt" + interval '7 hour')::date, 'YYYY-MM-DD') as settlement_date
                 from "Order"
                 where "approvedAt" is not null
             )
             select min(approved_dates.settlement_date) as settlement_date
             from approved_dates
             left join "TeamSettlementBatch" team_batch
-                on to_char(team_batch."settlementDate" at time zone 'Asia/Bangkok', 'YYYY-MM-DD') = approved_dates.settlement_date
+                on to_char(team_batch."settlementDate", 'YYYY-MM-DD') = approved_dates.settlement_date
             left join "DailyPoolCycle" pool_cycle
-                on to_char(pool_cycle."cycleDate" at time zone 'Asia/Bangkok', 'YYYY-MM-DD') = approved_dates.settlement_date
+                on to_char(pool_cycle."cycleDate", 'YYYY-MM-DD') = approved_dates.settlement_date
             where team_batch.id is null
                or pool_cycle.id is null
         SQL);
@@ -122,11 +128,11 @@ class CommissionReportBuilder
         }
 
         if (($filters['dateFrom'] ?? '') !== '') {
-            $query->whereRaw('date(' . $tableAlias . '."createdAt") >= ?', [$filters['dateFrom']]);
+            $query->whereRaw(self::REPORT_DATE_SQL . ' >= ?', [$filters['dateFrom']]);
         }
 
         if (($filters['dateTo'] ?? '') !== '') {
-            $query->whereRaw('date(' . $tableAlias . '."createdAt") <= ?', [$filters['dateTo']]);
+            $query->whereRaw(self::REPORT_DATE_SQL . ' <= ?', [$filters['dateTo']]);
         }
     }
 
@@ -150,15 +156,18 @@ class CommissionReportBuilder
     private static function buildPagedOverview(array $filters, int $page): array
     {
         $query = self::overviewRowsQuery($filters);
-        $offset = ($page - 1) * $filters['pageSize'];
+        $pageSize = $filters['pageSize'];
+        $offset = $pageSize ? (($page - 1) * $pageSize) : 0;
 
-        $rows = (clone $query)
+        $rowsQuery = (clone $query)
             ->orderByRaw('report_date desc')
-            ->orderByRaw('beneficiary_member_code asc')
-            ->limit($filters['pageSize'])
-            ->offset($offset)
-            ->get()
-            ->map(fn ($row) => self::mapOverviewRow($row));
+            ->orderByRaw('beneficiary_member_code asc');
+
+        if ($pageSize) {
+            $rowsQuery->limit($pageSize)->offset($offset);
+        }
+
+        $rows = $rowsQuery->get()->map(fn ($row) => self::mapOverviewRow($row));
 
         $totalsRow = self::overviewTotalsRow($filters);
         $totals = self::mapOverviewTotals($totalsRow);
@@ -178,7 +187,7 @@ class CommissionReportBuilder
 
         $detailRows = (clone $detailQuery)
             ->selectRaw(
-                'date(cl."createdAt") as report_date,
+                self::REPORT_DATE_SQL . ' as report_date,
                 beneficiary."memberCode" as beneficiary_member_code,
                 beneficiary."name" as beneficiary_name,
                 source."memberCode" as source_member_code,
@@ -188,7 +197,7 @@ class CommissionReportBuilder
                 cl."rate" as rate,
                 cl."commissionAmount" as amount'
             )
-            ->orderByRaw('cl."createdAt" desc')
+            ->orderByRaw(self::REPORT_DATE_SQL . ' desc')
             ->orderByRaw('cl."id" desc')
             ->get()
             ->map(fn ($row) => [
@@ -265,7 +274,7 @@ class CommissionReportBuilder
     {
         return self::baseLedgerQuery($filters)
             ->selectRaw(
-                'date(cl."createdAt") as report_date,
+                self::REPORT_DATE_SQL . ' as report_date,
                 coalesce(beneficiary."memberCode", \'' . self::COMPANY_FALLBACK_MEMBER_CODE . '\') as beneficiary_member_code,
                 coalesce(beneficiary."name", \'' . self::COMPANY_FALLBACK_NAME . '\') as beneficiary_name,
                 coalesce(sum(case when cl."commissionType" = \'DIRECT\' then cl."commissionAmount" else 0 end), 0) as direct_amount,
@@ -275,7 +284,7 @@ class CommissionReportBuilder
                 coalesce(sum(cl."commissionAmount"), 0) as total_amount'
             )
             ->whereIn(DB::raw('cl."commissionType"'), ['DIRECT', 'TEAM_2LEG', 'TEAM_3LEG', 'MATCHING_L1', 'MATCHING_L2', 'POOL'])
-            ->groupByRaw('date(cl."createdAt"), coalesce(beneficiary."memberCode", \'' . self::COMPANY_FALLBACK_MEMBER_CODE . '\'), coalesce(beneficiary."name", \'' . self::COMPANY_FALLBACK_NAME . '\')');
+            ->groupByRaw(self::REPORT_DATE_SQL . ', coalesce(beneficiary."memberCode", \'' . self::COMPANY_FALLBACK_MEMBER_CODE . '\'), coalesce(beneficiary."name", \'' . self::COMPANY_FALLBACK_NAME . '\')');
     }
 
     private static function overviewTotalsRow(array $filters): object
@@ -348,11 +357,12 @@ class CommissionReportBuilder
     private static function buildPagedLedgerDetail(string $mode, array $filters, int $page): array
     {
         $query = self::ledgerDetailQuery($filters, self::ledgerCommissionTypesForMode($mode));
-        $offset = ($page - 1) * $filters['pageSize'];
+        $pageSize = $filters['pageSize'];
+        $offset = $pageSize ? (($page - 1) * $pageSize) : 0;
 
-        $rows = (clone $query)
+        $rowsQuery = (clone $query)
             ->selectRaw(
-                'date(cl."createdAt") as report_date,
+                self::REPORT_DATE_SQL . ' as report_date,
                 coalesce(beneficiary."memberCode", \'' . self::COMPANY_FALLBACK_MEMBER_CODE . '\') as beneficiary_member_code,
                 coalesce(beneficiary."name", \'' . self::COMPANY_FALLBACK_NAME . '\') as beneficiary_name,
                 source."memberCode" as source_member_code,
@@ -362,12 +372,14 @@ class CommissionReportBuilder
                 cl."rate" as rate,
                 cl."commissionAmount" as amount'
             )
-            ->orderByRaw('cl."createdAt" desc')
-            ->orderByRaw('cl."id" desc')
-            ->limit($filters['pageSize'])
-            ->offset($offset)
-            ->get()
-            ->map(fn ($row) => self::mapLedgerDetailRow($row));
+            ->orderByRaw(self::REPORT_DATE_SQL . ' desc')
+            ->orderByRaw('cl."id" desc');
+
+        if ($pageSize) {
+            $rowsQuery->limit($pageSize)->offset($offset);
+        }
+
+        $rows = $rowsQuery->get()->map(fn ($row) => self::mapLedgerDetailRow($row));
 
         $totalsRow = (clone $query)
             ->selectRaw(
@@ -505,7 +517,7 @@ class CommissionReportBuilder
 
         return (clone self::ledgerDetailQuery($filters, self::ledgerCommissionTypesForMode($mode)))
             ->selectRaw(
-                'date(cl."createdAt") as report_date,
+                self::REPORT_DATE_SQL . ' as report_date,
                 coalesce(beneficiary."memberCode", \'' . self::COMPANY_FALLBACK_MEMBER_CODE . '\') as beneficiary_member_code,
                 coalesce(beneficiary."name", \'' . self::COMPANY_FALLBACK_NAME . '\') as beneficiary_name,
                 source."memberCode" as source_member_code,
@@ -515,7 +527,7 @@ class CommissionReportBuilder
                 cl."rate" as rate,
                 cl."commissionAmount" as amount'
             )
-            ->orderByRaw('cl."createdAt" desc')
+            ->orderByRaw(self::REPORT_DATE_SQL . ' desc')
             ->orderByRaw('cl."id" desc')
             ->cursor()
             ->map(fn ($row) => self::mapLedgerDetailRow($row));

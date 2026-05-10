@@ -225,11 +225,10 @@ function parseMemberRows(raw) {
 }
 
 function toBangkokSequencedIso(dateOnly, sequence = 1) {
-  const [year, month, day] = dateOnly
-    .split("-")
-    .map((value) => Number.parseInt(value, 10));
   const minuteOffset = Math.max(0, Number(sequence || 1) - 1);
-  return new Date(Date.UTC(year, month - 1, day, 5, minuteOffset, 0, 0)).toISOString();
+  const minute = String(minuteOffset % 60).padStart(2, "0");
+  const hour = String(5 + Math.floor(minuteOffset / 60)).padStart(2, "0");
+  return `${dateOnly}T${hour}:${minute}:00+07:00`;
 }
 
 function uniqueDatesInOrder(rows) {
@@ -649,7 +648,7 @@ function backfillOrderDates(orderId, userId, approvedAtIso) {
     where "orderId" = ${sqlLiteral(orderId)}::bigint;
 
     update "CommissionLedger"
-    set "commissionDate" = date(${quoted}::timestamptz),
+    set "commissionDate" = date(${quoted}::timestamptz at time zone 'Asia/Bangkok'),
         "evaluationAt" = ${quoted}::timestamptz,
         "finalizeCheckedAt" = coalesce("finalizeCheckedAt", ${quoted}::timestamptz),
         "finalizedAt" = coalesce("finalizedAt", ${quoted}::timestamptz),
@@ -826,7 +825,7 @@ function loadDailySummary(members) {
   const rows = runPsql(`
     with order_daily as (
       select
-        to_char(o."approvedAt" at time zone 'Asia/Bangkok', 'YYYY-MM-DD') as report_date,
+        to_char((o."approvedAt" + interval '7 hour')::date, 'YYYY-MM-DD') as report_date,
         count(*) as order_count,
         count(distinct o."userId") as buyer_count,
         coalesce(sum(o."totalPv"), 0)::text as total_pv,
@@ -859,7 +858,7 @@ function loadDailySummary(members) {
     ),
     fallback_daily as (
       select
-        to_char(cbl."createdAt" at time zone 'Asia/Bangkok', 'YYYY-MM-DD') as report_date,
+        to_char((cbl."createdAt" + interval '7 hour')::date, 'YYYY-MM-DD') as report_date,
         coalesce(sum(cbl."amount"), 0)::text as company_fallback_amount
       from "CompanyBonusLedger" cbl
       where cbl."sourceRefId" in (
@@ -869,14 +868,14 @@ function loadDailySummary(members) {
     ),
     pool_daily as (
       select
-        to_char(dpc."cycleDate" at time zone 'Asia/Bangkok', 'YYYY-MM-DD') as report_date,
+        to_char(dpc."cycleDate", 'YYYY-MM-DD') as report_date,
         count(*)::text as pool_payout_count,
         count(*) filter (where dpp."commissionLedgerId" is not null)::text as linked_pool_payout_count,
         coalesce(sum(dpp."payoutAmount"), 0)::text as pool_payout_amount
       from "DailyPoolPayout" dpp
       join "DailyPoolCycle" dpc on dpc.id = dpp."cycleId"
       where dpc."cycleDate" in (
-        select distinct date("approvedAt")
+        select distinct (("approvedAt" + interval '7 hour')::date)
         from "Order"
         where "shippingAddressNote" like ${sqlLiteral(`${SOURCE_TAG}|%`)}
           and "approvedAt" is not null
@@ -901,7 +900,7 @@ function loadDailySummary(members) {
       coalesce(pd.linked_pool_payout_count, '0'),
       coalesce(pd.pool_payout_amount, '0')
     from (
-      select distinct to_char("approvedAt" at time zone 'Asia/Bangkok', 'YYYY-MM-DD') as report_date
+      select distinct to_char(("approvedAt" + interval '7 hour')::date, 'YYYY-MM-DD') as report_date
       from "Order"
       where "shippingAddressNote" like ${sqlLiteral(`${SOURCE_TAG}|%`)}
         and "approvedAt" is not null

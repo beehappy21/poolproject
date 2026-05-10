@@ -113,6 +113,20 @@ order by u."id";
     });
 }
 
+function memberSortKey(memberCode) {
+  const digits = String(memberCode ?? "").replace(/\D/g, "");
+  return [Number(digits || "0"), String(memberCode ?? "")];
+}
+
+function compareMemberCode(a, b) {
+  const [aNum, aCode] = memberSortKey(a);
+  const [bNum, bCode] = memberSortKey(b);
+  if (aNum !== bNum) {
+    return aNum - bNum;
+  }
+  return aCode.localeCompare(bCode);
+}
+
 function buildAssignments(rows, users) {
   const rowByMemberCode = new Map();
   for (const row of rows) {
@@ -133,71 +147,146 @@ function buildAssignments(rows, users) {
 
   const userByCode = new Map(users.map((u) => [u.memberCode, u]));
   const userById = new Map(users.map((u) => [u.id, u]));
-  const root = users[0] ?? null;
   const sideCycle = ["LEFT", "MIDDLE", "RIGHT"];
-  const sideCursor = new Map();
+  const occupiedByUpline = new Map();
+  const sponsorChildren = new Map();
+  const rootMemberCodes = [];
 
   const assignments = [];
-  let fallbackToSponsor = 0;
-  let fallbackToRoot = 0;
-  let sideAutoAssigned = 0;
-  let sideFromSheet = 0;
+  let rootCount = 0;
+  let assignedCount = 0;
+  let derivedFromWorkbookSponsor = 0;
+  let derivedFromUserSponsor = 0;
 
-  for (const user of users) {
-    const row = rowByMemberCode.get(user.memberCode) ?? {
-      memberCode: user.memberCode,
-      uplineCode: null,
-      sponsorCode: null,
-      side: null,
-      nationalId: null,
-      rankCode: null,
-      honorTitle: null,
-      mobileCenterCode: null,
-      joinedAtOverride: null,
-    };
-
-    let uplineId = null;
-    if (row.uplineCode && userByCode.has(row.uplineCode)) {
-      uplineId = userByCode.get(row.uplineCode).id;
-    } else if (row.sponsorCode && userByCode.has(row.sponsorCode)) {
-      uplineId = userByCode.get(row.sponsorCode).id;
-      fallbackToSponsor += 1;
-    } else if (user.sponsorId && userById.has(user.sponsorId)) {
-      uplineId = user.sponsorId;
-      fallbackToSponsor += 1;
-    } else if (root && root.id !== user.id) {
-      uplineId = root.id;
-      fallbackToRoot += 1;
-    }
-
-    if (uplineId === user.id) {
-      uplineId = null;
-    }
-
-    let side = row.side;
-    if (uplineId) {
-      if (!side) {
-        const cursor = sideCursor.get(uplineId) ?? 0;
-        side = sideCycle[cursor % sideCycle.length];
-        sideCursor.set(uplineId, cursor + 1);
-        sideAutoAssigned += 1;
-      } else {
-        sideFromSheet += 1;
+  const normalizedUsers = users
+    .map((user) => {
+      const row = rowByMemberCode.get(user.memberCode) ?? {
+        memberCode: user.memberCode,
+        uplineCode: null,
+        sponsorCode: null,
+        side: null,
+        nationalId: null,
+        rankCode: null,
+        honorTitle: null,
+        mobileCenterCode: null,
+        joinedAtOverride: null,
+      };
+      const sponsorUser = user.sponsorId ? userById.get(user.sponsorId) ?? null : null;
+      const sponsorCode =
+        (row.sponsorCode && userByCode.has(row.sponsorCode) && row.sponsorCode) ||
+        sponsorUser?.memberCode ||
+        null;
+      if (row.sponsorCode && userByCode.has(row.sponsorCode)) {
+        derivedFromWorkbookSponsor += 1;
+      } else if (sponsorUser?.memberCode) {
+        derivedFromUserSponsor += 1;
       }
-    } else {
-      side = null;
-    }
+      return {
+        ...user,
+        sponsorCode,
+        row,
+      };
+    })
+    .sort((a, b) => compareMemberCode(a.memberCode, b.memberCode));
 
+  for (const user of normalizedUsers) {
+    if (user.sponsorCode && user.sponsorCode !== user.memberCode && userByCode.has(user.sponsorCode)) {
+      if (!sponsorChildren.has(user.sponsorCode)) {
+        sponsorChildren.set(user.sponsorCode, []);
+      }
+      sponsorChildren.get(user.sponsorCode).push(user.memberCode);
+    } else {
+      rootMemberCodes.push(user.memberCode);
+    }
+  }
+
+  for (const children of sponsorChildren.values()) {
+    children.sort(compareMemberCode);
+  }
+  rootMemberCodes.sort(compareMemberCode);
+
+  const placementByMemberCode = new Map();
+  for (const memberCode of rootMemberCodes) {
+    placementByMemberCode.set(memberCode, { uplineUserId: null, placementSide: null });
+  }
+
+  function findNextSlot(rootMemberCode) {
+    const queue = [rootMemberCode];
+    const visited = new Set(queue);
+    while (queue.length > 0) {
+      const currentMemberCode = queue.shift();
+      const currentUser = userByCode.get(currentMemberCode);
+      if (!currentUser) {
+        continue;
+      }
+      const occupied = occupiedByUpline.get(currentUser.id) ?? new Map();
+      for (const side of sideCycle) {
+        if (!occupied.has(side)) {
+          return { uplineUserId: currentUser.id, placementSide: side };
+        }
+      }
+      for (const side of sideCycle) {
+        const childMemberCode = occupied.get(side);
+        if (childMemberCode && !visited.has(childMemberCode)) {
+          visited.add(childMemberCode);
+          queue.push(childMemberCode);
+        }
+      }
+    }
+    const fallbackUser = userByCode.get(rootMemberCode);
+    return {
+      uplineUserId: fallbackUser?.id ?? null,
+      placementSide: fallbackUser ? "LEFT" : null,
+    };
+  }
+
+  const sponsorQueue = [...rootMemberCodes];
+  const seenSponsors = new Set();
+  while (sponsorQueue.length > 0) {
+    const sponsorMemberCode = sponsorQueue.shift();
+    if (seenSponsors.has(sponsorMemberCode)) {
+      continue;
+    }
+    seenSponsors.add(sponsorMemberCode);
+
+    const children = sponsorChildren.get(sponsorMemberCode) ?? [];
+    for (const childMemberCode of children) {
+      const slot = findNextSlot(sponsorMemberCode);
+      placementByMemberCode.set(childMemberCode, slot);
+      if (slot.uplineUserId !== null && slot.placementSide) {
+        const occupied = occupiedByUpline.get(slot.uplineUserId) ?? new Map();
+        occupied.set(slot.placementSide, childMemberCode);
+        occupiedByUpline.set(slot.uplineUserId, occupied);
+        assignedCount += 1;
+      }
+      sponsorQueue.push(childMemberCode);
+    }
+  }
+
+  for (const user of normalizedUsers) {
+    if (!placementByMemberCode.has(user.memberCode)) {
+      placementByMemberCode.set(user.memberCode, { uplineUserId: null, placementSide: null });
+    }
+  }
+
+  for (const user of normalizedUsers) {
+    const placement = placementByMemberCode.get(user.memberCode) ?? {
+      uplineUserId: null,
+      placementSide: null,
+    };
+    if (placement.uplineUserId === null) {
+      rootCount += 1;
+    }
     assignments.push({
       userId: user.id,
       memberCode: user.memberCode,
-      uplineUserId: uplineId,
-      placementSide: side,
-      nationalId: row.nationalId,
-      rankCode: row.rankCode,
-      honorTitle: row.honorTitle,
-      mobileCenterCode: row.mobileCenterCode,
-      joinedAtOverride: row.joinedAtOverride,
+      uplineUserId: placement.uplineUserId,
+      placementSide: placement.placementSide,
+      nationalId: user.row.nationalId,
+      rankCode: user.row.rankCode,
+      honorTitle: user.row.honorTitle,
+      mobileCenterCode: user.row.mobileCenterCode,
+      joinedAtOverride: user.row.joinedAtOverride,
     });
   }
 
@@ -205,10 +294,11 @@ function buildAssignments(rows, users) {
     assignments,
     stats: {
       usersSeen: users.length,
-      fallbackToSponsor,
-      fallbackToRoot,
-      sideFromSheet,
-      sideAutoAssigned,
+      rootCount,
+      sponsorGroupCount: sponsorChildren.size,
+      assignedCount,
+      derivedFromWorkbookSponsor,
+      derivedFromUserSponsor,
     },
   };
 }
@@ -270,10 +360,11 @@ function main() {
   const sql = buildSql(assignments);
 
   console.log(`users_seen=${stats.usersSeen}`);
-  console.log(`fallback_to_sponsor=${stats.fallbackToSponsor}`);
-  console.log(`fallback_to_root=${stats.fallbackToRoot}`);
-  console.log(`side_from_sheet=${stats.sideFromSheet}`);
-  console.log(`side_auto_assigned=${stats.sideAutoAssigned}`);
+  console.log(`root_count=${stats.rootCount}`);
+  console.log(`sponsor_group_count=${stats.sponsorGroupCount}`);
+  console.log(`assigned_count=${stats.assignedCount}`);
+  console.log(`derived_from_workbook_sponsor=${stats.derivedFromWorkbookSponsor}`);
+  console.log(`derived_from_user_sponsor=${stats.derivedFromUserSponsor}`);
 
   if (sqlOnly) {
     process.stdout.write(sql);

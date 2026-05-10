@@ -42,7 +42,9 @@
         ($filters['memberTo'] ?? '') !== '' ? 'สมาชิกถึง: ' . $filters['memberTo'] : null,
         ($filters['dateFrom'] ?? '') !== '' ? 'วันที่เริ่ม: ' . $filters['dateFrom'] : null,
         ($filters['dateTo'] ?? '') !== '' ? 'วันที่สิ้นสุด: ' . $filters['dateTo'] : null,
-        isset($filters['pageSize']) ? 'ต่อหน้า: ' . $filters['pageSize'] : null,
+        isset($filters['pageSizeInput'])
+            ? 'ต่อหน้า: ' . (($filters['pageSizeInput'] ?? '') === 'all' ? 'ทั้งหมด' : $filters['pageSizeInput'])
+            : null,
     ]);
     $formatDecimal = static function ($value): string {
         return number_format((float) $value, 2, '.', ',');
@@ -162,8 +164,9 @@
                         <label>จำนวนต่อหน้า</label>
                         <select name="page_size">
                             @foreach ([25, 50, 100] as $size)
-                                <option value="{{ $size }}" @selected((int) ($filters['pageSize'] ?? 25) === $size)>{{ $size }}</option>
+                                <option value="{{ $size }}" @selected((string) ($filters['pageSizeInput'] ?? '25') === (string) $size)>{{ $size }}</option>
                             @endforeach
+                            <option value="all" @selected(($filters['pageSizeInput'] ?? '') === 'all')>ทั้งหมด</option>
                         </select>
                     </div>
                 </div>

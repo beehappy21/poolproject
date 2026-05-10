@@ -74,7 +74,7 @@ class CommissionBaselineRuntimeResetter
               o.id::text as order_id,
               o."userId"::text as user_id,
               o."orderNo" as order_no,
-              to_char(o."approvedAt" at time zone 'Asia/Bangkok', 'YYYY-MM-DD') as approved_date
+              to_char((o."approvedAt" + interval '7 hour')::date, 'YYYY-MM-DD') as approved_date
             from "Order" o
             where o."shippingAddressNote" like ?
             order by o.id asc
@@ -195,7 +195,7 @@ class CommissionBaselineRuntimeResetter
         $userBuybackProgressIds = self::loadIds('"UserBuybackProgress"', 'id', 'where "userId" in (' . $userIn . ')');
 
         $approvedDateIn = self::dateIn($approvedDates);
-        $dailyPoolCycleIds = $approvedDateIn ? self::loadIds('"DailyPoolCycle"', 'id', 'where to_char("cycleDate" at time zone \'Asia/Bangkok\', \'YYYY-MM-DD\') in (' . $approvedDateIn . ')') : [];
+        $dailyPoolCycleIds = $approvedDateIn ? self::loadIds('"DailyPoolCycle"', 'id', 'where to_char("cycleDate", \'YYYY-MM-DD\') in (' . $approvedDateIn . ')') : [];
         $dailyPoolCycleIn = self::idIn($dailyPoolCycleIds);
         $dailyPoolEligibilitySnapshotIds = $dailyPoolCycleIn ? self::loadIds('"DailyPoolEligibilitySnapshot"', 'id', 'where "cycleId" in (' . $dailyPoolCycleIn . ')') : [];
         $dailyPoolPayoutIds = self::loadIds(
@@ -206,11 +206,11 @@ class CommissionBaselineRuntimeResetter
             . ' or ' . ($memberPackageCycleIn ? '"beneficiaryCycleId" in (' . $memberPackageCycleIn . ')' : 'false')
             . ' or "userId" in (' . $userIn . ')'
         );
-        $dailyCommissionCapUsageIds = $approvedDateIn ? self::loadIds('"DailyCommissionCapUsage"', 'id', 'where "userId" in (' . $userIn . ') and to_char("capDate" at time zone \'Asia/Bangkok\', \'YYYY-MM-DD\') in (' . $approvedDateIn . ')') : [];
-        $teamSettlementBatchIds = $approvedDateIn ? self::loadIds('"TeamSettlementBatch"', 'id', 'where to_char("settlementDate" at time zone \'Asia/Bangkok\', \'YYYY-MM-DD\') in (' . $approvedDateIn . ')') : [];
+        $dailyCommissionCapUsageIds = $approvedDateIn ? self::loadIds('"DailyCommissionCapUsage"', 'id', 'where "userId" in (' . $userIn . ') and to_char("capDate", \'YYYY-MM-DD\') in (' . $approvedDateIn . ')') : [];
+        $teamSettlementBatchIds = $approvedDateIn ? self::loadIds('"TeamSettlementBatch"', 'id', 'where to_char("settlementDate", \'YYYY-MM-DD\') in (' . $approvedDateIn . ')') : [];
         $teamSettlementBatchIn = self::idIn($teamSettlementBatchIds);
         $teamSettlementBatchItemIds = $teamSettlementBatchIn ? self::loadIds('"TeamSettlementBatchItem"', 'id', 'where "batchId" in (' . $teamSettlementBatchIn . ') or "userId" in (' . $userIn . ')') : [];
-        $poolSettlementBatchIds = $approvedDateIn ? self::loadIds('"PoolSettlementBatch"', 'id', 'where to_char("settlementDate" at time zone \'Asia/Bangkok\', \'YYYY-MM-DD\') in (' . $approvedDateIn . ')') : [];
+        $poolSettlementBatchIds = $approvedDateIn ? self::loadIds('"PoolSettlementBatch"', 'id', 'where to_char("settlementDate", \'YYYY-MM-DD\') in (' . $approvedDateIn . ')') : [];
         $poolSettlementBatchIn = self::idIn($poolSettlementBatchIds);
         $poolSettlementBatchItemIds = $poolSettlementBatchIn ? self::loadIds('"PoolSettlementBatchItem"', 'id', 'where "batchId" in (' . $poolSettlementBatchIn . ') or "userId" in (' . $userIn . ')') : [];
 

@@ -15,7 +15,7 @@ class CommissionBaselineDayRunner
     {
         $row = DB::connection('poolproject')->selectOne(<<<'SQL'
             with approved_dates as (
-                select distinct to_char("approvedAt" at time zone 'Asia/Bangkok', 'YYYY-MM-DD') as settlement_date
+                select distinct to_char(("approvedAt" + interval '7 hour')::date, 'YYYY-MM-DD') as settlement_date
                 from "Order"
                 where "approvedAt" is not null
                   and "shippingAddressNote" like 'commission-test-baseline|%'
@@ -23,9 +23,9 @@ class CommissionBaselineDayRunner
             select min(approved_dates.settlement_date) as settlement_date
             from approved_dates
             left join "TeamSettlementBatch" team_batch
-                on to_char(team_batch."settlementDate" at time zone 'Asia/Bangkok', 'YYYY-MM-DD') = approved_dates.settlement_date
+                on to_char(team_batch."settlementDate", 'YYYY-MM-DD') = approved_dates.settlement_date
             left join "DailyPoolCycle" pool_cycle
-                on to_char(pool_cycle."cycleDate" at time zone 'Asia/Bangkok', 'YYYY-MM-DD') = approved_dates.settlement_date
+                on to_char(pool_cycle."cycleDate", 'YYYY-MM-DD') = approved_dates.settlement_date
             where team_batch.id is null
                or pool_cycle.id is null
         SQL);
@@ -329,12 +329,12 @@ class CommissionBaselineDayRunner
                 u.id::text as user_id,
                 u."memberCode" as member_code,
                 coalesce(u."name", '') as member_name,
-                to_char(u."createdAt" at time zone 'Asia/Bangkok', 'YYYY-MM-DD') as signup_date,
+                to_char((u."createdAt" + interval '7 hour')::date, 'YYYY-MM-DD') as signup_date,
                 u."sponsorId"::text as sponsor_user_id
             from "User" u
             where u."isAdmin" = false
             order by
-                to_char(u."createdAt" at time zone 'Asia/Bangkok', 'YYYY-MM-DD') asc,
+                to_char((u."createdAt" + interval '7 hour')::date, 'YYYY-MM-DD') asc,
                 u."memberCode" asc,
                 u.id asc
         SQL);
@@ -528,7 +528,7 @@ class CommissionBaselineDayRunner
         $minuteOffset = max(0, $sequence - 1);
         $base = new \DateTimeImmutable(
             sprintf('%04d-%02d-%02d 05:00:00', $year, $month, $day),
-            new \DateTimeZone('UTC')
+            new \DateTimeZone('Asia/Bangkok')
         );
 
         return $base
@@ -574,7 +574,7 @@ class CommissionBaselineDayRunner
             where "orderId" = {$quotedOrderId}::bigint;
 
             update "CommissionLedger"
-            set "commissionDate" = date({$quoted}::timestamptz),
+            set "commissionDate" = date({$quoted}::timestamptz at time zone 'Asia/Bangkok'),
                 "evaluationAt" = {$quoted}::timestamptz,
                 "finalizeCheckedAt" = coalesce("finalizeCheckedAt", {$quoted}::timestamptz),
                 "finalizedAt" = coalesce("finalizedAt", {$quoted}::timestamptz),
@@ -743,7 +743,7 @@ class CommissionBaselineDayRunner
             from "Order"
             where "shippingAddressNote" like ?
               and "approvedAt" is not null
-              and to_char("approvedAt" at time zone 'Asia/Bangkok', 'YYYY-MM-DD') = ?
+              and to_char(("approvedAt" + interval '7 hour')::date, 'YYYY-MM-DD') = ?
             SQL,
             [self::SOURCE_TAG . '|%', $settlementDate]
         );

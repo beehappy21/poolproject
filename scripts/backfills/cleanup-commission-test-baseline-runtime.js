@@ -73,7 +73,7 @@ async function loadBaselineOrders() {
         o.id::text as "orderId",
         o."userId"::text as "userId",
         o."orderNo" as "orderNo",
-        to_char(o."approvedAt" at time zone 'Asia/Bangkok', 'YYYY-MM-DD') as "approvedDate"
+        to_char((o."approvedAt" + interval '7 hour')::date, 'YYYY-MM-DD') as "approvedDate"
       from "Order" o
       where o."shippingAddressNote" like '${SOURCE_TAG}|%'
       order by o.id asc
@@ -229,7 +229,7 @@ async function loadTargets(baselineOrders) {
     ? await loadIds(
         '"DailyPoolCycle"',
         "id",
-        `where to_char("cycleDate" at time zone 'Asia/Bangkok', 'YYYY-MM-DD') in (${approvedDateSql})`,
+        `where to_char("cycleDate", 'YYYY-MM-DD') in (${approvedDateSql})`,
       )
     : [];
   const dailyPoolCycleIn = idIn(dailyPoolCycleIds);
@@ -256,7 +256,7 @@ async function loadTargets(baselineOrders) {
         '"DailyCommissionCapUsage"',
         "id",
         `where "userId" in (${userIn})
-          and to_char("capDate" at time zone 'Asia/Bangkok', 'YYYY-MM-DD') in (${approvedDateSql})`,
+          and to_char("capDate", 'YYYY-MM-DD') in (${approvedDateSql})`,
       )
     : [];
 
@@ -264,7 +264,7 @@ async function loadTargets(baselineOrders) {
     ? await loadIds(
         '"TeamSettlementBatch"',
         "id",
-        `where to_char("settlementDate" at time zone 'Asia/Bangkok', 'YYYY-MM-DD') in (${approvedDateSql})`,
+        `where to_char("settlementDate", 'YYYY-MM-DD') in (${approvedDateSql})`,
       )
     : [];
   const teamSettlementBatchIn = idIn(teamSettlementBatchIds);
@@ -281,7 +281,7 @@ async function loadTargets(baselineOrders) {
     ? await loadIds(
         '"PoolSettlementBatch"',
         "id",
-        `where to_char("settlementDate" at time zone 'Asia/Bangkok', 'YYYY-MM-DD') in (${approvedDateSql})`,
+        `where to_char("settlementDate", 'YYYY-MM-DD') in (${approvedDateSql})`,
       )
     : [];
   const poolSettlementBatchIn = idIn(poolSettlementBatchIds);

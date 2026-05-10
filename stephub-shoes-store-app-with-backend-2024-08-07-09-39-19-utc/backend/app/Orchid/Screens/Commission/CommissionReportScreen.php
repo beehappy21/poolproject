@@ -12,9 +12,44 @@ use Orchid\Support\Facades\Layout;
 
 class CommissionReportScreen extends Screen
 {
+    public function overview(Request $request): iterable
+    {
+        return $this->query($request);
+    }
+
+    public function direct(Request $request): iterable
+    {
+        return $this->query($request);
+    }
+
+    public function team(Request $request): iterable
+    {
+        return $this->query($request);
+    }
+
+    public function matching(Request $request): iterable
+    {
+        return $this->query($request);
+    }
+
+    public function pool(Request $request): iterable
+    {
+        return $this->query($request);
+    }
+
     private function resolveMode(Request $request): string
     {
-        return CommissionReportBuilder::normalizeMode((string) ($request->route('reportMode') ?? 'overview'));
+        $routeMode = (string) ($request->route('reportMode') ?? '');
+        if ($routeMode !== '') {
+            return CommissionReportBuilder::normalizeMode($routeMode);
+        }
+
+        $methodMode = (string) ($request->route('method') ?? '');
+        if ($methodMode !== '') {
+            return CommissionReportBuilder::normalizeMode($methodMode);
+        }
+
+        return 'overview';
     }
 
     public function query(Request $request): iterable
@@ -26,6 +61,7 @@ class CommissionReportScreen extends Screen
         $reportTotals = $report['totals'];
         $items = $report['rows']->values()->all();
         $total = (int) ($report['totalCount'] ?? count($items));
+        $perPage = (int) ($filters['pageSize'] ?? max($total, 1));
         $modeMeta = $this->modeMeta($mode);
         $baselineDayStatus = CommissionBaselineDayRunner::currentDayStatus();
         $baselineResetStatus = CommissionBaselineRuntimeResetter::status();
@@ -33,7 +69,7 @@ class CommissionReportScreen extends Screen
         $paginator = new LengthAwarePaginator(
             $items,
             $total,
-            $filters['pageSize'],
+            max($perPage, 1),
             $page,
             [
                 'path' => url()->current(),

@@ -133,10 +133,6 @@ Route::middleware('admin.access:'.AdminPermissions::COMMISSIONS_MANAGE)->group(f
     ->defaults('section', 'signup-share')
     ->name('platform.commission.signupShare');
 
-  Route::screen('commission/report', CommissionReportScreen::class)
-    ->defaults('reportMode', 'overview')
-    ->name('platform.commission.report');
-
   Route::screen('commission/report/direct', CommissionReportScreen::class)
     ->defaults('reportMode', 'direct')
     ->name('platform.commission.report.direct');
@@ -152,6 +148,10 @@ Route::middleware('admin.access:'.AdminPermissions::COMMISSIONS_MANAGE)->group(f
   Route::screen('commission/report/pool', CommissionReportScreen::class)
     ->defaults('reportMode', 'pool')
     ->name('platform.commission.report.pool');
+
+  Route::screen('commission/report', CommissionReportScreen::class)
+    ->defaults('reportMode', 'overview')
+    ->name('platform.commission.report');
 
   Route::get('commission/report/export/{reportMode?}', [CommissionReportController::class, 'export'])
     ->name('platform.commission.report.export');
