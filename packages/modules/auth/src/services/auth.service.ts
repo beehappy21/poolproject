@@ -41,7 +41,8 @@ export interface AuthServiceContract {
 
 @Injectable()
 export class AuthService implements AuthServiceContract {
-  private readonly sessions = new Map<string, string>();
+  private static readonly sharedSessions = new Map<string, string>();
+  private static sessionsLoadedFromDisk = false;
   private readonly devImpersonationPassword =
     process.env.DEV_MEMBER_IMPERSONATION_PASSWORD || "a1a1a1";
   private readonly protectedSuperAdminEmail =
@@ -63,7 +64,10 @@ export class AuthService implements AuthServiceContract {
     @Inject(forwardRef(() => MembersService))
     private readonly membersService: MembersService,
   ) {
-    this.loadSessionsFromDisk();
+    if (!AuthService.sessionsLoadedFromDisk) {
+      this.loadSessionsFromDisk();
+      AuthService.sessionsLoadedFromDisk = true;
+    }
   }
 
   async login(input: {
@@ -173,7 +177,14 @@ export class AuthService implements AuthServiceContract {
     const userId = this.sessions.get(token);
 
     if (!userId) {
-      return null;
+      this.loadSessionsFromDisk({ mergeOnly: true });
+      const reloadedUserId = this.sessions.get(token);
+
+      if (!reloadedUserId) {
+        return null;
+      }
+
+      return this.authRepository.findUserById(reloadedUserId);
     }
 
     return this.authRepository.findUserById(userId);
@@ -182,6 +193,38 @@ export class AuthService implements AuthServiceContract {
   async logout(token: string): Promise<void> {
     this.sessions.delete(token);
     this.persistSessionsToDisk();
+  }
+
+  private get sessions(): Map<string, string> {
+    return AuthService.sharedSessions;
+  }
+
+  private loadSessionsFromDisk(options?: { mergeOnly?: boolean }): void {
+    if (!options?.mergeOnly) {
+      this.sessions.clear();
+    }
+
+    try {
+      const raw = readFileSync(this.sessionStorePath, "utf8");
+      const parsed = JSON.parse(raw) as Record<string, string>;
+
+      for (const [token, userId] of Object.entries(parsed)) {
+        if (typeof token === "string" && typeof userId === "string") {
+          this.sessions.set(token, userId);
+        }
+      }
+    } catch {
+      // Start with an empty in-memory store when no persisted session file exists.
+    }
+  }
+
+  private persistSessionsToDisk(): void {
+    mkdirSync(join(process.cwd(), "runtime"), { recursive: true });
+    writeFileSync(
+      this.sessionStorePath,
+      JSON.stringify(Object.fromEntries(this.sessions.entries()), null, 2),
+      "utf8",
+    );
   }
 
   async changePassword(input: {
@@ -345,27 +388,4 @@ export class AuthService implements AuthServiceContract {
     return this.authRepository.forceRebindLineBindingByUserId(userId);
   }
 
-  private loadSessionsFromDisk(): void {
-    try {
-      const raw = readFileSync(this.sessionStorePath, "utf8");
-      const parsed = JSON.parse(raw) as Record<string, string>;
-
-      for (const [token, userId] of Object.entries(parsed)) {
-        if (typeof token === "string" && typeof userId === "string") {
-          this.sessions.set(token, userId);
-        }
-      }
-    } catch {
-      // Start with an empty in-memory store when no persisted session file exists.
-    }
-  }
-
-  private persistSessionsToDisk(): void {
-    mkdirSync(join(process.cwd(), "runtime"), { recursive: true });
-    writeFileSync(
-      this.sessionStorePath,
-      JSON.stringify(Object.fromEntries(this.sessions.entries()), null, 2),
-      "utf8",
-    );
-  }
 }
