@@ -166,7 +166,6 @@ class CommissionBaselineDayRunner
             throw new \RuntimeException('Order create succeeded but missing orderId.');
         }
 
-        $apiClient->internalRequest('POST', '/internal/bao/orders/' . $orderId . '/approve');
         self::prepareOrderForApprovedProcessing($orderId, $approvedAtIso);
         $apiClient->internalRequest('POST', '/internal/bao/orders/' . $orderId . '/process-approved');
         self::backfillOrderDates($orderId, (string) $member['userId'], $approvedAtIso);
@@ -546,6 +545,8 @@ class CommissionBaselineDayRunner
             update "Order"
             set "createdAt" = {$quoted}::timestamptz,
                 "updatedAt" = {$quoted}::timestamptz,
+                "status" = 'APPROVED',
+                "approvalStatus" = 'APPROVED',
                 "paidAt" = coalesce("paidAt", {$quoted}::timestamptz),
                 "approvedAt" = {$quoted}::timestamptz
             where id = {$quotedOrderId}::bigint;

@@ -382,6 +382,7 @@ export class OrdersController {
     try {
       return await this.ordersService.handleApprovedOrder(
         requirePositiveIntegerString(orderId, "orderId"),
+        { forceRecompute: true },
       );
     } catch (error) {
       rethrowHttpError(error);

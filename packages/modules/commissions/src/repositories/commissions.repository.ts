@@ -18,7 +18,11 @@ import {
 } from "../domain/commissions.types";
 import { PrismaService } from "../../../../infrastructure/src/prisma/prisma.service";
 import { toQualificationCycleSnapshot } from "../../../../infrastructure/src/prisma/prisma.mappers";
-import { addDecimalStrings } from "../../../../shared/utils/src/money.util";
+import {
+  addDecimalStrings,
+  maxDecimalString,
+  subtractDecimalStrings,
+} from "../../../../shared/utils/src/money.util";
 
 const BANGKOK_UTC_OFFSET_HOURS = 7;
 
@@ -120,6 +124,8 @@ export interface CommissionsRepository {
     amount: string;
     reasonCode: string;
   }): Promise<void>;
+
+  clearOrderCommissionArtifacts(orderId: string): Promise<void>;
 
   getDailyCommissionCapSnapshot(input: {
     beneficiaryUserId: string;
@@ -1372,6 +1378,170 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
         amount: input.amount,
         reason: input.reasonCode,
       },
+    });
+  }
+
+  async clearOrderCommissionArtifacts(orderId: string): Promise<void> {
+    const normalizedOrderId = BigInt(orderId);
+
+    await this.prisma.$transaction(async (tx) => {
+      const commissions = await tx.commissionLedger.findMany({
+        where: {
+          orderId: normalizedOrderId,
+        },
+        select: {
+          id: true,
+          beneficiaryCycleId: true,
+          commissionAmount: true,
+          status: true,
+        },
+      });
+
+      const commissionIds = commissions.map((entry) => entry.id);
+      const walletTransactions =
+        commissionIds.length > 0
+          ? await tx.walletTransaction.findMany({
+              where: {
+                refType: "COMMISSION",
+                refId: {
+                  in: commissionIds,
+                },
+              },
+              orderBy: [{ id: "desc" }],
+              select: {
+                id: true,
+                userId: true,
+                txType: true,
+                direction: true,
+                balanceBucket: true,
+                refId: true,
+                amount: true,
+              },
+            })
+          : [];
+
+      for (const transaction of walletTransactions) {
+        const wallet = await tx.wallet.findUnique({
+          where: { userId: transaction.userId },
+          select: {
+            approvedBalance: true,
+            heldBalance: true,
+            withdrawableBalance: true,
+            shoppingBalance: true,
+            discountBalance: true,
+            negativeOffsetBalance: true,
+          },
+        });
+
+        if (!wallet) {
+          continue;
+        }
+
+        const amount = transaction.amount.toString();
+        const nextApprovedBalance =
+          transaction.txType === "DIRECT_CREDIT" ||
+          transaction.txType === "UNI_CREDIT" ||
+          transaction.txType === "CASHBACK_CREDIT" ||
+          transaction.txType === "POOL_CREDIT" ||
+          transaction.txType === "MATRIX_CREDIT"
+            ? maxDecimalString(
+                subtractDecimalStrings(wallet.approvedBalance.toString(), amount),
+                "0",
+              )
+            : transaction.txType === "REVERSAL_DEBIT"
+              ? addDecimalStrings(wallet.approvedBalance.toString(), amount)
+              : wallet.approvedBalance.toString();
+
+        const reverseBucket = (current: string) =>
+          transaction.direction === "CREDIT"
+            ? maxDecimalString(subtractDecimalStrings(current, amount), "0")
+            : addDecimalStrings(current, amount);
+
+        await tx.wallet.update({
+          where: { userId: transaction.userId },
+          data: {
+            approvedBalance: nextApprovedBalance,
+            heldBalance:
+              transaction.balanceBucket === "HELD"
+                ? reverseBucket(wallet.heldBalance.toString())
+                : wallet.heldBalance.toString(),
+            withdrawableBalance:
+              transaction.balanceBucket === "WITHDRAWABLE"
+                ? reverseBucket(wallet.withdrawableBalance.toString())
+                : wallet.withdrawableBalance.toString(),
+            shoppingBalance: wallet.shoppingBalance.toString(),
+            discountBalance: wallet.discountBalance.toString(),
+            negativeOffsetBalance:
+              transaction.balanceBucket === "NEGATIVE_OFFSET"
+                ? reverseBucket(wallet.negativeOffsetBalance.toString())
+                : wallet.negativeOffsetBalance.toString(),
+          },
+        });
+      }
+
+      for (const commission of commissions) {
+        if (
+          !commission.beneficiaryCycleId ||
+          (commission.status !== "APPROVED" &&
+            commission.status !== "HELD" &&
+            commission.status !== "WITHDRAWABLE")
+        ) {
+          continue;
+        }
+
+        const cycle = await tx.memberPackageCycle.findUnique({
+          where: { id: commission.beneficiaryCycleId },
+          select: {
+            earnedTotalInCycle: true,
+          },
+        });
+
+        if (!cycle) {
+          continue;
+        }
+
+        await tx.memberPackageCycle.update({
+          where: { id: commission.beneficiaryCycleId },
+          data: {
+            earnedTotalInCycle: maxDecimalString(
+              subtractDecimalStrings(
+                cycle.earnedTotalInCycle.toString(),
+                commission.commissionAmount.toString(),
+              ),
+              "0",
+            ),
+          },
+        });
+      }
+
+      if (walletTransactions.length > 0) {
+        await tx.walletTransaction.deleteMany({
+          where: {
+            id: {
+              in: walletTransactions.map((entry) => entry.id),
+            },
+          },
+        });
+      }
+
+      await tx.companyBonusLedger.deleteMany({
+        where: {
+          sourceRefId: normalizedOrderId,
+          sourceType: {
+            in: ["DIRECT", "UNI", "CASHBACK"],
+          },
+        },
+      });
+
+      if (commissionIds.length > 0) {
+        await tx.commissionLedger.deleteMany({
+          where: {
+            id: {
+              in: commissionIds,
+            },
+          },
+        });
+      }
     });
   }
 

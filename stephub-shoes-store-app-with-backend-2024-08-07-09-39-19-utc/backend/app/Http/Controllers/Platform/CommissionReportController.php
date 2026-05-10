@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Platform;
 
 use App\Support\BaoAdminApiClient;
 use App\Support\CommissionBaselineDayRunner;
+use App\Support\CommissionBaselineRuntimeResetter;
 use App\Support\CommissionReportBuilder;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
@@ -89,6 +90,29 @@ class CommissionReportController extends Controller
         }
 
         Alert::info('คำนวณเมื่อหมดวันสำหรับวันที่ ' . $result['settlementDate'] . ' เรียบร้อยแล้ว');
+
+        return $this->redirectToReport($mode, $validated);
+    }
+
+    public function resetBaselineRuntime(Request $request): RedirectResponse
+    {
+        $validated = $this->validateActionRequest($request);
+        $mode = CommissionReportBuilder::normalizeMode((string) ($validated['report_mode'] ?? 'overview'));
+
+        try {
+            $result = CommissionBaselineRuntimeResetter::reset();
+        } catch (\Throwable $exception) {
+            Alert::error($exception->getMessage());
+
+            return $this->redirectToReport($mode, $validated);
+        }
+
+        Alert::info(
+            'รีเซ็ตข้อมูล baseline test เรียบร้อยแล้ว'
+            . ' ลบ order ' . $result['deletedBaselineOrderCount'] . ' รายการ'
+            . ' และรีเซ็ตสมาชิกที่เกี่ยวข้อง ' . $result['affectedUserCount'] . ' ราย'
+            . ' พร้อมล้างไฟล์สรุป baseline ' . (int) ($result['deletedRuntimeArtifactCount'] ?? 0) . ' ไฟล์'
+        );
 
         return $this->redirectToReport($mode, $validated);
     }

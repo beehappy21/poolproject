@@ -849,8 +849,8 @@ export class PrismaMembersRepository implements MembersRepository {
             and mpc.status = 'ACTIVE'
             and mpc."isReceivable" = true
             and mpc."earningStatus" = 'ACTIVE'
-            and mpc."activatedAt" <= ${evaluationAt}::timestamptz
-            and mpc."activeUntil" >= ${evaluationAt}::timestamptz
+            and mpc."activatedAt" <= (${evaluationAt}::timestamptz at time zone 'UTC')
+            and mpc."activeUntil" >= (${evaluationAt}::timestamptz at time zone 'UTC')
         )
     `);
 
@@ -902,8 +902,8 @@ export class PrismaMembersRepository implements MembersRepository {
       from "MemberPackageCycle" mpc
       where mpc."userId" = ${BigInt(memberId)}
         and mpc.status = 'ACTIVE'
-        and mpc."activatedAt" <= ${evaluationAt}::timestamptz
-        and mpc."activeUntil" >= ${evaluationAt}::timestamptz
+        and mpc."activatedAt" <= (${evaluationAt}::timestamptz at time zone 'UTC')
+        and mpc."activeUntil" >= (${evaluationAt}::timestamptz at time zone 'UTC')
       order by mpc."activatedAt" asc, mpc.id asc
     `);
 
@@ -963,8 +963,8 @@ export class PrismaMembersRepository implements MembersRepository {
       select distinct mpc."userId" as "userId"
       from "MemberPackageCycle" mpc
       where mpc.status = 'ACTIVE'
-        and mpc."activatedAt" <= ${evaluationAt}::timestamptz
-        and mpc."activeUntil" >= ${evaluationAt}::timestamptz
+        and mpc."activatedAt" <= (${evaluationAt}::timestamptz at time zone 'UTC')
+        and mpc."activeUntil" >= (${evaluationAt}::timestamptz at time zone 'UTC')
     `);
 
     return rows.map((cycle) => toIdString(cycle.userId));

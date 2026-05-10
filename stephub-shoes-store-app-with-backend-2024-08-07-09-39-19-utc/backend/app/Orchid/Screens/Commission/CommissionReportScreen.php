@@ -3,6 +3,7 @@
 namespace App\Orchid\Screens\Commission;
 
 use App\Support\CommissionBaselineDayRunner;
+use App\Support\CommissionBaselineRuntimeResetter;
 use App\Support\CommissionReportBuilder;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -27,6 +28,7 @@ class CommissionReportScreen extends Screen
         $total = (int) ($report['totalCount'] ?? count($items));
         $modeMeta = $this->modeMeta($mode);
         $baselineDayStatus = CommissionBaselineDayRunner::currentDayStatus();
+        $baselineResetStatus = CommissionBaselineRuntimeResetter::status();
 
         $paginator = new LengthAwarePaginator(
             $items,
@@ -45,6 +47,7 @@ class CommissionReportScreen extends Screen
             'commissionReportTotals' => $reportTotals,
             'commissionReportSummaryCards' => $report['summaryCards'],
             'baselineDayStatus' => $baselineDayStatus,
+            'baselineResetStatus' => $baselineResetStatus,
             'nextPendingSettlementDate' => $baselineDayStatus['workingDate'] ?? CommissionBaselineDayRunner::nextActionDate(),
             'commissionNav' => CommissionSettingsScreen::commissionNav($mode, $request->except('page')),
             'commissionSection' => [

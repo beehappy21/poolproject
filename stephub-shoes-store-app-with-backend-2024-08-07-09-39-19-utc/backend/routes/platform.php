@@ -159,6 +159,8 @@ Route::middleware('admin.access:'.AdminPermissions::COMMISSIONS_MANAGE)->group(f
     ->name('platform.commission.report.processNextMember');
   Route::post('commission/report/finalize-current-day', [CommissionReportController::class, 'finalizeCurrentDay'])
     ->name('platform.commission.report.finalizeCurrentDay');
+  Route::post('commission/report/reset-baseline-runtime', [CommissionReportController::class, 'resetBaselineRuntime'])
+    ->name('platform.commission.report.resetBaselineRuntime');
   Route::post('commission/report/process-single-day', [CommissionReportController::class, 'processSingleDay'])
     ->name('platform.commission.report.processSingleDay');
 

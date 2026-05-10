@@ -9,6 +9,7 @@
     $reportMode = $reportMode ?? 'overview';
     $selectedFormat = strtolower((string) request('format', 'csv'));
     $baselineDayStatus = $baselineDayStatus ?? null;
+    $baselineResetStatus = $baselineResetStatus ?? [];
     $nextPendingSettlementDate = $nextPendingSettlementDate ?? null;
     $workingDate = $baselineDayStatus['workingDate'] ?? $nextPendingSettlementDate;
     $totalMemberCount = (int) ($baselineDayStatus['totalMemberCount'] ?? 0);
@@ -17,6 +18,22 @@
     $canSeedNextMember = (bool) ($baselineDayStatus['canSeedNextMember'] ?? false);
     $canFinalizeDay = (bool) ($baselineDayStatus['canFinalizeDay'] ?? false);
     $nextMemberCode = $baselineDayStatus['nextMemberCode'] ?? null;
+    $baselineOrderCount = (int) ($baselineResetStatus['baselineOrderCount'] ?? 0);
+    $resetAffectedUserCount = (int) ($baselineResetStatus['affectedUserCount'] ?? 0);
+    $resetNonBaselineOrderCount = (int) ($baselineResetStatus['nonBaselineOrderCount'] ?? 0);
+    $canResetBaselineRuntime = (bool) ($baselineResetStatus['canReset'] ?? false);
+    $baselineInlineNote = 'ระบบจะสร้าง order baseline ทีละสมาชิกตามวันสมัครและเรียงตามรหัสสมาชิก พร้อม approve และ process order ตาม flow ปกติทันที เมื่อสมาชิกของวันนั้นครบทั้งหมดแล้ว ปุ่มคำนวณเมื่อหมดวันจึงจะกดได้เพื่อสั่ง end-of-day ตามแผนของระบบ';
+    if ($nextMemberCode) {
+        $baselineInlineNote .= ' โดยรายการถัดไปคือ ' . $nextMemberCode;
+    }
+    $baselineInlineNote .= ' ปุ่มรีเซ็ตจะล้างเฉพาะข้อมูล baseline test ที่ผูกกับ tag นี้';
+    if ($baselineOrderCount > 0) {
+        $baselineInlineNote .= ' ตอนนี้พบ ' . $baselineOrderCount . ' order / ' . $resetAffectedUserCount . ' สมาชิก';
+    }
+    if ($resetNonBaselineOrderCount > 0) {
+        $baselineInlineNote .= ' แต่ยังถูก guard ไว้เพราะพบ order อื่นปะปน ' . $resetNonBaselineOrderCount . ' รายการ';
+    }
+    $baselineInlineNote .= ' ส่วน PDF เหมาะกับรายงานขนาดเล็ก และรองรับการส่งออกได้ไม่เกิน 500 แถวต่อครั้ง หากข้อมูลมากกว่านี้แนะนำให้ใช้ CSV หรือ Excel';
     $resultCount = $rows instanceof \Illuminate\Contracts\Pagination\Paginator
         ? (int) $rows->total()
         : (is_countable($rows) ? count($rows) : 0);
@@ -59,6 +76,7 @@
     .commission-button.is-secondary { background:#e2e8f0; color:#334155; }
     .commission-button.is-ghost { background:#fff; color:#334155; border:1px solid #cbd5e1; }
     .commission-button.is-warning { background:#b45309; color:#fff; }
+    .commission-button:disabled { background:#cbd5e1 !important; color:#64748b !important; cursor:not-allowed; opacity:1; box-shadow:none; }
     .commission-filter-summary { display:flex; flex-wrap:wrap; gap:.6rem; margin-top:1rem; }
     .commission-chip { display:inline-flex; align-items:center; gap:.4rem; padding:.45rem .75rem; border-radius:999px; background:color-mix(in srgb, {{ $accent }} 8%, #fff); color:#334155; font-size:.88rem; border:1px solid color-mix(in srgb, {{ $accent }} 18%, #dbe2ea); }
     .commission-table-wrap { overflow:auto; }
@@ -208,9 +226,18 @@
                     >
                         คำนวณเมื่อหมดวัน
                     </button>
+                    <button
+                        type="submit"
+                        form="commission-reset-baseline-form"
+                        id="commission-reset-baseline-button"
+                        class="commission-button is-secondary"
+                        @disabled(!$canResetBaselineRuntime)
+                    >
+                        รีเซ็ตข้อมูลทดสอบ
+                    </button>
                 </div>
                 <div class="commission-inline-note">
-                    ระบบจะสร้าง order baseline ทีละสมาชิกตามวันสมัครและเรียงตามรหัสสมาชิก พร้อม approve และ process order ตาม flow ปกติทันที เมื่อสมาชิกของวันนั้นครบทั้งหมดแล้ว ปุ่มคำนวณเมื่อหมดวันจึงจะกดได้เพื่อสั่ง end-of-day ตามแผนของระบบ@if($nextMemberCode) โดยรายการถัดไปคือ {{ $nextMemberCode }}@endif ส่วน PDF เหมาะกับรายงานขนาดเล็ก และรองรับการส่งออกได้ไม่เกิน 500 แถวต่อครั้ง หากข้อมูลมากกว่านี้แนะนำให้ใช้ CSV หรือ Excel
+                    {{ $baselineInlineNote }}
                 </div>
             </form>
             <form id="commission-process-next-member-form" method="POST" action="{{ route('platform.commission.report.processNextMember') }}">
@@ -225,6 +252,17 @@
                 <input type="hidden" name="format" value="{{ $selectedFormat }}">
             </form>
             <form id="commission-finalize-day-form" method="POST" action="{{ route('platform.commission.report.finalizeCurrentDay') }}">
+                @csrf
+                <input type="hidden" name="settlement_date" value="{{ $workingDate ?? '' }}">
+                <input type="hidden" name="report_mode" value="{{ $reportMode }}">
+                <input type="hidden" name="member_from" value="{{ $filters['memberFrom'] ?? '' }}">
+                <input type="hidden" name="member_to" value="{{ $filters['memberTo'] ?? '' }}">
+                <input type="hidden" name="date_from" value="{{ $filters['dateFrom'] ?? '' }}">
+                <input type="hidden" name="date_to" value="{{ $filters['dateTo'] ?? '' }}">
+                <input type="hidden" name="page_size" value="{{ $filters['pageSize'] ?? 25 }}">
+                <input type="hidden" name="format" value="{{ $selectedFormat }}">
+            </form>
+            <form id="commission-reset-baseline-form" method="POST" action="{{ route('platform.commission.report.resetBaselineRuntime') }}">
                 @csrf
                 <input type="hidden" name="settlement_date" value="{{ $workingDate ?? '' }}">
                 <input type="hidden" name="report_mode" value="{{ $reportMode }}">

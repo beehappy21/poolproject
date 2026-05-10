@@ -579,6 +579,7 @@ export class OrdersService implements OrdersServiceContract {
 
   async handleApprovedOrder(
     orderId: string,
+    options?: { forceRecompute?: boolean },
   ): Promise<ApprovedOrderOrchestrationResult> {
     return this.withApprovedOrderLock(orderId, async () => {
       const approvedOrder = await this.handleApprovedOrderEvent(orderId);
@@ -618,7 +619,11 @@ export class OrdersService implements OrdersServiceContract {
         await this.commissionsService.listCommissions({ orderId }),
       );
 
-      if (existingCommissionEntries.length > 0) {
+      if (options?.forceRecompute) {
+        await this.commissionsService.clearOrderCommissionArtifacts(orderId);
+      }
+
+      if (!options?.forceRecompute && existingCommissionEntries.length > 0) {
         await this.capService.grantCapForApprovedOrder(orderId);
         const matrixFlow =
           commissionSettings.appVisibility.matrix === false

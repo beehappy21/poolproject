@@ -13,17 +13,7 @@ export function toIsoString(value: Date | null | undefined): string {
     return "";
   }
 
-  return new Date(
-    Date.UTC(
-      value.getFullYear(),
-      value.getMonth(),
-      value.getDate(),
-      value.getHours(),
-      value.getMinutes(),
-      value.getSeconds(),
-      value.getMilliseconds(),
-    ),
-  ).toISOString();
+  return value.toISOString();
 }
 
 export function toQualificationCycleSnapshot(cycle: {

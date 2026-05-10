@@ -703,6 +703,8 @@ function prepareOrderForApprovedProcessing(orderId, approvedAtIso) {
     update "Order"
     set "createdAt" = ${quoted}::timestamptz,
         "updatedAt" = ${quoted}::timestamptz,
+        "status" = 'APPROVED',
+        "approvalStatus" = 'APPROVED',
         "paidAt" = coalesce("paidAt", ${quoted}::timestamptz),
         "approvedAt" = ${quoted}::timestamptz
     where id = ${sqlLiteral(orderId)}::bigint;
@@ -766,14 +768,6 @@ async function seedOrders({ members, productDetailId, auth }) {
       },
     });
 
-    const approvePath = auth.internalBaoToken
-      ? `/internal/bao/orders/${created.orderId}/approve`
-      : `/orders/${created.orderId}/approve`;
-    await expectOk(approvePath, {
-      method: "POST",
-      token: auth.token,
-      internalBaoToken: auth.internalBaoToken,
-    });
     prepareOrderForApprovedProcessing(created.orderId, approvedAtIso);
     const processApprovedPath = auth.internalBaoToken
       ? `/internal/bao/orders/${created.orderId}/process-approved`

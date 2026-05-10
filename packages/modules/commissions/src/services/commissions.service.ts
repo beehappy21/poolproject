@@ -76,6 +76,8 @@ export interface CommissionsServiceContract {
     reasonCode: string;
   }): Promise<void>;
 
+  clearOrderCommissionArtifacts(orderId: string): Promise<void>;
+
   listCommissions(filters?: {
     orderId?: string;
     beneficiaryUserId?: string;
@@ -469,6 +471,10 @@ export class CommissionsService implements CommissionsServiceContract {
     reasonCode: string;
   }): Promise<void> {
     await this.commissionsRepository.createCompanyFallbackEntry(input);
+  }
+
+  async clearOrderCommissionArtifacts(orderId: string): Promise<void> {
+    await this.commissionsRepository.clearOrderCommissionArtifacts(orderId);
   }
 
   async listCommissions(filters?: {
