@@ -9,7 +9,21 @@ export function toDecimalString(value: { toString(): string } | null | undefined
 }
 
 export function toIsoString(value: Date | null | undefined): string {
-  return value?.toISOString() ?? "";
+  if (!value) {
+    return "";
+  }
+
+  return new Date(
+    Date.UTC(
+      value.getFullYear(),
+      value.getMonth(),
+      value.getDate(),
+      value.getHours(),
+      value.getMinutes(),
+      value.getSeconds(),
+      value.getMilliseconds(),
+    ),
+  ).toISOString();
 }
 
 export function toQualificationCycleSnapshot(cycle: {

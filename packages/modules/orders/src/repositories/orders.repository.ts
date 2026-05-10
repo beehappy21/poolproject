@@ -893,12 +893,12 @@ export class PrismaOrdersRepository implements OrdersRepository {
         walletAppliedUsdt: order.walletAppliedUsdt.toString(),
         cashDueUsdt: order.cashDueUsdt.toString(),
         cashPaymentMethod: order.cashPaymentMethod ?? null,
-        transferSubmittedAt: order.transferSubmittedAt?.toISOString() ?? null,
+        transferSubmittedAt: toIsoString(order.transferSubmittedAt) || null,
         transferSlipUrl: order.transferSlipUrl ?? null,
         transferSlipNote: order.transferSlipNote ?? null,
-        approvedAt: order.approvedAt?.toISOString() ?? null,
-        shippedAt: order.shippedAt?.toISOString() ?? null,
-        deliveredAt: order.deliveredAt?.toISOString() ?? null,
+        approvedAt: toIsoString(order.approvedAt) || null,
+        shippedAt: toIsoString(order.shippedAt) || null,
+        deliveredAt: toIsoString(order.deliveredAt) || null,
         shipmentTrackingNo: order.shipmentTrackingNo ?? null,
         shipmentCarrier: order.shipmentCarrier ?? null,
         shipmentNote: order.shipmentNote ?? null,
@@ -908,7 +908,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
         firstProductName: firstProductDetail?.name ?? null,
         firstProductImageUrl: firstProductDetail?.imageUrl ?? null,
         productItemCount: order.orderItems.length,
-        createdAt: order.createdAt.toISOString(),
+        createdAt: toIsoString(order.createdAt),
       };
     });
 
@@ -1083,19 +1083,19 @@ export class PrismaOrdersRepository implements OrdersRepository {
           walletAppliedUsdt: order.walletAppliedUsdt.toString(),
           cashDueUsdt: order.cashDueUsdt.toString(),
           cashPaymentMethod: order.cashPaymentMethod ?? null,
-          transferSubmittedAt: order.transferSubmittedAt?.toISOString() ?? null,
+          transferSubmittedAt: toIsoString(order.transferSubmittedAt) || null,
           transferSlipUrl: order.transferSlipUrl ?? null,
           transferSlipNote: order.transferSlipNote ?? null,
-          approvedAt: order.approvedAt?.toISOString() ?? null,
-          shippedAt: order.shippedAt?.toISOString() ?? null,
-          deliveredAt: order.deliveredAt?.toISOString() ?? null,
+          approvedAt: toIsoString(order.approvedAt) || null,
+          shippedAt: toIsoString(order.shippedAt) || null,
+          deliveredAt: toIsoString(order.deliveredAt) || null,
           shipmentTrackingNo: order.shipmentTrackingNo ?? null,
           shipmentCarrier: order.shipmentCarrier ?? null,
           shipmentNote: order.shipmentNote ?? null,
           orderSourceType: mapOrderSourceType(order),
           shippingAddressLine: order.shippingAddressLine ?? null,
           shippingAddressNote: order.shippingAddressNote ?? null,
-          createdAt: order.createdAt.toISOString(),
+          createdAt: toIsoString(order.createdAt),
           autoOrderAudit:
             reentryEvent && isMatrixReentryOrder(order)
               ? {
@@ -1109,7 +1109,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
                   sourcePv: reentryEvent.sourcePv.toString(),
                   creditedPv: reentryEvent.creditedPv.toString(),
                   firmCreditAmount: firmCredit?.amount?.toString() ?? null,
-                  eventCreatedAt: reentryEvent.createdAt.toISOString(),
+                  eventCreatedAt: toIsoString(reentryEvent.createdAt),
                 }
               : null,
           reentryAudit:
@@ -1125,7 +1125,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
                   sourcePv: reentryEvent.sourcePv.toString(),
                   creditedPv: reentryEvent.creditedPv.toString(),
                   firmCreditAmount: firmCredit?.amount?.toString() ?? null,
-                  eventCreatedAt: reentryEvent.createdAt.toISOString(),
+                  eventCreatedAt: toIsoString(reentryEvent.createdAt),
                 }
               : null,
           items: productItems,
@@ -2114,8 +2114,8 @@ export class PrismaOrdersRepository implements OrdersRepository {
           orderId: order.id.toString(),
           status: order.status.toLowerCase(),
           approvalStatus: order.approvalStatus.toLowerCase(),
-          paidAt: order.paidAt?.toISOString() ?? null,
-          transferSubmittedAt: order.transferSubmittedAt?.toISOString() ?? null,
+          paidAt: toIsoString(order.paidAt) || null,
+          transferSubmittedAt: toIsoString(order.transferSubmittedAt) || null,
           transferSlipUrl: order.transferSlipUrl ?? null,
           transferSlipNote: order.transferSlipNote ?? null,
         }
@@ -2153,7 +2153,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
           orderId: order.id.toString(),
           status: order.status.toLowerCase(),
           approvalStatus: order.approvalStatus.toLowerCase(),
-          shippedAt: order.shippedAt?.toISOString() ?? null,
+          shippedAt: toIsoString(order.shippedAt) || null,
           shipmentTrackingNo: order.shipmentTrackingNo ?? null,
           shipmentCarrier: order.shipmentCarrier ?? null,
           shipmentNote: order.shipmentNote ?? null,
@@ -2186,7 +2186,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
           orderId: order.id.toString(),
           status: order.status.toLowerCase(),
           approvalStatus: order.approvalStatus.toLowerCase(),
-          deliveredAt: order.deliveredAt?.toISOString() ?? null,
+          deliveredAt: toIsoString(order.deliveredAt) || null,
           shipmentNote: order.shipmentNote ?? null,
         }
       : null;
@@ -2214,7 +2214,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
       return {
         orderId: existingOrder.id.toString(),
         sourceUserId: existingOrder.userId.toString(),
-        approvedAt: existingOrder.approvedAt?.toISOString() ?? "",
+        approvedAt: toIsoString(existingOrder.approvedAt),
         totalPv: existingOrder.totalPv.toString(),
         commissionSettingsSnapshot: existingOrder.commissionSettingsSnapshot,
         matrixSettingsSnapshot: existingOrder.matrixSettingsSnapshot,
@@ -2250,7 +2250,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
       ? {
           orderId: order.id.toString(),
           sourceUserId: order.userId.toString(),
-          approvedAt: order.approvedAt?.toISOString() ?? "",
+          approvedAt: toIsoString(order.approvedAt),
           totalPv: order.totalPv.toString(),
           commissionSettingsSnapshot: order.commissionSettingsSnapshot,
           matrixSettingsSnapshot: order.matrixSettingsSnapshot,
@@ -2374,7 +2374,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
       ? {
           orderId: order.id.toString(),
           sourceUserId: order.userId.toString(),
-          approvedAt: order.approvedAt?.toISOString() ?? "",
+          approvedAt: toIsoString(order.approvedAt),
           totalUsdt: order.totalUsdt.toString(),
           totalPv: order.totalPv.toString(),
           orderSourceType:
