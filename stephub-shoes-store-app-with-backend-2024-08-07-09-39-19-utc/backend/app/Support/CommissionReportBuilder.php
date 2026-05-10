@@ -9,6 +9,10 @@ use Illuminate\Support\Facades\DB;
 
 class CommissionReportBuilder
 {
+    private const COMPANY_FALLBACK_MEMBER_CODE = 'COMPANY_FALLBACK';
+
+    private const COMPANY_FALLBACK_NAME = 'บริษัท (Fallback)';
+
     private const DETAIL_DESCRIPTIONS = [
         'direct' => 'รายงานรายการคอมมิชชั่นตามสมาชิก ช่วงเวลา และสายแนะนำ',
         'team' => 'รายงานโบนัสทีมจากรายการ TEAM_2LEG และ TEAM_3LEG ที่จ่ายจริงในระบบ',
@@ -63,6 +67,29 @@ class CommissionReportBuilder
         }
 
         return self::buildPagedDetail($mode, $filters, $page);
+    }
+
+    public static function nextPendingSettlementDate(): ?string
+    {
+        $row = DB::connection('poolproject')->selectOne(<<<'SQL'
+            with approved_dates as (
+                select distinct to_char("approvedAt" at time zone 'Asia/Bangkok', 'YYYY-MM-DD') as settlement_date
+                from "Order"
+                where "approvedAt" is not null
+            )
+            select min(approved_dates.settlement_date) as settlement_date
+            from approved_dates
+            left join "TeamSettlementBatch" team_batch
+                on to_char(team_batch."settlementDate" at time zone 'Asia/Bangkok', 'YYYY-MM-DD') = approved_dates.settlement_date
+            left join "DailyPoolCycle" pool_cycle
+                on to_char(pool_cycle."cycleDate" at time zone 'Asia/Bangkok', 'YYYY-MM-DD') = approved_dates.settlement_date
+            where team_batch.id is null
+               or pool_cycle.id is null
+        SQL);
+
+        $value = is_object($row) ? ($row->settlement_date ?? null) : null;
+
+        return is_string($value) && $value !== '' ? $value : null;
     }
 
     private static function baseLedgerQuery(array $filters)
@@ -239,8 +266,8 @@ class CommissionReportBuilder
         return self::baseLedgerQuery($filters)
             ->selectRaw(
                 'date(cl."createdAt") as report_date,
-                coalesce(beneficiary."memberCode", \'-\') as beneficiary_member_code,
-                coalesce(beneficiary."name", \'-\') as beneficiary_name,
+                coalesce(beneficiary."memberCode", \'' . self::COMPANY_FALLBACK_MEMBER_CODE . '\') as beneficiary_member_code,
+                coalesce(beneficiary."name", \'' . self::COMPANY_FALLBACK_NAME . '\') as beneficiary_name,
                 coalesce(sum(case when cl."commissionType" = \'DIRECT\' then cl."commissionAmount" else 0 end), 0) as direct_amount,
                 coalesce(sum(case when cl."commissionType" in (\'TEAM_2LEG\', \'TEAM_3LEG\') then cl."commissionAmount" else 0 end), 0) as team_amount,
                 coalesce(sum(case when cl."commissionType" in (\'MATCHING_L1\', \'MATCHING_L2\') then cl."commissionAmount" else 0 end), 0) as matching_amount,
@@ -248,7 +275,7 @@ class CommissionReportBuilder
                 coalesce(sum(cl."commissionAmount"), 0) as total_amount'
             )
             ->whereIn(DB::raw('cl."commissionType"'), ['DIRECT', 'TEAM_2LEG', 'TEAM_3LEG', 'MATCHING_L1', 'MATCHING_L2', 'POOL'])
-            ->groupByRaw('date(cl."createdAt"), coalesce(beneficiary."memberCode", \'-\'), coalesce(beneficiary."name", \'-\')');
+            ->groupByRaw('date(cl."createdAt"), coalesce(beneficiary."memberCode", \'' . self::COMPANY_FALLBACK_MEMBER_CODE . '\'), coalesce(beneficiary."name", \'' . self::COMPANY_FALLBACK_NAME . '\')');
     }
 
     private static function overviewTotalsRow(array $filters): object
@@ -326,8 +353,8 @@ class CommissionReportBuilder
         $rows = (clone $query)
             ->selectRaw(
                 'date(cl."createdAt") as report_date,
-                beneficiary."memberCode" as beneficiary_member_code,
-                beneficiary."name" as beneficiary_name,
+                coalesce(beneficiary."memberCode", \'' . self::COMPANY_FALLBACK_MEMBER_CODE . '\') as beneficiary_member_code,
+                coalesce(beneficiary."name", \'' . self::COMPANY_FALLBACK_NAME . '\') as beneficiary_name,
                 source."memberCode" as source_member_code,
                 source."name" as source_name,
                 coalesce(cl."levelNo", cl."tierNo") as level_no,
@@ -479,8 +506,8 @@ class CommissionReportBuilder
         return (clone self::ledgerDetailQuery($filters, self::ledgerCommissionTypesForMode($mode)))
             ->selectRaw(
                 'date(cl."createdAt") as report_date,
-                beneficiary."memberCode" as beneficiary_member_code,
-                beneficiary."name" as beneficiary_name,
+                coalesce(beneficiary."memberCode", \'' . self::COMPANY_FALLBACK_MEMBER_CODE . '\') as beneficiary_member_code,
+                coalesce(beneficiary."name", \'' . self::COMPANY_FALLBACK_NAME . '\') as beneficiary_name,
                 source."memberCode" as source_member_code,
                 source."name" as source_name,
                 coalesce(cl."levelNo", cl."tierNo") as level_no,
