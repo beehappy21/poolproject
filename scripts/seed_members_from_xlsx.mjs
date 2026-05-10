@@ -43,6 +43,9 @@ with zipfile.ZipFile(path) as z:
         vals = []
         for c in row.findall('a:c', ns):
             t = c.attrib.get('t')
+            if t == 'inlineStr':
+                vals.append(''.join(text.text or '' for text in c.findall('.//a:t', ns)))
+                continue
             v = c.find('a:v', ns)
             val = ''
             if v is not None and v.text is not None:
@@ -68,6 +71,10 @@ print(json.dumps(items, ensure_ascii=False))
 function parseDate(value) {
   const trimmed = String(value ?? "").trim();
   return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : null;
+}
+
+function toBangkokNoonTimestamp(value) {
+  return value ? `${value} 12:00:00` : null;
 }
 
 function clean(value) {
@@ -159,6 +166,7 @@ function buildSql(rows, reservedEmails) {
       continue;
     }
     createCandidates += 1;
+    const joinedAtTimestamp = toBangkokNoonTimestamp(row.joinedDate);
     const password = deriveMemberPassword(row.nationalId, defaultPassword);
     const passwordHash = hashPassword(password);
     if (password === defaultPassword) {
@@ -197,8 +205,8 @@ select
   'ACTIVE',
   'NORMAL',
   'ACTIVE',
-  coalesce(${sqlLiteral(row.joinedDate)}::timestamptz, now()),
-  coalesce(${sqlLiteral(row.joinedDate)}::timestamptz, now())
+  coalesce(${sqlLiteral(joinedAtTimestamp)}::timestamp, now()),
+  coalesce(${sqlLiteral(joinedAtTimestamp)}::timestamp, now())
 where not exists (
   select 1 from public."User" u where u."memberCode" = ${sqlLiteral(row.memberCode)}
 );`.trim());
@@ -206,6 +214,7 @@ where not exists (
     statements.push(`
 update public."User"
 set
+  "createdAt" = coalesce(${sqlLiteral(joinedAtTimestamp)}::timestamp, "createdAt"),
   "passwordHash" = ${sqlLiteral(passwordHash)},
   "updatedAt" = now()
 where "memberCode" = ${sqlLiteral(row.memberCode)};`.trim());

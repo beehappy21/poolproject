@@ -33,6 +33,9 @@ with zipfile.ZipFile(path) as z:
         vals = []
         for c in row.findall('a:c', ns):
             t = c.attrib.get('t')
+            if t == 'inlineStr':
+                vals.append(''.join(text.text or '' for text in c.findall('.//a:t', ns)))
+                continue
             v = c.find('a:v', ns)
             val = ''
             if v is not None and v.text is not None:

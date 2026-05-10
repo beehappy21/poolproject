@@ -29,6 +29,10 @@ def load_rows(xlsx_path: Path) -> list[dict[str, str]]:
             for cell in row.findall("a:c", NS):
                 value = ""
                 cell_type = cell.attrib.get("t")
+                if cell_type == "inlineStr":
+                    value = "".join(node.text or "" for node in cell.findall(".//a:t", NS))
+                    values.append(value)
+                    continue
                 raw = cell.find("a:v", NS)
                 if raw is not None and raw.text is not None:
                     value = shared_strings[int(raw.text)] if cell_type == "s" else raw.text
