@@ -14,20 +14,53 @@ class BaoAdminApiClient
      * @param  array<string, mixed>|null  $payload
      * @return array<string, mixed>
      */
+    public function internalRequest(string $method, string $path, ?array $payload = null): array
+    {
+        $token = trim((string) (
+            env('INTERNAL_RECEIPT_TOKEN')
+            ?: env('APP_INTERNAL_RECEIPT_TOKEN')
+            ?: ''
+        ));
+
+        if ($token === '') {
+            throw new \RuntimeException('Unable to call internal BAO API: missing INTERNAL_RECEIPT_TOKEN.');
+        }
+
+        return $this->sendRequest($method, $path, $payload, [
+            'X-Requested-By' => 'bao-internal-admin',
+            'x-internal-bao-token' => $token,
+        ], withAdminToken: false);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $payload
+     * @return array<string, mixed>
+     */
     public function request(string $method, string $path, ?array $payload = null): array
+    {
+        return $this->sendRequest($method, $path, $payload, [
+            'X-Requested-By' => 'bao-wallet-admin',
+        ], withAdminToken: true);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $payload
+     * @param  array<string, string>  $headers
+     * @return array<string, mixed>
+     */
+    private function sendRequest(string $method, string $path, ?array $payload, array $headers, bool $withAdminToken): array
     {
         try {
             $request = Http::acceptJson()
                 ->timeout(30)
                 ->baseUrl($this->apiBaseUrl())
-                ->withHeaders([
-                    'X-Requested-By' => 'bao-wallet-admin',
-                ]);
+                ->withHeaders($headers);
 
-            $token = $this->adminApiAccessToken();
-
-            if ($token !== null) {
-                $request = $request->withToken($token);
+            if ($withAdminToken) {
+                $token = $this->adminApiAccessToken();
+                if ($token !== null) {
+                    $request = $request->withToken($token);
+                }
             }
 
             $response = $request->send($method, $path, $payload ? ['json' => $payload] : []);
@@ -66,13 +99,13 @@ class BaoAdminApiClient
         $identifier = trim((string) (
             env('BAO_API_ADMIN_IDENTIFIER')
             ?: env('APP_BAO_API_ADMIN_IDENTIFIER')
-            ?: 'dev-admin@example.com'
+            ?: ''
         ));
         $password = trim((string) (
             env('BAO_API_ADMIN_PASSWORD')
             ?: env('APP_BAO_API_ADMIN_PASSWORD')
             ?: env('DEV_MEMBER_IMPERSONATION_PASSWORD')
-            ?: 'a1a1a1'
+            ?: ''
         ));
 
         if ($identifier === '' || $password === '') {

@@ -160,13 +160,11 @@ async function bootstrap(): Promise<void> {
 }
 
 function shouldSkipRateLimit(method: string, path: string): boolean {
-  if (method === "OPTIONS" || path === "/health" || path === "/") {
-    return true;
-  }
-
   if (
-    path.startsWith("/admin/") ||
-    path === "/admin"
+    method === "OPTIONS" ||
+    path === "/health" ||
+    path === "/" ||
+    path.startsWith("/internal/bao/")
   ) {
     return true;
   }
@@ -187,10 +185,7 @@ function resolveRouteAccess(
     path === "/" ||
     path === "/auth/login" ||
     path === "/auth/line-login" ||
-    path === "/admin" ||
-    path === "/admin/index.html" ||
-    path === "/admin/styles.css" ||
-    path === "/admin/app.js"
+    path.startsWith("/internal/bao/")
   ) {
     return "public";
   }
