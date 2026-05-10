@@ -155,6 +155,10 @@ Route::middleware('admin.access:'.AdminPermissions::COMMISSIONS_MANAGE)->group(f
 
   Route::get('commission/report/export/{reportMode?}', [CommissionReportController::class, 'export'])
     ->name('platform.commission.report.export');
+  Route::post('commission/report/process-next-member', [CommissionReportController::class, 'processNextMember'])
+    ->name('platform.commission.report.processNextMember');
+  Route::post('commission/report/finalize-current-day', [CommissionReportController::class, 'finalizeCurrentDay'])
+    ->name('platform.commission.report.finalizeCurrentDay');
   Route::post('commission/report/process-single-day', [CommissionReportController::class, 'processSingleDay'])
     ->name('platform.commission.report.processSingleDay');
 

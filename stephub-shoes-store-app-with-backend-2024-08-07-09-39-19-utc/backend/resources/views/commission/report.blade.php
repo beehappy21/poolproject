@@ -8,7 +8,15 @@
     $accent = $section['accent'] ?? '#2563eb';
     $reportMode = $reportMode ?? 'overview';
     $selectedFormat = strtolower((string) request('format', 'csv'));
+    $baselineDayStatus = $baselineDayStatus ?? null;
     $nextPendingSettlementDate = $nextPendingSettlementDate ?? null;
+    $workingDate = $baselineDayStatus['workingDate'] ?? $nextPendingSettlementDate;
+    $totalMemberCount = (int) ($baselineDayStatus['totalMemberCount'] ?? 0);
+    $completedMemberCount = (int) ($baselineDayStatus['completedMemberCount'] ?? 0);
+    $remainingMemberCount = (int) ($baselineDayStatus['remainingMemberCount'] ?? 0);
+    $canSeedNextMember = (bool) ($baselineDayStatus['canSeedNextMember'] ?? false);
+    $canFinalizeDay = (bool) ($baselineDayStatus['canFinalizeDay'] ?? false);
+    $nextMemberCode = $baselineDayStatus['nextMemberCode'] ?? null;
     $resultCount = $rows instanceof \Illuminate\Contracts\Pagination\Paginator
         ? (int) $rows->total()
         : (is_countable($rows) ? count($rows) : 0);
@@ -167,29 +175,58 @@
                 </div>
                 <div class="commission-calc-inline">
                     <div class="commission-field">
-                        <label>วันถัดไปที่รอคำนวณ</label>
+                        <label>วันที่กำลังทดสอบ</label>
                         <input
                             type="text"
-                            value="{{ $nextPendingSettlementDate ?? 'คำนวณครบทุกวันแล้ว' }}"
+                            value="{{ $workingDate ?? 'คำนวณครบทุกวันแล้ว' }}"
+                            readonly
+                        >
+                    </div>
+                    <div class="commission-field">
+                        <label>ความคืบหน้าของวัน</label>
+                        <input
+                            type="text"
+                            value="{{ $workingDate ? ($completedMemberCount . ' / ' . $totalMemberCount . ' รายการ') : 'ไม่มีรายการค้าง' }}"
                             readonly
                         >
                     </div>
                     <button
-                        type="button"
-                        id="commission-process-single-day-button"
+                        type="submit"
+                        form="commission-process-next-member-form"
+                        id="commission-process-next-member-button"
                         class="commission-button is-warning"
-                        @disabled(!$nextPendingSettlementDate)
+                        @disabled(!$canSeedNextMember)
                     >
-                        คำนวณวันถัดไป
+                        สั่งสินค้าทีละรหัส
+                    </button>
+                    <button
+                        type="submit"
+                        form="commission-finalize-day-form"
+                        id="commission-finalize-day-button"
+                        class="commission-button"
+                        @disabled(!$canFinalizeDay)
+                    >
+                        คำนวณเมื่อหมดวัน
                     </button>
                 </div>
                 <div class="commission-inline-note">
-                    ปุ่มนี้จะสร้าง order ของวันถัดไปตามวันสมัครและเรียงตามรหัสสมาชิกด้วยสินค้าทดสอบ 1000 บาท / 350 PV หากวันนั้นยังไม่มี baseline order จากนั้นจะคำนวณ end-of-day ของวันนั้นทันที ถ้าวันก่อนหน้าถูกสร้างไว้แล้วแต่ยังไม่คำนวณ ระบบจะใช้วันค้างนั้นก่อน ส่วน PDF เหมาะกับรายงานขนาดเล็ก และรองรับการส่งออกได้ไม่เกิน 500 แถวต่อครั้ง หากข้อมูลมากกว่านี้แนะนำให้ใช้ CSV หรือ Excel
+                    ระบบจะสร้าง order baseline ทีละสมาชิกตามวันสมัครและเรียงตามรหัสสมาชิก พร้อม approve และ process order ตาม flow ปกติทันที เมื่อสมาชิกของวันนั้นครบทั้งหมดแล้ว ปุ่มคำนวณเมื่อหมดวันจึงจะกดได้เพื่อสั่ง end-of-day ตามแผนของระบบ@if($nextMemberCode) โดยรายการถัดไปคือ {{ $nextMemberCode }}@endif ส่วน PDF เหมาะกับรายงานขนาดเล็ก และรองรับการส่งออกได้ไม่เกิน 500 แถวต่อครั้ง หากข้อมูลมากกว่านี้แนะนำให้ใช้ CSV หรือ Excel
                 </div>
             </form>
-            <form id="commission-single-day-form" method="POST" action="{{ route('platform.commission.report.processSingleDay') }}">
+            <form id="commission-process-next-member-form" method="POST" action="{{ route('platform.commission.report.processNextMember') }}">
                 @csrf
-                <input type="hidden" name="settlement_date" value="{{ $nextPendingSettlementDate ?? '' }}">
+                <input type="hidden" name="settlement_date" value="{{ $workingDate ?? '' }}">
+                <input type="hidden" name="report_mode" value="{{ $reportMode }}">
+                <input type="hidden" name="member_from" value="{{ $filters['memberFrom'] ?? '' }}">
+                <input type="hidden" name="member_to" value="{{ $filters['memberTo'] ?? '' }}">
+                <input type="hidden" name="date_from" value="{{ $filters['dateFrom'] ?? '' }}">
+                <input type="hidden" name="date_to" value="{{ $filters['dateTo'] ?? '' }}">
+                <input type="hidden" name="page_size" value="{{ $filters['pageSize'] ?? 25 }}">
+                <input type="hidden" name="format" value="{{ $selectedFormat }}">
+            </form>
+            <form id="commission-finalize-day-form" method="POST" action="{{ route('platform.commission.report.finalizeCurrentDay') }}">
+                @csrf
+                <input type="hidden" name="settlement_date" value="{{ $workingDate ?? '' }}">
                 <input type="hidden" name="report_mode" value="{{ $reportMode }}">
                 <input type="hidden" name="member_from" value="{{ $filters['memberFrom'] ?? '' }}">
                 <input type="hidden" name="member_to" value="{{ $filters['memberTo'] ?? '' }}">
@@ -325,9 +362,6 @@
     (() => {
         const form = document.getElementById('commission-report-form');
         const exportButton = document.getElementById('commission-export-button');
-        const processSingleDayButton = document.getElementById('commission-process-single-day-button');
-        const processSingleDayForm = document.getElementById('commission-single-day-form');
-
         if (!form) {
             return;
         }
@@ -359,10 +393,5 @@
             });
         }
 
-        if (processSingleDayButton && processSingleDayForm && !processSingleDayButton.disabled) {
-            processSingleDayButton.addEventListener('click', () => {
-                processSingleDayForm.submit();
-            });
-        }
     })();
 </script>

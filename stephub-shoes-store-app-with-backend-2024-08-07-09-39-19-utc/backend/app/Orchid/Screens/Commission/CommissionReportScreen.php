@@ -26,6 +26,7 @@ class CommissionReportScreen extends Screen
         $items = $report['rows']->values()->all();
         $total = (int) ($report['totalCount'] ?? count($items));
         $modeMeta = $this->modeMeta($mode);
+        $baselineDayStatus = CommissionBaselineDayRunner::currentDayStatus();
 
         $paginator = new LengthAwarePaginator(
             $items,
@@ -43,7 +44,8 @@ class CommissionReportScreen extends Screen
             'commissionReportRows' => $paginator,
             'commissionReportTotals' => $reportTotals,
             'commissionReportSummaryCards' => $report['summaryCards'],
-            'nextPendingSettlementDate' => CommissionBaselineDayRunner::nextActionDate(),
+            'baselineDayStatus' => $baselineDayStatus,
+            'nextPendingSettlementDate' => $baselineDayStatus['workingDate'] ?? CommissionBaselineDayRunner::nextActionDate(),
             'commissionNav' => CommissionSettingsScreen::commissionNav($mode, $request->except('page')),
             'commissionSection' => [
                 'title' => $report['title'],

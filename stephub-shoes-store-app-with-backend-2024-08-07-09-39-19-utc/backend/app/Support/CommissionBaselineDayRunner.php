@@ -48,78 +48,202 @@ class CommissionBaselineDayRunner
     }
 
     /**
+     * @return array{
+     *   workingDate:string,
+     *   totalMemberCount:int,
+     *   completedMemberCount:int,
+     *   remainingMemberCount:int,
+     *   canSeedNextMember:bool,
+     *   canFinalizeDay:bool,
+     *   isPendingSettlementDay:bool,
+     *   nextMemberCode:?string,
+     *   nextMemberName:?string
+     * }|null
+     */
+    public static function currentDayStatus(): ?array
+    {
+        $pendingSettlementDate = self::nextPendingSettlementDate();
+        $batch = self::resolveActiveBatch($pendingSettlementDate);
+        if ($batch === null) {
+            return null;
+        }
+
+        $progress = self::batchProgress($batch, self::loadExistingOrders());
+        $nextMember = $progress['nextPendingMember'];
+
+        return [
+            'workingDate' => (string) $batch['signupDate'],
+            'totalMemberCount' => (int) $progress['totalMemberCount'],
+            'completedMemberCount' => (int) $progress['completedMemberCount'],
+            'remainingMemberCount' => (int) $progress['remainingMemberCount'],
+            'canSeedNextMember' => $nextMember !== null,
+            'canFinalizeDay' => $nextMember === null && $pendingSettlementDate !== null,
+            'isPendingSettlementDay' => $pendingSettlementDate !== null,
+            'nextMemberCode' => $nextMember['memberCode'] ?? null,
+            'nextMemberName' => $nextMember['name'] ?? null,
+        ];
+    }
+
+    /**
+     * @return array{
+     *   settlementDate:string,
+     *   memberCode:string,
+     *   memberName:string,
+     *   orderId:string,
+     *   orderNo:string,
+     *   action:string
+     * }
+     */
+    public static function processNextMember(BaoAdminApiClient $apiClient): array
+    {
+        $pendingSettlementDate = self::nextPendingSettlementDate();
+        $batch = self::resolveActiveBatch($pendingSettlementDate);
+        if ($batch === null) {
+            throw new \RuntimeException('ไม่พบสมาชิกถัดไปสำหรับ baseline แล้ว');
+        }
+
+        $progress = self::batchProgress($batch, self::loadExistingOrders());
+        $member = $progress['nextPendingMember'];
+        $existing = $progress['nextPendingExistingOrder'];
+
+        if ($member === null) {
+            throw new \RuntimeException(
+                $pendingSettlementDate !== null
+                    ? 'สมาชิกของวันที่ ' . $batch['signupDate'] . ' ครบแล้ว กรุณากดคำนวณเมื่อหมดวัน'
+                    : 'ไม่พบสมาชิกถัดไปสำหรับ baseline แล้ว'
+            );
+        }
+
+        $approvedAtIso = self::toBangkokSequencedIso(
+            (string) $member['signupDate'],
+            (int) ($member['daySequence'] ?? $member['sequence'] ?? 1)
+        );
+
+        if (is_array($existing) && ($existing['orderId'] ?? null) !== null) {
+            self::prepareOrderForApprovedProcessing((string) $existing['orderId'], $approvedAtIso);
+            $apiClient->internalRequest('POST', '/internal/bao/orders/' . $existing['orderId'] . '/process-approved');
+            self::backfillOrderDates((string) $existing['orderId'], (string) $member['userId'], $approvedAtIso);
+
+            return [
+                'settlementDate' => (string) $batch['signupDate'],
+                'memberCode' => (string) $member['memberCode'],
+                'memberName' => (string) ($member['name'] ?? ''),
+                'orderId' => (string) $existing['orderId'],
+                'orderNo' => (string) ($existing['orderNo'] ?? ''),
+                'action' => 'processed_existing_order',
+            ];
+        }
+
+        $productDetailId = self::resolveProductDetailId();
+        $tag = self::memberTag($member);
+
+        /** @var array<string, mixed> $created */
+        $created = $apiClient->internalRequest('POST', '/internal/bao/orders', [
+            'userId' => (string) $member['userId'],
+            'productDetailId' => $productDetailId,
+            'quantity' => '1',
+            'fulfillmentMethod' => 'branch_pickup',
+            'pickupBranchName' => 'Commission Test Baseline',
+            'pickupBranchNote' => $tag,
+            'pickupRecipientName' => (string) ($member['name'] ?: $member['memberCode']),
+            'pickupPhone' => '0800000000',
+            'cashPaymentMethod' => 'bank_transfer',
+        ]);
+
+        $orderId = (string) ($created['orderId'] ?? '');
+        if ($orderId === '') {
+            throw new \RuntimeException('Order create succeeded but missing orderId.');
+        }
+
+        $apiClient->internalRequest('POST', '/internal/bao/orders/' . $orderId . '/approve');
+        self::prepareOrderForApprovedProcessing($orderId, $approvedAtIso);
+        $apiClient->internalRequest('POST', '/internal/bao/orders/' . $orderId . '/process-approved');
+        self::backfillOrderDates($orderId, (string) $member['userId'], $approvedAtIso);
+
+        return [
+            'settlementDate' => (string) $batch['signupDate'],
+            'memberCode' => (string) $member['memberCode'],
+            'memberName' => (string) ($member['name'] ?? ''),
+            'orderId' => $orderId,
+            'orderNo' => (string) ($created['orderNo'] ?? ''),
+            'action' => 'created_order',
+        ];
+    }
+
+    /**
+     * @return array{settlementDate:string, endOfDayResult:array<string,mixed>}
+     */
+    public static function finalizeCurrentDay(BaoAdminApiClient $apiClient): array
+    {
+        $pendingSettlementDate = self::nextPendingSettlementDate();
+        if ($pendingSettlementDate === null) {
+            throw new \RuntimeException('ยังไม่มีวันที่พร้อมปิดวันเพื่อคำนวณ end-of-day');
+        }
+
+        $batch = self::batchForDate($pendingSettlementDate);
+        if ($batch === null) {
+            throw new \RuntimeException('ไม่พบข้อมูลสมาชิกของวันที่ ' . $pendingSettlementDate);
+        }
+
+        $progress = self::batchProgress($batch, self::loadExistingOrders());
+        if (($progress['remainingMemberCount'] ?? 0) > 0) {
+            $nextMemberCode = $progress['nextPendingMember']['memberCode'] ?? null;
+            throw new \RuntimeException(
+                'ยังสร้างรายการไม่ครบสำหรับวันที่ '
+                . $pendingSettlementDate
+                . ' คงเหลือ '
+                . $progress['remainingMemberCount']
+                . ' รายการ'
+                . ($nextMemberCode ? ' (ถัดไป: ' . $nextMemberCode . ')' : '')
+            );
+        }
+
+        /** @var array<string, mixed> $endOfDayResult */
+        $endOfDayResult = $apiClient->internalRequest('POST', '/internal/bao/commissions/end-of-day/' . $pendingSettlementDate . '/process');
+
+        return [
+            'settlementDate' => $pendingSettlementDate,
+            'endOfDayResult' => $endOfDayResult,
+        ];
+    }
+
+    /**
      * @return array{settlementDate:string, seeded:bool, createdOrderCount:int, processedExistingOrderCount:int, reusedOrderCount:int, endOfDayResult:array<string,mixed>}
      */
     public static function runNextDay(BaoAdminApiClient $apiClient): array
     {
-        $pendingSettlementDate = self::nextPendingSettlementDate();
-        $batch = $pendingSettlementDate !== null
-            ? self::batchForDate($pendingSettlementDate)
-            : self::nextSeedBatch();
-        if ($batch === null) {
+        $status = self::currentDayStatus();
+        if ($status === null) {
             throw new \RuntimeException('ไม่พบวันถัดไปสำหรับสร้าง order baseline แล้ว');
         }
 
-        $productDetailId = self::resolveProductDetailId();
-        $existingOrders = self::loadExistingOrders();
+        $targetDate = $status['workingDate'];
         $createdOrderCount = 0;
         $processedExistingOrderCount = 0;
-        $reusedOrderCount = 0;
 
-        foreach ($batch['members'] as $member) {
-            $tag = self::memberTag($member);
-            $approvedAtIso = self::toBangkokNoonIso((string) $member['signupDate']);
-            $existing = $existingOrders->get($tag);
-
-            if (is_array($existing) && ($existing['orderId'] ?? null) !== null) {
-                self::prepareOrderForApprovedProcessing((string) $existing['orderId'], $approvedAtIso);
-                self::backfillOrderDates((string) $existing['orderId'], (string) $member['userId'], $approvedAtIso);
-                if (!self::orderHasCommissionRows((string) $existing['orderId'])) {
-                    $apiClient->internalRequest('POST', '/internal/bao/orders/' . $existing['orderId'] . '/process-approved');
-                    self::backfillOrderDates((string) $existing['orderId'], (string) $member['userId'], $approvedAtIso);
-                    $processedExistingOrderCount++;
-                } else {
-                    $reusedOrderCount++;
-                }
-                continue;
+        while (true) {
+            $currentStatus = self::currentDayStatus();
+            if ($currentStatus === null || $currentStatus['workingDate'] !== $targetDate || !$currentStatus['canSeedNextMember']) {
+                break;
             }
 
-            /** @var array<string, mixed> $created */
-            $created = $apiClient->internalRequest('POST', '/internal/bao/orders', [
-                'userId' => (string) $member['userId'],
-                'productDetailId' => $productDetailId,
-                'quantity' => '1',
-                'fulfillmentMethod' => 'branch_pickup',
-                'pickupBranchName' => 'Commission Test Baseline',
-                'pickupBranchNote' => $tag,
-                'pickupRecipientName' => (string) ($member['name'] ?: $member['memberCode']),
-                'pickupPhone' => '0800000000',
-                'cashPaymentMethod' => 'bank_transfer',
-            ]);
-
-            $orderId = (string) ($created['orderId'] ?? '');
-            if ($orderId === '') {
-                throw new \RuntimeException('Order create succeeded but missing orderId.');
+            $result = self::processNextMember($apiClient);
+            if (($result['action'] ?? '') === 'processed_existing_order') {
+                $processedExistingOrderCount++;
+            } else {
+                $createdOrderCount++;
             }
-
-            $apiClient->internalRequest('POST', '/internal/bao/orders/' . $orderId . '/approve');
-            self::prepareOrderForApprovedProcessing($orderId, $approvedAtIso);
-            $apiClient->internalRequest('POST', '/internal/bao/orders/' . $orderId . '/process-approved');
-            self::backfillOrderDates($orderId, (string) $member['userId'], $approvedAtIso);
-            $createdOrderCount++;
         }
 
-        $settlementDate = (string) $batch['signupDate'];
-        /** @var array<string, mixed> $endOfDayResult */
-        $endOfDayResult = $apiClient->internalRequest('POST', '/internal/bao/commissions/end-of-day/' . $settlementDate . '/process');
+        $finalized = self::finalizeCurrentDay($apiClient);
 
         return [
-            'settlementDate' => $settlementDate,
-            'seeded' => $pendingSettlementDate === null,
+            'settlementDate' => $targetDate,
+            'seeded' => true,
             'createdOrderCount' => $createdOrderCount,
             'processedExistingOrderCount' => $processedExistingOrderCount,
-            'reusedOrderCount' => $reusedOrderCount,
-            'endOfDayResult' => $endOfDayResult,
+            'reusedOrderCount' => 0,
+            'endOfDayResult' => $finalized['endOfDayResult'],
         ];
     }
 
@@ -173,6 +297,19 @@ class CommissionBaselineDayRunner
     }
 
     /**
+     * @param  ?string  $pendingSettlementDate
+     * @return array{signupDate:string, members:Collection<int, array<string, mixed>>}|null
+     */
+    private static function resolveActiveBatch(?string $pendingSettlementDate = null): ?array
+    {
+        $pendingSettlementDate ??= self::nextPendingSettlementDate();
+
+        return $pendingSettlementDate !== null
+            ? self::batchForDate($pendingSettlementDate)
+            : self::nextSeedBatch();
+    }
+
+    /**
      * @return Collection<int, array<string, mixed>>
      */
     private static function loadMembers(): Collection
@@ -191,13 +328,19 @@ class CommissionBaselineDayRunner
                 u.id asc
         SQL);
 
-        return collect($rows)->values()->map(static function (object $row, int $index): array {
+        $daySequences = [];
+
+        return collect($rows)->values()->map(static function (object $row, int $index) use (&$daySequences): array {
+            $signupDate = (string) $row->signup_date;
+            $daySequences[$signupDate] = ($daySequences[$signupDate] ?? 0) + 1;
+
             return [
                 'sequence' => $index + 1,
+                'daySequence' => $daySequences[$signupDate],
                 'userId' => (string) $row->user_id,
                 'memberCode' => (string) $row->member_code,
                 'name' => (string) $row->member_name,
-                'signupDate' => (string) $row->signup_date,
+                'signupDate' => $signupDate,
             ];
         });
     }
@@ -252,11 +395,17 @@ class CommissionBaselineDayRunner
         );
     }
 
-    private static function toBangkokNoonIso(string $dateOnly): string
+    private static function toBangkokSequencedIso(string $dateOnly, int $sequence): string
     {
         [$year, $month, $day] = array_map(static fn (string $value): int => (int) $value, explode('-', $dateOnly));
+        $minuteOffset = max(0, $sequence - 1);
+        $base = new \DateTimeImmutable(
+            sprintf('%04d-%02d-%02d 05:00:00', $year, $month, $day),
+            new \DateTimeZone('UTC')
+        );
 
-        return (new \DateTimeImmutable(sprintf('%04d-%02d-%02d 05:00:00', $year, $month, $day), new \DateTimeZone('UTC')))
+        return $base
+            ->modify(sprintf('+%d minutes', $minuteOffset))
             ->format(\DateTimeInterface::ATOM);
     }
 
@@ -344,14 +493,84 @@ class CommissionBaselineDayRunner
         SQL);
     }
 
-    private static function orderHasCommissionRows(string $orderId): bool
+    /**
+     * @param  array<int, string>  $orderIds
+     * @return Collection<string, bool>
+     */
+    private static function loadCommissionedOrderLookup(array $orderIds): Collection
     {
-        $row = DB::connection('poolproject')->selectOne(
-            'select exists(select 1 from "CommissionLedger" where "orderId" = ?::bigint) as has_rows',
-            [$orderId]
+        $uniqueOrderIds = array_values(array_unique(array_filter($orderIds, static fn (?string $value): bool => is_string($value) && $value !== '')));
+        if ($uniqueOrderIds === []) {
+            return collect();
+        }
+
+        $placeholders = implode(', ', array_fill(0, count($uniqueOrderIds), '?::bigint'));
+        $rows = DB::connection('poolproject')->select(
+            'select distinct "orderId"::text as order_id from "CommissionLedger" where "orderId" in (' . $placeholders . ')',
+            $uniqueOrderIds
         );
 
-        return is_object($row) && (bool) ($row->has_rows ?? false);
+        $lookup = collect();
+        foreach ($rows as $row) {
+            $lookup->put((string) $row->order_id, true);
+        }
+
+        return $lookup;
+    }
+
+    /**
+     * @param  array{signupDate:string, members:Collection<int, array<string, mixed>>}  $batch
+     * @return array{
+     *   totalMemberCount:int,
+     *   completedMemberCount:int,
+     *   remainingMemberCount:int,
+     *   nextPendingMember:?array<string,mixed>,
+     *   nextPendingExistingOrder:?array<string,string>
+     * }
+     */
+    private static function batchProgress(array $batch, Collection $existingOrders): array
+    {
+        $members = $batch['members']->values();
+        $orderIds = [];
+
+        foreach ($members as $member) {
+            $existing = $existingOrders->get(self::memberTag($member));
+            if (is_array($existing) && isset($existing['orderId'])) {
+                $orderIds[] = (string) $existing['orderId'];
+            }
+        }
+
+        $commissionedOrders = self::loadCommissionedOrderLookup($orderIds);
+        $completedMemberCount = 0;
+        $nextPendingMember = null;
+        $nextPendingExistingOrder = null;
+
+        foreach ($members as $member) {
+            $existing = $existingOrders->get(self::memberTag($member));
+            $isComplete = is_array($existing)
+                && isset($existing['orderId'])
+                && $commissionedOrders->has((string) $existing['orderId']);
+
+            if ($isComplete) {
+                $completedMemberCount++;
+                continue;
+            }
+
+            if ($nextPendingMember === null) {
+                $nextPendingMember = $member;
+                $nextPendingExistingOrder = is_array($existing) ? $existing : null;
+            }
+        }
+
+        $totalMemberCount = $members->count();
+
+        return [
+            'totalMemberCount' => $totalMemberCount,
+            'completedMemberCount' => $completedMemberCount,
+            'remainingMemberCount' => max(0, $totalMemberCount - $completedMemberCount),
+            'nextPendingMember' => $nextPendingMember,
+            'nextPendingExistingOrder' => $nextPendingExistingOrder,
+        ];
     }
 
     private static function sqlLiteral(string $value): string
