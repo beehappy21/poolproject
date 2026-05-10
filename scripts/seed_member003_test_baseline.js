@@ -212,22 +212,24 @@ function parseMemberRows(raw) {
     .split("\n")
     .filter(Boolean)
     .map((line, index) => {
-      const [userId, memberCode, name, signupDate] = line.split("|");
+      const [userId, memberCode, name, signupDate, sponsorUserId] = line.split("|");
       return {
-        sequence: index + 1,
+        originalOrder: index,
         userId,
         memberCode,
         name,
-        signupDate,
+        originalSignupDate: signupDate,
+        sponsorUserId: sponsorUserId || null,
       };
     });
 }
 
-function toBangkokNoonIso(dateOnly) {
+function toBangkokSequencedIso(dateOnly, sequence = 1) {
   const [year, month, day] = dateOnly
     .split("-")
     .map((value) => Number.parseInt(value, 10));
-  return new Date(Date.UTC(year, month - 1, day, 5, 0, 0, 0)).toISOString();
+  const minuteOffset = Math.max(0, Number(sequence || 1) - 1);
+  return new Date(Date.UTC(year, month - 1, day, 5, minuteOffset, 0, 0)).toISOString();
 }
 
 function uniqueDatesInOrder(rows) {
@@ -264,6 +266,102 @@ function buildDailyBatches(rows) {
   }
 
   return batches;
+}
+
+function applyCommissionSequence(rows) {
+  if (rows.length === 0) {
+    return [];
+  }
+
+  const dateBuckets = [];
+  for (const row of rows) {
+    dateBuckets[row.originalSignupDate] = (dateBuckets[row.originalSignupDate] || 0) + 1;
+  }
+
+  const memberByUserId = new Map();
+  const indegreeByUserId = new Map();
+  const childrenByUserId = new Map();
+
+  for (const row of rows) {
+    memberByUserId.set(row.userId, row);
+    indegreeByUserId.set(row.userId, 0);
+    childrenByUserId.set(row.userId, []);
+  }
+
+  for (const row of rows) {
+    if (!row.sponsorUserId || !memberByUserId.has(row.sponsorUserId)) {
+      continue;
+    }
+
+    childrenByUserId.get(row.sponsorUserId).push(row.userId);
+    indegreeByUserId.set(row.userId, (indegreeByUserId.get(row.userId) || 0) + 1);
+  }
+
+  const sortReady = (userIds) =>
+    userIds.sort(
+      (left, right) =>
+        (memberByUserId.get(left)?.originalOrder || 0) -
+        (memberByUserId.get(right)?.originalOrder || 0),
+    );
+
+  const readyUserIds = sortReady(
+    rows
+      .filter((row) => (indegreeByUserId.get(row.userId) || 0) === 0)
+      .map((row) => row.userId),
+  );
+
+  const ordered = [];
+  while (readyUserIds.length > 0) {
+    const userId = readyUserIds.shift();
+    const member = userId ? memberByUserId.get(userId) : null;
+    if (!member) {
+      continue;
+    }
+
+    ordered.push(member);
+    for (const childUserId of childrenByUserId.get(userId) || []) {
+      indegreeByUserId.set(childUserId, (indegreeByUserId.get(childUserId) || 0) - 1);
+      if ((indegreeByUserId.get(childUserId) || 0) === 0) {
+        readyUserIds.push(childUserId);
+      }
+    }
+    sortReady(readyUserIds);
+  }
+
+  if (ordered.length < rows.length) {
+    const orderedUserIds = new Set(ordered.map((row) => row.userId));
+    for (const row of rows) {
+      if (!orderedUserIds.has(row.userId)) {
+        ordered.push(row);
+      }
+    }
+  }
+
+  const dateEntries = Object.entries(dateBuckets).map(([date, count]) => ({
+    date,
+    count,
+  }));
+  let dateIndex = 0;
+  let slotUsage = 0;
+  const daySequences = {};
+
+  return ordered.map((row, index) => {
+    while (dateEntries[dateIndex] && slotUsage >= dateEntries[dateIndex].count) {
+      dateIndex += 1;
+      slotUsage = 0;
+    }
+
+    const assignedDate = dateEntries[dateIndex]?.date || row.originalSignupDate;
+    slotUsage += 1;
+    daySequences[assignedDate] = (daySequences[assignedDate] || 0) + 1;
+
+    return {
+      ...row,
+      sequence: index + 1,
+      daySequence: daySequences[assignedDate],
+      signupDate: assignedDate,
+    };
+  });
 }
 
 function fetchSingleValue(sql) {
@@ -499,13 +597,15 @@ function ensureCatalog() {
 }
 
 function loadMembers() {
-  return parseMemberRows(
+  return applyCommissionSequence(
+    parseMemberRows(
     runPsql(`
       select
         u.id::text,
         u."memberCode",
         coalesce(u."name", ''),
-        to_char(u."createdAt" at time zone 'Asia/Bangkok', 'YYYY-MM-DD')
+        to_char(u."createdAt" at time zone 'Asia/Bangkok', 'YYYY-MM-DD'),
+        u."sponsorId"::text
       from "User" u
       where u."isAdmin" = false
       order by
@@ -513,6 +613,7 @@ function loadMembers() {
         u."memberCode" asc,
         u.id asc;
     `),
+    ),
   );
 }
 
@@ -619,7 +720,7 @@ async function seedOrders({ members, productDetailId, auth }) {
 
   for (const member of members) {
     const tag = `${SOURCE_TAG}|member=${member.memberCode}|signupDate=${member.signupDate}|seq=${member.sequence}`;
-    const approvedAtIso = toBangkokNoonIso(member.signupDate);
+    const approvedAtIso = toBangkokSequencedIso(member.signupDate, member.sequence);
     const existing = existingOrders.get(tag);
 
     if (existing) {

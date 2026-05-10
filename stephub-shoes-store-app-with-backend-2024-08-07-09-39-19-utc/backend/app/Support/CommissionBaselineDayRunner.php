@@ -65,6 +65,13 @@ class CommissionBaselineDayRunner
         $pendingSettlementDate = self::nextPendingSettlementDate();
         $batch = self::resolveActiveBatch($pendingSettlementDate);
         if ($batch === null) {
+            if ($pendingSettlementDate !== null) {
+                $fallback = self::pendingSettlementFallbackStatus($pendingSettlementDate);
+                if ($fallback !== null) {
+                    return $fallback;
+                }
+            }
+
             return null;
         }
 
@@ -77,7 +84,7 @@ class CommissionBaselineDayRunner
             'completedMemberCount' => (int) $progress['completedMemberCount'],
             'remainingMemberCount' => (int) $progress['remainingMemberCount'],
             'canSeedNextMember' => $nextMember !== null,
-            'canFinalizeDay' => $nextMember === null && $pendingSettlementDate !== null,
+            'canFinalizeDay' => (int) $progress['totalMemberCount'] > 0 && (int) $progress['remainingMemberCount'] === 0,
             'isPendingSettlementDay' => $pendingSettlementDate !== null,
             'nextMemberCode' => $nextMember['memberCode'] ?? null,
             'nextMemberName' => $nextMember['name'] ?? null,
@@ -99,6 +106,10 @@ class CommissionBaselineDayRunner
         $pendingSettlementDate = self::nextPendingSettlementDate();
         $batch = self::resolveActiveBatch($pendingSettlementDate);
         if ($batch === null) {
+            if ($pendingSettlementDate !== null && self::countBaselineOrdersForSettlementDate($pendingSettlementDate) > 0) {
+                throw new \RuntimeException('สมาชิกของวันที่ ' . $pendingSettlementDate . ' ครบแล้ว กรุณากดคำนวณเมื่อหมดวัน');
+            }
+
             throw new \RuntimeException('ไม่พบสมาชิกถัดไปสำหรับ baseline แล้ว');
         }
 
@@ -181,21 +192,21 @@ class CommissionBaselineDayRunner
         }
 
         $batch = self::batchForDate($pendingSettlementDate);
-        if ($batch === null) {
-            throw new \RuntimeException('ไม่พบข้อมูลสมาชิกของวันที่ ' . $pendingSettlementDate);
-        }
-
-        $progress = self::batchProgress($batch, self::loadExistingOrders());
-        if (($progress['remainingMemberCount'] ?? 0) > 0) {
-            $nextMemberCode = $progress['nextPendingMember']['memberCode'] ?? null;
-            throw new \RuntimeException(
-                'ยังสร้างรายการไม่ครบสำหรับวันที่ '
-                . $pendingSettlementDate
-                . ' คงเหลือ '
-                . $progress['remainingMemberCount']
-                . ' รายการ'
-                . ($nextMemberCode ? ' (ถัดไป: ' . $nextMemberCode . ')' : '')
-            );
+        if ($batch !== null) {
+            $progress = self::batchProgress($batch, self::loadExistingOrders());
+            if (($progress['remainingMemberCount'] ?? 0) > 0) {
+                $nextMemberCode = $progress['nextPendingMember']['memberCode'] ?? null;
+                throw new \RuntimeException(
+                    'ยังสร้างรายการไม่ครบสำหรับวันที่ '
+                    . $pendingSettlementDate
+                    . ' คงเหลือ '
+                    . $progress['remainingMemberCount']
+                    . ' รายการ'
+                    . ($nextMemberCode ? ' (ถัดไป: ' . $nextMemberCode . ')' : '')
+                );
+            }
+        } elseif (self::countBaselineOrdersForSettlementDate($pendingSettlementDate) === 0) {
+            throw new \RuntimeException('ไม่พบข้อมูลสมาชิกหรือ order baseline ของวันที่ ' . $pendingSettlementDate);
         }
 
         /** @var array<string, mixed> $endOfDayResult */
@@ -319,7 +330,8 @@ class CommissionBaselineDayRunner
                 u.id::text as user_id,
                 u."memberCode" as member_code,
                 coalesce(u."name", '') as member_name,
-                to_char(u."createdAt" at time zone 'Asia/Bangkok', 'YYYY-MM-DD') as signup_date
+                to_char(u."createdAt" at time zone 'Asia/Bangkok', 'YYYY-MM-DD') as signup_date,
+                u."sponsorId"::text as sponsor_user_id
             from "User" u
             where u."isAdmin" = false
             order by
@@ -328,21 +340,137 @@ class CommissionBaselineDayRunner
                 u.id asc
         SQL);
 
-        $daySequences = [];
-
-        return collect($rows)->values()->map(static function (object $row, int $index) use (&$daySequences): array {
-            $signupDate = (string) $row->signup_date;
-            $daySequences[$signupDate] = ($daySequences[$signupDate] ?? 0) + 1;
-
+        $members = collect($rows)->values()->map(static function (object $row, int $index): array {
             return [
-                'sequence' => $index + 1,
-                'daySequence' => $daySequences[$signupDate],
+                'originalOrder' => $index,
                 'userId' => (string) $row->user_id,
                 'memberCode' => (string) $row->member_code,
                 'name' => (string) $row->member_name,
-                'signupDate' => $signupDate,
+                'originalSignupDate' => (string) $row->signup_date,
+                'sponsorUserId' => $row->sponsor_user_id ? (string) $row->sponsor_user_id : null,
             ];
         });
+
+        return self::applyCommissionSequence($members);
+    }
+
+    /**
+     * Re-sequence the baseline queue so sponsor cycles are always opened before
+     * any downline order that depends on those cycles for direct commission.
+     *
+     * @param  Collection<int, array<string, mixed>>  $members
+     * @return Collection<int, array<string, mixed>>
+     */
+    private static function applyCommissionSequence(Collection $members): Collection
+    {
+        if ($members->isEmpty()) {
+            return collect();
+        }
+
+        $dateBuckets = [];
+        foreach ($members as $member) {
+            $date = (string) $member['originalSignupDate'];
+            $dateBuckets[$date] = ($dateBuckets[$date] ?? 0) + 1;
+        }
+
+        $stableMembers = $members->values()->all();
+        $memberByUserId = [];
+        $childrenByUserId = [];
+        $indegreeByUserId = [];
+
+        foreach ($stableMembers as $member) {
+            $userId = (string) $member['userId'];
+            $memberByUserId[$userId] = $member;
+            $childrenByUserId[$userId] = [];
+            $indegreeByUserId[$userId] = 0;
+        }
+
+        foreach ($stableMembers as $member) {
+            $sponsorUserId = $member['sponsorUserId'] ?? null;
+            if (!is_string($sponsorUserId) || $sponsorUserId === '' || !isset($memberByUserId[$sponsorUserId])) {
+                continue;
+            }
+
+            $childrenByUserId[$sponsorUserId][] = (string) $member['userId'];
+            $indegreeByUserId[(string) $member['userId']]++;
+        }
+
+        $readyUserIds = array_keys(array_filter(
+            $indegreeByUserId,
+            static fn (int $indegree): bool => $indegree === 0
+        ));
+
+        usort($readyUserIds, static function (string $left, string $right) use ($memberByUserId): int {
+            return ((int) $memberByUserId[$left]['originalOrder']) <=> ((int) $memberByUserId[$right]['originalOrder']);
+        });
+
+        $orderedMembers = [];
+
+        while ($readyUserIds !== []) {
+            $userId = array_shift($readyUserIds);
+            if (!is_string($userId) || !isset($memberByUserId[$userId])) {
+                continue;
+            }
+
+            $orderedMembers[] = $memberByUserId[$userId];
+            foreach ($childrenByUserId[$userId] ?? [] as $childUserId) {
+                $indegreeByUserId[$childUserId]--;
+                if ($indegreeByUserId[$childUserId] === 0) {
+                    $readyUserIds[] = $childUserId;
+                }
+            }
+
+            usort($readyUserIds, static function (string $left, string $right) use ($memberByUserId): int {
+                return ((int) $memberByUserId[$left]['originalOrder']) <=> ((int) $memberByUserId[$right]['originalOrder']);
+            });
+        }
+
+        if (count($orderedMembers) < count($stableMembers)) {
+            $orderedUserIds = array_fill_keys(
+                array_map(static fn (array $member): string => (string) $member['userId'], $orderedMembers),
+                true
+            );
+
+            foreach ($stableMembers as $member) {
+                if (!isset($orderedUserIds[(string) $member['userId']])) {
+                    $orderedMembers[] = $member;
+                }
+            }
+        }
+
+        $sequenced = [];
+        $dateEntries = array_map(
+            static fn (string $date, int $count): array => ['date' => $date, 'count' => $count],
+            array_keys($dateBuckets),
+            array_values($dateBuckets)
+        );
+        $dateIndex = 0;
+        $slotUsage = 0;
+        $daySequences = [];
+
+        foreach ($orderedMembers as $index => $member) {
+            while (
+                isset($dateEntries[$dateIndex])
+                && $slotUsage >= (int) $dateEntries[$dateIndex]['count']
+            ) {
+                $dateIndex++;
+                $slotUsage = 0;
+            }
+
+            $assignedDate = isset($dateEntries[$dateIndex])
+                ? (string) $dateEntries[$dateIndex]['date']
+                : (string) $member['originalSignupDate'];
+
+            $slotUsage++;
+            $daySequences[$assignedDate] = ($daySequences[$assignedDate] ?? 0) + 1;
+
+            $member['sequence'] = $index + 1;
+            $member['daySequence'] = $daySequences[$assignedDate];
+            $member['signupDate'] = $assignedDate;
+            $sequenced[] = $member;
+        }
+
+        return collect($sequenced);
     }
 
     /**
@@ -571,6 +699,55 @@ class CommissionBaselineDayRunner
             'nextPendingMember' => $nextPendingMember,
             'nextPendingExistingOrder' => $nextPendingExistingOrder,
         ];
+    }
+
+    /**
+     * @return array{
+     *   workingDate:string,
+     *   totalMemberCount:int,
+     *   completedMemberCount:int,
+     *   remainingMemberCount:int,
+     *   canSeedNextMember:bool,
+     *   canFinalizeDay:bool,
+     *   isPendingSettlementDay:bool,
+     *   nextMemberCode:?string,
+     *   nextMemberName:?string
+     * }|null
+     */
+    private static function pendingSettlementFallbackStatus(string $settlementDate): ?array
+    {
+        $orderCount = self::countBaselineOrdersForSettlementDate($settlementDate);
+        if ($orderCount <= 0) {
+            return null;
+        }
+
+        return [
+            'workingDate' => $settlementDate,
+            'totalMemberCount' => $orderCount,
+            'completedMemberCount' => $orderCount,
+            'remainingMemberCount' => 0,
+            'canSeedNextMember' => false,
+            'canFinalizeDay' => true,
+            'isPendingSettlementDay' => true,
+            'nextMemberCode' => null,
+            'nextMemberName' => null,
+        ];
+    }
+
+    private static function countBaselineOrdersForSettlementDate(string $settlementDate): int
+    {
+        $row = DB::connection('poolproject')->selectOne(
+            <<<'SQL'
+            select count(*)::int as aggregate
+            from "Order"
+            where "shippingAddressNote" like ?
+              and "approvedAt" is not null
+              and to_char("approvedAt" at time zone 'Asia/Bangkok', 'YYYY-MM-DD') = ?
+            SQL,
+            [self::SOURCE_TAG . '|%', $settlementDate]
+        );
+
+        return is_object($row) ? (int) ($row->aggregate ?? 0) : 0;
     }
 
     private static function sqlLiteral(string $value): string

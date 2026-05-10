@@ -107,6 +107,11 @@ This repository now uses:
 - `L1 = 50%`
 - `L2 = 50%`
 - Base = approved order PV
+- Direct is calculated immediately when the child order becomes `approved`.
+- The approved order opens the buyer's own commission cycle immediately.
+- Direct beneficiary selection must look only at the sponsor/upline candidate's receivable commission cycle state at the child order approval time.
+- If the candidate still has at least one receivable commission cycle, that candidate is eligible for the direct tier immediately.
+- Direct must not wait for end-of-day processing, daily settlement grouping, or any separate per-day qualification window.
 
 Formula:
 

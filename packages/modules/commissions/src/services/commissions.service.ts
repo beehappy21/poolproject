@@ -283,18 +283,14 @@ export class CommissionsService implements CommissionsServiceContract {
     const activeCandidateUserIds: string[] = [];
 
     for (const candidateUserId of input.candidateUserIds) {
-      const cycles = await this.membersService.getMemberCycles(
+      // Direct eligibility is driven only by the candidate's receivable
+      // commission cycles at the child order's approval time.
+      const receivableCycleIds = await this.qualificationService.getReceivableCycles(
         candidateUserId,
         input.evaluationAt,
       );
-      const qualification =
-        await this.qualificationService.evaluateMemberQualification({
-          userId: candidateUserId,
-          evaluationAt: input.evaluationAt,
-          cycles,
-        });
 
-      if (qualification.memberActive) {
+      if (receivableCycleIds.length > 0) {
         activeCandidateUserIds.push(candidateUserId);
       }
 
