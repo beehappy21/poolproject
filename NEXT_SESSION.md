@@ -225,10 +225,31 @@ Updated: 2026-05-05
 - BAO member tooling now includes:
   - a top search bar on `/admin/member/list`
   - an inline note explaining imported-member login credentials
+- Placement import for `member003` was updated on `2026-05-10` for test-fixture use:
+  - keep real `sponsorId`
+  - rebuild placement by sponsor lineage and member-code order
+  - first `3` directs become `LEFT / MIDDLE / RIGHT`
+  - directs beyond `3` continue into the next open slot within that sponsor subtree
+- This rebuilt placement is now produced consistently by:
+  - `scripts/import_member_profiles_from_xlsx.py`
+  - `scripts/fill_member_profiles_from_member003.mjs`
+  - `scripts/export_member003_members_fixture.py`
+  - `scripts/member003-members.json`
 
 ## Current Local State
 
-- Working tree has no tracked file changes left from this work
+- Working tree had no tracked file changes right after the last push; re-check with `git status --short` before starting new work
+- Local runtime was intentionally reset on `2026-05-10` without touching product/catalog data
+- Current DB baseline state after reset/import:
+  - `User = 210`
+  - `Order = 0`
+  - `CommissionLedger = 0`
+  - `TeamSettlementBatchItem = 0`
+  - `DailyPoolPayout = 0`
+- The rebuilt placement for the earlier blocked team case is now:
+  - `TH0000014 -> TH0000013 / LEFT`
+  - `TH0000016 -> TH0000013 / MIDDLE`
+  - `TH0000017 -> TH0000013 / RIGHT`
 - These files are intentionally local-only and should be ignored unless explicitly needed:
   - `Book1.xlsx`
   - `allcom22032026.xlsx`
@@ -240,3 +261,13 @@ Updated: 2026-05-05
 - `app` should default to Stephub in future discussion
 - BAO paths live under `stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend`
 - For a cleaner starting point, also check the worktree guidance in `HANDOFF_NEXT.md`
+- The main commits pushed on `2026-05-10` were:
+  - `3c5ff55e` `Fix member003 placement import and baseline timezone flow`
+  - `7eb99681` `Auto-open local WAP and BAO after launcher`
+
+## Next Recommended Action
+
+- Re-run the `member003` commission baseline from the now-clean local state and verify that `team / matching / pool` follow the rebuilt `L / M / R` placement tree instead of the old chained-right placement
+- Preferred tools:
+  - BAO commission baseline controls
+  - `node scripts/run_member003_baseline_until_pool.js --apply --reset`

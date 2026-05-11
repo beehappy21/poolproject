@@ -853,3 +853,66 @@ Bottom Line
 The repo has moved past the `COMM-04` cap/gating milestone.
 `COMM-05` backend runtime and close-out hardening are effectively complete, with runtime verification on the local stack for processed-date reruns, concurrent reruns, one-leg carry-forward, and matching-from-final-payable.
 Pool payout creation also runs through the shared finalize path. BAO now uses the cleaned Orchid commission report surface only, while old custom admin and `CommissionMainPlan` surfaces have been archived out of active use. The next person should treat `COMM-05` as done, continue only from the active BAO/WAP surfaces, and return to recipient-positive pool verification as a separate later phase. Matrix is currently soft-disabled across runtime and primary admin/member surfaces.
+
+Update 2026-05-10
+
+What changed today
+
+- `member003` placement import was intentionally changed for test-fixture use:
+  - keep `sponsorId` from the spreadsheet
+  - derive placement tree by sponsor lineage and member-code order
+  - first `3` directs under the same sponsor now place as `L / M / R`
+  - directs beyond `3` now flow into the next open slot inside that sponsor subtree
+- the placement derivation now matches across:
+  - `scripts/import_member_profiles_from_xlsx.py`
+  - `scripts/fill_member_profiles_from_member003.mjs`
+  - `scripts/export_member003_members_fixture.py`
+  - `scripts/member003-members.json`
+- baseline timezone handling was fixed so Bangkok business-day grouping matches the way local baseline orders are stamped:
+  - touched `CommissionBaselineDayRunner`
+  - touched `CommissionBaselineRuntimeResetter`
+  - touched `CommissionReportBuilder`
+  - touched `seed_member003_test_baseline.js`
+  - touched `cleanup-commission-test-baseline-runtime.js`
+- a helper runner was added:
+  - `scripts/run_member003_baseline_until_pool.js`
+  - purpose: create/process baseline orders one by one, close each day, and stop or continue through pool events
+
+What was verified today
+
+- local DB was reset without touching catalog/product data
+- `member003` members were re-seeded and the rebuilt placement tree was applied
+- `TH0000013` placement now resolves as:
+  - `TH0000014 -> TH0000013 / LEFT`
+  - `TH0000016 -> TH0000013 / MIDDLE`
+  - `TH0000017 -> TH0000013 / RIGHT`
+- local runtime state after reset:
+  - `User = 210`
+  - `Order = 0`
+  - `CommissionLedger = 0`
+  - `TeamSettlementBatchItem = 0`
+  - `DailyPoolPayout = 0`
+- API health was confirmed on `http://127.0.0.1:3000/health`
+- local WAP was confirmed listening on `http://127.0.0.1:3002`
+
+Commits pushed today
+
+- `3c5ff55e` `Fix member003 placement import and baseline timezone flow`
+- `7eb99681` `Auto-open local WAP and BAO after launcher`
+
+Exactly what to do next after this handoff
+
+1. Start from the current clean local member/runtime state
+- do not assume any old baseline order or commission rows still exist
+- if someone sees leftover report rows, they are looking at a different DB/session and should verify the active local stack first
+
+2. Re-run baseline from scratch against the rebuilt member tree
+- preferred flow:
+  - use the BAO commission test controls
+  - or use `scripts/run_member003_baseline_until_pool.js`
+- verify again that team, matching, and pool now reflect the rebuilt `L / M / R` placement for `member003`
+
+3. Keep the scope locked
+- do not reopen product/catalog cleanup
+- do not revert the new `member003` test placement rule unless the business explicitly wants the spreadsheet literal tree back
+- treat this placement logic as a test-fixture import policy, not a generic production genealogy rule
