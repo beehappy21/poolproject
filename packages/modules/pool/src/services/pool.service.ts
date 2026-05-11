@@ -201,11 +201,13 @@ export class PoolService implements PoolServiceContract {
             ? "no_receivable_cycle"
             : snapshot.roundStatus === "blocked_after_expiry"
               ? "repurchase_grace_expired"
-            : !snapshot.hasOwnApprovedOrder
-            ? "missing_own_purchase_order"
-            : snapshot.activeDirectReferralCount < minDirects
-              ? "missing_three_direct_referrals"
-              : "missing_three_direct_buyer_orders",
+            : !snapshot.hasPassedInitialQualification
+              ? !snapshot.hasOwnApprovedOrder
+                ? "initial_qualification_missing_own_purchase"
+                : snapshot.activeDirectBuyerCount < minDirects
+                  ? "initial_qualification_missing_three_direct_buyers"
+                  : "initial_qualification_not_locked"
+              : "pool_eligibility_failed",
       memberActive: snapshot.memberActive,
       activeDirectReferralCount: snapshot.activeDirectReferralCount,
     }));
@@ -253,7 +255,7 @@ export class PoolService implements PoolServiceContract {
       settingsSnapshot: JSON.stringify({
         poolFundingRule: "approved_pool_enabled_pv_full_amount",
         timezone: "Asia/Bangkok",
-        eligibilityRule: "cycle_active_and_prior_day_qualification",
+        eligibilityRule: "cycle_active_and_locked_initial_qualification",
         recipientPayoutRule: "pay_if_recipient_can_receive_commission_up_to_cycle_purchase_base_cap",
         recipientCyclePoolCapRate: readCommissionSettings().poolMaxEntitlementShareRate,
       }),

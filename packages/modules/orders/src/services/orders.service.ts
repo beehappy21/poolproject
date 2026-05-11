@@ -604,7 +604,7 @@ export class OrdersService implements OrdersServiceContract {
       const commissionSettings = parseCommissionSettingsSnapshot(
         approvedOrder.commissionSettingsSnapshot,
       );
-      await this.commissionsService.handleApprovedSelfPurchaseQualification({
+      await this.refreshInitialPoolQualification({
         beneficiaryUserId: approvedOrder.sourceUserId,
         approvedOrderId: approvedOrder.orderId,
         approvedAt: approvedOrder.approvedAt,
@@ -948,6 +948,27 @@ export class OrdersService implements OrdersServiceContract {
         },
   ) {
     return Array.isArray(result) ? result : result.items;
+  }
+
+  private async refreshInitialPoolQualification(input: {
+    beneficiaryUserId: string;
+    approvedOrderId: string;
+    approvedAt: string;
+  }): Promise<void> {
+    await this.commissionsService.handleApprovedSelfPurchaseQualification(input);
+
+    const member = await this.membersService.getMember(input.beneficiaryUserId);
+    if (!member?.sponsorId) {
+      return;
+    }
+
+    // A newly approved direct order can complete the sponsor's first
+    // pool-qualification gate, so refresh the sponsor immediately too.
+    await this.commissionsService.handleApprovedSelfPurchaseQualification({
+      beneficiaryUserId: member.sponsorId,
+      approvedOrderId: input.approvedOrderId,
+      approvedAt: input.approvedAt,
+    });
   }
 
   private async activateSourceMemberCyclesFromApprovedOrder(approvedOrder: {

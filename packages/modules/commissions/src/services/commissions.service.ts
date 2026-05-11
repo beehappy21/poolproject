@@ -285,8 +285,8 @@ export class CommissionsService implements CommissionsServiceContract {
     const activeCandidateUserIds: string[] = [];
 
     for (const candidateUserId of input.candidateUserIds) {
-      // Direct eligibility is driven only by the candidate's receivable
-      // commission cycles at the child order's approval time.
+      // Direct eligibility depends on whether the candidate still has
+      // receivable commission cycles available for cap allocation.
       const receivableCycleIds = await this.qualificationService.getReceivableCycles(
         candidateUserId,
         input.evaluationAt,
@@ -615,6 +615,7 @@ export class CommissionsService implements CommissionsServiceContract {
     const qualificationSnapshot =
       await this.commissionsRepository.getInitialQualificationSnapshot({
         beneficiaryUserId: input.beneficiaryUserId,
+        evaluationAt: input.approvedAt,
       });
 
     const qualifiesInitially =
@@ -637,7 +638,9 @@ export class CommissionsService implements CommissionsServiceContract {
       graceExpiresAt: existing?.graceExpiresAt ?? null,
       blockedAt: existing?.blockedAt ?? null,
       currentBuybackCycleId:
-        existing?.currentBuybackCycleId ?? `qualified:${input.approvedOrderId}`,
+        existing?.currentBuybackCycleId ??
+        qualificationSnapshot.qualifyingCycleId ??
+        `qualified:${input.approvedOrderId}`,
       lastQualifyingOrderId: input.approvedOrderId,
     });
 

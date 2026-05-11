@@ -12,6 +12,8 @@ use Orchid\Support\Facades\Layout;
 
 class CommissionReportScreen extends Screen
 {
+    private const MAX_SCREEN_PAGE_SIZE = 500;
+
     public function overview(Request $request): iterable
     {
         return $this->query($request);
@@ -56,6 +58,12 @@ class CommissionReportScreen extends Screen
     {
         $mode = $this->resolveMode($request);
         $filters = CommissionReportBuilder::filtersFromRequest($request);
+        $requestedAll = ($filters['pageSizeInput'] ?? '') === 'all';
+        if ($requestedAll && ($filters['pageSize'] ?? null) === null) {
+            $filters['pageSize'] = self::MAX_SCREEN_PAGE_SIZE;
+            $filters['screenPageSizeCapped'] = true;
+            $filters['screenPageSizeCap'] = self::MAX_SCREEN_PAGE_SIZE;
+        }
         $page = max(1, (int) $request->input('page', 1));
         $report = CommissionReportBuilder::buildScreen($mode, $filters, $page);
         $reportTotals = $report['totals'];

@@ -166,7 +166,9 @@ export interface CommissionsRepository {
 
   getInitialQualificationSnapshot(input: {
     beneficiaryUserId: string;
+    evaluationAt: string;
   }): Promise<{
+    qualifyingCycleId: string | null;
     hasOwnApprovedOrder: boolean;
     activeDirectReferralCount: number;
     activeDirectBuyerCount: number;
@@ -325,13 +327,10 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
   async findCandidateCyclesForAllocation(
     input: BonusToCycleAllocationInput,
   ): Promise<BonusToCycleAllocationInput["candidateCycles"]> {
-    const at = new Date(input.evaluationAt);
     const cycles = await this.prisma.memberPackageCycle.findMany({
       where: {
         userId: BigInt(input.beneficiaryUserId),
         status: "ACTIVE",
-        activatedAt: { lte: at },
-        activeUntil: { gte: at },
       },
       orderBy: [{ activatedAt: "asc" }, { id: "asc" }],
       select: {
@@ -597,7 +596,9 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
 
   async getInitialQualificationSnapshot(input: {
     beneficiaryUserId: string;
+    evaluationAt: string;
   }): Promise<{
+    qualifyingCycleId: string | null;
     hasOwnApprovedOrder: boolean;
     activeDirectReferralCount: number;
     activeDirectBuyerCount: number;
@@ -607,15 +608,31 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
         id: BigInt(input.beneficiaryUserId),
       },
       select: {
+        packageCycles: {
+          where: {
+            status: "ACTIVE",
+          },
+          select: {
+            id: true,
+            activatedAt: true,
+            activeUntil: true,
+            isReceivable: true,
+            earningStatus: true,
+          },
+          orderBy: [{ activatedAt: "asc" }, { id: "asc" }],
+        },
         orders: {
           where: {
             approvalStatus: "APPROVED",
             orderSourceType: "NORMAL",
+            approvedAt: {
+              lte: new Date(input.evaluationAt),
+            },
           },
           select: {
             id: true,
+            approvedAt: true,
           },
-          take: 1,
         },
         directReferrals: {
           where: {
@@ -627,11 +644,14 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
               where: {
                 approvalStatus: "APPROVED",
                 orderSourceType: "NORMAL",
+                approvedAt: {
+                  lte: new Date(input.evaluationAt),
+                },
               },
               select: {
                 id: true,
+                approvedAt: true,
               },
-              take: 1,
             },
           },
         },
@@ -640,18 +660,41 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
 
     if (!user) {
       return {
+        qualifyingCycleId: null,
         hasOwnApprovedOrder: false,
         activeDirectReferralCount: 0,
         activeDirectBuyerCount: 0,
       };
     }
 
+    const qualifyingCycle = user.packageCycles.find(
+      (cycle) => cycle.isReceivable && cycle.earningStatus === "ACTIVE",
+    );
+    const hasOwnApprovedOrder = user.orders.length > 0;
+    const activeDirectReferralCount = user.directReferrals.length;
+    const activeDirectBuyerCount = user.directReferrals.filter(
+      (directReferral) => directReferral.orders.length > 0,
+    ).length;
+
+    if (
+      qualifyingCycle &&
+      hasOwnApprovedOrder &&
+      activeDirectReferralCount >= 3 &&
+      activeDirectBuyerCount >= 3
+    ) {
+      return {
+        qualifyingCycleId: qualifyingCycle.id.toString(),
+        hasOwnApprovedOrder,
+        activeDirectReferralCount,
+        activeDirectBuyerCount,
+      };
+    }
+
     return {
-      hasOwnApprovedOrder: user.orders.length > 0,
-      activeDirectReferralCount: user.directReferrals.length,
-      activeDirectBuyerCount: user.directReferrals.filter(
-        (directReferral) => directReferral.orders.length > 0,
-      ).length,
+      qualifyingCycleId: null,
+      hasOwnApprovedOrder,
+      activeDirectReferralCount,
+      activeDirectBuyerCount,
     };
   }
 

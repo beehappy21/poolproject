@@ -38,7 +38,7 @@ const DEFAULT_SETTINGS: CommissionSettings = {
   matchingLevelRates: ["0.05", "0.05"],
   teamTwoLegRate: "0.3",
   teamThreeLegRate: "0.5",
-  dailyCommissionCapAmount: "5000",
+  dailyCommissionCapAmount: "3000",
   buybackThresholdAmount: "10000",
   buybackRepurchaseAmount: "1000",
   buybackGraceDays: 3,

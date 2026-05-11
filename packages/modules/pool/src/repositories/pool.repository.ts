@@ -491,12 +491,6 @@ export class PrismaPoolRepository implements PoolRepository {
             status: "ACTIVE",
             earningStatus: "ACTIVE",
             isReceivable: true,
-            activatedAt: {
-              lte: evaluationAt,
-            },
-            activeUntil: {
-              gte: evaluationAt,
-            },
           },
           select: {
             id: true,

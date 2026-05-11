@@ -22,6 +22,8 @@
     $resetAffectedUserCount = (int) ($baselineResetStatus['affectedUserCount'] ?? 0);
     $resetNonBaselineOrderCount = (int) ($baselineResetStatus['nonBaselineOrderCount'] ?? 0);
     $canResetBaselineRuntime = (bool) ($baselineResetStatus['canReset'] ?? false);
+    $screenPageSizeCapped = (bool) ($filters['screenPageSizeCapped'] ?? false);
+    $screenPageSizeCap = (int) ($filters['screenPageSizeCap'] ?? 0);
     $baselineInlineNote = 'ระบบจะสร้าง order baseline ทีละสมาชิกตามวันสมัครและเรียงตามรหัสสมาชิก พร้อม approve และ process order ตาม flow ปกติทันที เมื่อสมาชิกของวันนั้นครบทั้งหมดแล้ว ปุ่มคำนวณเมื่อหมดวันจึงจะกดได้เพื่อสั่ง end-of-day ตามแผนของระบบ';
     if ($nextMemberCode) {
         $baselineInlineNote .= ' โดยรายการถัดไปคือ ' . $nextMemberCode;
@@ -194,6 +196,12 @@
                         ส่งออกไฟล์
                     </button>
                 </div>
+                @if ($screenPageSizeCapped)
+                    <div class="commission-inline-note">
+                        เลือก "ทั้งหมด" สำหรับหน้าจอ ระบบจะแสดงครั้งละไม่เกิน {{ number_format($screenPageSizeCap, 0, '.', ',') }} แถวเพื่อป้องกันหน้าเว็บค้าง
+                        หากต้องการข้อมูลครบทั้งหมดให้ใช้ CSV หรือ Excel
+                    </div>
+                @endif
                 <div class="commission-calc-inline">
                     <div class="commission-field">
                         <label>วันที่กำลังทดสอบ</label>
@@ -251,7 +259,7 @@
                 <input type="hidden" name="member_to" value="{{ $filters['memberTo'] ?? '' }}">
                 <input type="hidden" name="date_from" value="{{ $filters['dateFrom'] ?? '' }}">
                 <input type="hidden" name="date_to" value="{{ $filters['dateTo'] ?? '' }}">
-                <input type="hidden" name="page_size" value="{{ $filters['pageSize'] ?? 25 }}">
+                <input type="hidden" name="page_size" value="{{ $filters['pageSizeInput'] ?? 25 }}">
                 <input type="hidden" name="format" value="{{ $selectedFormat }}">
             </form>
             <form id="commission-finalize-day-form" method="POST" action="{{ route('platform.commission.report.finalizeCurrentDay') }}">
@@ -262,7 +270,7 @@
                 <input type="hidden" name="member_to" value="{{ $filters['memberTo'] ?? '' }}">
                 <input type="hidden" name="date_from" value="{{ $filters['dateFrom'] ?? '' }}">
                 <input type="hidden" name="date_to" value="{{ $filters['dateTo'] ?? '' }}">
-                <input type="hidden" name="page_size" value="{{ $filters['pageSize'] ?? 25 }}">
+                <input type="hidden" name="page_size" value="{{ $filters['pageSizeInput'] ?? 25 }}">
                 <input type="hidden" name="format" value="{{ $selectedFormat }}">
             </form>
             <form id="commission-reset-baseline-form" method="POST" action="{{ route('platform.commission.report.resetBaselineRuntime') }}">
@@ -273,7 +281,7 @@
                 <input type="hidden" name="member_to" value="{{ $filters['memberTo'] ?? '' }}">
                 <input type="hidden" name="date_from" value="{{ $filters['dateFrom'] ?? '' }}">
                 <input type="hidden" name="date_to" value="{{ $filters['dateTo'] ?? '' }}">
-                <input type="hidden" name="page_size" value="{{ $filters['pageSize'] ?? 25 }}">
+                <input type="hidden" name="page_size" value="{{ $filters['pageSizeInput'] ?? 25 }}">
                 <input type="hidden" name="format" value="{{ $selectedFormat }}">
             </form>
         </div>

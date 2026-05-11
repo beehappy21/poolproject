@@ -44,6 +44,8 @@ export class PrismaQualificationRepository implements QualificationRepository {
     memberId: string,
     evaluationAt: string,
   ): Promise<number> {
+    void evaluationAt;
+
     const rows = await this.prisma.$queryRaw<
       Array<{ active_direct_referral_count: bigint | number }>
     >(Prisma.sql`
@@ -57,8 +59,6 @@ export class PrismaQualificationRepository implements QualificationRepository {
             and mpc.status = 'ACTIVE'
             and mpc."isReceivable" = true
             and mpc."earningStatus" = 'ACTIVE'
-            and mpc."activatedAt" <= (${evaluationAt}::timestamptz at time zone 'UTC')
-            and mpc."activeUntil" >= (${evaluationAt}::timestamptz at time zone 'UTC')
         )
     `);
 
@@ -69,6 +69,8 @@ export class PrismaQualificationRepository implements QualificationRepository {
     memberId: string,
     evaluationAt: string,
   ): Promise<QualificationCycleSnapshot[]> {
+    void evaluationAt;
+
     const rows = await this.prisma.$queryRaw<
       Array<{
         cycleId: string;
@@ -103,8 +105,6 @@ export class PrismaQualificationRepository implements QualificationRepository {
       from "MemberPackageCycle" mpc
       where mpc."userId" = ${BigInt(memberId)}
         and mpc.status = 'ACTIVE'
-        and mpc."activatedAt" <= (${evaluationAt}::timestamptz at time zone 'UTC')
-        and mpc."activeUntil" >= (${evaluationAt}::timestamptz at time zone 'UTC')
       order by mpc."activatedAt" asc, mpc.id asc
     `);
 
