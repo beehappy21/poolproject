@@ -17,27 +17,52 @@ class CommissionSettingsController extends Controller
         $request->merge([
             'directLevelRates' => $request->input('directLevelRates', $request->input('direct_level_rates')),
             'uniLevelRates' => $request->input('uniLevelRates', $request->input('uni_level_rates')),
+            'matchingLevelRates' => $request->input('matchingLevelRates', $request->input('matching_level_rates')),
+            'teamTwoLegRate' => $request->input('teamTwoLegRate', $request->input('team_two_leg_rate')),
+            'teamThreeLegRate' => $request->input('teamThreeLegRate', $request->input('team_three_leg_rate')),
+            'dailyCommissionCapAmount' => $request->input('dailyCommissionCapAmount', $request->input('daily_commission_cap_amount')),
+            'buybackThresholdAmount' => $request->input('buybackThresholdAmount', $request->input('buyback_threshold_amount')),
+            'buybackRepurchaseAmount' => $request->input('buybackRepurchaseAmount', $request->input('buyback_repurchase_amount')),
+            'buybackGraceDays' => $request->input('buybackGraceDays', $request->input('buyback_grace_days')),
+            'poolMinActivePackageBuyerDirects' => $request->input(
+                'poolMinActivePackageBuyerDirects',
+                $request->input('pool_min_active_package_buyer_directs', $request->input('poolMinActiveDirects'))
+            ),
+            'poolMaxEntitlementShareRate' => $request->input(
+                'poolMaxEntitlementShareRate',
+                $request->input('pool_max_entitlement_share_rate', $request->input('poolMaxShareRatePerEntitlement'))
+            ),
             'poolRate' => $request->input('poolRate', $request->input('pool_rate')),
             'cashbackRate' => $request->input('cashbackRate', $request->input('cashback_rate')),
             'cashbackVisible' => $this->resolveVisibilityInput(
                 $request,
                 'cashbackVisible',
-                $current['appVisibility']['cashback'] ?? true
+                $current['appVisibility']['cashback'] ?? false
             ),
             'directVisible' => $this->resolveVisibilityInput(
                 $request,
                 'directVisible',
                 $current['appVisibility']['direct'] ?? true
             ),
+            'matchingVisible' => $this->resolveVisibilityInput(
+                $request,
+                'matchingVisible',
+                $current['appVisibility']['matching'] ?? true
+            ),
+            'teamVisible' => $this->resolveVisibilityInput(
+                $request,
+                'teamVisible',
+                $current['appVisibility']['team'] ?? true
+            ),
             'unilevelVisible' => $this->resolveVisibilityInput(
                 $request,
                 'unilevelVisible',
-                $current['appVisibility']['unilevel'] ?? true
+                $current['appVisibility']['unilevel'] ?? false
             ),
             'matrixVisible' => $this->resolveVisibilityInput(
                 $request,
                 'matrixVisible',
-                $current['appVisibility']['matrix'] ?? true
+                $current['appVisibility']['matrix'] ?? false
             ),
             'poolVisible' => $this->resolveVisibilityInput(
                 $request,
@@ -52,10 +77,22 @@ class CommissionSettingsController extends Controller
             'directLevelRates.*' => ['nullable', 'string'],
             'uniLevelRates' => ['nullable', 'array'],
             'uniLevelRates.*' => ['nullable', 'string'],
+            'matchingLevelRates' => ['nullable', 'array'],
+            'matchingLevelRates.*' => ['nullable', 'string'],
+            'teamTwoLegRate' => ['nullable', 'string'],
+            'teamThreeLegRate' => ['nullable', 'string'],
+            'dailyCommissionCapAmount' => ['nullable', 'string'],
+            'buybackThresholdAmount' => ['nullable', 'string'],
+            'buybackRepurchaseAmount' => ['nullable', 'string'],
+            'buybackGraceDays' => ['nullable', 'integer', 'min:1'],
+            'poolMinActivePackageBuyerDirects' => ['nullable', 'integer', 'min:1'],
+            'poolMaxEntitlementShareRate' => ['nullable', 'string'],
             'poolRate' => ['nullable', 'string'],
             'cashbackRate' => ['nullable', 'string'],
             'cashbackVisible' => ['nullable', 'boolean'],
             'directVisible' => ['nullable', 'boolean'],
+            'matchingVisible' => ['nullable', 'boolean'],
+            'teamVisible' => ['nullable', 'boolean'],
             'unilevelVisible' => ['nullable', 'boolean'],
             'matrixVisible' => ['nullable', 'boolean'],
             'poolVisible' => ['nullable', 'boolean'],
@@ -65,13 +102,24 @@ class CommissionSettingsController extends Controller
         $next = [
             'directLevelRates' => $this->cleanRates($payload['directLevelRates'] ?? $current['directLevelRates']),
             'uniLevelRates' => $this->cleanRates($payload['uniLevelRates'] ?? $current['uniLevelRates']),
+            'matchingLevelRates' => $this->cleanRates($payload['matchingLevelRates'] ?? ($current['matchingLevelRates'] ?? ['0.05', '0.05'])),
+            'teamTwoLegRate' => $this->cleanSingleRate($payload['teamTwoLegRate'] ?? ($current['teamTwoLegRate'] ?? '0.3')),
+            'teamThreeLegRate' => $this->cleanSingleRate($payload['teamThreeLegRate'] ?? ($current['teamThreeLegRate'] ?? '0.5')),
+            'dailyCommissionCapAmount' => $this->cleanSingleRate($payload['dailyCommissionCapAmount'] ?? ($current['dailyCommissionCapAmount'] ?? '3000')),
+            'buybackThresholdAmount' => $this->cleanSingleRate($payload['buybackThresholdAmount'] ?? ($current['buybackThresholdAmount'] ?? '10000')),
+            'buybackRepurchaseAmount' => $this->cleanSingleRate($payload['buybackRepurchaseAmount'] ?? ($current['buybackRepurchaseAmount'] ?? '1000')),
+            'buybackGraceDays' => max(1, (int) ($payload['buybackGraceDays'] ?? ($current['buybackGraceDays'] ?? 3))),
+            'poolMinActivePackageBuyerDirects' => max(1, (int) ($payload['poolMinActivePackageBuyerDirects'] ?? ($current['poolMinActivePackageBuyerDirects'] ?? 3))),
+            'poolMaxEntitlementShareRate' => $this->cleanSingleRate($payload['poolMaxEntitlementShareRate'] ?? ($current['poolMaxEntitlementShareRate'] ?? '0.03')),
             'poolRate' => $this->cleanSingleRate($payload['poolRate'] ?? $current['poolRate']),
             'cashbackRate' => $this->cleanSingleRate($payload['cashbackRate'] ?? $current['cashbackRate'] ?? '0'),
             'appVisibility' => [
-                'cashback' => (bool) ($payload['cashbackVisible'] ?? ($current['appVisibility']['cashback'] ?? true)),
+                'cashback' => (bool) ($payload['cashbackVisible'] ?? ($current['appVisibility']['cashback'] ?? false)),
                 'direct' => (bool) ($payload['directVisible'] ?? ($current['appVisibility']['direct'] ?? true)),
-                'unilevel' => (bool) ($payload['unilevelVisible'] ?? ($current['appVisibility']['unilevel'] ?? true)),
-                'matrix' => (bool) ($payload['matrixVisible'] ?? ($current['appVisibility']['matrix'] ?? true)),
+                'matching' => (bool) ($payload['matchingVisible'] ?? ($current['appVisibility']['matching'] ?? true)),
+                'team' => (bool) ($payload['teamVisible'] ?? ($current['appVisibility']['team'] ?? true)),
+                'unilevel' => (bool) ($payload['unilevelVisible'] ?? ($current['appVisibility']['unilevel'] ?? false)),
+                'matrix' => (bool) ($payload['matrixVisible'] ?? ($current['appVisibility']['matrix'] ?? false)),
                 'pool' => (bool) ($payload['poolVisible'] ?? ($current['appVisibility']['pool'] ?? true)),
             ],
         ];
