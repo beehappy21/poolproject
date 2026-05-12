@@ -21,6 +21,7 @@
     "ops:check:compose-stack": "bash scripts/check_compose_stack.sh",
     "ops:check:public-urls": "bash scripts/check_public_urls.sh",
     "ops:init:compose-env": "bash scripts/init_compose_env.sh",
+    "ops:prepare:commission-runtime-release": "bash scripts/prepare_commission_runtime_release.sh",
     "ops:check:secrets": "node scripts/check_secret_placeholders.mjs",
     "ops:preflight:deploy": "bash scripts/preflight_deploy_check.sh",
     "dev:check:public-auth": "bash scripts/check_public_auth_bridge.sh",

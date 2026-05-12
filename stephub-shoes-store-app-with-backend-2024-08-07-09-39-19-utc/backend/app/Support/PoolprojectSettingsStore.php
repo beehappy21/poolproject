@@ -7,15 +7,26 @@ use RuntimeException;
 class PoolprojectSettingsStore
 {
     private const DEFAULT_COMMISSION_SETTINGS = [
-        'directLevelRates' => ['0.2'],
-        'uniLevelRates' => ['0.05', '0.05', '0.05', '0.05', '0.05'],
-        'poolRate' => '0.5',
+        'directLevelRates' => ['0.5', '0.5'],
+        'uniLevelRates' => ['0'],
+        'matchingLevelRates' => ['0.05', '0.05'],
+        'teamTwoLegRate' => '0.3',
+        'teamThreeLegRate' => '0.5',
+        'dailyCommissionCapAmount' => '3000',
+        'buybackThresholdAmount' => '10000',
+        'buybackRepurchaseAmount' => '1000',
+        'buybackGraceDays' => 3,
+        'poolMinActivePackageBuyerDirects' => 3,
+        'poolMaxEntitlementShareRate' => '0.03',
+        'poolRate' => '1',
         'cashbackRate' => '0',
         'appVisibility' => [
-            'cashback' => true,
+            'cashback' => false,
             'direct' => true,
-            'unilevel' => true,
-            'matrix' => true,
+            'matching' => true,
+            'team' => true,
+            'unilevel' => false,
+            'matrix' => false,
             'pool' => true,
         ],
     ];
@@ -200,12 +211,40 @@ class PoolprojectSettingsStore
     {
         $direct = self::normalizeDecimalArray($input['directLevelRates'] ?? null, self::DEFAULT_COMMISSION_SETTINGS['directLevelRates']);
         $uni = self::normalizeDecimalArray($input['uniLevelRates'] ?? null, self::DEFAULT_COMMISSION_SETTINGS['uniLevelRates']);
+        $matching = self::normalizeDecimalArray($input['matchingLevelRates'] ?? null, self::DEFAULT_COMMISSION_SETTINGS['matchingLevelRates']);
         $poolRate = self::normalizeDecimalString($input['poolRate'] ?? null, self::DEFAULT_COMMISSION_SETTINGS['poolRate']);
         $cashbackRate = self::normalizeDecimalString($input['cashbackRate'] ?? null, self::DEFAULT_COMMISSION_SETTINGS['cashbackRate']);
 
         return [
             'directLevelRates' => $direct,
             'uniLevelRates' => $uni,
+            'matchingLevelRates' => $matching,
+            'teamTwoLegRate' => self::normalizeDecimalString($input['teamTwoLegRate'] ?? null, self::DEFAULT_COMMISSION_SETTINGS['teamTwoLegRate']),
+            'teamThreeLegRate' => self::normalizeDecimalString($input['teamThreeLegRate'] ?? null, self::DEFAULT_COMMISSION_SETTINGS['teamThreeLegRate']),
+            'dailyCommissionCapAmount' => self::normalizeDecimalString(
+                $input['dailyCommissionCapAmount'] ?? ($input['dailyCapAmount'] ?? null),
+                self::DEFAULT_COMMISSION_SETTINGS['dailyCommissionCapAmount']
+            ),
+            'buybackThresholdAmount' => self::normalizeDecimalString(
+                $input['buybackThresholdAmount'] ?? ($input['buybackThreshold'] ?? null),
+                self::DEFAULT_COMMISSION_SETTINGS['buybackThresholdAmount']
+            ),
+            'buybackRepurchaseAmount' => self::normalizeDecimalString(
+                $input['buybackRepurchaseAmount'] ?? ($input['buybackExecutionAmount'] ?? null),
+                self::DEFAULT_COMMISSION_SETTINGS['buybackRepurchaseAmount']
+            ),
+            'buybackGraceDays' => self::normalizePositiveInt(
+                $input['buybackGraceDays'] ?? null,
+                self::DEFAULT_COMMISSION_SETTINGS['buybackGraceDays']
+            ),
+            'poolMinActivePackageBuyerDirects' => self::normalizePositiveInt(
+                $input['poolMinActivePackageBuyerDirects'] ?? ($input['poolMinActiveDirects'] ?? null),
+                self::DEFAULT_COMMISSION_SETTINGS['poolMinActivePackageBuyerDirects']
+            ),
+            'poolMaxEntitlementShareRate' => self::normalizeDecimalString(
+                $input['poolMaxEntitlementShareRate'] ?? ($input['poolMaxShareRatePerEntitlement'] ?? null),
+                self::DEFAULT_COMMISSION_SETTINGS['poolMaxEntitlementShareRate']
+            ),
             'poolRate' => $poolRate,
             'cashbackRate' => $cashbackRate,
             'appVisibility' => self::normalizeAppVisibility($input['appVisibility'] ?? []),
@@ -219,6 +258,8 @@ class PoolprojectSettingsStore
         return [
             'cashback' => self::normalizeBoolean($input['cashback'] ?? null, $defaults['cashback']),
             'direct' => self::normalizeBoolean($input['direct'] ?? null, $defaults['direct']),
+            'matching' => self::normalizeBoolean($input['matching'] ?? null, $defaults['matching']),
+            'team' => self::normalizeBoolean($input['team'] ?? null, $defaults['team']),
             'unilevel' => self::normalizeBoolean($input['unilevel'] ?? null, $defaults['unilevel']),
             'matrix' => self::normalizeBoolean($input['matrix'] ?? null, $defaults['matrix']),
             'pool' => self::normalizeBoolean($input['pool'] ?? null, $defaults['pool']),
