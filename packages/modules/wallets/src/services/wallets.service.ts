@@ -631,8 +631,8 @@ export class WalletsService implements WalletsServiceContract {
     }
 
     const wallet = await this.walletsRepository.getWalletSummary(input.userId);
-    if (compareDecimalStrings(wallet.shoppingBalance, input.amount) < 0) {
-      throw new Error("Insufficient SW balance.");
+    if (compareDecimalStrings(wallet.withdrawableBalance, input.amount) < 0) {
+      throw new Error("Insufficient CW balance.");
     }
 
     const approvedKyc = await this.walletsRepository.findLatestApprovedKycRequest(
@@ -654,7 +654,7 @@ export class WalletsService implements WalletsServiceContract {
 
     const taxAmount = multiplyDecimalStrings(input.amount, settings.withholdingTaxRate);
     const autoSweepAmount = multiplyDecimalStrings(input.amount, settings.autoSweepRate);
-    const feeAmount = settings.feeFlatAmount;
+    const feeAmount = multiplyDecimalStrings(input.amount, settings.feeRate);
     const netBankAmount = maxDecimalString(
       subtractDecimalStrings(
         subtractDecimalStrings(

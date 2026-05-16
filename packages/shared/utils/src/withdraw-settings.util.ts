@@ -5,6 +5,7 @@ export interface WithdrawSettings {
   withdrawEnabled: boolean;
   withholdingTaxRate: string;
   autoSweepRate: string;
+  feeRate: string;
   feeFlatAmount: string;
   minimumWithdrawAmount: string;
 }
@@ -15,6 +16,7 @@ const DEFAULT_SETTINGS: WithdrawSettings = {
   withdrawEnabled: true,
   withholdingTaxRate: "0.05",
   autoSweepRate: "0",
+  feeRate: "0.05",
   feeFlatAmount: "0",
   minimumWithdrawAmount: "0",
 };
@@ -56,6 +58,9 @@ export function normalizeWithdrawSettings(input: unknown): WithdrawSettings {
     autoSweepRate: isDecimalString(candidate.autoSweepRate)
       ? candidate.autoSweepRate.trim()
       : DEFAULT_SETTINGS.autoSweepRate,
+    feeRate: isDecimalString(candidate.feeRate)
+      ? candidate.feeRate.trim()
+      : DEFAULT_SETTINGS.feeRate,
     feeFlatAmount: isDecimalString(candidate.feeFlatAmount)
       ? candidate.feeFlatAmount.trim()
       : DEFAULT_SETTINGS.feeFlatAmount,

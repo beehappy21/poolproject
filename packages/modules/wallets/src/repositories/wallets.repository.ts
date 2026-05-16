@@ -1615,21 +1615,21 @@ export class PrismaWalletsRepository implements WalletsRepository {
         where: { userId: BigInt(input.userId) },
         update: {},
         create: { userId: BigInt(input.userId) },
-        select: { shoppingBalance: true },
+        select: { withdrawableBalance: true },
       });
 
-      if (compareDecimalStrings(wallet.shoppingBalance.toString(), input.amount) < 0) {
-        throw new Error("Insufficient SW balance.");
+      if (compareDecimalStrings(wallet.withdrawableBalance.toString(), input.amount) < 0) {
+        throw new Error("Insufficient CW balance.");
       }
 
-      const nextShoppingBalance = subtractDecimalStrings(
-        wallet.shoppingBalance.toString(),
+      const nextWithdrawableBalance = subtractDecimalStrings(
+        wallet.withdrawableBalance.toString(),
         input.amount,
       );
 
       await tx.wallet.update({
         where: { userId: BigInt(input.userId) },
-        data: { shoppingBalance: nextShoppingBalance },
+        data: { withdrawableBalance: nextWithdrawableBalance },
       });
 
       const request = await tx.withdrawRequest.create({
@@ -1663,12 +1663,12 @@ export class PrismaWalletsRepository implements WalletsRepository {
           userId: BigInt(input.userId),
           txType: "MANUAL_ADJUSTMENT",
           direction: "DEBIT",
-          balanceBucket: "SHOPPING",
+          balanceBucket: "WITHDRAWABLE",
           refType: "withdraw_request",
           refId: request.id,
           amount: input.amount,
           status: "POSTED",
-          note: "SW reserved for withdraw request",
+          note: "CW reserved for withdraw request",
         },
       });
 
@@ -2027,7 +2027,7 @@ export class PrismaWalletsRepository implements WalletsRepository {
         refType: "withdraw_request",
         refId: withdrawRequestId,
         direction: "DEBIT",
-        balanceBucket: "SHOPPING",
+        balanceBucket: "WITHDRAWABLE",
       },
     });
 
@@ -2039,17 +2039,17 @@ export class PrismaWalletsRepository implements WalletsRepository {
       where: { userId: reserveTransaction.userId },
       update: {},
       create: { userId: reserveTransaction.userId },
-      select: { shoppingBalance: true },
+      select: { withdrawableBalance: true },
     });
 
-    const nextShoppingBalance = addDecimalStrings(
-      wallet.shoppingBalance.toString(),
+    const nextWithdrawableBalance = addDecimalStrings(
+      wallet.withdrawableBalance.toString(),
       reserveTransaction.amount.toString(),
     );
 
     await tx.wallet.update({
       where: { userId: reserveTransaction.userId },
-      data: { shoppingBalance: nextShoppingBalance },
+      data: { withdrawableBalance: nextWithdrawableBalance },
     });
 
     await tx.walletTransaction.create({
@@ -2057,13 +2057,13 @@ export class PrismaWalletsRepository implements WalletsRepository {
         userId: reserveTransaction.userId,
         txType: "MANUAL_ADJUSTMENT",
         direction: "CREDIT",
-        balanceBucket: "SHOPPING",
+        balanceBucket: "WITHDRAWABLE",
         refType: "withdraw_request",
         refId: withdrawRequestId,
         counterpartyUserId: BigInt(actorUserId),
         amount: reserveTransaction.amount,
         status: "POSTED",
-        note: "SW refunded for cancelled withdraw request",
+        note: "CW refunded for cancelled withdraw request",
       },
     });
   }

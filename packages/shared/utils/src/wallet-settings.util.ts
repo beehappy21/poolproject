@@ -21,7 +21,7 @@ const DEFAULT_SETTINGS: WalletSettings = {
   firmEnabled: false,
   autoBuybackEnabled: false,
   commissionToShoppingEnabled: true,
-  commissionToShoppingFeeRate: "0",
+  commissionToShoppingFeeRate: "0.05",
   walletTransferEnabled: true,
   walletTransferFeeRate: "0",
   walletTopupEnabled: true,

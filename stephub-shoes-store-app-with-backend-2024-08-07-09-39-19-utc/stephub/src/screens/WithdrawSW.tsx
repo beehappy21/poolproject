@@ -9,13 +9,14 @@ import {RootState} from '../store';
 
 type DashboardResponse = {
   wallet?: {
-    shoppingBalance?: string;
+    withdrawableBalance?: string;
   };
 };
 
 type WithdrawRequestSummary = {
   requestId: string;
   amount: string;
+  feeAmount: string;
   netBankAmount: string;
   bankName: string;
   accountName: string;
@@ -47,6 +48,8 @@ const formatAmount = (value: number) =>
     maximumFractionDigits: 2,
   }).format(value);
 
+const WITHDRAW_SERVICE_FEE_RATE = 0.05;
+
 export const WithdrawSW: React.FC = () => {
   const user = hooks.useAppSelector((state: RootState) => state.userSlice.user);
 
@@ -74,7 +77,7 @@ export const WithdrawSW: React.FC = () => {
     const loadWallet = async () => {
       if (!user?.accessToken) {
         setLoading(false);
-        setErrorMessage('ต้องมี session ก่อนจึงจะส่งคำขอถอน SW ได้');
+        setErrorMessage('ต้องมี session ก่อนจึงจะส่งคำขอถอน CW ได้');
         return;
       }
 
@@ -96,7 +99,7 @@ export const WithdrawSW: React.FC = () => {
             },
           }),
         ]);
-        setMaxWithdraw(parseDecimal(dashboardResponse.data.wallet?.shoppingBalance));
+        setMaxWithdraw(parseDecimal(dashboardResponse.data.wallet?.withdrawableBalance));
         setPendingRequests(
           (requestsResponse.data || []).filter(
             request =>
@@ -108,7 +111,7 @@ export const WithdrawSW: React.FC = () => {
         setKycRequests(Array.isArray(kycRequestsResponse.data) ? kycRequestsResponse.data : []);
       } catch (error) {
         console.error(error);
-        setErrorMessage('ไม่สามารถโหลดข้อมูลยอด SW ปัจจุบันได้');
+        setErrorMessage('ไม่สามารถโหลดข้อมูลยอด CW ปัจจุบันได้');
       } finally {
         setLoading(false);
       }
@@ -127,7 +130,7 @@ export const WithdrawSW: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!user?.accessToken) {
-      setErrorMessage('ต้องมี session ก่อนจึงจะส่งคำขอถอน SW ได้');
+      setErrorMessage('ต้องมี session ก่อนจึงจะส่งคำขอถอน CW ได้');
       return;
     }
 
@@ -137,12 +140,12 @@ export const WithdrawSW: React.FC = () => {
     }
 
     if (amountNumber > maxWithdraw) {
-      setErrorMessage('จำนวนถอนต้องไม่เกินยอด SW ที่มี');
+      setErrorMessage('จำนวนถอนต้องไม่เกินยอด CW ที่มี');
       return;
     }
 
     if (!canWithdraw) {
-      setErrorMessage('ต้องทำ KYC บัตรประชาชนและบัญชีธนาคารให้อนุมัติก่อนจึงจะถอน SW ได้');
+      setErrorMessage('ต้องทำ KYC บัตรประชาชนและบัญชีธนาคารให้อนุมัติก่อนจึงจะถอน CW ได้');
       return;
     }
 
@@ -171,20 +174,29 @@ export const WithdrawSW: React.FC = () => {
         ...current,
       ]);
       setMessage(
-        'ส่งคำขอถอน SW ให้ admin แล้ว ระบบจะนำรายการนี้ไปทำรายงานเพื่อโอนเงินต่อไป',
+        'ส่งคำขอถอน CW ให้ admin แล้ว ระบบจะหักค่าบริการ 5% และนำรายการนี้ไปทำรายงานเพื่อโอนเงินต่อไป',
       );
     } catch (error: any) {
       setErrorMessage(
-        error?.response?.data?.message || 'ไม่สามารถส่งคำขอถอน SW ได้ในขณะนี้',
+        error?.response?.data?.message || 'ไม่สามารถส่งคำขอถอน CW ได้ในขณะนี้',
       );
     } finally {
       setSubmitting(false);
     }
   };
 
+  const serviceFee = useMemo(
+    () => amountNumber * WITHDRAW_SERVICE_FEE_RATE,
+    [amountNumber],
+  );
+  const netWithdrawAmount = useMemo(
+    () => Math.max(amountNumber - serviceFee, 0),
+    [amountNumber, serviceFee],
+  );
+
   return (
     <>
-      <components.Header title='ถอน SW' goBack={true} />
+      <components.Header title='ถอน CW' goBack={true} />
       <main style={{padding: '20px 20px 120px', minHeight: 'calc(100vh - 72px)'}}>
         <section
           style={{
@@ -202,7 +214,7 @@ export const WithdrawSW: React.FC = () => {
               ...theme.fonts.Mulish_700Bold,
             }}
           >
-            ขอถอน SW
+            ขอถอน CW
           </h2>
           <p
             style={{
@@ -232,7 +244,7 @@ export const WithdrawSW: React.FC = () => {
                 ...theme.fonts.Mulish_400Regular,
               }}
             >
-              ยอด SW ที่ถอนออกได้
+              ยอด CW ที่ถอนออกได้
             </p>
             <h3
               style={{
@@ -279,7 +291,7 @@ export const WithdrawSW: React.FC = () => {
             <input
               value={amount}
               onChange={event => setAmount(event.target.value)}
-              placeholder='จำนวนที่ต้องการถอน'
+              placeholder='จำนวน CW ที่ต้องการถอน'
               inputMode='decimal'
               style={{
                 height: 48,
@@ -290,6 +302,20 @@ export const WithdrawSW: React.FC = () => {
                 ...theme.fonts.Mulish_400Regular,
               }}
             />
+            <div
+              style={{
+                padding: 16,
+                borderRadius: 14,
+                backgroundColor: '#F8FAFC',
+                border: `1px solid ${theme.colors.aliceBlue2}`,
+                color: theme.colors.textColor,
+                lineHeight: 1.7,
+              }}
+            >
+              <div>ยอด CW ที่ต้องการถอน: {formatAmount(amountNumber)}</div>
+              <div>ค่าบริการ 5%: {formatAmount(serviceFee)}</div>
+              <div>ยอดสุทธิก่อนหักรายการอื่น: {formatAmount(netWithdrawAmount)}</div>
+            </div>
             <div
               style={{
                 padding: 16,
@@ -323,7 +349,7 @@ export const WithdrawSW: React.FC = () => {
                     ...theme.fonts.Mulish_400Regular,
                   }}
                 >
-                  ต้องทำ KYC บัตรประชาชนและบัญชีธนาคารให้อนุมัติก่อน จึงจะกดถอน SW ได้
+                  ต้องทำ KYC บัตรประชาชนและบัญชีธนาคารให้อนุมัติก่อน จึงจะกดถอน CW ได้
                 </div>
               ) : null}
             </div>
@@ -383,7 +409,7 @@ export const WithdrawSW: React.FC = () => {
               ...theme.fonts.Mulish_700Bold,
             }}
           >
-            {submitting ? 'กำลังส่งคำขอ...' : 'ส่งคำขอถอน SW'}
+            {submitting ? 'กำลังส่งคำขอ...' : 'ส่งคำขอถอน CW'}
           </button>
         </section>
 
@@ -452,6 +478,7 @@ export const WithdrawSW: React.FC = () => {
                   </div>
                   <div style={{color: theme.colors.textColor, lineHeight: 1.7}}>
                     <div>ยอดแจ้งถอน: {formatAmount(parseDecimal(request.amount))}</div>
+                    <div>ค่าบริการ: {formatAmount(parseDecimal(request.feeAmount))}</div>
                     <div>ยอดสุทธิ: {formatAmount(parseDecimal(request.netBankAmount))}</div>
                     <div>ธนาคาร: {request.bankName}</div>
                     <div>ชื่อบัญชี: {request.accountName}</div>

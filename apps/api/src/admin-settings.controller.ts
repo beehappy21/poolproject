@@ -265,44 +265,59 @@ export class AdminSettingsController {
   @Put("wallets")
   updateWalletSettings(@Body() body: Record<string, unknown>) {
     const payload = body ?? {};
+    const current = readWalletSettings();
 
     return writeWalletSettings({
       firmEnabled:
-        payload.firmEnabled === true ||
-        payload.firmEnabled === "true" ||
-        payload.firmEnabled === "1",
+        payload.firmEnabled === undefined
+          ? current.firmEnabled
+          : payload.firmEnabled === true ||
+            payload.firmEnabled === "true" ||
+            payload.firmEnabled === "1",
       autoBuybackEnabled:
-        payload.autoBuybackEnabled === true ||
-        payload.autoBuybackEnabled === "true" ||
-        payload.autoBuybackEnabled === "1",
+        payload.autoBuybackEnabled === undefined
+          ? current.autoBuybackEnabled
+          : payload.autoBuybackEnabled === true ||
+            payload.autoBuybackEnabled === "true" ||
+            payload.autoBuybackEnabled === "1",
       commissionToShoppingEnabled:
-        payload.commissionToShoppingEnabled === true ||
-        payload.commissionToShoppingEnabled === "true" ||
-        payload.commissionToShoppingEnabled === "1",
+        payload.commissionToShoppingEnabled === undefined
+          ? current.commissionToShoppingEnabled
+          : payload.commissionToShoppingEnabled === true ||
+            payload.commissionToShoppingEnabled === "true" ||
+            payload.commissionToShoppingEnabled === "1",
       commissionToShoppingFeeRate: requireDecimalRateString(
-        payload.commissionToShoppingFeeRate ?? "0",
+        payload.commissionToShoppingFeeRate ?? current.commissionToShoppingFeeRate,
         "commissionToShoppingFeeRate",
       ),
       walletTransferEnabled:
-        payload.walletTransferEnabled === true ||
-        payload.walletTransferEnabled === "true" ||
-        payload.walletTransferEnabled === "1",
+        payload.walletTransferEnabled === undefined
+          ? current.walletTransferEnabled
+          : payload.walletTransferEnabled === true ||
+            payload.walletTransferEnabled === "true" ||
+            payload.walletTransferEnabled === "1",
       walletTransferFeeRate: requireDecimalRateString(
-        payload.walletTransferFeeRate ?? "0",
+        payload.walletTransferFeeRate ?? current.walletTransferFeeRate,
         "walletTransferFeeRate",
       ),
       walletTopupEnabled:
-        payload.walletTopupEnabled === true ||
-        payload.walletTopupEnabled === "true" ||
-        payload.walletTopupEnabled === "1",
+        payload.walletTopupEnabled === undefined
+          ? current.walletTopupEnabled
+          : payload.walletTopupEnabled === true ||
+            payload.walletTopupEnabled === "true" ||
+            payload.walletTopupEnabled === "1",
       shoppingWalletSpendEnabled:
-        payload.shoppingWalletSpendEnabled === true ||
-        payload.shoppingWalletSpendEnabled === "true" ||
-        payload.shoppingWalletSpendEnabled === "1",
+        payload.shoppingWalletSpendEnabled === undefined
+          ? current.shoppingWalletSpendEnabled
+          : payload.shoppingWalletSpendEnabled === true ||
+            payload.shoppingWalletSpendEnabled === "true" ||
+            payload.shoppingWalletSpendEnabled === "1",
       discountWalletSpendEnabled:
-        payload.discountWalletSpendEnabled === true ||
-        payload.discountWalletSpendEnabled === "true" ||
-        payload.discountWalletSpendEnabled === "1",
+        payload.discountWalletSpendEnabled === undefined
+          ? current.discountWalletSpendEnabled
+          : payload.discountWalletSpendEnabled === true ||
+            payload.discountWalletSpendEnabled === "true" ||
+            payload.discountWalletSpendEnabled === "1",
       orderCashPaymentMethods: Array.isArray(payload.orderCashPaymentMethods)
         ? payload.orderCashPaymentMethods
             .map((value) => optionalString(value))

@@ -89,6 +89,10 @@ type CommissionResponsePayload = CommissionEntry[] | CommissionListResponse;
 type WalletTransactionSummary = {
   transactionId: string;
   txType: string;
+  direction?: string;
+  balanceBucket?: string;
+  refType?: string;
+  refId?: string;
   amount: string;
   note?: string | null;
   status: string;
@@ -98,6 +102,7 @@ type WalletTransactionSummary = {
 type WithdrawRequestSummary = {
   requestId: string;
   amount: string;
+  feeAmount?: string;
   netBankAmount: string;
   status: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'exported' | 'paid';
   requestedAt: string;
@@ -160,6 +165,8 @@ const formatDecimal = (value: number): string => {
   return decimalFormatter.format(value);
 };
 
+const COMMISSION_TO_SHOPPING_FEE_RATE = 0.05;
+
 const formatDateTime = (value?: string | null) => {
   if (!value) {
     return '-';
@@ -171,6 +178,13 @@ const formatDateTime = (value?: string | null) => {
   }
 
   return parsed.toLocaleString('th-TH');
+};
+
+const isPostedWithdrawableTransaction = (transaction: WalletTransactionSummary) => {
+  return (
+    transaction.status?.toLowerCase() === 'posted' &&
+    transaction.balanceBucket?.toLowerCase() === 'withdrawable'
+  );
 };
 
 const formatDateParts = (value?: string | null) => {
@@ -227,11 +241,6 @@ const getCommissionTypeLabel = (value?: string | null) => {
   }
 };
 
-const toStartOfToday = () => {
-  const today = new Date();
-  return new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-};
-
 const extractCommissionItems = (
   payload?: CommissionResponsePayload,
 ): CommissionEntry[] => {
@@ -268,7 +277,7 @@ const dashboardTiles = (
 ) => [
   {
     key: 'cw-today',
-    title: 'CW วันนี้',
+    title: 'CW ปัจจุบัน',
     value: metrics.cwToday,
   },
   {
@@ -418,21 +427,6 @@ export const Commission: React.FC = () => {
           ? withdrawRequestsResult.value.data
           : [];
 
-      const startOfToday = toStartOfToday();
-      const cwToday = commissions.reduce((sum, entry) => {
-        if (entry.status?.toLowerCase() === 'fallback' || !entry.createdAt) {
-          return sum;
-        }
-
-        const createdAt = new Date(entry.createdAt).getTime();
-
-        if (Number.isNaN(createdAt) || createdAt < startOfToday) {
-          return sum;
-        }
-
-        return sum + parseDecimal(entry.amount);
-      }, 0);
-
       if (user?.memberCode) {
         try {
           const directReferralsResponse = await axios.get<DirectReferralsResponse>(
@@ -461,9 +455,62 @@ export const Commission: React.FC = () => {
         return sum;
       }, 0);
 
+      const totalQualifiedCommission = commissions.reduce((sum, entry) => {
+        if (
+          !isNonFallbackCommissionEntry(entry) ||
+          !hasCommissionType(entry, [
+            'direct',
+            'team_2leg',
+            'team_3leg',
+            'matching_l1',
+            'matching_l2',
+            'pool',
+          ])
+        ) {
+          return sum;
+        }
+
+        return sum + parseDecimal(entry.amount);
+      }, 0);
+
+      const totalConvertedFromCw = transactions.reduce((sum, transaction) => {
+        if (!isPostedWithdrawableTransaction(transaction)) {
+          return sum;
+        }
+
+        const transactionType = transaction.txType?.toLowerCase();
+        if (
+          transactionType !== 'commission_convert_out' &&
+          transactionType !== 'convert_fee_debit'
+        ) {
+          return sum;
+        }
+
+        return sum + parseDecimal(transaction.amount);
+      }, 0);
+
+      const totalWithdrawnFromCw = transactions.reduce((sum, transaction) => {
+        if (
+          !isPostedWithdrawableTransaction(transaction) ||
+          transaction.refType?.toLowerCase() !== 'withdraw_request'
+        ) {
+          return sum;
+        }
+
+        const amount = parseDecimal(transaction.amount);
+        return transaction.direction?.toLowerCase() === 'credit'
+          ? sum - amount
+          : sum + amount;
+      }, 0);
+
+      const cwCurrent = Math.max(
+        totalQualifiedCommission - totalConvertedFromCw - totalWithdrawnFromCw,
+        0,
+      );
+
       setMetrics({
-        cwToday: formatDecimal(cwToday),
-        cwTotal: formatDecimal(parseDecimal(wallet?.withdrawableBalance)),
+        cwToday: formatDecimal(cwCurrent),
+        cwTotal: formatDecimal(totalQualifiedCommission),
         sw: formatDecimal(swBalance),
         withdrawPending: formatDecimal(pendingWithdrawTotal),
         dcw: formatDecimal(parseDecimal(wallet?.discountBalance)),
@@ -530,19 +577,8 @@ export const Commission: React.FC = () => {
     : null;
   const isMobileViewport = viewportWidth < 768;
   const cwAvailableForDisplay = useMemo(() => {
-    return Math.max(parseDecimal(metrics.cwTotal), 0);
-  }, [metrics.cwTotal]);
-
-  const cwRecentEntries = useMemo(() => {
-    return commissionEntries
-      .filter(entry => isWithinLastDays(entry.createdAt, 5))
-      .sort((left, right) => {
-        return (
-          new Date(right.createdAt || 0).getTime() -
-          new Date(left.createdAt || 0).getTime()
-        );
-      });
-  }, [commissionEntries]);
+    return Math.max(parseDecimal(metrics.cwToday), 0);
+  }, [metrics.cwToday]);
 
   const cashbackEntries = useMemo(() => {
     return commissionEntries
@@ -690,10 +726,80 @@ export const Commission: React.FC = () => {
       .slice(0, 10);
   }, [commissionEntries, memberDirectory]);
 
-  const tiles = dashboardTiles({
-    ...metrics,
-    cwTotal: formatDecimal(cwAvailableForDisplay),
-  });
+  const tiles = dashboardTiles(metrics);
+
+  const cwQualifiedEntries = useMemo(() => {
+    return commissionEntries.filter(
+      entry =>
+        isNonFallbackCommissionEntry(entry) &&
+        hasCommissionType(entry, [
+          'direct',
+          'team_2leg',
+          'team_3leg',
+          'matching_l1',
+          'matching_l2',
+          'pool',
+        ]),
+    );
+  }, [commissionEntries]);
+
+  const cwReceivedTotal = useMemo(() => {
+    return cwQualifiedEntries.reduce((sum, entry) => sum + parseDecimal(entry.amount), 0);
+  }, [cwQualifiedEntries]);
+
+  const cwConvertedTransactions = useMemo(() => {
+    return walletTransactions
+      .filter(transaction => {
+        if (!isPostedWithdrawableTransaction(transaction)) {
+          return false;
+        }
+
+        const transactionType = transaction.txType?.toLowerCase();
+        return (
+          transactionType === 'commission_convert_out' ||
+          transactionType === 'convert_fee_debit'
+        );
+      })
+      .sort(
+        (left, right) =>
+          new Date(right.createdAt || 0).getTime() -
+          new Date(left.createdAt || 0).getTime(),
+      );
+  }, [walletTransactions]);
+
+  const cwConvertedTotal = useMemo(() => {
+    return cwConvertedTransactions.reduce(
+      (sum, transaction) => sum + parseDecimal(transaction.amount),
+      0,
+    );
+  }, [cwConvertedTransactions]);
+
+  const cwWithdrawTransactions = useMemo(() => {
+    return walletTransactions
+      .filter(
+        transaction =>
+          isPostedWithdrawableTransaction(transaction) &&
+          transaction.refType?.toLowerCase() === 'withdraw_request',
+      )
+      .sort(
+        (left, right) =>
+          new Date(right.createdAt || 0).getTime() -
+          new Date(left.createdAt || 0).getTime(),
+      );
+  }, [walletTransactions]);
+
+  const cwWithdrawnTotal = useMemo(() => {
+    return cwWithdrawTransactions.reduce((sum, transaction) => {
+      const amount = parseDecimal(transaction.amount);
+      return transaction.direction?.toLowerCase() === 'credit'
+        ? sum - amount
+        : sum + amount;
+    }, 0);
+  }, [cwWithdrawTransactions]);
+
+  const cwCurrentBalance = useMemo(() => {
+    return Math.max(cwReceivedTotal - cwConvertedTotal - cwWithdrawnTotal, 0);
+  }, [cwConvertedTotal, cwReceivedTotal, cwWithdrawnTotal]);
 
   const commissionOverviewCards = useMemo(() => {
     const cardMap: Record<
@@ -991,10 +1097,12 @@ export const Commission: React.FC = () => {
       );
 
       setConvertAmount('');
+      const feeAmount = parseDecimal(response.data?.feeAmount);
+      const netShoppingAmount = parseDecimal(response.data?.netShoppingAmount);
       setConvertMessage(
-        `เปลี่ยน CW เป็น SW สำเร็จ ได้รับ SW ${formatDecimal(
-          parseDecimal(response.data?.netShoppingAmount),
-        )}`,
+        `เปลี่ยน CW เป็น SW สำเร็จ หักค่าบริการ ${formatDecimal(
+          feeAmount,
+        )} ได้รับ SW ${formatDecimal(netShoppingAmount)}`,
       );
       await loadCommissionPage();
     } catch (error: any) {
@@ -1016,6 +1124,9 @@ export const Commission: React.FC = () => {
 
     if (detailPanel === 'cw-convert') {
       title = 'เปลี่ยน CW เป็น SW';
+      const requestedAmount = parseDecimal(convertAmount);
+      const convertFeePreview = requestedAmount * COMMISSION_TO_SHOPPING_FEE_RATE;
+      const netSwPreview = Math.max(requestedAmount - convertFeePreview, 0);
       content = (
         <div style={{display: 'grid', gap: 14}}>
           <div
@@ -1062,6 +1173,21 @@ export const Commission: React.FC = () => {
               ...theme.fonts.Mulish_400Regular,
             }}
           />
+
+          <div
+            style={{
+              padding: 16,
+              borderRadius: 14,
+              backgroundColor: '#F8FAFC',
+              border: `1px solid ${theme.colors.aliceBlue2}`,
+              color: theme.colors.textColor,
+              lineHeight: 1.7,
+            }}
+          >
+            <div>ยอด CW ที่ต้องการเปลี่ยน: {formatDecimal(requestedAmount)}</div>
+            <div>ค่าบริการ 5%: {formatDecimal(convertFeePreview)}</div>
+            <div>ยอด SW สุทธิที่จะได้รับ: {formatDecimal(netSwPreview)}</div>
+          </div>
 
           {convertMessage ? (
             <div
@@ -1110,101 +1236,144 @@ export const Commission: React.FC = () => {
     }
 
     if (detailPanel === 'cw-today') {
-      title = 'ค่าคอมมิชชั่นย้อนหลัง 5 วัน';
-      content = cwRecentEntries.length ? (
-        <div
-          style={{
-            display: 'grid',
-            gap: 12,
-            maxHeight: '58vh',
-            overflowY: 'auto',
-            paddingRight: 4,
-          }}
-        >
-          {cwRecentEntries.map(entry => {
-            const {date, time} = formatDateParts(entry.createdAt);
-            const member = entry.sourceUserId
-              ? memberDirectory.get(entry.sourceUserId)
-              : undefined;
-            const code = member?.memberCode || entry.orderId || entry.sourceUserId || '-';
+      title = 'CW ปัจจุบัน';
+      const recentCwActivity = [
+        ...cwConvertedTransactions.map(transaction => ({
+          key: `convert-${transaction.transactionId}`,
+          label:
+            transaction.txType?.toLowerCase() === 'convert_fee_debit'
+              ? 'หักค่าบริการแปลง CW > SW'
+              : 'แปลง CW > SW',
+          amount:
+            (transaction.direction?.toLowerCase() === 'credit' ? 1 : -1) *
+            parseDecimal(transaction.amount),
+          createdAt: transaction.createdAt,
+        })),
+        ...cwWithdrawTransactions.map(transaction => ({
+          key: `withdraw-${transaction.transactionId}`,
+          label:
+            transaction.direction?.toLowerCase() === 'credit'
+              ? 'คืน CW จากยกเลิกคำขอถอน'
+              : 'หัก CW สำหรับคำขอถอน',
+          amount:
+            (transaction.direction?.toLowerCase() === 'credit' ? 1 : -1) *
+            parseDecimal(transaction.amount),
+          createdAt: transaction.createdAt,
+        })),
+      ]
+        .sort(
+          (left, right) =>
+            new Date(right.createdAt || 0).getTime() -
+            new Date(left.createdAt || 0).getTime(),
+        )
+        .slice(0, 8);
 
-            return (
-              <article
-                key={entry.commissionId || `${entry.createdAt}-${entry.amount}`}
-                style={{
-                  padding: 14,
-                  borderRadius: 14,
-                  backgroundColor: '#F8FAFC',
-                  border: `1px solid ${theme.colors.aliceBlue2}`,
-                  display: 'grid',
-                  gap: 10,
-                }}
-              >
-                <div>
-                  <div
+      content = (
+        <div style={{display: 'grid', gap: 12}}>
+          <article
+            style={{
+              padding: 16,
+              borderRadius: 14,
+              backgroundColor: '#F8FAFC',
+              border: `1px solid ${theme.colors.aliceBlue2}`,
+              color: theme.colors.textColor,
+              lineHeight: 1.8,
+            }}
+          >
+            <div>คอมสะสมจาก Direct + Team + Matching + Pool: {formatDecimal(cwReceivedTotal)}</div>
+            <div>แปลง CW เป็น SW แล้ว: {formatDecimal(cwConvertedTotal)}</div>
+            <div>ถอนจาก CW แล้ว: {formatDecimal(cwWithdrawnTotal)}</div>
+            <div style={{color: theme.colors.mainColor, ...theme.fonts.Mulish_700Bold}}>
+              CW ปัจจุบัน: {formatDecimal(cwCurrentBalance)}
+            </div>
+          </article>
+
+          {recentCwActivity.length ? (
+            <div
+              style={{
+                display: 'grid',
+                gap: 12,
+                maxHeight: '58vh',
+                overflowY: 'auto',
+                paddingRight: 4,
+              }}
+            >
+              {recentCwActivity.map(activity => {
+                const {date, time} = formatDateParts(activity.createdAt);
+                const isCredit = activity.amount >= 0;
+
+                return (
+                  <article
+                    key={activity.key}
                     style={{
-                      color: theme.colors.mainColor,
-                      fontSize: 16,
-                      lineHeight: 1.2,
-                      ...theme.fonts.Mulish_700Bold,
+                      padding: 14,
+                      borderRadius: 14,
+                      backgroundColor: '#F8FAFC',
+                      border: `1px solid ${theme.colors.aliceBlue2}`,
+                      display: 'grid',
+                      gap: 10,
                     }}
                   >
-                    {date}
-                  </div>
-                  <div
-                    style={{
-                      marginTop: 2,
-                      color: '#64748B',
-                      fontSize: 8,
-                      lineHeight: 1.2,
-                      ...theme.fonts.Mulish_600SemiBold,
-                    }}
-                  >
-                    {time}
-                  </div>
-                </div>
+                    <div>
+                      <div
+                        style={{
+                          color: theme.colors.mainColor,
+                          fontSize: 16,
+                          lineHeight: 1.2,
+                          ...theme.fonts.Mulish_700Bold,
+                        }}
+                      >
+                        {date}
+                      </div>
+                      <div
+                        style={{
+                          marginTop: 2,
+                          color: '#64748B',
+                          fontSize: 8,
+                          lineHeight: 1.2,
+                          ...theme.fonts.Mulish_600SemiBold,
+                        }}
+                      >
+                        {time}
+                      </div>
+                    </div>
 
-                <div style={{color: theme.colors.textColor}}>
-                  รหัส: <strong style={{color: theme.colors.mainColor}}>{code}</strong>
-                </div>
+                    <div style={{color: theme.colors.textColor}}>
+                      รายการ: <strong style={{color: theme.colors.mainColor}}>{activity.label}</strong>
+                    </div>
 
-                <div style={{color: theme.colors.textColor}}>
-                  ประเภท:{' '}
-                  <strong style={{color: theme.colors.mainColor}}>
-                    {getCommissionTypeLabel(entry.commissionType)}
-                    {entry.levelNo ? ` L${entry.levelNo}` : ''}
-                  </strong>
-                </div>
-
-                <div
-                  style={{
-                    color: theme.colors.textColor,
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    gap: 12,
-                  }}
-                >
-                  <span>ยอดเงิน</span>
-                  <strong
-                    style={{
-                      color: theme.colors.mainColor,
-                      maxWidth: '55%',
-                      overflowX: 'auto',
-                      whiteSpace: 'nowrap',
-                      textAlign: 'right',
-                    }}
-                  >
-                    {formatDecimal(parseDecimal(entry.amount))}
-                  </strong>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      ) : (
-        <div style={{color: theme.colors.textColor}}>
-          ยังไม่มีรายการค่าคอมมิชชั่นย้อนหลัง 5 วัน
+                    <div
+                      style={{
+                        color: theme.colors.textColor,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: 12,
+                      }}
+                    >
+                      <span>ยอดเงิน</span>
+                      <strong
+                        style={{
+                          color: isCredit ? '#166534' : '#B91C1C',
+                          maxWidth: '55%',
+                          overflowX: 'auto',
+                          whiteSpace: 'nowrap',
+                          textAlign: 'right',
+                        }}
+                      >
+                        {isCredit ? '+' : '-'}
+                        {formatDecimal(Math.abs(activity.amount))}
+                      </strong>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{color: theme.colors.textColor}}>
+              ยังไม่พบรายการแปลง CW หรือถอนจาก CW
+            </div>
+          )}
         </div>
       );
     }
