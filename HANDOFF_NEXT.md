@@ -1,7 +1,103 @@
 Handoff Next
 
-Updated: 2026-05-17 16:20 +07
+Updated: 2026-05-18 00:45 +07
 Branch: `main`
+
+Latest Session Update (2026-05-18)
+
+- UAT server was prepared for go-live reset and the reset was executed successfully.
+- Backup created before reset:
+  - `/home/nc-user/poolproject/backups/uat-full-20260518-003253`
+- BAO reset path was deployed to server and rebuilt on:
+  - `poolproject-uat-bao-1`
+- Production reset result on server:
+  - preserved:
+    - `User = 212`
+    - `MemberProfile = 210`
+  - deleted/reset:
+    - `Order = 210 -> 0`
+    - `CommissionLedger = 1649 -> 0`
+    - `WalletTransaction = 1034 -> 0`
+    - `TeamSettlementBatch = 47 -> 0`
+    - `DailyPoolCycle = 47 -> 0`
+    - `UserBuybackProgress = 0`
+    - `MemberPackageCycle = 0`
+    - wallet rows with non-zero balance or payout lock = `0`
+    - users with non-zero `matrixPersonalPv` = `0`
+- Post-reset health checks:
+  - `http://127.0.0.1:3000/health => {"status":"ok"}`
+  - `http://127.0.0.1:18001/admin/login => 200`
+  - `CommissionBaselineRuntimeResetter::status()` returned:
+    - `transactionStateCount = 0`
+    - `canReset = false`
+- Important business state after this reset:
+  - old orders/commissions/runtime history were cleared from the live UAT database
+  - new commission/cap/team/pool/PV accumulation will now start only from new orders created after this reset
+  - if the `210` business-member profiles add new members and new approved orders happen after this point, the system should calculate with the normal live flow
+
+Latest Session Update (2026-05-18)
+
+- Commission dashboard work was extended on both local and server:
+  - realtime team PV by leg is shown on WAP `Commission`
+  - round progress now shows:
+    - before threshold: `xx,xxx/10,000`
+    - after threshold: `ครบรอบแล้ว ซื้อซ้ำใน x วัน`
+  - the countdown uses `graceExpiresAt` from buyback progress and updates on the page every minute
+- API/WAP files involved:
+  - [packages/modules/auth/src/controllers/auth.controller.ts](/Users/macbook/poolproject/packages/modules/auth/src/controllers/auth.controller.ts:1)
+  - [packages/modules/commissions/src/repositories/commissions.repository.ts](/Users/macbook/poolproject/packages/modules/commissions/src/repositories/commissions.repository.ts:1)
+  - [packages/modules/commissions/src/services/commissions.service.ts](/Users/macbook/poolproject/packages/modules/commissions/src/services/commissions.service.ts:1)
+  - [packages/modules/commissions/src/domain/commissions.types.ts](/Users/macbook/poolproject/packages/modules/commissions/src/domain/commissions.types.ts:1)
+  - [stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/Commission.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/Commission.tsx:1)
+- Server state after deploy:
+  - `api` and `wap` were rebuilt and restarted on UAT
+  - `http://127.0.0.1:3000/health` returned `{"status":"ok"}`
+  - running bundle/builds were verified to contain `commissionRoundProgress`, `graceExpiresAt`, and the new Thai countdown text
+- Commits created in this round:
+  - `b2417b95`
+    - `Add commission round countdown to dashboard`
+  - `b3b1d2ae`
+    - `Expand commission baseline runtime resetter`
+- Current uncommitted repo state after those commits:
+  - `HANDOFF_NEXT.md` itself
+  - `docs/CHECKLIST_WORK_1_SYNC_SERVER_CALC_WITH_LOCAL.md`
+
+Latest Session Update (2026-05-17)
+
+- Fixed the BAO `รีเซ็ตข้อมูลทดสอบ` baseline reset gap for commission testing.
+- Root cause:
+  - the old `CommissionBaselineRuntimeResetter` only cleaned rows it could still trace back from baseline-tagged orders
+  - once baseline orders were already deleted, orphan runtime rows such as `CommissionLedger` fallback rows and `CompanyBonusLedger` rows could remain
+  - when that happened, `status()` returned `canReset = false`, so BAO could no longer clear the leftovers
+- The reset logic was changed in:
+  - [stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Support/CommissionBaselineRuntimeResetter.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Support/CommissionBaselineRuntimeResetter.php:1)
+- New behavior:
+  - BAO reset now clears transaction/runtime state globally while keeping members and catalog/package masters intact
+  - it deletes:
+    - orders / order items / member package cycles
+    - commission / company bonus / CAP / pool / team settlement / buyback / matrix runtime
+    - wallet transactions / topup / withdraw / payout runtime
+  - it preserves:
+    - `User`
+    - `MemberProfile`
+    - member tree / bindings
+    - `ProductCategory`, `Product`, `ProductDetail`, `Package`, `PackageItem`
+    - `Wallet` rows themselves, but zeroes all balances and unlocks payout lock state
+  - `status()` now allows reset when orphan transaction state still exists even if baseline-tagged orders are already gone
+- Server verification after the fix and rerun:
+  - `Order = 0`
+  - `CommissionLedger = 0`
+  - `CompanyBonusLedger = 0`
+  - `WalletTransaction = 0`
+  - `DailyPoolCycle = 0`
+  - wallet rows with non-zero balance or payout lock = `0`
+  - BAO resetter status now returns `canReset = false` after cleanup, which is the expected clean state
+- Operational notes:
+  - a fresh backup was created before the destructive cleanup:
+    - `/home/nc-user/poolproject/backups/uat-full-20260517-190513`
+  - the server source tree was updated with the fix
+  - because the BAO container image path did not pick up the changed PHP file from a cached rebuild, the fix was also copied directly into the running BAO container as a hot patch for immediate validation
+  - if BAO is rebuilt/recreated again later, re-verify that the built image includes the updated resetter file from source
 
 Latest Session Update (2026-05-17)
 
@@ -1155,3 +1251,20 @@ Exactly what to do next after this handoff
 - do not reopen product/catalog cleanup
 - do not revert the new `member003` test placement rule unless the business explicitly wants the spreadsheet literal tree back
 - treat this placement logic as a test-fixture import policy, not a generic production genealogy rule
+## 2026-05-17 Team Carry Forward Fix
+
+- Fixed `team 2-leg / 3-leg` scaffold so previous `carryForwardPvByLeg` is loaded into the next settlement day before adding new approved-order PV.
+- Files changed:
+  - `packages/modules/commissions/src/domain/commissions.types.ts`
+  - `packages/modules/commissions/src/repositories/commissions.repository.ts`
+  - `packages/modules/commissions/src/services/commissions.service.ts`
+- Local verification:
+  - `npm run lint` passed
+  - `npm run build` passed
+- Server deployment:
+  - hot-patched compiled API files inside `poolproject-uat-api-1`
+  - restarted container and verified `http://127.0.0.1:3000/health` -> `{"status":"ok"}`
+- Important behavior note:
+  - this fix affects future team settlement runs and reruns
+  - existing historical `CommissionLedger` rows do not change automatically until the relevant settlement dates are reprocessed
+  - for `TH0000013`, current history still shows one `TEAM_2LEG` row because old processed batches were not rerun after the fix
