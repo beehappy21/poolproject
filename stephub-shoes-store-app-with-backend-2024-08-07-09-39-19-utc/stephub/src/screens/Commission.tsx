@@ -187,26 +187,6 @@ const isPostedWithdrawableTransaction = (transaction: WalletTransactionSummary) 
   );
 };
 
-const formatDateParts = (value?: string | null) => {
-  if (!value) {
-    return {date: '-', time: '-'};
-  }
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return {date: '-', time: '-'};
-  }
-
-  return {
-    date: parsed.toLocaleDateString('th-TH'),
-    time: parsed.toLocaleTimeString('th-TH', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    }),
-  };
-};
-
 const isWithinLastDays = (value?: string | null, days = 5) => {
   if (!value) {
     return false;
@@ -304,11 +284,6 @@ const dashboardTiles = (
     key: 'top-leader',
     title: 'Top leader',
     value: '',
-  },
-  {
-    key: 'firm',
-    title: 'Firm',
-    value: metrics.firm,
   },
 ];
 
@@ -859,6 +834,76 @@ export const Commission: React.FC = () => {
     visibleButtons,
   ]);
 
+  const summaryCommissionCards = useMemo(() => {
+    return commissionOverviewCards.filter(card =>
+      ['direct', 'team', 'matching', 'pool'].includes(card.key),
+    );
+  }, [commissionOverviewCards]);
+
+  const renderCommissionOverviewGrid = () => {
+    return (
+      <section
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+          gap: 14,
+        }}
+      >
+        {summaryCommissionCards.map(card => (
+          <button
+            key={card.key}
+            type='button'
+            onClick={() => {
+              setDetailPanel(null);
+              setSelectedKey(card.key);
+            }}
+            style={{
+              border: `1px solid ${theme.colors.aliceBlue2}`,
+              borderRadius: 18,
+              backgroundColor: theme.colors.white,
+              padding: '16px 18px',
+              textAlign: 'left',
+              display: 'grid',
+              gap: 6,
+              boxShadow: '0 16px 32px rgba(31, 41, 55, 0.06)',
+              cursor: 'pointer',
+            }}
+          >
+            <div
+              style={{
+                color: card.accent,
+                fontSize: 12,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                ...theme.fonts.Mulish_700Bold,
+              }}
+            >
+              {card.title}
+            </div>
+            <div
+              style={{
+                color: theme.colors.mainColor,
+                fontSize: 24,
+                lineHeight: 1,
+                ...theme.fonts.Mulish_700Bold,
+              }}
+            >
+              {formatDecimal(card.amount)}
+            </div>
+            <div
+              style={{
+                color: theme.colors.textColor,
+                ...theme.fonts.Mulish_400Regular,
+              }}
+            >
+              {card.count} รายการ
+            </div>
+          </button>
+        ))}
+      </section>
+    );
+  };
+
 
   const renderCommissionSummaryCard = () => {
     if (!selectedCard) {
@@ -1052,11 +1097,6 @@ export const Commission: React.FC = () => {
       return;
     }
 
-    if (tileKey === 'firm') {
-      navigate('/Firm');
-      return;
-    }
-
     if (tileKey === 'cw-total') {
       setDetailPanel('cw-total');
       return;
@@ -1240,37 +1280,6 @@ export const Commission: React.FC = () => {
     if (detailPanel === 'cw-current' || detailPanel === 'cw-total') {
       const isCurrentPanel = detailPanel === 'cw-current';
       title = isCurrentPanel ? 'CW ปัจจุบัน' : 'CW รวม';
-      const recentCwActivity = [
-        ...cwConvertedTransactions.map(transaction => ({
-          key: `convert-${transaction.transactionId}`,
-          label:
-            transaction.txType?.toLowerCase() === 'convert_fee_debit'
-              ? 'หักค่าบริการแปลง CW > SW'
-              : 'แปลง CW > SW',
-          amount:
-            (transaction.direction?.toLowerCase() === 'credit' ? 1 : -1) *
-            parseDecimal(transaction.amount),
-          createdAt: transaction.createdAt,
-        })),
-        ...cwWithdrawTransactions.map(transaction => ({
-          key: `withdraw-${transaction.transactionId}`,
-          label:
-            transaction.direction?.toLowerCase() === 'credit'
-              ? 'คืน CW จากยกเลิกคำขอถอน'
-              : 'หัก CW สำหรับคำขอถอน',
-          amount:
-            (transaction.direction?.toLowerCase() === 'credit' ? 1 : -1) *
-            parseDecimal(transaction.amount),
-          createdAt: transaction.createdAt,
-        })),
-      ]
-        .sort(
-          (left, right) =>
-            new Date(right.createdAt || 0).getTime() -
-            new Date(left.createdAt || 0).getTime(),
-        )
-        .slice(0, 8);
-
       content = (
         <div style={{display: 'grid', gap: 12}}>
           <article
@@ -1294,93 +1303,7 @@ export const Commission: React.FC = () => {
           </article>
 
           {isCurrentPanel ? renderConvertSection() : null}
-
-          {recentCwActivity.length ? (
-            <div
-              style={{
-                display: 'grid',
-                gap: 12,
-                maxHeight: '58vh',
-                overflowY: 'auto',
-                paddingRight: 4,
-              }}
-            >
-              {recentCwActivity.map(activity => {
-                const {date, time} = formatDateParts(activity.createdAt);
-                const isCredit = activity.amount >= 0;
-
-                return (
-                  <article
-                    key={activity.key}
-                    style={{
-                      padding: 14,
-                      borderRadius: 14,
-                      backgroundColor: '#F8FAFC',
-                      border: `1px solid ${theme.colors.aliceBlue2}`,
-                      display: 'grid',
-                      gap: 10,
-                    }}
-                  >
-                    <div>
-                      <div
-                        style={{
-                          color: theme.colors.mainColor,
-                          fontSize: 16,
-                          lineHeight: 1.2,
-                          ...theme.fonts.Mulish_700Bold,
-                        }}
-                      >
-                        {date}
-                      </div>
-                      <div
-                        style={{
-                          marginTop: 2,
-                          color: '#64748B',
-                          fontSize: 8,
-                          lineHeight: 1.2,
-                          ...theme.fonts.Mulish_600SemiBold,
-                        }}
-                      >
-                        {time}
-                      </div>
-                    </div>
-
-                    <div style={{color: theme.colors.textColor}}>
-                      รายการ: <strong style={{color: theme.colors.mainColor}}>{activity.label}</strong>
-                    </div>
-
-                    <div
-                      style={{
-                        color: theme.colors.textColor,
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        gap: 12,
-                      }}
-                    >
-                      <span>ยอดเงิน</span>
-                      <strong
-                        style={{
-                          color: isCredit ? '#166534' : '#B91C1C',
-                          maxWidth: '55%',
-                          overflowX: 'auto',
-                          whiteSpace: 'nowrap',
-                          textAlign: 'right',
-                        }}
-                      >
-                        {isCredit ? '+' : '-'}
-                        {formatDecimal(Math.abs(activity.amount))}
-                      </strong>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          ) : (
-            <div style={{color: theme.colors.textColor}}>
-              ยังไม่พบรายการแปลง CW หรือถอนจาก CW
-            </div>
-          )}
+          {renderCommissionOverviewGrid()}
         </div>
       );
     }
@@ -1709,8 +1632,7 @@ export const Commission: React.FC = () => {
                       tile.key === 'withdraw' ||
                       tile.key === 'sw-transfer' ||
                       tile.key === 'dcw' ||
-                      tile.key === 'top-leader' ||
-                      tile.key === 'firm'
+                      tile.key === 'top-leader'
                         ? 'pointer'
                         : 'default',
                   }}
@@ -1766,68 +1688,6 @@ export const Commission: React.FC = () => {
               ))}
             </section>
           </>
-        ) : null}
-
-        {!selectedCard ? (
-          <section
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-              gap: 14,
-              marginBottom: 20,
-            }}
-          >
-            {commissionOverviewCards.map(card => (
-              <button
-                key={card.key}
-                type='button'
-                onClick={() => setSelectedKey(card.key)}
-                style={{
-                  border: `1px solid ${theme.colors.aliceBlue2}`,
-                  borderRadius: 18,
-                  backgroundColor: theme.colors.white,
-                  padding: '16px 18px',
-                  textAlign: 'left',
-                  display: 'grid',
-                  gap: 6,
-                  boxShadow: '0 16px 32px rgba(31, 41, 55, 0.06)',
-                  cursor: 'pointer',
-                }}
-              >
-                <div
-                  style={{
-                    color: card.accent,
-                    fontSize: 12,
-                    letterSpacing: '0.06em',
-                    textTransform: 'uppercase',
-                    ...theme.fonts.Mulish_700Bold,
-                  }}
-                >
-                  {card.title}
-                </div>
-                <div
-                  style={{
-                    color: theme.colors.mainColor,
-                    fontSize: 24,
-                    lineHeight: 1,
-                    ...theme.fonts.Mulish_700Bold,
-                  }}
-                >
-                  {formatDecimal(card.amount)}
-                </div>
-                <div
-                  style={{
-                    color: theme.colors.textColor,
-                    fontSize: 12,
-                    lineHeight: 1.5,
-                    ...theme.fonts.Mulish_400Regular,
-                  }}
-                >
-                  {card.count} รายการ
-                </div>
-              </button>
-            ))}
-          </section>
         ) : null}
 
         {selectedKey ? renderCommissionSummaryCard() : null}
