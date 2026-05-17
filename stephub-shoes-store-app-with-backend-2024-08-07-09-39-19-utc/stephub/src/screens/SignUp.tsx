@@ -11,9 +11,13 @@ import {actions} from '../store/actions';
 import {
   buildLineLoginCallbackUrl,
   buildSignUpPath,
+  DEFAULT_SIGNUP_SPONSOR_CODE,
+  extractPlacementPreferenceFromSearch,
   extractSponsorCodeFromSearch,
   initializeLineLiff,
+  normalizePlacementPreference,
   normalizeSponsorCode,
+  type SignupPlacementPreference,
   startLineLogin,
 } from '../utils/line';
 
@@ -37,6 +41,7 @@ type LoginResponse = {
 
 type LocationState = {
   sponsorCode?: string;
+  placementPreference?: SignupPlacementPreference;
 };
 
 type SignupShareSettingsResponse = {
@@ -89,6 +94,8 @@ export const SignUp: FC = (): JSX.Element => {
   const [lineIdToken, setLineIdToken] = useState('');
   const [lineDisplayName, setLineDisplayName] = useState('');
   const [linePictureUrl, setLinePictureUrl] = useState('');
+  const [manualSponsorCode, setManualSponsorCode] = useState('');
+  const [confirmedNoSponsor, setConfirmedNoSponsor] = useState(false);
 
   const sponsorCode = useMemo(() => {
     const state = (location.state || {}) as LocationState;
@@ -97,6 +104,21 @@ export const SignUp: FC = (): JSX.Element => {
       extractSponsorCodeFromSearch(location.search) || state.sponsorCode || '',
     );
   }, [location.search, location.state]);
+
+  const placementPreference = useMemo(() => {
+    const state = (location.state || {}) as LocationState;
+
+    return normalizePlacementPreference(
+      extractPlacementPreferenceFromSearch(location.search) ||
+        state.placementPreference ||
+        'AUTO',
+    );
+  }, [location.search, location.state]);
+
+  useEffect(() => {
+    setManualSponsorCode(sponsorCode);
+    setConfirmedNoSponsor(sponsorCode === DEFAULT_SIGNUP_SPONSOR_CODE);
+  }, [sponsorCode]);
 
   useEffect(() => {
     let mounted = true;
@@ -174,8 +196,9 @@ export const SignUp: FC = (): JSX.Element => {
     const started = startLineLogin(
       buildLineLoginCallbackUrl({
         sponsorCode,
+        placementPreference,
         mode: 'signup',
-        returnTo: buildSignUpPath(sponsorCode),
+        returnTo: buildSignUpPath(sponsorCode, placementPreference),
       }),
     );
 
@@ -202,7 +225,9 @@ export const SignUp: FC = (): JSX.Element => {
 
   const handleCreateAccount = async (): Promise<void> => {
     if (!sponsorCode) {
-      setErrorMessage('ไม่พบรหัสผู้แนะนำจากลิงก์สมัครสมาชิก');
+      setErrorMessage(
+        'กรุณากรอกรหัสผู้แนะนำ หรือยืนยันการสมัครโดยไม่มีผู้แนะนำก่อน',
+      );
       return;
     }
 
@@ -249,6 +274,7 @@ export const SignUp: FC = (): JSX.Element => {
         `${URLS.API_BASE_URL}/members`,
         {
           ref: sponsorCode,
+          placementPreference,
           name: lineDisplayName || undefined,
           lineUserId,
           lineIdToken: lineIdToken || undefined,
@@ -325,6 +351,34 @@ export const SignUp: FC = (): JSX.Element => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const applySponsorSelection = (nextSponsorCode: string): void => {
+    const normalizedSponsorCode = normalizeSponsorCode(nextSponsorCode);
+
+    if (!normalizedSponsorCode) {
+      setErrorMessage('กรุณากรอกรหัสผู้แนะนำก่อน');
+      return;
+    }
+
+    setErrorMessage('');
+    setConfirmedNoSponsor(normalizedSponsorCode === DEFAULT_SIGNUP_SPONSOR_CODE);
+    navigate(buildSignUpPath(normalizedSponsorCode, placementPreference), {
+      replace: true,
+      state: {
+        sponsorCode: normalizedSponsorCode,
+        placementPreference,
+      },
+    });
+  };
+
+  const handleConfirmSponsorCode = (): void => {
+    applySponsorSelection(manualSponsorCode);
+  };
+
+  const handleConfirmNoSponsor = (): void => {
+    setManualSponsorCode(DEFAULT_SIGNUP_SPONSOR_CODE);
+    applySponsorSelection(DEFAULT_SIGNUP_SPONSOR_CODE);
   };
 
   const handleShareCredentials = async (): Promise<void> => {
@@ -651,6 +705,21 @@ export const SignUp: FC = (): JSX.Element => {
         >
           สมัครสมาชิกผ่านรหัสผู้แนะนำจากลิงก์นี้ ระบบจะสร้างรหัสสมาชิกและพาสเวิร์ดให้โดยอัตโนมัติ
         </p>
+        {!sponsorCode ? (
+          <div
+            style={{
+              marginBottom: 16,
+              borderRadius: 14,
+              backgroundColor: '#FFF7ED',
+              border: '1px solid #FED7AA',
+              padding: '14px 16px',
+              color: '#9A3412',
+              lineHeight: 1.6,
+            }}
+          >
+            กรุณากรอกรหัสผู้แนะนำก่อนสมัครสมาชิก หากไม่มีผู้แนะนำให้กดยืนยันด้านล่างเพื่อดำเนินการต่อภายใต้รหัส {DEFAULT_SIGNUP_SPONSOR_CODE}
+          </div>
+        ) : null}
         {sponsorName ? (
           <div
             style={{
@@ -668,10 +737,66 @@ export const SignUp: FC = (): JSX.Element => {
         ) : null}
         <custom.InputField
           label='รหัสผู้แนะนำ'
-          value={sponsorCode}
-          disabled={true}
-          containerStyle={{marginBottom: 20, backgroundColor: '#F8FAFC'}}
+          value={manualSponsorCode}
+          disabled={Boolean(sponsorCode)}
+          onChange={event => setManualSponsorCode(event.target.value)}
+          containerStyle={{
+            marginBottom: sponsorCode ? 20 : 14,
+            backgroundColor: sponsorCode ? '#F8FAFC' : '#FFFFFF',
+          }}
         />
+        {!sponsorCode ? (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 10,
+              marginBottom: 20,
+            }}
+          >
+            <button
+              onClick={handleConfirmSponsorCode}
+              style={{
+                padding: '14px 16px',
+                borderRadius: 14,
+                border: '1px solid #D7E2F2',
+                backgroundColor: '#fff',
+                color: theme.colors.mainColor,
+                fontSize: 15,
+              }}
+            >
+              ยืนยันรหัสแนะนำ
+            </button>
+            <button
+              onClick={handleConfirmNoSponsor}
+              style={{
+                padding: '14px 16px',
+                borderRadius: 14,
+                border: '1px solid #C7E8CF',
+                backgroundColor: '#F0FDF4',
+                color: '#166534',
+                fontSize: 15,
+              }}
+            >
+              สมัครโดยไม่มีผู้แนะนำ
+            </button>
+          </div>
+        ) : null}
+        {confirmedNoSponsor ? (
+          <div
+            style={{
+              marginBottom: 16,
+              borderRadius: 14,
+              backgroundColor: '#F0FDF4',
+              border: '1px solid #BBF7D0',
+              padding: '12px 14px',
+              color: '#166534',
+              lineHeight: 1.6,
+            }}
+          >
+            ยืนยันการสมัครโดยไม่มีผู้แนะนำแล้ว ระบบจะดำเนินการต่อภายใต้รหัส {DEFAULT_SIGNUP_SPONSOR_CODE}
+          </div>
+        ) : null}
         <custom.InputField
           label='ชื่อจาก LINE'
           value={lineDisplayName || 'ยังไม่ได้เชื่อม LINE profile'}
