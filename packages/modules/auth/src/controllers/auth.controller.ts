@@ -8,11 +8,13 @@ import {
   Headers,
   Param,
   Post,
+  Query,
   Res,
   UnauthorizedException,
 } from "@nestjs/common";
 
 import {
+  optionalPositiveInteger,
   requireNonEmptyString,
   requireDecimalString,
   requirePositiveIntegerString,
@@ -149,7 +151,8 @@ export class AuthController {
   ) {
     const user = await this.requireSessionUser(authorization, cookieHeader);
     const evaluationAt = new Date().toISOString();
-    const [wallet, cycles, referral] = await Promise.all([
+    const commissionSettings = readCommissionSettings();
+    const [wallet, cycles, referral, teamPvRealtime, buybackProgress] = await Promise.all([
       this.walletsService.getWalletSummary(user.userId),
       this.membersService.getMemberCycles(user.userId, evaluationAt),
       this.membersService.getReferralLink(
@@ -159,6 +162,11 @@ export class AuthController {
           process.env.APP_BASE_URL ||
           "http://127.0.0.1:3002",
       ),
+      this.commissionsService.getRealtimeTeamPvBalance({
+        userId: user.userId,
+        evaluationAt,
+      }),
+      this.commissionsService.getUserBuybackProgress(user.userId),
     ]);
 
     return {
@@ -166,6 +174,18 @@ export class AuthController {
       wallet,
       cycles,
       referral,
+      teamPvRealtime,
+      commissionRoundProgress: {
+        amount: buybackProgress?.accumulatedAmount ?? "0",
+        threshold: commissionSettings.buybackThresholdAmount,
+        completed:
+          Boolean(buybackProgress?.thresholdReachedAt) ||
+          Number(buybackProgress?.accumulatedAmount ?? "0") >=
+            Number(commissionSettings.buybackThresholdAmount),
+        thresholdReachedAt: buybackProgress?.thresholdReachedAt ?? null,
+        graceExpiresAt: buybackProgress?.graceExpiresAt ?? null,
+        repurchaseGraceDays: commissionSettings.buybackGraceDays,
+      },
       lineBinding: await this.authService.getLineBindingByUserId(user.userId),
     };
   }
@@ -333,14 +353,16 @@ export class AuthController {
   async commissions(
     @Headers("authorization") authorization?: string,
     @Headers("cookie") cookieHeader?: string,
+    @Query("page") page?: string,
+    @Query("pageSize") pageSize?: string,
   ) {
     const user = await this.requireSessionUser(authorization, cookieHeader);
 
     return filterCommissionResponseByVisibility(
       await this.commissionsService.listCommissions({
         beneficiaryUserId: user.userId,
-        page: 1,
-        pageSize: 20,
+        page: optionalPositiveInteger(page, "page") ?? 1,
+        pageSize: optionalPositiveInteger(pageSize, "pageSize") ?? 20,
       }),
       readCommissionSettings().appVisibility,
     );

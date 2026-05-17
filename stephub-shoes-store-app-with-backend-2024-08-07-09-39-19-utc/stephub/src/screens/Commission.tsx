@@ -1,5 +1,6 @@
 import axios from 'axios';
 import React, {useEffect, useMemo, useState} from 'react';
+import InfiniteScroll from 'react-infinite-scroll-component';
 import {useNavigate} from 'react-router-dom';
 
 import {URLS} from '../config';
@@ -59,8 +60,29 @@ type WalletSummary = {
   discountBalance?: string;
 };
 
+type TeamPvRealtime = {
+  settlementDate?: string;
+  availablePvByLeg?: {
+    LEFT?: string;
+    MIDDLE?: string;
+    RIGHT?: string;
+  };
+  totalPv?: string;
+};
+
+type CommissionRoundProgress = {
+  amount?: string;
+  threshold?: string;
+  completed?: boolean;
+  thresholdReachedAt?: string | null;
+  graceExpiresAt?: string | null;
+  repurchaseGraceDays?: number;
+};
+
 type DashboardResponse = {
   wallet?: WalletSummary;
+  teamPvRealtime?: TeamPvRealtime;
+  commissionRoundProgress?: CommissionRoundProgress;
 };
 
 type CommissionEntry = {
@@ -145,6 +167,11 @@ const decimalFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 2,
 });
 
+const pvFormatter = new Intl.NumberFormat('en-US', {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
+});
+
 const parseDecimal = (value?: string | number | null): number => {
   if (typeof value === 'number') {
     return Number.isFinite(value) ? value : 0;
@@ -162,7 +189,33 @@ const formatDecimal = (value: number): string => {
   return decimalFormatter.format(value);
 };
 
+const formatPv = (value?: string | number | null): string => {
+  return pvFormatter.format(parseDecimal(value));
+};
+
+const getRepurchaseDaysRemaining = (
+  graceExpiresAt?: string | null,
+  nowTimestamp = Date.now(),
+): number | null => {
+  if (!graceExpiresAt) {
+    return null;
+  }
+
+  const graceExpiryTimestamp = new Date(graceExpiresAt).getTime();
+  if (Number.isNaN(graceExpiryTimestamp)) {
+    return null;
+  }
+
+  const millisecondsRemaining = graceExpiryTimestamp - nowTimestamp;
+  if (millisecondsRemaining <= 0) {
+    return 0;
+  }
+
+  return Math.ceil(millisecondsRemaining / (24 * 60 * 60 * 1000));
+};
+
 const COMMISSION_TO_SHOPPING_FEE_RATE = 0.05;
+const DETAIL_PAGE_SIZE = 10;
 
 const formatDateTime = (value?: string | null) => {
   if (!value) {
@@ -228,18 +281,6 @@ const extractCommissionItems = (
   return Array.isArray(payload) ? payload : payload.items || [];
 };
 
-const extractCommissionTotal = (payload?: CommissionResponsePayload): number => {
-  if (!payload) {
-    return 0;
-  }
-
-  if (Array.isArray(payload)) {
-    return payload.length;
-  }
-
-  return payload.total ?? payload.items?.length ?? 0;
-};
-
 const isNonFallbackCommissionEntry = (entry: CommissionEntry) => {
   return entry.status?.toLowerCase() !== 'fallback';
 };
@@ -301,6 +342,24 @@ export const Commission: React.FC = () => {
   const [convertMessage, setConvertMessage] = useState('');
   const [convertError, setConvertError] = useState('');
   const [metrics, setMetrics] = useState<DashboardMetrics>(defaultMetrics);
+  const [teamPvRealtime, setTeamPvRealtime] = useState<TeamPvRealtime>({
+    availablePvByLeg: {
+      LEFT: '0',
+      MIDDLE: '0',
+      RIGHT: '0',
+    },
+    totalPv: '0',
+  });
+  const [commissionRoundProgress, setCommissionRoundProgress] =
+    useState<CommissionRoundProgress>({
+      amount: '0',
+      threshold: '10000',
+      completed: false,
+      thresholdReachedAt: null,
+      graceExpiresAt: null,
+      repurchaseGraceDays: 3,
+    });
+  const [countdownNow, setCountdownNow] = useState(() => Date.now());
   const [viewportWidth, setViewportWidth] = useState<number>(() =>
     typeof window === 'undefined' ? 1440 : window.innerWidth,
   );
@@ -311,6 +370,7 @@ export const Commission: React.FC = () => {
     pool: true,
     cashback: true,
   });
+  const [visibleEntryCount, setVisibleEntryCount] = useState(DETAIL_PAGE_SIZE);
 
   const loadCommissionPage = async () => {
     setLoading(true);
@@ -325,33 +385,26 @@ export const Commission: React.FC = () => {
 
     const fetchAllCommissions = async (): Promise<CommissionEntry[]> => {
       const pageSize = 200;
-      const firstResponse = await axios.get<CommissionResponsePayload>(
-        `${URLS.AUTH_COMMISSIONS}?page=1&pageSize=${pageSize}`,
-        authRequestConfig,
-      );
+      const items: CommissionEntry[] = [];
+      let page = 1;
 
-      const firstPayload = firstResponse.data;
-      const firstItems = extractCommissionItems(firstPayload);
-      const total = extractCommissionTotal(firstPayload);
+      while (true) {
+        const response = await axios.get<CommissionResponsePayload>(
+          `${URLS.AUTH_COMMISSIONS}?page=${page}&pageSize=${pageSize}`,
+          authRequestConfig,
+        );
 
-      if (total <= firstItems.length || total === 0) {
-        return firstItems;
+        const pageItems = extractCommissionItems(response.data);
+        items.push(...pageItems);
+
+        if (pageItems.length < pageSize) {
+          break;
+        }
+
+        page += 1;
       }
 
-      const totalPages = Math.ceil(total / pageSize);
-      const remainingResponses = await Promise.all(
-        Array.from({length: totalPages - 1}, (_, index) =>
-          axios.get<CommissionResponsePayload>(
-            `${URLS.AUTH_COMMISSIONS}?page=${index + 2}&pageSize=${pageSize}`,
-            authRequestConfig,
-          ),
-        ),
-      );
-
-      return [
-        ...firstItems,
-        ...remainingResponses.flatMap(response => extractCommissionItems(response.data)),
-      ];
+      return items;
     };
 
     try {
@@ -384,6 +437,14 @@ export const Commission: React.FC = () => {
       const wallet =
         dashboardResult.status === 'fulfilled'
           ? dashboardResult.value.data.wallet
+          : undefined;
+      const realtimeTeamPv =
+        dashboardResult.status === 'fulfilled'
+          ? dashboardResult.value.data.teamPvRealtime
+          : undefined;
+      const realtimeCommissionRoundProgress =
+        dashboardResult.status === 'fulfilled'
+          ? dashboardResult.value.data.commissionRoundProgress
           : undefined;
 
       const commissions: CommissionEntry[] =
@@ -487,6 +548,25 @@ export const Commission: React.FC = () => {
         withdrawPending: formatDecimal(pendingWithdrawTotal),
         dcw: formatDecimal(parseDecimal(wallet?.discountBalance)),
       });
+      setTeamPvRealtime({
+        settlementDate: realtimeTeamPv?.settlementDate,
+        availablePvByLeg: {
+          LEFT: realtimeTeamPv?.availablePvByLeg?.LEFT || '0',
+          MIDDLE: realtimeTeamPv?.availablePvByLeg?.MIDDLE || '0',
+          RIGHT: realtimeTeamPv?.availablePvByLeg?.RIGHT || '0',
+        },
+        totalPv: realtimeTeamPv?.totalPv || '0',
+      });
+      setCommissionRoundProgress({
+        amount: realtimeCommissionRoundProgress?.amount || '0',
+        threshold: realtimeCommissionRoundProgress?.threshold || '10000',
+        completed: realtimeCommissionRoundProgress?.completed === true,
+        thresholdReachedAt:
+          realtimeCommissionRoundProgress?.thresholdReachedAt || null,
+        graceExpiresAt: realtimeCommissionRoundProgress?.graceExpiresAt || null,
+        repurchaseGraceDays:
+          realtimeCommissionRoundProgress?.repurchaseGraceDays ?? 3,
+      });
 
     } catch (error) {
       console.error(error);
@@ -494,6 +574,22 @@ export const Commission: React.FC = () => {
       setCommissionEntries([]);
       setWalletTransactions([]);
       setDirectReferrals([]);
+      setTeamPvRealtime({
+        availablePvByLeg: {
+          LEFT: '0',
+          MIDDLE: '0',
+          RIGHT: '0',
+        },
+        totalPv: '0',
+      });
+      setCommissionRoundProgress({
+        amount: '0',
+        threshold: '10000',
+        completed: false,
+        thresholdReachedAt: null,
+        graceExpiresAt: null,
+        repurchaseGraceDays: 3,
+      });
     } finally {
       setLoading(false);
     }
@@ -510,6 +606,14 @@ export const Commission: React.FC = () => {
     loadCommissionPage();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.accessToken, user?.memberCode, user?.userId]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setCountdownNow(Date.now());
+    }, 60 * 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   useEffect(() => {
     const handleRefresh = () => {
@@ -543,10 +647,25 @@ export const Commission: React.FC = () => {
     }
   }, [selectedKey, visibleButtons]);
 
+  useEffect(() => {
+    setVisibleEntryCount(DETAIL_PAGE_SIZE);
+  }, [selectedKey, commissionEntries]);
+
   const selectedCard = selectedKey
     ? visibleButtons.find(card => card.key === selectedKey)
     : null;
   const isMobileViewport = viewportWidth < 768;
+  const repurchaseDaysRemaining = getRepurchaseDaysRemaining(
+    commissionRoundProgress.graceExpiresAt,
+    countdownNow,
+  );
+  const commissionRoundStatusLabel = commissionRoundProgress.completed
+    ? repurchaseDaysRemaining != null
+      ? `ครบรอบแล้ว ซื้อซ้ำใน ${formatPv(repurchaseDaysRemaining)} วัน`
+      : 'ครบรอบแล้ว'
+    : `${formatPv(commissionRoundProgress.amount)}/${formatPv(
+        commissionRoundProgress.threshold,
+      )}`;
   const cashbackEntries = useMemo(() => {
     return commissionEntries
       .filter(
@@ -924,6 +1043,8 @@ export const Commission: React.FC = () => {
 
     const selectedEntries = selectedEntriesMap[selectedCard.key];
     const selectedTotal = selectedTotalMap[selectedCard.key];
+    const visibleEntries = selectedEntries.slice(0, visibleEntryCount);
+    const hasMoreEntries = visibleEntryCount < selectedEntries.length;
 
     return (
       <section style={{display: 'grid', gap: 12}}>
@@ -968,6 +1089,18 @@ export const Commission: React.FC = () => {
               ? `สมาชิกสายตรง ${directReferrals.length} คน · รายการ direct ${directEntries.length} รายการ`
               : `${selectedCard.note} · พบ ${selectedEntries.length} รายการ`}
           </p>
+          {selectedEntries.length ? (
+            <p
+              style={{
+                margin: '8px 0 0',
+                color: theme.colors.textColor,
+                fontSize: 13,
+                ...theme.fonts.Mulish_400Regular,
+              }}
+            >
+              กำลังแสดง {visibleEntries.length} จาก {selectedEntries.length} รายการ
+            </p>
+          ) : null}
         </div>
 
         {selectedCard.key === 'direct' && directReferrals.length ? (
@@ -1013,50 +1146,90 @@ export const Commission: React.FC = () => {
           </section>
         ) : null}
 
-        {selectedEntries.slice(0, 5).map(entry => {
-          const member = entry.sourceUserId
-            ? memberDirectory.get(entry.sourceUserId)
-            : undefined;
-
-          return (
-            <article
-              key={entry.commissionId || `${entry.createdAt}-${entry.amount}`}
-              style={{
-                padding: 14,
-                borderRadius: 14,
-                backgroundColor: '#F8FAFC',
-                border: `1px solid ${theme.colors.aliceBlue2}`,
-              }}
-            >
+        {selectedEntries.length ? (
+          <InfiniteScroll
+            dataLength={visibleEntries.length}
+            next={() => setVisibleEntryCount(current => current + DETAIL_PAGE_SIZE)}
+            hasMore={hasMoreEntries}
+            loader={
               <div
                 style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: 12,
-                  marginBottom: 6,
+                  paddingTop: 8,
+                  textAlign: 'center',
+                  color: theme.colors.textColor,
+                  ...theme.fonts.Mulish_400Regular,
                 }}
               >
-                <div style={{color: theme.colors.mainColor, ...theme.fonts.Mulish_700Bold}}>
-                  {getCommissionTypeLabel(entry.commissionType)}
-                </div>
-                <div style={{color: theme.colors.mainColor, ...theme.fonts.Mulish_700Bold}}>
-                  {formatDecimal(parseDecimal(entry.amount))}
-                </div>
+                กำลังโหลดรายการเพิ่ม...
               </div>
-              <div style={{color: theme.colors.textColor, lineHeight: 1.6}}>
-                {member?.memberCode || member?.name ? (
-                  <div>
-                    จาก: {member?.memberCode || '-'}
-                    {member?.name ? ` · ${member.name}` : ''}
+            }
+            style={{display: 'grid', gap: 12, overflow: 'visible'}}
+          >
+            {visibleEntries.map(entry => {
+              const member = entry.sourceUserId
+                ? memberDirectory.get(entry.sourceUserId)
+                : undefined;
+
+              return (
+                <article
+                  key={entry.commissionId || `${entry.createdAt}-${entry.amount}`}
+                  style={{
+                    padding: 14,
+                    borderRadius: 14,
+                    backgroundColor: '#F8FAFC',
+                    border: `1px solid ${theme.colors.aliceBlue2}`,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: 12,
+                      marginBottom: 6,
+                    }}
+                  >
+                    <div style={{color: theme.colors.mainColor, ...theme.fonts.Mulish_700Bold}}>
+                      {getCommissionTypeLabel(entry.commissionType)}
+                    </div>
+                    <div style={{color: theme.colors.mainColor, ...theme.fonts.Mulish_700Bold}}>
+                      {formatDecimal(parseDecimal(entry.amount))}
+                    </div>
                   </div>
-                ) : null}
-                <div>เวลา: {formatDateTime(entry.createdAt)}</div>
-                <div>สถานะ: {entry.status || '-'}</div>
-              </div>
-            </article>
-          );
-        })}
+                  <div style={{color: theme.colors.textColor, lineHeight: 1.6}}>
+                    {member?.memberCode || member?.name ? (
+                      <div>
+                        จาก: {member?.memberCode || '-'}
+                        {member?.name ? ` · ${member.name}` : ''}
+                      </div>
+                    ) : null}
+                    <div>เวลา: {formatDateTime(entry.createdAt)}</div>
+                    <div>สถานะ: {entry.status || '-'}</div>
+                  </div>
+                </article>
+              );
+            })}
+          </InfiniteScroll>
+        ) : null}
+
+        {hasMoreEntries ? (
+          <button
+            type='button'
+            onClick={() =>
+              setVisibleEntryCount(current => current + DETAIL_PAGE_SIZE)
+            }
+            style={{
+              border: `1px solid ${theme.colors.aliceBlue2}`,
+              borderRadius: 14,
+              backgroundColor: theme.colors.white,
+              color: theme.colors.mainColor,
+              padding: '12px 16px',
+              ...theme.fonts.Mulish_700Bold,
+            }}
+          >
+            โหลดเพิ่มอีก {Math.min(DETAIL_PAGE_SIZE, selectedEntries.length - visibleEntries.length)} รายการ
+          </button>
+        ) : null}
 
         {!selectedEntries.length && !(selectedCard.key === 'direct' && directReferrals.length) ? (
           <div style={{color: theme.colors.textColor}}>
@@ -1537,6 +1710,48 @@ export const Commission: React.FC = () => {
                 );
               })
             )}
+          </div>
+        </section>
+
+        <section style={{marginBottom: 16}}>
+          <div
+            style={{
+              padding: '12px 16px',
+              borderRadius: 16,
+              backgroundColor: '#F8FAFC',
+              border: `1px solid ${theme.colors.aliceBlue2}`,
+              color: theme.colors.mainColor,
+              display: 'flex',
+              flexWrap: 'wrap',
+              justifyContent: 'space-between',
+              gap: 10,
+              alignItems: 'center',
+              ...theme.fonts.Mulish_700Bold,
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 10,
+                alignItems: 'center',
+              }}
+            >
+              <span>L {formatPv(teamPvRealtime.availablePvByLeg?.LEFT)} PV</span>
+              <span>M {formatPv(teamPvRealtime.availablePvByLeg?.MIDDLE)} PV</span>
+              <span>R {formatPv(teamPvRealtime.availablePvByLeg?.RIGHT)} PV</span>
+            </div>
+            <div
+              style={{
+                marginLeft: 'auto',
+                color: commissionRoundProgress.completed
+                  ? '#15803D'
+                  : theme.colors.mainColor,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {commissionRoundStatusLabel}
+            </div>
           </div>
         </section>
 

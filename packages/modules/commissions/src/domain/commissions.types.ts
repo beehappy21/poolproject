@@ -220,9 +220,14 @@ export interface ApprovedOrderCommissionFlowResult {
 
 export interface TeamSettlementCandidateSnapshot {
   userId: string;
-  uplineUserId: string | null;
-  placementSide: "LEFT" | "MIDDLE" | "RIGHT" | null;
+  placementSide: "LEFT" | "MIDDLE" | "RIGHT";
   totalPv: string;
+  memberCount: number;
+}
+
+export interface TeamSettlementCarryForwardSnapshot {
+  userId: string;
+  carryForwardPvByLeg: Record<"LEFT" | "MIDDLE" | "RIGHT", string>;
 }
 
 export interface TeamSettlementBatchScaffoldResult {

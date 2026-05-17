@@ -14,12 +14,14 @@ import {
   TeamSettlementBatchScaffoldResult,
   TeamSettlementBatchSnapshotResult,
   TeamSettlementCandidateSnapshot,
+  TeamSettlementCarryForwardSnapshot,
   UserBuybackProgressSnapshot,
 } from "../domain/commissions.types";
 import { PrismaService } from "../../../../infrastructure/src/prisma/prisma.service";
 import { toQualificationCycleSnapshot } from "../../../../infrastructure/src/prisma/prisma.mappers";
 import {
   addDecimalStrings,
+  compareDecimalStrings,
   maxDecimalString,
   subtractDecimalStrings,
 } from "../../../../shared/utils/src/money.util";
@@ -193,7 +195,13 @@ export interface CommissionsRepository {
 
   listTeamSettlementCandidates(
     settlementDate: string,
+    userId?: string,
   ): Promise<TeamSettlementCandidateSnapshot[]>;
+
+  listTeamSettlementCarryForwardBalances(
+    settlementDate: string,
+    userId?: string,
+  ): Promise<TeamSettlementCarryForwardSnapshot[]>;
 
   replaceTeamSettlementBatchScaffold(input: {
     settlementDate: string;
@@ -762,65 +770,134 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
 
   async listTeamSettlementCandidates(
     settlementDate: string,
+    userId?: string,
   ): Promise<TeamSettlementCandidateSnapshot[]> {
     const approvedAtRange = buildBangkokSingleDayRange(settlementDate);
-    const orders = await this.prisma.order.findMany({
+    const targetUserId = userId ? BigInt(userId) : null;
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        userId: bigint;
+        placementSide: "LEFT" | "MIDDLE" | "RIGHT";
+        totalPv: Prisma.Decimal;
+        memberCount: bigint;
+      }>
+    >(Prisma.sql`
+      WITH RECURSIVE approved_orders AS (
+        SELECT
+          o.id AS order_id,
+          o."userId" AS buyer_user_id,
+          o."totalPv" AS total_pv
+        FROM "Order" o
+        WHERE
+          o."approvalStatus" = 'APPROVED'
+          AND o."orderSourceType" = 'NORMAL'
+          AND o."approvedAt" >= ${approvedAtRange.gte}
+          AND o."approvedAt" <= ${approvedAtRange.lte}
+      ),
+      order_lineage AS (
+        SELECT
+          ao.order_id,
+          ao.buyer_user_id,
+          ao.total_pv,
+          mp."uplineUserId" AS beneficiary_user_id,
+          mp."placementSide" AS placement_side
+        FROM approved_orders ao
+        JOIN "MemberProfile" mp
+          ON mp."userId" = ao.buyer_user_id
+        WHERE
+          mp."uplineUserId" IS NOT NULL
+          AND mp."placementSide" IS NOT NULL
+
+        UNION ALL
+
+        SELECT
+          ol.order_id,
+          ol.buyer_user_id,
+          ol.total_pv,
+          parent_mp."uplineUserId" AS beneficiary_user_id,
+          parent_mp."placementSide" AS placement_side
+        FROM order_lineage ol
+        JOIN "MemberProfile" parent_mp
+          ON parent_mp."userId" = ol.beneficiary_user_id
+        WHERE
+          parent_mp."uplineUserId" IS NOT NULL
+          AND parent_mp."placementSide" IS NOT NULL
+      )
+      SELECT
+        beneficiary_user_id AS "userId",
+        placement_side AS "placementSide",
+        SUM(total_pv) AS "totalPv",
+        COUNT(DISTINCT buyer_user_id) AS "memberCount"
+      FROM order_lineage
+      WHERE ${targetUserId}::bigint IS NULL OR beneficiary_user_id = ${targetUserId}
+      GROUP BY beneficiary_user_id, placement_side
+      ORDER BY beneficiary_user_id ASC, placement_side ASC
+    `);
+
+    return rows.map((row) => ({
+      userId: row.userId.toString(),
+      placementSide: row.placementSide,
+      totalPv: row.totalPv.toString(),
+      memberCount: Number(row.memberCount),
+    }));
+  }
+
+  async listTeamSettlementCarryForwardBalances(
+    settlementDate: string,
+    userId?: string,
+  ): Promise<TeamSettlementCarryForwardSnapshot[]> {
+    const targetSettlementDate = this.asCapDate(settlementDate);
+    const items = await this.prisma.teamSettlementBatchItem.findMany({
       where: {
-        approvalStatus: "APPROVED",
-        approvedAt: approvedAtRange,
-        orderSourceType: "NORMAL",
-        user: {
-          memberProfile: {
-            is: {
-              uplineUserId: {
-                not: null,
-              },
-              placementSide: {
-                not: null,
-              },
-            },
+        userId: userId ? BigInt(userId) : undefined,
+        batch: {
+          settlementDate: {
+            lt: targetSettlementDate,
           },
+          status: "PROCESSED",
         },
       },
+      orderBy: [
+        {
+          batch: {
+            settlementDate: "desc",
+          },
+        },
+        {
+          id: "desc",
+        },
+      ],
       select: {
         userId: true,
-        totalPv: true,
-        user: {
-          select: {
-            memberProfile: {
-              select: {
-                uplineUserId: true,
-                placementSide: true,
-              },
-            },
-          },
-        },
+        carryForwardPvByLeg: true,
       },
-      orderBy: [{ approvedAt: "asc" }, { id: "asc" }],
     });
 
-    const grouped = new Map<string, TeamSettlementCandidateSnapshot>();
+    const latestByUserId = new Map<string, TeamSettlementCarryForwardSnapshot>();
 
-    for (const order of orders) {
-      const userId = order.userId.toString();
-      const existing = grouped.get(userId);
-      const totalPv = order.totalPv.toString();
-
-      if (existing) {
-        existing.totalPv = addDecimalStrings(existing.totalPv, totalPv);
+    for (const item of items) {
+      const userId = item.userId.toString();
+      if (latestByUserId.has(userId)) {
         continue;
       }
 
-      grouped.set(userId, {
+      const carryForwardPvByLeg =
+        item.carryForwardPvByLeg as TeamSettlementCarryForwardSnapshot["carryForwardPvByLeg"];
+      const hasPositiveCarryForward = Object.values(carryForwardPvByLeg).some(
+        (value) => compareDecimalStrings(value, "0") > 0,
+      );
+
+      if (!hasPositiveCarryForward) {
+        continue;
+      }
+
+      latestByUserId.set(userId, {
         userId,
-        uplineUserId:
-          order.user.memberProfile?.uplineUserId?.toString() ?? null,
-        placementSide: order.user.memberProfile?.placementSide ?? null,
-        totalPv,
+        carryForwardPvByLeg,
       });
     }
 
-    return [...grouped.values()];
+    return [...latestByUserId.values()];
   }
 
   async replaceTeamSettlementBatchScaffold(input: {

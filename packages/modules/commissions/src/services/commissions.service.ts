@@ -165,6 +165,15 @@ export interface CommissionsServiceContract {
     settlementDate: string,
   ): Promise<TeamSettlementBatchScaffoldResult>;
 
+  getRealtimeTeamPvBalance(input: {
+    userId: string;
+    evaluationAt?: string;
+  }): Promise<{
+    settlementDate: string;
+    availablePvByLeg: Record<"LEFT" | "MIDDLE" | "RIGHT", string>;
+    totalPv: string;
+  }>;
+
   processTeamSettlementBatch(
     settlementDate: string,
   ): Promise<TeamSettlementBatchProcessResult>;
@@ -665,22 +674,53 @@ export class CommissionsService implements CommissionsServiceContract {
     settlementDate: string,
   ): Promise<TeamSettlementBatchScaffoldResult> {
     const commissionSettings = readCommissionSettings();
-    const candidates =
-      await this.commissionsRepository.listTeamSettlementCandidates(
+    const [candidates, carryForwards] = await Promise.all([
+      this.commissionsRepository.listTeamSettlementCandidates(settlementDate),
+      this.commissionsRepository.listTeamSettlementCarryForwardBalances(
         settlementDate,
-      );
+      ),
+    ]);
     const grouped = new Map<
       string,
       TeamSettlementBatchScaffoldResult["items"][number]
     >();
 
-    for (const candidate of candidates) {
-      if (!candidate.uplineUserId || !candidate.placementSide) {
-        continue;
-      }
+    for (const carryForward of carryForwards) {
+      grouped.set(carryForward.userId, {
+        userId: carryForward.userId,
+        availablePvByLeg: {
+          LEFT: {
+            memberCount: 0,
+            totalPv: carryForward.carryForwardPvByLeg.LEFT,
+          },
+          MIDDLE: {
+            memberCount: 0,
+            totalPv: carryForward.carryForwardPvByLeg.MIDDLE,
+          },
+          RIGHT: {
+            memberCount: 0,
+            totalPv: carryForward.carryForwardPvByLeg.RIGHT,
+          },
+        },
+        plannedPaidPvByLeg: {
+          LEFT: "0",
+          MIDDLE: "0",
+          RIGHT: "0",
+        },
+        carryForwardPvByLeg: {
+          LEFT: "0",
+          MIDDLE: "0",
+          RIGHT: "0",
+        },
+        payablePv: "0",
+        bonusAmount: "0",
+        status: "planned",
+      });
+    }
 
-      const existing = grouped.get(candidate.uplineUserId) ?? {
-        userId: candidate.uplineUserId,
+    for (const candidate of candidates) {
+      const existing = grouped.get(candidate.userId) ?? {
+        userId: candidate.userId,
         availablePvByLeg: {
           LEFT: { memberCount: 0, totalPv: "0" },
           MIDDLE: { memberCount: 0, totalPv: "0" },
@@ -701,13 +741,14 @@ export class CommissionsService implements CommissionsServiceContract {
         status: "planned" as const,
       };
 
-      existing.availablePvByLeg[candidate.placementSide].memberCount += 1;
+      existing.availablePvByLeg[candidate.placementSide].memberCount +=
+        candidate.memberCount;
       existing.availablePvByLeg[candidate.placementSide].totalPv =
         addDecimalStrings(
           existing.availablePvByLeg[candidate.placementSide].totalPv,
           candidate.totalPv,
         );
-      grouped.set(candidate.uplineUserId, existing);
+      grouped.set(candidate.userId, existing);
     }
 
     const items = [...grouped.values()]
@@ -723,6 +764,57 @@ export class CommissionsService implements CommissionsServiceContract {
       settlementDate,
       items,
     });
+  }
+
+  async getRealtimeTeamPvBalance(input: {
+    userId: string;
+    evaluationAt?: string;
+  }): Promise<{
+    settlementDate: string;
+    availablePvByLeg: Record<"LEFT" | "MIDDLE" | "RIGHT", string>;
+    totalPv: string;
+  }> {
+    const settlementDate = this.toBangkokBusinessDate(
+      input.evaluationAt ?? new Date().toISOString(),
+    );
+    const [candidates, carryForwards] = await Promise.all([
+      this.commissionsRepository.listTeamSettlementCandidates(
+        settlementDate,
+        input.userId,
+      ),
+      this.commissionsRepository.listTeamSettlementCarryForwardBalances(
+        settlementDate,
+        input.userId,
+      ),
+    ]);
+    const availablePvByLeg: Record<"LEFT" | "MIDDLE" | "RIGHT", string> = {
+      LEFT: "0",
+      MIDDLE: "0",
+      RIGHT: "0",
+    };
+    const latestCarryForward = carryForwards[0];
+
+    if (latestCarryForward) {
+      availablePvByLeg.LEFT = latestCarryForward.carryForwardPvByLeg.LEFT;
+      availablePvByLeg.MIDDLE = latestCarryForward.carryForwardPvByLeg.MIDDLE;
+      availablePvByLeg.RIGHT = latestCarryForward.carryForwardPvByLeg.RIGHT;
+    }
+
+    for (const candidate of candidates) {
+      availablePvByLeg[candidate.placementSide] = addDecimalStrings(
+        availablePvByLeg[candidate.placementSide],
+        candidate.totalPv,
+      );
+    }
+
+    return {
+      settlementDate,
+      availablePvByLeg,
+      totalPv: addDecimalStrings(
+        addDecimalStrings(availablePvByLeg.LEFT, availablePvByLeg.MIDDLE),
+        availablePvByLeg.RIGHT,
+      ),
+    };
   }
 
   async processTeamSettlementBatch(
