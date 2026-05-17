@@ -167,6 +167,7 @@ export interface MembersServiceContract {
     sponsorId?: string | null;
     sponsorCode?: string | null;
     ref?: string | null;
+    placementPreference?: "AUTO" | "LEFT" | "MIDDLE" | "RIGHT" | null;
     password?: string | null;
     lineBinding?: {
       lineUserId: string;
@@ -410,6 +411,7 @@ export class MembersService implements MembersServiceContract {
     sponsorId?: string | null;
     sponsorCode?: string | null;
     ref?: string | null;
+    placementPreference?: "AUTO" | "LEFT" | "MIDDLE" | "RIGHT" | null;
     password?: string | null;
     lineBinding?: {
       lineUserId: string;

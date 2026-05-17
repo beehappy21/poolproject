@@ -1,6 +1,6 @@
 # Next Session
 
-Updated: 2026-05-05
+Updated: 2026-05-17
 
 ## Branch
 
@@ -9,6 +9,67 @@ Updated: 2026-05-05
 - Main is currently at merge commit `9cab767b`
 
 ## Latest Session Update
+
+- Latest pushed WAP/BAO wallet and commission UI commits:
+  - `37c24c74` `Add wallet transaction admin screens and refine commission CW/SW UI`
+  - `24ee2414` `Align CW display and withdraw balance with current CW logic`
+  - `d099085a` `Refine commission summary panels and hide extra dashboard tiles`
+- WAP `Commission` latest state:
+  - `CW รวม` = cumulative received `direct + team + matching + pool`
+  - `CW ปัจจุบัน` = cumulative received `direct + team + matching + pool`
+    - minus CW -> SW conversion
+    - minus CW withdraw
+  - CW popup now shows commission summary cards instead of recent movement rows
+  - lower `Direct / Team / Matching / Pool` cards on the main page are hidden
+  - `Firm` should be treated as hidden on the WAP commission surface
+- WAP `WithdrawSW` latest state:
+  - withdrawable CW on the page now follows the same derived `CW ปัจจุบัน` logic as `Commission`
+  - do not remap it back to raw `wallet.withdrawableBalance` unless the business meaning changes again
+- BAO latest wallet tooling state:
+  - wallet submenu now includes:
+    - `CW > SW Transactions`
+    - `SW Transfer Transactions`
+  - dedicated Orchid screens/routes exist for both views
+- New `Firm` follow-up planning doc:
+  - [close_firm.md](/Users/macbook/poolproject/close_firm.md:1)
+  - use this first if the user asks to continue hiding `Firm` safely across WAP and BAO
+- Current safest `Firm` approach:
+  - hide UI first
+  - do not remove order/payment/settings/product logic tied to `Firm` until dependency review is complete
+
+- Local CW/SW/Commission-page update landed in commit `2b711f14`:
+  - `Align CW/SW wallet logic and commission display`
+- WAP `Commission` page now uses the latest agreed meaning:
+  - `CW รวม` = cumulative received `direct + team + matching + pool`
+  - `CW ปัจจุบัน` = cumulative received `direct + team + matching + pool`
+    - minus CW -> SW conversion
+    - minus CW withdraw
+- WAP member withdraw flow is now expressed as CW withdraw instead of SW withdraw:
+  - page labels updated
+  - backend reserve/cancel flow now uses `withdrawableBalance`
+- Fee requirement from latest session is implemented locally:
+  - CW -> SW conversion fee = `5%`
+  - CW withdraw fee = `5%`
+  - WAP now shows fee and net-amount breakdown on both flows
+- Local runtime settings changed:
+  - `runtime/wallet-settings.json`
+    - `commissionToShoppingFeeRate = "0.05"`
+  - `runtime/withdraw-settings.json`
+    - `feeRate = "0.05"`
+- Validation after this round:
+  - root `npm run lint` passed
+  - WAP `npm run build` passed
+  - remaining WAP warnings are old hook-dependency warnings in:
+    - `src/screens/Product.tsx`
+    - `src/screens/tabs/Home.tsx`
+- Important caution for follow-up work:
+  - `CW รวม` and `CW ปัจจุบัน` on WAP are UI-derived numbers, not direct wallet fields
+  - if exact audit parity is needed for a member such as `TH000013`, verify:
+    - `/auth/commissions`
+    - `/auth/transactions`
+    - `/auth/withdraw-requests`
+    - raw wallet summary
+  - do not assume `CW ปัจจุบัน === wallet.withdrawableBalance`
 
 - PR `#129` is merged into `main`:
   - worker bootstrap circular-dependency fix
@@ -43,13 +104,14 @@ Updated: 2026-05-05
 
 ## Immediate Next Steps
 
-1. Inspect `smoke:bao:all` and determine whether it assumes host-installed `node_modules` / Prisma tooling on the VPS
-2. Inspect `smoke:pool:all` and determine whether it is intentionally local-only because of destructive reset behavior
-3. Decide whether BAO/pool smoke should run:
+1. If the user resumes `Firm` cleanup, open [close_firm.md](/Users/macbook/poolproject/close_firm.md:1) first and keep the first pass UI-only
+2. Inspect `smoke:bao:all` and determine whether it assumes host-installed `node_modules` / Prisma tooling on the VPS
+3. Inspect `smoke:pool:all` and determine whether it is intentionally local-only because of destructive reset behavior
+4. Decide whether BAO/pool smoke should run:
    - on local only
    - in Docker on the VPS
    - or against a disposable VPS test DB
-4. If commission-round / pool baseline work resumes after deploy verification, first clean the local baseline test orders and rerun the baseline once for a final clean report
+5. If commission-round / pool baseline work resumes after deploy verification, first clean the local baseline test orders and rerun the baseline once for a final clean report
 
 ## Recently Merged Work
 

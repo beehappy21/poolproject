@@ -105,20 +105,74 @@ function buildAssignments(users) {
     placementChildren.set(parentId, kids);
   }
 
-  function placeInSpilloverLine(branchRootId, childId) {
-    let parentId = branchRootId;
-    while (true) {
-      const kids = placementChildren.get(parentId) ?? [];
-      if (kids.length === 0) {
-        markPlacement(parentId, "LEFT", childId);
-        return;
+  function getBinaryChildren(parentId) {
+    const kids = placementChildren.get(parentId) ?? [];
+    const leftChild = kids.find(
+      (childId) => assignments.get(childId)?.placementSide === "LEFT",
+    );
+    const rightChild = kids.find(
+      (childId) => assignments.get(childId)?.placementSide === "RIGHT",
+    );
+
+    return {
+      leftChild: leftChild ?? null,
+      rightChild: rightChild ?? null,
+    };
+  }
+
+  function findNextBinaryPlacement(branchRootId) {
+    const queue = [{ parentId: branchRootId, path: [] }];
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (!current) {
+        break;
       }
-      if (kids.length === 1) {
-        markPlacement(parentId, "RIGHT", childId);
-        return;
+
+      const { leftChild, rightChild } = getBinaryChildren(current.parentId);
+
+      if (!leftChild) {
+        return {
+          parentId: current.parentId,
+          placementSide: "LEFT",
+          path: [...current.path, 0],
+        };
       }
-      parentId = kids[0];
+
+      if (!rightChild) {
+        return {
+          parentId: current.parentId,
+          placementSide: "RIGHT",
+          path: [...current.path, 1],
+        };
+      }
+
+      queue.push({ parentId: leftChild, path: [...current.path, 0] });
+      queue.push({ parentId: rightChild, path: [...current.path, 1] });
     }
+
+    return {
+      parentId: branchRootId,
+      placementSide: "LEFT",
+      path: [0],
+    };
+  }
+
+  function compareAutoCandidates(a, b) {
+    if (a.path.length !== b.path.length) {
+      return a.path.length - b.path.length;
+    }
+
+    for (let index = 0; index < Math.max(a.path.length, b.path.length); index += 1) {
+      const aValue = a.path[index] ?? -1;
+      const bValue = b.path[index] ?? -1;
+      if (aValue !== bValue) {
+        return aValue - bValue;
+      }
+    }
+
+    const branchOrder = { LEFT: 0, MIDDLE: 1, RIGHT: 2 };
+    return branchOrder[a.branchSide] - branchOrder[b.branchSide];
   }
 
   for (const user of users) {
@@ -129,69 +183,44 @@ function buildAssignments(users) {
   }
 
   for (const [sponsorId, directChildren] of childrenBySponsor.entries()) {
-    const firstThree = directChildren.slice(0, 3);
     const sides = ["LEFT", "MIDDLE", "RIGHT"];
-    for (let i = 0; i < firstThree.length; i += 1) {
-      const preferred = sides[i];
-      const current = usedSlots.get(sponsorId) ?? new Set();
-      let chosen = preferred;
-      if (current.has(preferred)) {
-        chosen = sides.find((side) => !current.has(side)) ?? null;
-      }
+    const branchRoots = new Map();
 
-      if (!chosen) {
-        // If sponsor L/M/R are full already, place this direct under spillover tree as well.
-        const queue = [...firstThree.map((u) => u.id).filter((id) => id !== firstThree[i].id)];
-        const visited = new Set();
-        let placed = false;
-        while (queue.length > 0 && !placed) {
-          const parentId = queue.shift();
-          if (!parentId || visited.has(parentId)) {
-            continue;
-          }
-          visited.add(parentId);
-
-          const slot = usedSlots.get(parentId) ?? new Set();
-          if (!slot.has("LEFT")) {
-            markPlacement(parentId, "LEFT", firstThree[i].id);
-            placed = true;
-            break;
-          }
-          if (!slot.has("RIGHT")) {
-            markPlacement(parentId, "RIGHT", firstThree[i].id);
-            placed = true;
-            break;
-          }
-
-          const kids = placementChildren.get(parentId) ?? [];
-          for (const k of kids) {
-            queue.push(k);
-          }
-        }
-
-        if (placed) {
-          spilloverPlaced += 1;
-          continue;
-        }
-
-        // Last-resort fallback keeps data writable.
-        chosen = "RIGHT";
-      }
-
-      markPlacement(sponsorId, chosen, firstThree[i].id);
+    for (let i = 0; i < Math.min(directChildren.length, 3); i += 1) {
+      const chosen = sides[i];
+      const child = directChildren[i];
+      markPlacement(sponsorId, chosen, child.id);
+      branchRoots.set(chosen, child.id);
       directPlaced += 1;
     }
 
     const extra = directChildren.slice(3);
-    for (let i = 0; i < extra.length; i += 1) {
-      const child = extra[i];
-      const branchRoot = firstThree[i % 3];
-      if (!branchRoot) {
+    for (const child of extra) {
+      const candidates = sides
+        .map((side) => {
+          const branchRootId = branchRoots.get(side);
+          if (!branchRootId) {
+            return null;
+          }
+
+          return {
+            branchSide: side,
+            ...findNextBinaryPlacement(branchRootId),
+          };
+        })
+        .filter(Boolean);
+
+      if (candidates.length === 0) {
         const sponsorSlots = usedSlots.get(sponsorId) ?? new Set();
         const fallbackSide = sponsorSlots.has("RIGHT") ? "LEFT" : "RIGHT";
         markPlacement(sponsorId, fallbackSide, child.id);
       } else {
-        placeInSpilloverLine(branchRoot.id, child.id);
+        candidates.sort(compareAutoCandidates);
+        markPlacement(
+          candidates[0].parentId,
+          candidates[0].placementSide,
+          child.id,
+        );
       }
       spilloverPlaced += 1;
     }

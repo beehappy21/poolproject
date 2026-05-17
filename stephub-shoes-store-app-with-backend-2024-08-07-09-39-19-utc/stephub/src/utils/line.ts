@@ -1,6 +1,7 @@
 import {URLS} from '../config';
 
 export const DEFAULT_SIGNUP_SPONSOR_CODE = 'TH0000001';
+export type SignupPlacementPreference = 'AUTO' | 'LEFT' | 'MIDDLE' | 'RIGHT';
 
 export type LineProfile = {
   userId: string;
@@ -66,6 +67,32 @@ export const extractSponsorCodeFromSearch = (search: string): string => {
   );
 };
 
+export const normalizePlacementPreference = (
+  rawValue?: string | null,
+): SignupPlacementPreference => {
+  const normalized = rawValue?.trim().toUpperCase() || '';
+
+  if (
+    normalized === 'LEFT' ||
+    normalized === 'MIDDLE' ||
+    normalized === 'RIGHT'
+  ) {
+    return normalized;
+  }
+
+  return 'AUTO';
+};
+
+export const extractPlacementPreferenceFromSearch = (
+  search: string,
+): SignupPlacementPreference => {
+  const query = new URLSearchParams(search);
+
+  return normalizePlacementPreference(
+    query.get('placement') || query.get('placementSide') || query.get('leg'),
+  );
+};
+
 export const parseLineCallbackSearch = (search: string): URLSearchParams => {
   const directParams = new URLSearchParams(search);
   const liffState = directParams.get('liff.state')?.trim() || '';
@@ -92,14 +119,25 @@ export const parseLineCallbackSearch = (search: string): URLSearchParams => {
   return directParams;
 };
 
-export const buildSignUpPath = (sponsorCode?: string | null): string => {
+export const buildSignUpPath = (
+  sponsorCode?: string | null,
+  placementPreference?: SignupPlacementPreference | null,
+): string => {
   const normalizedSponsorCode = normalizeSponsorCode(sponsorCode);
+  const normalizedPlacement = normalizePlacementPreference(placementPreference);
 
   if (!normalizedSponsorCode) {
     return '/SignUp';
   }
 
-  return `/SignUp?ref=${encodeURIComponent(normalizedSponsorCode)}`;
+  const query = new URLSearchParams();
+  query.set('ref', normalizedSponsorCode);
+
+  if (normalizedPlacement !== 'AUTO') {
+    query.set('placement', normalizedPlacement);
+  }
+
+  return `/SignUp?${query.toString()}`;
 };
 
 export const resolvePublicAppBaseUrl = (): string => {
@@ -134,8 +172,11 @@ export const resolvePublicAppBaseUrl = (): string => {
   return runtimeOrigin;
 };
 
-export const buildPublicSignUpUrl = (sponsorCode?: string | null): string => {
-  const path = buildSignUpPath(sponsorCode);
+export const buildPublicSignUpUrl = (
+  sponsorCode?: string | null,
+  placementPreference?: SignupPlacementPreference | null,
+): string => {
+  const path = buildSignUpPath(sponsorCode, placementPreference);
   const publicBaseUrl = resolvePublicAppBaseUrl();
 
   if (!publicBaseUrl) {
@@ -214,21 +255,31 @@ export const resolveSafeReturnTo = (
 
 export const buildLineLiffEntryPath = (input?: {
   sponsorCode?: string | null;
+  placementPreference?: SignupPlacementPreference | null;
   mode?: LineEntryMode;
   returnTo?: string | null;
 }): string => {
   const query = new URLSearchParams();
   const sponsorCode = normalizeSponsorCode(input?.sponsorCode);
+  const placementPreference = normalizePlacementPreference(
+    input?.placementPreference,
+  );
   const mode = input?.mode || 'signin';
   const returnTo = resolveSafeReturnTo(
     input?.returnTo || undefined,
-    sponsorCode ? buildSignUpPath(sponsorCode) : '/TabNavigator',
+    sponsorCode
+      ? buildSignUpPath(sponsorCode, placementPreference)
+      : '/TabNavigator',
   );
 
   query.set('mode', mode);
 
   if (sponsorCode) {
     query.set('ref', sponsorCode);
+  }
+
+  if (placementPreference !== 'AUTO') {
+    query.set('placement', placementPreference);
   }
 
   if (returnTo) {
@@ -240,6 +291,7 @@ export const buildLineLiffEntryPath = (input?: {
 
 export const buildLineLiffEntryUrl = (input?: {
   sponsorCode?: string | null;
+  placementPreference?: SignupPlacementPreference | null;
   mode?: LineEntryMode;
   returnTo?: string | null;
 }): string => {
@@ -266,6 +318,7 @@ export const buildLineLiffEntryUrl = (input?: {
 
 export const buildLineLiffLaunchUrl = (input?: {
   sponsorCode?: string | null;
+  placementPreference?: SignupPlacementPreference | null;
   mode?: LineEntryMode;
   returnTo?: string | null;
 }): string => {
@@ -290,14 +343,20 @@ export const buildLineLiffLaunchUrl = (input?: {
 
 export const buildLineLoginCallbackUrl = (input?: {
   sponsorCode?: string | null;
+  placementPreference?: SignupPlacementPreference | null;
   mode?: LineEntryMode;
   returnTo?: string | null;
 }): string => {
   const config = getLineConfig();
   const sponsorCode = normalizeSponsorCode(input?.sponsorCode);
+  const placementPreference = normalizePlacementPreference(
+    input?.placementPreference,
+  );
   const returnTo = resolveSafeReturnTo(
     input?.returnTo || undefined,
-    sponsorCode ? buildSignUpPath(sponsorCode) : '/TabNavigator',
+    sponsorCode
+      ? buildSignUpPath(sponsorCode, placementPreference)
+      : '/TabNavigator',
   );
 
   if (!config.callbackUrl) {
@@ -313,6 +372,9 @@ export const buildLineLoginCallbackUrl = (input?: {
     parsed.searchParams.set('mode', input?.mode || 'signin');
     if (sponsorCode) {
       parsed.searchParams.set('ref', sponsorCode);
+    }
+    if (placementPreference !== 'AUTO') {
+      parsed.searchParams.set('placement', placementPreference);
     }
     if (returnTo) {
       parsed.searchParams.set('returnTo', returnTo);

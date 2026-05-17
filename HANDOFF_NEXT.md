@@ -1,7 +1,102 @@
 Handoff Next
 
-Updated: 2026-05-05 13:10 +07
+Updated: 2026-05-17 12:10 +07
 Branch: `main`
+
+Latest Session Update (2026-05-17)
+
+- WAP `Commission` UI was refined further after the earlier CW/SW alignment work:
+  - `CW ที่ใช้ได้` in the CW -> SW flow was renamed to `CW ปัจจุบัน`
+  - `CW ปัจจุบัน` and `CW รวม` tile meanings and detail popups were re-aligned
+  - the CW detail popup no longer shows recent movement rows
+  - the CW detail popup now reuses the lower commission-summary cards instead
+  - the lower `Direct / Team / Matching / Pool` summary block on the main page is hidden
+  - the visible `Firm` tile on WAP `Commission` was removed from the dashboard tile list
+- WAP `WithdrawSW` was aligned to the same derived `CW ปัจจุบัน` logic used on `Commission`:
+  - withdrawable CW on the page now derives from:
+    - cumulative qualified commission
+    - minus CW -> SW conversion
+    - minus CW withdrawn
+  - do not assume the withdraw page should read raw `wallet.withdrawableBalance`
+- BAO wallet review tooling was expanded:
+  - added Wallet submenu entries for:
+    - `CW > SW Transactions`
+    - `SW Transfer Transactions`
+  - added dedicated Orchid screens and routes for those two transaction views
+  - initial route-default attempt caused Orchid to look for a `cw-to-sw()` method on the screen
+  - this was fixed by splitting the views into concrete screen subclasses
+- Local commits pushed during this round:
+  - `37c24c74`
+    - `Add wallet transaction admin screens and refine commission CW/SW UI`
+  - `24ee2414`
+    - `Align CW display and withdraw balance with current CW logic`
+  - `d099085a`
+    - `Refine commission summary panels and hide extra dashboard tiles`
+- New follow-up planning note added:
+  - [close_firm.md](/Users/macbook/poolproject/close_firm.md:1)
+  - use this when resuming the request to hide/disable all `Firm` display safely across BAO and WAP
+- Important current `Firm` status:
+  - the user does not want to use `Firm` for now
+  - WAP `Commission` should not show the `Firm` tile
+  - BAO and WAP still contain deeper `Firm` routes, labels, admin fields, and order/settings logic
+  - do not remove backend `Firm` logic blindly
+  - safest next step is UI-hide only, as documented in `close_firm.md`
+
+Latest Session Update (2026-05-16)
+
+- Added a local commit for the latest member-facing CW/SW commission-page changes:
+  - commit `2b711f14`
+  - message: `Align CW/SW wallet logic and commission display`
+- Confirmed and then changed the active member-wallet definitions in WAP/API flow:
+  - `CW รวม` on WAP `Commission` now means:
+    - total cumulative `direct + team + matching + pool` commissions received
+  - `CW ปัจจุบัน` on WAP `Commission` now means:
+    - cumulative `direct + team + matching + pool`
+    - minus CW converted to SW
+    - minus CW already withdrawn
+  - `SW` remains the shopping-wallet bucket
+- WAP `Commission` page was updated to match the new CW meaning:
+  - tile label `CW วันนี้` was renamed to `CW ปัจจุบัน`
+  - `CW ปัจจุบัน` logic no longer uses only same-day commission rows
+  - `CW ปัจจุบัน` now uses:
+    - `/auth/commissions`
+    - `/auth/transactions`
+    - `/auth/withdraw-requests`
+  - `CW ปัจจุบัน` detail panel now shows:
+    - cumulative qualified commission
+    - CW converted to SW
+    - CW withdrawn
+    - recent CW conversion / withdraw activity
+- CW/SW fee behavior was aligned with the latest requirement:
+  - CW -> SW conversion now uses `5%` fee
+  - CW withdraw now uses `5%` fee
+  - WAP now shows fee breakdown and net amount for:
+    - CW -> SW conversion
+    - CW withdraw request
+- Withdraw behavior was moved from SW semantics to CW semantics:
+  - withdraw request now debits `withdrawableBalance`
+  - cancelled withdraw requests now restore `withdrawableBalance`
+  - member-facing WAP text was changed from `ถอน SW` to `ถอน CW`
+- Runtime local settings were updated:
+  - `runtime/wallet-settings.json`
+    - `commissionToShoppingFeeRate = "0.05"`
+  - `runtime/withdraw-settings.json`
+    - `feeRate = "0.05"`
+- Validation completed after the changes:
+  - root `npm run lint` passed
+  - WAP `npm run build` passed
+  - only pre-existing WAP warnings remain in:
+    - `src/screens/Product.tsx`
+    - `src/screens/tabs/Home.tsx`
+- Important repo-state note:
+  - the WAP source lives under an ignored path in this repo
+  - staging WAP changes required `git add -f` for:
+    - `stephub/.../src/screens/Commission.tsx`
+    - `stephub/.../src/screens/WithdrawSW.tsx`
+- Important logic note for the next operator:
+  - `CW รวม` and `CW ปัจจุบัน` on WAP are now custom derived UI metrics
+  - they no longer map 1:1 to raw `wallet.withdrawableBalance`
+  - `CW ที่ใช้แปลงได้` in the CW->SW modal currently follows `CW ปัจจุบัน`
 
 Latest Session Update (2026-05-05)
 

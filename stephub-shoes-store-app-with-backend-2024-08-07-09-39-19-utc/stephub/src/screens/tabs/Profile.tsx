@@ -15,6 +15,7 @@ import {
   buildPublicSignUpUrl,
   buildLineLiffLaunchUrl,
   initializeLineLiff,
+  type SignupPlacementPreference,
 } from '../../utils/line';
 
 type DashboardResponse = {
@@ -50,6 +51,7 @@ type DirectReferralsResponse = {
     referralCode?: string;
     name?: string;
     sponsorId?: string | null;
+    placementSide?: 'LEFT' | 'MIDDLE' | 'RIGHT' | null;
     childCount?: number;
   }>;
 };
@@ -116,14 +118,17 @@ const normalizeMemberCode = (code?: string | null) => {
   return normalizedCode;
 };
 
-const buildLocalReferralPreviewLink = (code: string) => {
+const buildLocalReferralPreviewLink = (
+  code: string,
+  placementPreference?: SignupPlacementPreference,
+) => {
   const normalizedCode = normalizeMemberCode(code);
 
   if (!normalizedCode) {
     return '';
   }
 
-  return buildPublicSignUpUrl(normalizedCode);
+  return buildPublicSignUpUrl(normalizedCode, placementPreference);
 };
 
 const buildBaoAlignedReferralLink = (payload?: {
@@ -179,8 +184,10 @@ export const Profile: React.FC = () => {
   const [referralLink, setReferralLink] = useState('');
   const [referralCode, setReferralCode] = useState('');
   const [directReferralCount, setDirectReferralCount] = useState(0);
+  const [directReferralPlacementSides, setDirectReferralPlacementSides] =
+    useState<Array<'LEFT' | 'MIDDLE' | 'RIGHT'>>([]);
   const [selectedPlacement, setSelectedPlacement] = useState<
-    'AUTO' | 'LEFT' | 'MIDDLE' | 'RIGHT'
+    SignupPlacementPreference
   >('AUTO');
   const [copyMessage, setCopyMessage] = useState('');
   const [shareMessage, setShareMessage] = useState(DEFAULT_LINE_SHARE_MESSAGE);
@@ -347,9 +354,22 @@ export const Profile: React.FC = () => {
         );
 
         setDirectReferralCount(response.data.directReferrals?.length || 0);
+        setDirectReferralPlacementSides(
+          (response.data.directReferrals || [])
+            .map(referral => referral.placementSide || '')
+            .filter(
+              (
+                placementSide,
+              ): placementSide is 'LEFT' | 'MIDDLE' | 'RIGHT' =>
+                placementSide === 'LEFT' ||
+                placementSide === 'MIDDLE' ||
+                placementSide === 'RIGHT',
+            ),
+        );
       } catch (error) {
         console.error(error);
         setDirectReferralCount(0);
+        setDirectReferralPlacementSides([]);
       }
     };
 
@@ -404,12 +424,18 @@ export const Profile: React.FC = () => {
   }, []);
 
   const handleCopyReferralLink = async () => {
-    if (!referralLink) {
+    const effectiveReferralCode =
+      referralCode || normalizeMemberCode(user?.memberCode) || '';
+    const activeReferralLink =
+      buildLocalReferralPreviewLink(effectiveReferralCode, selectedPlacement) ||
+      referralLink;
+
+    if (!activeReferralLink) {
       return;
     }
 
     try {
-      await navigator.clipboard.writeText(referralLink);
+      await navigator.clipboard.writeText(activeReferralLink);
       setCopyMessage('คัดลอกลิงก์แนะนำแล้ว');
       window.setTimeout(() => setCopyMessage(''), 2000);
     } catch (error) {
@@ -420,7 +446,13 @@ export const Profile: React.FC = () => {
   };
 
   const handleShareReferralLink = async () => {
-    if (!referralLink) {
+    const effectiveReferralCode =
+      referralCode || normalizeMemberCode(user?.memberCode) || '';
+    const activeReferralLink =
+      buildLocalReferralPreviewLink(effectiveReferralCode, selectedPlacement) ||
+      referralLink;
+
+    if (!activeReferralLink) {
       return;
     }
 
@@ -429,11 +461,11 @@ export const Profile: React.FC = () => {
         await navigator.share({
           title: 'Stephub referral link',
           text: shareMessage.trim() || DEFAULT_LINE_SHARE_MESSAGE,
-          url: referralLink,
+          url: activeReferralLink,
         });
         setCopyMessage('เปิดหน้าต่างแชร์แล้ว');
       } else {
-        await navigator.clipboard.writeText(referralLink);
+        await navigator.clipboard.writeText(activeReferralLink);
         setCopyMessage('อุปกรณ์นี้ไม่รองรับ share จึงคัดลอกลิงก์ให้แทน');
       }
     } catch (error) {
@@ -771,16 +803,23 @@ export const Profile: React.FC = () => {
   };
 
   const renderReferralCard = (): JSX.Element | null => {
-    if (!referralLink) {
+    const effectiveReferralCode =
+      referralCode || normalizeMemberCode(user?.memberCode) || '';
+    const activeReferralLink =
+      buildLocalReferralPreviewLink(effectiveReferralCode, selectedPlacement) ||
+      referralLink;
+    const hasLeftDirect = directReferralPlacementSides.includes('LEFT');
+    const hasMiddleDirect = directReferralPlacementSides.includes('MIDDLE');
+    const hasRightDirect = directReferralPlacementSides.includes('RIGHT');
+    const placementUnlocked = hasLeftDirect && hasMiddleDirect && hasRightDirect;
+
+    if (!activeReferralLink) {
       return null;
     }
 
-    const effectiveReferralCode =
-      referralCode || normalizeMemberCode(user?.memberCode) || '-';
-    const placementUnlocked = directReferralCount >= 3;
     const helperText = placementUnlocked
-      ? 'AUTO พร้อมใช้งาน และสามารถเลือก L / M / R สำหรับลิงก์แนะนำสมาชิกได้'
-      : `AUTO ใช้งานได้แล้วตอนนี้ ส่วน L / M / R จะปลดล็อกเมื่อมีสมาชิกสายตรงครบ 3 คน (${directReferralCount}/3)`;
+      ? 'AUTO พร้อมใช้งาน และสามารถเลือก L / M / R สำหรับลิงก์แนะนำสมาชิกได้แล้ว'
+      : `AUTO ใช้งานได้ทันที ตอนนี้สมาชิกสายตรง ${directReferralCount} คน และครบ L:${hasLeftDirect ? '1' : '0'} / M:${hasMiddleDirect ? '1' : '0'} / R:${hasRightDirect ? '1' : '0'} เมื่อครบทั้ง 3 สายจึงจะเปิดลิงก์กำหนดขาได้`;
     const placementOptions: Array<{
       label: 'AUTO' | 'LEFT' | 'MIDDLE' | 'RIGHT';
       shortLabel: 'AUTO' | 'L' | 'M' | 'R';
@@ -815,7 +854,7 @@ export const Profile: React.FC = () => {
             ...theme.fonts.Mulish_800ExtraBold,
           }}
         >
-          Referral code : {effectiveReferralCode}
+          Referral code : {effectiveReferralCode || '-'}
         </div>
 
         <div
