@@ -509,8 +509,8 @@ export const Commission: React.FC = () => {
       );
 
       setMetrics({
-        cwToday: formatDecimal(totalQualifiedCommission),
-        cwTotal: formatDecimal(cwCurrent),
+        cwToday: formatDecimal(cwCurrent),
+        cwTotal: formatDecimal(totalQualifiedCommission),
         sw: formatDecimal(swBalance),
         withdrawPending: formatDecimal(pendingWithdrawTotal),
         dcw: formatDecimal(parseDecimal(wallet?.discountBalance)),

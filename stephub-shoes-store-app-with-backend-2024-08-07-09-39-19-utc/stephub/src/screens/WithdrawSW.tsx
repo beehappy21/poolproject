@@ -7,10 +7,31 @@ import {components} from '../components';
 import {hooks} from '../hooks';
 import {RootState} from '../store';
 
-type DashboardResponse = {
-  wallet?: {
-    withdrawableBalance?: string;
-  };
+type CommissionEntry = {
+  commissionId?: string;
+  commissionType?: string;
+  amount?: string;
+  status?: string;
+};
+
+type CommissionListResponse = {
+  items?: CommissionEntry[];
+  total?: number;
+  page?: number;
+  pageSize?: number;
+};
+
+type CommissionResponsePayload = CommissionEntry[] | CommissionListResponse;
+
+type WalletTransactionSummary = {
+  transactionId: string;
+  txType: string;
+  direction?: string;
+  balanceBucket?: string;
+  refType?: string;
+  amount: string;
+  status: string;
+  createdAt: string;
 };
 
 type WithdrawRequestSummary = {
@@ -40,6 +61,44 @@ type KycRequestSummary = {
 const parseDecimal = (value?: string | null) => {
   const parsed = Number.parseFloat(value || '0');
   return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const extractCommissionItems = (
+  payload?: CommissionResponsePayload,
+): CommissionEntry[] => {
+  if (!payload) {
+    return [];
+  }
+
+  return Array.isArray(payload) ? payload : payload.items || [];
+};
+
+const extractCommissionTotal = (payload?: CommissionResponsePayload): number => {
+  if (!payload) {
+    return 0;
+  }
+
+  if (Array.isArray(payload)) {
+    return payload.length;
+  }
+
+  return payload.total ?? payload.items?.length ?? 0;
+};
+
+const isNonFallbackCommissionEntry = (entry: CommissionEntry) => {
+  return entry.status?.toLowerCase() !== 'fallback';
+};
+
+const hasCommissionType = (entry: CommissionEntry, types: string[]) => {
+  const normalizedType = entry.commissionType?.toLowerCase();
+  return normalizedType ? types.includes(normalizedType) : false;
+};
+
+const isPostedWithdrawableTransaction = (transaction: WalletTransactionSummary) => {
+  return (
+    transaction.status?.toLowerCase() === 'posted' &&
+    transaction.balanceBucket?.toLowerCase() === 'withdrawable'
+  );
 };
 
 const formatAmount = (value: number) =>
@@ -82,24 +141,113 @@ export const WithdrawSW: React.FC = () => {
       }
 
       try {
-        const [dashboardResponse, requestsResponse, kycRequestsResponse] = await Promise.all([
-          axios.get<DashboardResponse>(URLS.AUTH_DASHBOARD, {
-            headers: {
-              Authorization: `Bearer ${user.accessToken}`,
-            },
-          }),
+        const authRequestConfig = {
+          headers: {
+            Authorization: `Bearer ${user.accessToken}`,
+          },
+        };
+
+        const fetchAllCommissions = async (): Promise<CommissionEntry[]> => {
+          const pageSize = 200;
+          const firstResponse = await axios.get<CommissionResponsePayload>(
+            `${URLS.AUTH_COMMISSIONS}?page=1&pageSize=${pageSize}`,
+            authRequestConfig,
+          );
+
+          const firstPayload = firstResponse.data;
+          const firstItems = extractCommissionItems(firstPayload);
+          const total = extractCommissionTotal(firstPayload);
+
+          if (total <= firstItems.length || total === 0) {
+            return firstItems;
+          }
+
+          const totalPages = Math.ceil(total / pageSize);
+          const remainingResponses = await Promise.all(
+            Array.from({length: totalPages - 1}, (_, index) =>
+              axios.get<CommissionResponsePayload>(
+                `${URLS.AUTH_COMMISSIONS}?page=${index + 2}&pageSize=${pageSize}`,
+                authRequestConfig,
+              ),
+            ),
+          );
+
+          return [
+            ...firstItems,
+            ...remainingResponses.flatMap(response => extractCommissionItems(response.data)),
+          ];
+        };
+
+        const [commissions, transactionsResponse, requestsResponse, kycRequestsResponse] =
+          await Promise.all([
+            fetchAllCommissions(),
+            axios.get<WalletTransactionSummary[]>(URLS.AUTH_TRANSACTIONS, authRequestConfig),
           axios.get<WithdrawRequestSummary[]>(URLS.AUTH_WITHDRAW_REQUESTS, {
-            headers: {
-              Authorization: `Bearer ${user.accessToken}`,
-            },
+            ...authRequestConfig,
           }),
           axios.get<KycRequestSummary[]>(URLS.AUTH_KYC_REQUESTS, {
-            headers: {
-              Authorization: `Bearer ${user.accessToken}`,
-            },
+            ...authRequestConfig,
           }),
         ]);
-        setMaxWithdraw(parseDecimal(dashboardResponse.data.wallet?.withdrawableBalance));
+
+        const transactions = Array.isArray(transactionsResponse.data)
+          ? transactionsResponse.data
+          : [];
+
+        const totalQualifiedCommission = commissions.reduce((sum, entry) => {
+          if (
+            !isNonFallbackCommissionEntry(entry) ||
+            !hasCommissionType(entry, [
+              'direct',
+              'team_2leg',
+              'team_3leg',
+              'matching_l1',
+              'matching_l2',
+              'pool',
+            ])
+          ) {
+            return sum;
+          }
+
+          return sum + parseDecimal(entry.amount);
+        }, 0);
+
+        const totalConvertedFromCw = transactions.reduce((sum, transaction) => {
+          if (!isPostedWithdrawableTransaction(transaction)) {
+            return sum;
+          }
+
+          const transactionType = transaction.txType?.toLowerCase();
+          if (
+            transactionType !== 'commission_convert_out' &&
+            transactionType !== 'convert_fee_debit'
+          ) {
+            return sum;
+          }
+
+          return sum + parseDecimal(transaction.amount);
+        }, 0);
+
+        const totalWithdrawnFromCw = transactions.reduce((sum, transaction) => {
+          if (
+            !isPostedWithdrawableTransaction(transaction) ||
+            transaction.refType?.toLowerCase() !== 'withdraw_request'
+          ) {
+            return sum;
+          }
+
+          const transactionAmount = parseDecimal(transaction.amount);
+          return transaction.direction?.toLowerCase() === 'credit'
+            ? sum - transactionAmount
+            : sum + transactionAmount;
+        }, 0);
+
+        setMaxWithdraw(
+          Math.max(
+            totalQualifiedCommission - totalConvertedFromCw - totalWithdrawnFromCw,
+            0,
+          ),
+        );
         setPendingRequests(
           (requestsResponse.data || []).filter(
             request =>
