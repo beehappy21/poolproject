@@ -155,6 +155,14 @@ class PlatformProvider extends OrchidServiceProvider {
         ->icon('bs.wallet2')
         ->canSee($this->canSeeWalletMenu())
         ->list([
+          Menu::make('CW > SW Transactions')
+            ->icon('bs.arrow-left-right')
+            ->canSee($this->canSeeWalletMenu())
+            ->route('platform.wallet.transactions.cwToSw'),
+          Menu::make('SW Transfer Transactions')
+            ->icon('bs.send')
+            ->canSee($this->canSeeWalletMenu())
+            ->route('platform.wallet.transactions.swTransfer'),
           Menu::make('Wallet Top-up Requests')
             ->icon('bs.card-checklist')
             ->canSee($this->canSeeWalletMenu())

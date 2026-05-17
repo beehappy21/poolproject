@@ -322,7 +322,7 @@ export const Commission: React.FC = () => {
   const [walletTransactions, setWalletTransactions] = useState<WalletTransactionSummary[]>([]);
   const [directReferrals, setDirectReferrals] = useState<DirectReferralSummary[]>([]);
   const [detailPanel, setDetailPanel] = useState<
-    'cw-convert' | 'cw-today' | 'dcw' | 'top-leader' | null
+    'cw-convert' | 'cw-current' | 'cw-total' | 'dcw' | 'top-leader' | null
   >(null);
   const [convertAmount, setConvertAmount] = useState('');
   const [convertSubmitting, setConvertSubmitting] = useState(false);
@@ -509,8 +509,8 @@ export const Commission: React.FC = () => {
       );
 
       setMetrics({
-        cwToday: formatDecimal(cwCurrent),
-        cwTotal: formatDecimal(totalQualifiedCommission),
+        cwToday: formatDecimal(totalQualifiedCommission),
+        cwTotal: formatDecimal(cwCurrent),
         sw: formatDecimal(swBalance),
         withdrawPending: formatDecimal(pendingWithdrawTotal),
         dcw: formatDecimal(parseDecimal(wallet?.discountBalance)),
@@ -576,10 +576,6 @@ export const Commission: React.FC = () => {
     ? visibleButtons.find(card => card.key === selectedKey)
     : null;
   const isMobileViewport = viewportWidth < 768;
-  const cwAvailableForDisplay = useMemo(() => {
-    return Math.max(parseDecimal(metrics.cwToday), 0);
-  }, [metrics.cwToday]);
-
   const cashbackEntries = useMemo(() => {
     return commissionEntries
       .filter(
@@ -800,6 +796,10 @@ export const Commission: React.FC = () => {
   const cwCurrentBalance = useMemo(() => {
     return Math.max(cwReceivedTotal - cwConvertedTotal - cwWithdrawnTotal, 0);
   }, [cwConvertedTotal, cwReceivedTotal, cwWithdrawnTotal]);
+
+  const cwAvailableForDisplay = useMemo(() => {
+    return Math.max(cwCurrentBalance, 0);
+  }, [cwCurrentBalance]);
 
   const commissionOverviewCards = useMemo(() => {
     const cardMap: Record<
@@ -1038,7 +1038,7 @@ export const Commission: React.FC = () => {
     }
 
     if (tileKey === 'cw-today') {
-      setDetailPanel('cw-today');
+      setDetailPanel('cw-current');
       return;
     }
 
@@ -1058,7 +1058,7 @@ export const Commission: React.FC = () => {
     }
 
     if (tileKey === 'cw-total') {
-      setDetailPanel('cw-convert');
+      setDetailPanel('cw-total');
       return;
     }
 
@@ -1077,7 +1077,7 @@ export const Commission: React.FC = () => {
     }
 
     if (amount > cwAvailableForDisplay) {
-      setConvertError('จำนวนที่เปลี่ยนต้องไม่เกิน CW คงเหลือ');
+      setConvertError('จำนวนที่เปลี่ยนต้องไม่เกิน CW ปัจจุบัน');
       return;
     }
 
@@ -1121,122 +1121,125 @@ export const Commission: React.FC = () => {
 
     let title = '';
     let content: JSX.Element | null = null;
+    const requestedAmount = parseDecimal(convertAmount);
+    const convertFeePreview = requestedAmount * COMMISSION_TO_SHOPPING_FEE_RATE;
+    const netSwPreview = Math.max(requestedAmount - convertFeePreview, 0);
 
-    if (detailPanel === 'cw-convert') {
-      title = 'เปลี่ยน CW เป็น SW';
-      const requestedAmount = parseDecimal(convertAmount);
-      const convertFeePreview = requestedAmount * COMMISSION_TO_SHOPPING_FEE_RATE;
-      const netSwPreview = Math.max(requestedAmount - convertFeePreview, 0);
-      content = (
-        <div style={{display: 'grid', gap: 14}}>
+    const renderConvertSection = () => (
+      <div style={{display: 'grid', gap: 14}}>
+        <div
+          style={{
+            padding: 16,
+            borderRadius: 14,
+            backgroundColor: '#EFF6FF',
+            border: '1px solid #BFDBFE',
+          }}
+        >
+          <div style={{marginBottom: 6, color: theme.colors.textColor}}>CW ปัจจุบัน</div>
           <div
             style={{
-              padding: 16,
-              borderRadius: 14,
-              backgroundColor: '#EFF6FF',
-              border: '1px solid #BFDBFE',
-            }}
-          >
-            <div style={{marginBottom: 6, color: theme.colors.textColor}}>CW ที่ใช้ได้</div>
-            <div
-              style={{
-                color: theme.colors.mainColor,
-                fontSize: 24,
-                ...theme.fonts.Mulish_700Bold,
-              }}
-            >
-              {formatDecimal(cwAvailableForDisplay)}
-            </div>
-            <div
-              style={{
-                marginTop: 8,
-                color: theme.colors.textColor,
-                opacity: 0.76,
-                lineHeight: 1.5,
-              }}
-            >
-              CW ก้อนนี้คือยอดคงเหลือที่ใช้เปลี่ยนเป็น SW ได้ตามเงื่อนไขของระบบในเวอร์ชันนี้
-            </div>
-          </div>
-
-          <input
-            value={convertAmount}
-            onChange={event => setConvertAmount(event.target.value)}
-            placeholder='จำนวน CW ที่ต้องการเปลี่ยน'
-            inputMode='decimal'
-            style={{
-              height: 48,
-              borderRadius: 12,
-              border: `1px solid ${theme.colors.aliceBlue2}`,
-              padding: '0 14px',
               color: theme.colors.mainColor,
-              ...theme.fonts.Mulish_400Regular,
-            }}
-          />
-
-          <div
-            style={{
-              padding: 16,
-              borderRadius: 14,
-              backgroundColor: '#F8FAFC',
-              border: `1px solid ${theme.colors.aliceBlue2}`,
-              color: theme.colors.textColor,
-              lineHeight: 1.7,
-            }}
-          >
-            <div>ยอด CW ที่ต้องการเปลี่ยน: {formatDecimal(requestedAmount)}</div>
-            <div>ค่าบริการ 5%: {formatDecimal(convertFeePreview)}</div>
-            <div>ยอด SW สุทธิที่จะได้รับ: {formatDecimal(netSwPreview)}</div>
-          </div>
-
-          {convertMessage ? (
-            <div
-              style={{
-                padding: 14,
-                borderRadius: 14,
-                backgroundColor: '#DCFCE7',
-                color: '#166534',
-              }}
-            >
-              {convertMessage}
-            </div>
-          ) : null}
-
-          {convertError ? (
-            <div
-              style={{
-                padding: 14,
-                borderRadius: 14,
-                backgroundColor: '#FEE2E2',
-                color: '#B91C1C',
-              }}
-            >
-              {convertError}
-            </div>
-          ) : null}
-
-          <button
-            type='button'
-            disabled={convertSubmitting || loading}
-            onClick={handleConvertCwToSw}
-            style={{
-              height: 50,
-              border: 'none',
-              borderRadius: 14,
-              cursor: convertSubmitting ? 'not-allowed' : 'pointer',
-              backgroundColor: theme.colors.mainColor,
-              color: theme.colors.mainYellow,
+              fontSize: 24,
               ...theme.fonts.Mulish_700Bold,
             }}
           >
-            {convertSubmitting ? 'กำลังเปลี่ยน...' : 'ยืนยันเปลี่ยน CW เป็น SW'}
-          </button>
+            {formatDecimal(cwAvailableForDisplay)}
+          </div>
+          <div
+            style={{
+              marginTop: 8,
+              color: theme.colors.textColor,
+              opacity: 0.76,
+              lineHeight: 1.5,
+            }}
+          >
+            CW ปัจจุบันคือยอดที่ใช้เปลี่ยนเป็น SW ได้ตามเงื่อนไขของระบบในเวอร์ชันนี้
+          </div>
         </div>
-      );
+
+        <input
+          value={convertAmount}
+          onChange={event => setConvertAmount(event.target.value)}
+          placeholder='จำนวน CW ที่ต้องการเปลี่ยน'
+          inputMode='decimal'
+          style={{
+            height: 48,
+            borderRadius: 12,
+            border: `1px solid ${theme.colors.aliceBlue2}`,
+            padding: '0 14px',
+            color: theme.colors.mainColor,
+            ...theme.fonts.Mulish_400Regular,
+          }}
+        />
+
+        <div
+          style={{
+            padding: 16,
+            borderRadius: 14,
+            backgroundColor: '#F8FAFC',
+            border: `1px solid ${theme.colors.aliceBlue2}`,
+            color: theme.colors.textColor,
+            lineHeight: 1.7,
+          }}
+        >
+          <div>ยอด CW ที่ต้องการเปลี่ยน: {formatDecimal(requestedAmount)}</div>
+          <div>ค่าบริการ 5%: {formatDecimal(convertFeePreview)}</div>
+          <div>ยอด SW สุทธิที่จะได้รับ: {formatDecimal(netSwPreview)}</div>
+        </div>
+
+        {convertMessage ? (
+          <div
+            style={{
+              padding: 14,
+              borderRadius: 14,
+              backgroundColor: '#DCFCE7',
+              color: '#166534',
+            }}
+          >
+            {convertMessage}
+          </div>
+        ) : null}
+
+        {convertError ? (
+          <div
+            style={{
+              padding: 14,
+              borderRadius: 14,
+              backgroundColor: '#FEE2E2',
+              color: '#B91C1C',
+            }}
+          >
+            {convertError}
+          </div>
+        ) : null}
+
+        <button
+          type='button'
+          disabled={convertSubmitting || loading}
+          onClick={handleConvertCwToSw}
+          style={{
+            height: 50,
+            border: 'none',
+            borderRadius: 14,
+            cursor: convertSubmitting ? 'not-allowed' : 'pointer',
+            backgroundColor: theme.colors.mainColor,
+            color: theme.colors.mainYellow,
+            ...theme.fonts.Mulish_700Bold,
+          }}
+        >
+          {convertSubmitting ? 'กำลังเปลี่ยน...' : 'ยืนยันเปลี่ยน CW เป็น SW'}
+        </button>
+      </div>
+    );
+
+    if (detailPanel === 'cw-convert') {
+      title = 'เปลี่ยน CW เป็น SW';
+      content = renderConvertSection();
     }
 
-    if (detailPanel === 'cw-today') {
-      title = 'CW ปัจจุบัน';
+    if (detailPanel === 'cw-current' || detailPanel === 'cw-total') {
+      const isCurrentPanel = detailPanel === 'cw-current';
+      title = isCurrentPanel ? 'CW ปัจจุบัน' : 'CW รวม';
       const recentCwActivity = [
         ...cwConvertedTransactions.map(transaction => ({
           key: `convert-${transaction.transactionId}`,
@@ -1284,9 +1287,13 @@ export const Commission: React.FC = () => {
             <div>แปลง CW เป็น SW แล้ว: {formatDecimal(cwConvertedTotal)}</div>
             <div>ถอนจาก CW แล้ว: {formatDecimal(cwWithdrawnTotal)}</div>
             <div style={{color: theme.colors.mainColor, ...theme.fonts.Mulish_700Bold}}>
-              CW ปัจจุบัน: {formatDecimal(cwCurrentBalance)}
+              {isCurrentPanel
+                ? `CW ปัจจุบัน: ${formatDecimal(cwCurrentBalance)}`
+                : `CW รวม: ${formatDecimal(cwReceivedTotal)}`}
             </div>
           </article>
+
+          {isCurrentPanel ? renderConvertSection() : null}
 
           {recentCwActivity.length ? (
             <div

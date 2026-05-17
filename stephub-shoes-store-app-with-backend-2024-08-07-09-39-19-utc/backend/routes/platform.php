@@ -26,6 +26,8 @@ use App\Orchid\Screens\Order\OrderDetailScreen;
 use App\Orchid\Screens\Order\OrderCreateScreen;
 use App\Orchid\Screens\Withdraw\WithdrawRequestListScreen;
 use App\Orchid\Screens\Withdraw\WithdrawRequestDetailScreen;
+use App\Orchid\Screens\Wallet\CwToSwTransactionListScreen;
+use App\Orchid\Screens\Wallet\SwTransferTransactionListScreen;
 use App\Orchid\Screens\Wallet\WalletManualTopupScreen;
 use App\Orchid\Screens\Wallet\WalletTopupRequestDetailScreen;
 use App\Orchid\Screens\Wallet\WalletTopupRequestListScreen;
@@ -235,6 +237,12 @@ Route::middleware('admin.access:'.AdminPermissions::KYC_MANAGE)->group(function 
 });
 
 Route::middleware('admin.access:'.AdminPermissions::WALLETS_MANAGE)->group(function (): void {
+  Route::screen('wallet/transactions/cw-to-sw', CwToSwTransactionListScreen::class)
+    ->name('platform.wallet.transactions.cwToSw');
+
+  Route::screen('wallet/transactions/sw-transfer', SwTransferTransactionListScreen::class)
+    ->name('platform.wallet.transactions.swTransfer');
+
   Route::screen('wallet/topup/list', WalletTopupRequestListScreen::class)
     ->name('platform.wallet.topup.list');
 
