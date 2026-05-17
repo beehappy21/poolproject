@@ -1,8 +1,46 @@
 # Live Operations Checklist
 
-Updated: 2026-05-02
+Updated: 2026-05-17
 
 Use this checklist before starting real data entry and real day-to-day usage on the current local/runtime stack.
+
+## Local Vs UAT Parity
+
+Use this section first when BAO commission-report actions work locally but fail on UAT.
+
+- [ ] Confirm local API source includes [apps/api/src/internal-bao.controller.ts](/Users/macbook/poolproject/apps/api/src/internal-bao.controller.ts:1)
+- [ ] Confirm local API module registers `InternalBaoController` in [apps/api/src/app.module.ts](/Users/macbook/poolproject/apps/api/src/app.module.ts:1)
+- [ ] Confirm local build output contains:
+  - [ ] `dist/apps/api/apps/api/src/internal-bao.controller.js`
+  - [ ] `dist/apps/api/apps/api/src/app.module.js` references `InternalBaoController`
+- [ ] Confirm UAT API container contains the same built files:
+  - [ ] `docker exec poolproject-uat-api-1 sh -lc "ls /app/dist/apps/api/apps/api/src/internal-bao.controller.js"`
+  - [ ] `docker exec poolproject-uat-api-1 sh -lc "grep -n 'internal_bao_controller_1\\.InternalBaoController' /app/dist/apps/api/apps/api/src/app.module.js"`
+- [ ] Confirm UAT API route responds directly when called with the shared token:
+  - [ ] `TOKEN=$(grep '^INTERNAL_RECEIPT_TOKEN=' deploy/compose/api.env | tail -1 | cut -d= -f2-)`
+  - [ ] `curl -sS -D - -o /tmp/uat_internal_bao.out -H "x-internal-bao-token: $TOKEN" -H 'Content-Type: application/json' -X POST http://127.0.0.1:3000/internal/bao/orders -d '{"userId":"1","productDetailId":"1","quantity":"1"}'`
+- [ ] Confirm BAO runtime code on UAT includes `internalRequest()`:
+  - [ ] `docker exec poolproject-uat-bao-1 sh -lc "grep -n 'function internalRequest' /var/www/html/backend/app/Support/BaoAdminApiClient.php || echo NOT_FOUND"`
+- [ ] Confirm both UAT env files contain the shared token:
+  - [ ] `grep '^INTERNAL_RECEIPT_TOKEN=' /home/nc-user/poolproject/deploy/compose/api.env`
+  - [ ] `grep '^INTERNAL_RECEIPT_TOKEN=' /home/nc-user/poolproject/deploy/compose/bao.env`
+- [ ] After recreating `bao`, confirm `nginx` is not pinned to the old upstream IP:
+  - [ ] `docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' poolproject-uat-bao-1`
+  - [ ] `docker exec poolproject-uat-nginx-1 sh -lc 'getent hosts bao'`
+  - [ ] if logs still show the old IP, restart `nginx`
+- [ ] For this 2026-05-16 incident, keep these findings in mind:
+  - [ ] local had `InternalBaoController` in source and `dist`
+  - [ ] UAT API image `poolproject-uat-api:latest` was created on `2026-04-30T19:22:47+07:00`
+  - [ ] UAT API `dist` did not contain `internal-bao.controller.js`
+  - [ ] direct UAT API call returned `404 Cannot POST /internal/bao/orders`
+  - [ ] BAO required a hotfix copy of [BaoAdminApiClient.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Support/BaoAdminApiClient.php:1)
+  - [ ] `api.env` and `bao.env` were both missing `INTERNAL_RECEIPT_TOKEN`
+  - [ ] `nginx` returned `502` after `bao` recreate because it still tried upstream `172.18.0.6` while the new `bao` container was `172.18.0.5`
+- [ ] Treat the permanent fix as:
+  - [ ] rebuild and redeploy `api` from current source so `/internal/bao/*` exists in UAT `dist`
+  - [ ] rebuild and redeploy `bao` from current source so `BaoAdminApiClient::internalRequest()` survives recreate
+  - [ ] keep `INTERNAL_RECEIPT_TOKEN` present and identical in both `api.env` and `bao.env`
+  - [ ] restart or reload `nginx` after `bao` recreate when upstream IP drift is observed
 
 ## Commission Round Repurchase Shortcut
 
@@ -40,6 +78,16 @@ Use this section first when continuing the new commission-round repurchase rule.
 
 Use this section first when continuing the CAP/DCW/FIRM phase. Older FIRM catalog and commission runtime checklist items below are historical unless they are explicitly revalidated for the new phase.
 
+- [ ] If the user asks to hide or close `Firm` display, open [close_firm.md](/Users/macbook/poolproject/close_firm.md:1) first
+- [ ] Treat the current recommended `Firm` approach as `hide UI only` first
+- [ ] Do not remove backend `Firm` wallet/order/settings/product logic until dependency review is complete
+- [ ] WAP first-pass target:
+  - [ ] hide `Firm` route/page exposure
+  - [ ] keep underlying wallet/API fields unless proven unused
+- [ ] BAO first-pass target:
+  - [ ] hide `Firm balance` from member detail
+  - [ ] hide display-only `Firm` labels where possible
+  - [ ] do not remove `firm_wallet` flow or auto-order/product settings blindly
 - [x] Treat FIRM as disabled in phase 1.
 - [x] Treat auto buyback as disabled in phase 1.
 - [x] Preserve historical FIRM wallet balances and FIRM wallet transactions.
