@@ -164,6 +164,7 @@ export interface MembersRepository {
     sponsorId?: string | null;
     sponsorCode?: string | null;
     ref?: string | null;
+    placementPreference?: "AUTO" | "LEFT" | "MIDDLE" | "RIGHT" | null;
     password?: string | null;
     lineBinding?: {
       lineUserId: string;
@@ -1111,6 +1112,7 @@ export class PrismaMembersRepository implements MembersRepository {
     sponsorId?: string | null;
     sponsorCode?: string | null;
     ref?: string | null;
+    placementPreference?: "AUTO" | "LEFT" | "MIDDLE" | "RIGHT" | null;
     password?: string | null;
     lineBinding?: {
       lineUserId: string;
@@ -1186,6 +1188,7 @@ export class PrismaMembersRepository implements MembersRepository {
         const placement = await this.resolvePlacementForNewDirectReferral(
           tx,
           sponsorId!,
+          input.placementPreference ?? "AUTO",
         );
         await tx.memberProfile.upsert({
           where: { userId: createdMember.id },
@@ -1243,6 +1246,7 @@ export class PrismaMembersRepository implements MembersRepository {
   private async resolvePlacementForNewDirectReferral(
     tx: Prisma.TransactionClient,
     sponsorId: bigint,
+    placementPreference: "AUTO" | "LEFT" | "MIDDLE" | "RIGHT",
   ): Promise<{
     uplineUserId: bigint;
     placementSide: "LEFT" | "MIDDLE" | "RIGHT";
@@ -1250,42 +1254,117 @@ export class PrismaMembersRepository implements MembersRepository {
     const directReferrals = await tx.user.findMany({
       where: { sponsorId },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-      select: { id: true, memberCode: true },
+      select: {
+        id: true,
+        memberCode: true,
+        memberProfile: {
+          select: {
+            placementSide: true,
+          },
+        },
+      },
     });
 
-    const directIndex = directReferrals.length;
     const topSides: Array<"LEFT" | "MIDDLE" | "RIGHT"> = [
       "LEFT",
       "MIDDLE",
       "RIGHT",
     ];
+    const branchRoots = new Map<"LEFT" | "MIDDLE" | "RIGHT", bigint>();
 
-    if (directIndex <= 2) {
+    for (const directReferral of directReferrals) {
+      const side = directReferral.memberProfile?.placementSide;
+      if (
+        side &&
+        (side === "LEFT" || side === "MIDDLE" || side === "RIGHT") &&
+        !branchRoots.has(side)
+      ) {
+        branchRoots.set(side, directReferral.id);
+      }
+    }
+
+    const missingTopSide = topSides.find((side) => !branchRoots.has(side));
+
+    if (missingTopSide) {
       return {
         uplineUserId: sponsorId,
-        placementSide: topSides[directIndex],
+        placementSide: missingTopSide,
       };
     }
 
-    const topThree = directReferrals.slice(0, 3);
-    const branchIndex = (directIndex - 3) % 3;
-    const branchRootUserId = topThree[branchIndex].id;
-    const downline = await this.resolveSpilloverLinePlacement(tx, branchRootUserId);
-    return downline;
+    if (
+      placementPreference !== "AUTO" &&
+      branchRoots.has(placementPreference)
+    ) {
+      const targetedPlacement = await this.resolveBinaryBranchPlacement(
+        tx,
+        branchRoots.get(placementPreference)!,
+      );
+
+      return {
+        uplineUserId: targetedPlacement.uplineUserId,
+        placementSide: targetedPlacement.placementSide,
+      };
+    }
+
+    const candidates = await Promise.all(
+      topSides.map(async (side) => {
+        const branchRootUserId = branchRoots.get(side)!;
+        const placement = await this.resolveBinaryBranchPlacement(
+          tx,
+          branchRootUserId,
+        );
+
+        return {
+          branchSide: side,
+          ...placement,
+        };
+      }),
+    );
+
+    candidates.sort((a, b) => {
+      if (a.path.length !== b.path.length) {
+        return a.path.length - b.path.length;
+      }
+
+      for (let index = 0; index < Math.max(a.path.length, b.path.length); index += 1) {
+        const aValue = a.path[index] ?? -1;
+        const bValue = b.path[index] ?? -1;
+        if (aValue !== bValue) {
+          return aValue - bValue;
+        }
+      }
+
+      return topSides.indexOf(a.branchSide) - topSides.indexOf(b.branchSide);
+    });
+
+    return {
+      uplineUserId: candidates[0].uplineUserId,
+      placementSide: candidates[0].placementSide,
+    };
   }
 
-  private async resolveSpilloverLinePlacement(
+  private async resolveBinaryBranchPlacement(
     tx: Prisma.TransactionClient,
     startUserId: bigint,
   ): Promise<{
     uplineUserId: bigint;
     placementSide: "LEFT" | "RIGHT";
+    path: number[];
   }> {
-    let currentUserId = startUserId;
+    const queue: Array<{ userId: bigint; path: number[] }> = [
+      { userId: startUserId, path: [] },
+    ];
 
-    while (true) {
+    while (queue.length > 0) {
+      const current = queue.shift();
+
+      if (!current) {
+        break;
+      }
+
       const children = await tx.memberProfile.findMany({
-        where: { uplineUserId: currentUserId },
+        where: { uplineUserId: current.userId },
         orderBy: [{ user: { memberCode: "asc" } }, { userId: "asc" }],
         select: {
           userId: true,
@@ -1293,20 +1372,41 @@ export class PrismaMembersRepository implements MembersRepository {
         },
       });
 
-      if (children.length === 0) {
-        return { uplineUserId: currentUserId, placementSide: "LEFT" };
-      }
-      if (children.length === 1) {
-        const firstSide = children[0].placementSide;
+      const leftChild =
+        children.find((child) => child.placementSide === "LEFT") ?? null;
+      const rightChild =
+        children.find((child) => child.placementSide === "RIGHT") ?? null;
+
+      if (!leftChild) {
         return {
-          uplineUserId: currentUserId,
-          placementSide: firstSide === "LEFT" ? "RIGHT" : "LEFT",
+          uplineUserId: current.userId,
+          placementSide: "LEFT",
+          path: [...current.path, 0],
+        };
+      }
+      if (!rightChild) {
+        return {
+          uplineUserId: current.userId,
+          placementSide: "RIGHT",
+          path: [...current.path, 1],
         };
       }
 
-      const next = children[0];
-      currentUserId = next.userId;
+      queue.push({
+        userId: leftChild.userId,
+        path: [...current.path, 0],
+      });
+      queue.push({
+        userId: rightChild.userId,
+        path: [...current.path, 1],
+      });
     }
+
+    return {
+      uplineUserId: startUserId,
+      placementSide: "LEFT",
+      path: [0],
+    };
   }
 
   async updateMemberProfile(

@@ -178,6 +178,7 @@ export class MembersController {
       sponsorId?: string | null;
       sponsorCode?: string | null;
       ref?: string | null;
+      placementPreference?: "AUTO" | "LEFT" | "MIDDLE" | "RIGHT" | null;
       password?: string | null;
       lineUserId?: string | null;
       lineIdToken?: string | null;
@@ -190,6 +191,12 @@ export class MembersController {
     const memberCode = optionalString(body.memberCode);
     const sponsorCode = optionalString(body.sponsorCode);
     const ref = optionalString(body.ref);
+    const placementPreference = optionalString(body.placementPreference) as
+      | "AUTO"
+      | "LEFT"
+      | "MIDDLE"
+      | "RIGHT"
+      | null;
     const password = optionalString(body.password);
     const email = optionalString(body.email);
     const phone = optionalString(body.phone);
@@ -239,6 +246,7 @@ export class MembersController {
         phone,
         sponsorCode,
         ref,
+        placementPreference,
         password,
         lineBinding: {
           lineUserId,
