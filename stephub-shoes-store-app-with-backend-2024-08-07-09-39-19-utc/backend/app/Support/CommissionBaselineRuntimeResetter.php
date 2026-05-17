@@ -8,6 +8,70 @@ use Illuminate\Support\Facades\File;
 class CommissionBaselineRuntimeResetter
 {
     private const SOURCE_TAG = 'commission-test-baseline';
+    private const TX_STATE_TABLES = [
+        '"Order"',
+        '"OrderItem"',
+        '"MemberPackageCycle"',
+        '"CommissionLedger"',
+        '"CompanyBonusLedger"',
+        '"DailyPoolPayout"',
+        '"DailyPoolEligibilitySnapshot"',
+        '"DailyPoolCycle"',
+        '"DailyCommissionCapUsage"',
+        '"PoolSettlementBatchItem"',
+        '"PoolSettlementBatch"',
+        '"TeamSettlementBatchItem"',
+        '"TeamSettlementBatch"',
+        '"BuybackEvent"',
+        '"UserBuybackProgress"',
+        '"CapLedger"',
+        '"CapBucket"',
+        '"MatrixAccumulationEvent"',
+        '"MatrixReorder"',
+        '"MatrixHoldbackAccount"',
+        '"MatrixPayout"',
+        '"MatrixPosition"',
+        '"MatrixBoard"',
+        '"MatrixCycle"',
+        '"WalletTopupRequest"',
+        '"WithdrawRequest"',
+        '"WalletTransaction"',
+        '"PayoutBatchItem"',
+        '"PayoutBatch"',
+        '"PayoutHold"',
+    ];
+    private const RESET_SEQUENCES = [
+        'public."Order_id_seq"',
+        'public."OrderItem_id_seq"',
+        'public."CommissionLedger_id_seq"',
+        'public."CompanyBonusLedger_id_seq"',
+        'public."DailyPoolPayout_id_seq"',
+        'public."DailyPoolEligibilitySnapshot_id_seq"',
+        'public."DailyPoolCycle_id_seq"',
+        'public."DailyCommissionCapUsage_id_seq"',
+        'public."PoolSettlementBatch_id_seq"',
+        'public."PoolSettlementBatchItem_id_seq"',
+        'public."TeamSettlementBatch_id_seq"',
+        'public."TeamSettlementBatchItem_id_seq"',
+        'public."WalletTransaction_id_seq"',
+        'public."WalletTopupRequest_id_seq"',
+        'public."WithdrawRequest_id_seq"',
+        'public."CapBucket_id_seq"',
+        'public."CapLedger_id_seq"',
+        'public."BuybackEvent_id_seq"',
+        'public."UserBuybackProgress_id_seq"',
+        'public."MatrixCycle_id_seq"',
+        'public."MatrixBoard_id_seq"',
+        'public."MatrixPosition_id_seq"',
+        'public."MatrixPayout_id_seq"',
+        'public."MatrixHoldbackAccount_id_seq"',
+        'public."MatrixReorder_id_seq"',
+        'public."MatrixAccumulationEvent_id_seq"',
+        'public."PayoutBatch_id_seq"',
+        'public."PayoutBatchItem_id_seq"',
+        'public."PayoutHold_id_seq"',
+        'public."MemberPackageCycle_id_seq"',
+    ];
 
     /**
      * @return array{
@@ -23,14 +87,17 @@ class CommissionBaselineRuntimeResetter
         $baselineOrders = self::loadBaselineOrders();
         $targets = self::loadTargets($baselineOrders);
         $runtimeArtifactCount = self::runtimeArtifactCount();
+        $transactionStateCount = self::transactionStateCount();
+        $walletNeedsReset = self::walletNeedsReset();
 
         return [
             'baselineOrderCount' => count($targets['baselineOrderIds']),
             'affectedUserCount' => count($targets['userIds']),
             'runtimeArtifactCount' => $runtimeArtifactCount,
             'nonBaselineOrderCount' => count($targets['nonBaselineOrderIds']),
-            'canReset' => (count($targets['baselineOrderIds']) > 0 || $runtimeArtifactCount > 0)
-                && count($targets['nonBaselineOrderIds']) === 0,
+            'canReset' => $runtimeArtifactCount > 0
+                || $transactionStateCount > 0
+                || $walletNeedsReset,
         ];
     }
 
@@ -41,23 +108,25 @@ class CommissionBaselineRuntimeResetter
     {
         $baselineOrders = self::loadBaselineOrders();
         $targets = self::loadTargets($baselineOrders);
+        $deletedBaselineOrderCount = self::countRows('"Order"');
+        $walletNeedsReset = self::walletNeedsReset();
+        $transactionStateCount = self::transactionStateCount();
 
-        if (count($targets['nonBaselineOrderIds']) > 0) {
-            throw new \RuntimeException('ยกเลิกการรีเซ็ต: พบ order อื่นของสมาชิกชุดทดสอบปะปนอยู่');
-        }
-
-        if (count($targets['userIds']) > 0) {
-            self::applyCleanup($targets);
-        }
+        self::applyGlobalCleanup();
 
         $deletedRuntimeArtifactCount = self::clearRuntimeArtifacts();
 
-        if (count($targets['userIds']) === 0 && $deletedRuntimeArtifactCount === 0) {
+        if (
+            $deletedBaselineOrderCount === 0
+            && $transactionStateCount === 0
+            && !$walletNeedsReset
+            && $deletedRuntimeArtifactCount === 0
+        ) {
             throw new \RuntimeException('ไม่พบ state ของ baseline test ที่พร้อมรีเซ็ต');
         }
 
         return [
-            'deletedBaselineOrderCount' => count($targets['baselineOrderIds']),
+            'deletedBaselineOrderCount' => $deletedBaselineOrderCount,
             'affectedUserCount' => count($targets['userIds']),
             'deletedRuntimeArtifactCount' => $deletedRuntimeArtifactCount,
         ];
@@ -382,6 +451,78 @@ class CommissionBaselineRuntimeResetter
         });
     }
 
+    private static function applyGlobalCleanup(): void
+    {
+        DB::connection('poolproject')->transaction(function (): void {
+            foreach ([
+                '"PayoutBatchItem"',
+                '"PayoutBatch"',
+                '"PayoutHold"',
+                '"DailyPoolPayout"',
+                '"DailyPoolEligibilitySnapshot"',
+                '"DailyPoolCycle"',
+                '"DailyCommissionCapUsage"',
+                '"PoolSettlementBatchItem"',
+                '"PoolSettlementBatch"',
+                '"TeamSettlementBatchItem"',
+                '"TeamSettlementBatch"',
+                '"CompanyBonusLedger"',
+                '"CommissionLedger"',
+                '"BuybackEvent"',
+                '"UserBuybackProgress"',
+                '"CapLedger"',
+                '"CapBucket"',
+                '"MatrixAccumulationEvent"',
+                '"MatrixReorder"',
+                '"MatrixHoldbackAccount"',
+                '"MatrixPayout"',
+                '"MatrixPosition"',
+                '"MatrixBoard"',
+                '"MatrixCycle"',
+                '"WalletTopupRequest"',
+                '"WithdrawRequest"',
+                '"WalletTransaction"',
+                '"OrderItem"',
+                '"Order"',
+                '"MemberPackageCycle"',
+            ] as $table) {
+                DB::connection('poolproject')->statement('delete from ' . $table);
+            }
+
+            DB::connection('poolproject')->statement(
+                <<<'SQL'
+                update "Wallet"
+                set "approvedBalance" = 0,
+                    "heldBalance" = 0,
+                    "withdrawableBalance" = 0,
+                    "shoppingBalance" = 0,
+                    "discountBalance" = 0,
+                    "firmBalance" = 0,
+                    "paidOutBalance" = 0,
+                    "negativeOffsetBalance" = 0,
+                    "payoutLockStatus" = 'UNLOCKED',
+                    "payoutLockReason" = null,
+                    "updatedAt" = now()
+                SQL
+            );
+
+            DB::connection('poolproject')->statement(
+                <<<'SQL'
+                update "User"
+                set "matrixPersonalPv" = 0,
+                    "updatedAt" = now()
+                where coalesce("matrixPersonalPv", 0) <> 0
+                SQL
+            );
+
+            foreach (self::RESET_SEQUENCES as $sequence) {
+                DB::connection('poolproject')->statement(
+                    'alter sequence if exists ' . $sequence . ' restart with 1'
+                );
+            }
+        });
+    }
+
     private static function deleteIds(string $table, array $ids): void
     {
         $inClause = self::idIn($ids);
@@ -431,6 +572,46 @@ class CommissionBaselineRuntimeResetter
         }
 
         return $count;
+    }
+
+    private static function transactionStateCount(): int
+    {
+        $total = 0;
+
+        foreach (self::TX_STATE_TABLES as $table) {
+            $total += self::countRows($table);
+        }
+
+        return $total;
+    }
+
+    private static function walletNeedsReset(): bool
+    {
+        $row = DB::connection('poolproject')->selectOne(
+            <<<'SQL'
+            select count(*) as count
+            from "Wallet"
+            where coalesce("approvedBalance", 0) <> 0
+               or coalesce("heldBalance", 0) <> 0
+               or coalesce("withdrawableBalance", 0) <> 0
+               or coalesce("shoppingBalance", 0) <> 0
+               or coalesce("discountBalance", 0) <> 0
+               or coalesce("firmBalance", 0) <> 0
+               or coalesce("paidOutBalance", 0) <> 0
+               or coalesce("negativeOffsetBalance", 0) <> 0
+               or "payoutLockStatus" <> 'UNLOCKED'
+               or "payoutLockReason" is not null
+            SQL
+        );
+
+        return (int) ($row->count ?? 0) > 0;
+    }
+
+    private static function countRows(string $table): int
+    {
+        $row = DB::connection('poolproject')->selectOne('select count(*) as count from ' . $table);
+
+        return (int) ($row->count ?? 0);
     }
 
     /**
