@@ -27,6 +27,8 @@ backups/
 preflight-backups/
 tmp-fonts/
 prisma/dev.db
+deploy/releases/*.tar
+deploy/releases/*.zip
 
 # Stephub generated/local artifacts
 stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/vendor/

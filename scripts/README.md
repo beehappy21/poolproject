@@ -14,6 +14,13 @@ Smoke helpers:
   Creates a UAT-oriented snapshot under `backups/uat-full-<timestamp>` including the Postgres dump, BAO sqlite database, runtime directory, and `manual-payments/` when present. The script supports either `DATABASE_URL` or Docker-based Postgres access.
 - `npm run uat:restore -- <backup-dir> --yes`
   Destructively restores a UAT backup created by `uat:backup`. Requires `ALLOW_DESTRUCTIVE_UAT_RESTORE=1` and supports either `DATABASE_URL` or Docker-based Postgres access.
+- `npm run ops:reset:transactions:keep-members-catalog`
+  Dry-runs a local/server transaction wipe that keeps members, placement tree, line bindings, and catalog/package masters while clearing orders, commissions, wallet runtime, CAP, pool, team, buyback, payout, and matrix rows.
+  Apply with `npm run ops:reset:transactions:keep-members-catalog:apply` after taking a backup and confirming the preflight counts.
+- `npm run ops:cleanup:test-artifacts`
+  Dry-runs removal of local runtime test artifacts such as `commission-test-*`, `member003*`, `saletest*`, session dumps, summary workbooks, and old release zips.
+- `npm run ops:prepare:full-reset-deploy-bundle`
+  Creates a full source release zip for clean server rebuilds while excluding local junk such as `.git`, `node_modules`, backups, logs, and known runtime test artifacts.
 - `npm run smoke:cashback`
   Runs a focused cashback end-to-end smoke against the local API and Postgres, including `reprocess` idempotency checks for cashback-only ledger and wallet-credit rows.
 - `npm run smoke:firm`
