@@ -1,16 +1,90 @@
 Handoff Next
 
-Updated: 2026-05-17 12:10 +07
+Updated: 2026-05-17 16:20 +07
 Branch: `main`
+
+Latest Session Update (2026-05-17)
+
+- Deployment direction changed for the next operator:
+  - do not run a transaction reset on the server
+  - the intended cutover is now:
+    - back up the server first
+    - stop the compose stack
+    - remove or move aside the old server app tree
+    - upload a clean local source bundle
+    - restore the needed env/runtime files
+    - rebuild the stack from that uploaded local source
+- The local/source-prep work is already in place:
+  - local DB was prepared as the new baseline earlier with:
+    - members kept
+    - catalog/package masters kept
+    - orders/commission/wallet runtime cleared
+  - reported local post-reset counts at handoff time were:
+    - `users_total = 212`
+    - `products_total = 7`
+    - `product_details_total = 8`
+    - `packages_total = 2`
+    - `orders_total = 0`
+    - `commission_ledger_total = 0`
+    - `wallet_tx_total = 0`
+    - `wallet_nonzero_total = 0`
+- The helper bundle script was refined for fresh rebuild use:
+  - [scripts/prepare_full_reset_deploy_bundle.sh](/Users/macbook/poolproject/scripts/prepare_full_reset_deploy_bundle.sh:1)
+  - new exclusions were added for:
+    - `deploy/releases`
+    - `.DS_Store`, `.vscode`, `.idea`
+    - `runtime/server-product-export`
+    - `runtime/pycache`
+    - several local test/import artifacts such as `member003.xlsx`, `allsaletest*`, `allsaletes.xlsx`, `allsale.xlsx`, `Book1.xlsx`
+  - the script now also supports:
+    - `SKIP_ZIP=1`
+    - use this when a tarball/stage dir is enough and zip packaging is too slow
+- Important bundle status at this handoff:
+  - do not use the older bundle artifacts:
+    - `deploy/releases/full-reset-deploy-2026-05-17/`
+    - `deploy/releases/full-reset-deploy-2026-05-17.tar`
+    - `deploy/releases/full-reset-deploy-2026-05-17.zip`
+  - reason:
+    - that older bundle still captured `deploy/releases` content and even its own nested stage/release content
+  - a cleaner fresh stage was generated:
+    - `deploy/releases/full-reset-deploy-2026-05-17-fresh/`
+  - the fresh stage runtime contents were verified down to only active settings files:
+    - `commission-settings.json`
+    - `manual-payment-settings.json`
+    - `matrix-settings.json`
+    - `signup-share-settings.json`
+    - `wallet-settings.json`
+    - `withdraw-settings.json`
+  - a matching tar path was started:
+    - `deploy/releases/full-reset-deploy-2026-05-17-fresh.tar`
+  - but that tar file was not yet verified complete at handoff time
+    - a `tar -tf` check reported truncated input while the packaging process still appeared to be in progress
+  - there is also a temporary packaging artifact to clean up before final release handling:
+    - `deploy/releases/ziGOEnaP`
+- Recommended next operator steps:
+  - clean up incomplete/temp bundle artifacts before trusting any archive for upload
+  - regenerate one final clean release bundle from local
+    - likely with `SKIP_ZIP=1 bash scripts/prepare_full_reset_deploy_bundle.sh <date-tag>`
+    - then verify with `tar -tf`
+  - commit the new helper scripts/docs separately once the operator is ready
+  - do not add the large archives/stage dirs to git
+  - after that, use the verified clean bundle for the server fresh rebuild flow
+- Important repo-state note:
+  - there are still unrelated/uncommitted local changes in the worktree
+  - especially:
+    - `package.json`
+    - `scripts/README.md`
+    - new helper scripts under `scripts/`
+    - release artifacts under `deploy/releases/`
+  - this handoff commit should be treated as a checkpoint note only, not as the full deploy-helper commit
 
 Latest Session Update (2026-05-17)
 
 - Completed the full `close firm` pass across WAP, BAO, and runtime settings with a disable-first approach:
   - WAP `/Firm` route now redirects to `Commission`
   - WAP screen registry no longer exposes `Firm`
-  - WAP live catalog collection builder now filters out:
-    - category code `firm`
-    - `firmRedemptionEligible` products
+  - WAP live catalog collection builder now filters out only `FIRM` category products
+  - non-`FIRM` products that still carry `firmRedemptionEligible` remain visible
   - storefront product reads now exclude `FIRM` category rows server-side as well
 - BAO member/admin display was reduced further:
   - `Firm balance` is hidden from BAO member detail
@@ -52,10 +126,26 @@ Latest Session Update (2026-05-17)
 
 - Important remaining state after full close-firm pass:
   - internal historical data, schema fields, and transaction types for Firm still exist
-  - `stephub/src/screens/Firm.tsx` still exists on disk but is no longer reachable from routing
+  - WAP `Firm` screen source was removed from disk after the close-out pass
   - matrix/order/backend internal compatibility code still contains Firm-related fields and types where needed for historical/runtime compatibility
   - runtime export/reference files under `runtime/server-product-export/` still contain historical `FIRM` rows and were not rewritten in this round
   - if the next operator wants a true deletion pass, that should be treated as a separate migration/cleanup project
+- Local commit created for the close-out pass:
+  - `3b5dccfe`
+    - `feat(close-firm): hide firm surfaces across WAP and BAO`
+- Added a destructive server-reset helper for the next deploy phase:
+  - this helper is also the intended local-prep reset when the local DB must become the new production baseline
+  - [scripts/reset_server_transactions_keep_members_catalog.mjs](/Users/macbook/poolproject/scripts/reset_server_transactions_keep_members_catalog.mjs:1)
+  - use this when the goal is:
+    - keep members and catalog masters
+    - wipe orders, commissions, wallet runtime, CAP/pool/team/matrix artifacts
+    - zero wallet balances without deleting wallet rows
+  - always run `npm run uat:backup` before applying it on a server
+- Added local/server cutover helpers:
+  - [scripts/cleanup_runtime_test_artifacts.sh](/Users/macbook/poolproject/scripts/cleanup_runtime_test_artifacts.sh:1)
+    - removes local runtime test artifacts and old release zips
+  - [scripts/prepare_full_reset_deploy_bundle.sh](/Users/macbook/poolproject/scripts/prepare_full_reset_deploy_bundle.sh:1)
+    - builds a clean source zip for full server rebuilds instead of patching live files
 
 Latest Session Update (2026-05-17)
 
