@@ -86,14 +86,6 @@ const stack = createBrowserRouter([
         ),
       },
       {
-        path: 'Firm',
-        element: (
-          <RequireAuth>
-            <screens.Firm />
-          </RequireAuth>
-        ),
-      },
-      {
         path: 'TransferSW',
         element: (
           <RequireAuth>

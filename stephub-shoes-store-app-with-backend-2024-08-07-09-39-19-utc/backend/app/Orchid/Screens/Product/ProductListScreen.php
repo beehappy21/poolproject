@@ -14,7 +14,10 @@ class ProductListScreen extends Screen {
   public function query(Product $product): iterable {
     return [
       'product' => $product,
-      'products' => Product::query()->orderByDesc('updated_at')->paginate(10)
+      'products' => Product::query()
+        ->whereRaw('UPPER(COALESCE(category_code, \'\')) != ?', ['FIRM'])
+        ->orderByDesc('updated_at')
+        ->paginate(10)
     ];
   }
 

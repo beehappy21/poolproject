@@ -97,12 +97,7 @@ export class AdminMatrixSettingsController {
         "autoOrderAmount",
       ),
       autoOrderFirmAmount: requireDecimalString(
-        payload.autoOrderFirmAmount ??
-          payload.reentryFirmAmount ??
-          current.autoOrderFirmAmount ??
-          current.reentryFirmAmount ??
-          current.autoOrderAmount ??
-          current.cwReentryAmount,
+        "0",
         "autoOrderFirmAmount",
       ),
       autoOrderPvAmount: requireDecimalString(
@@ -122,12 +117,7 @@ export class AdminMatrixSettingsController {
         "cwReentryAmount",
       ),
       reentryFirmAmount: requireDecimalString(
-        payload.autoOrderFirmAmount ??
-          payload.reentryFirmAmount ??
-          current.autoOrderFirmAmount ??
-          current.reentryFirmAmount ??
-          current.autoOrderAmount ??
-          current.cwReentryAmount,
+        "0",
         "reentryFirmAmount",
       ),
       reentryPvAmount: requireDecimalString(

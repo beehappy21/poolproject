@@ -310,6 +310,13 @@ const getPreferredStorefrontUrls = (): string[] => {
   return urls;
 };
 
+export const isFirmHiddenProduct = (
+  product?: Pick<ProductType, 'categoryCode' | 'firmRedemptionEligible'> | null,
+): boolean => {
+  const categoryCode = String(product?.categoryCode || '').trim().toLowerCase();
+  return categoryCode === 'firm';
+};
+
 export const fetchLiveProducts = async (): Promise<ProductType[]> => {
   let storefrontError: unknown;
 
@@ -325,7 +332,12 @@ export const fetchLiveProducts = async (): Promise<ProductType[]> => {
             return result;
           }
 
-          result.push(mapStorefrontProductToProduct(item, index));
+          const mappedProduct = mapStorefrontProductToProduct(item, index);
+          if (isFirmHiddenProduct(mappedProduct)) {
+            return result;
+          }
+
+          result.push(mappedProduct);
         } catch (error) {
           console.warn('Skipping malformed storefront product', item, error);
         }
@@ -351,7 +363,8 @@ export const fetchLiveProducts = async (): Promise<ProductType[]> => {
   const fallbackItems = getListPayload<BasicProduct>(fallbackResponse.data);
   const fallbackMapped = fallbackItems
     .filter(item => safeString(item?.status, 'active') === 'active')
-    .map((item, index) => mapBasicProductToProduct(item, index));
+    .map((item, index) => mapBasicProductToProduct(item, index))
+    .filter(item => !isFirmHiddenProduct(item));
 
   if (fallbackMapped.length > 0) {
     return fallbackMapped;
@@ -386,21 +399,17 @@ export const getProductCollections = (
   products: ProductType[],
   categoryImageMap: Record<string, string> = {},
 ) => {
+  const visibleProducts = products.filter(product => {
+    const categoryCode = String(product.categoryCode || '').trim().toLowerCase();
+    return categoryCode !== 'firm' && !product.firmRedemptionEligible;
+  });
+
   const normalizeCollectionId = (product: ProductType): string => {
     const categoryCode = String(product.categoryCode || '').trim().toLowerCase();
-    if (categoryCode === 'firm' || product.firmRedemptionEligible) {
-      return 'firm';
-    }
-
     return categoryCode || 'uncategorized';
   };
 
   const resolveCollectionName = (product: ProductType): string => {
-    const categoryCode = String(product.categoryCode || '').trim().toLowerCase();
-    if (categoryCode === 'firm' || product.firmRedemptionEligible) {
-      return 'Firm Catalog';
-    }
-
     return product.categoryName || 'Products';
   };
 
@@ -414,7 +423,7 @@ export const getProductCollections = (
     }
   >();
 
-  products.forEach(product => {
+  visibleProducts.forEach(product => {
     const collectionId = normalizeCollectionId(product);
     const existingCollection = groupedCollections.get(collectionId);
 
@@ -446,8 +455,8 @@ export const getProductCollections = (
     {
       id: 'all',
       name: 'All products',
-      image: products[0]?.image || DEFAULT_CATALOG_IMAGE,
-      products,
+      image: visibleProducts[0]?.image || DEFAULT_CATALOG_IMAGE,
+      products: visibleProducts,
     },
   ].filter(collection => collection.products.length > 0);
 };

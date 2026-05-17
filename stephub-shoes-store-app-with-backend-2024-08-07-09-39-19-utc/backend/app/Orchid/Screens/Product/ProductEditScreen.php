@@ -46,11 +46,13 @@ class ProductEditScreen extends Screen
 
     public function query(Request $request): iterable
     {
-        $firmCategory = Category::ensurePermanentFirmCategory();
         $this->productDetailRecord = $this->findProductDetailRecord($request) ?? new ProductDetailRecord();
         $selectedProductId = (int) old('product.product_id', $this->productDetailRecord->productId ?? $request->query('product_id', 0));
         $selectedProductSnapshot = $this->catalogSnapshot($selectedProductId);
         $selectedProductMeta = $this->matchedCatalogMetadata($selectedProductSnapshot);
+        if (($selectedProductMeta['category_code'] ?? '') === Category::PERMANENT_FIRM_CATEGORY_CODE) {
+            abort(404);
+        }
         $selectedSupplierId = (int) old('product.supplier_id', $selectedProductMeta['supplier_id'] ?? 0);
         $selectedCategoryId = (int) old('product.category_id', $selectedProductMeta['category_id'] ?? 0);
 
@@ -58,6 +60,9 @@ class ProductEditScreen extends Screen
 
         $productRecords = ProductRecord::query()
             ->with(['supplier', 'category'])
+            ->whereHas('category', function ($query) {
+                $query->where('code', '!=', Category::PERMANENT_FIRM_CATEGORY_CODE);
+            })
             ->orderBy('name')
             ->get(['id', 'supplierId', 'categoryId', 'code', 'name']);
 
@@ -66,6 +71,7 @@ class ProductEditScreen extends Screen
             ->get(['id', 'code', 'name']);
 
         $categories = Category::query()
+            ->where('code', '!=', Category::PERMANENT_FIRM_CATEGORY_CODE)
             ->orderBy('name')
             ->get(['id', 'supplierId', 'code', 'name']);
 
@@ -93,7 +99,7 @@ class ProductEditScreen extends Screen
                 $category->id => [
                     'label' => trim($category->code . ' • ' . $category->name),
                     'code' => (string) $category->code,
-                    'is_firm_category' => (int) $category->id === (int) $firmCategory->id,
+                    'is_firm_category' => false,
                     'supplier_id' => (int) $category->supplierId,
                     'sku_prefix' => $this->categorySkuPrefix($category),
                     'next_detail_code' => $this->nextDetailCodeForCategory((int) $category->id),
@@ -207,36 +213,15 @@ class ProductEditScreen extends Screen
         $formProduct['dcw_usage_amount'] = (string) $dcwUsageValue;
         $formProduct['dcw_usage_manual_override'] = (string) $dcwManualOverride;
         $selectedCategoryMeta = $categoryMetadata[$selectedCategoryId] ?? null;
-        $isFirmCategory = ($selectedCategoryMeta['is_firm_category'] ?? false) === true;
-        $defaultFirmEnabled = $isFirmCategory
-            ? '1'
-            : (
-                $this->productDetailRecord->exists
-                    ? $this->boolAsFormValue($this->productDetailRecord->firmEnabled ?? false)
-                    : $this->boolAsFormValue($this->passesFirmCostGuard($formProduct['member_price'], $formProduct['cost_price']))
-            );
-        $formProduct['firm_enabled'] = old(
-            'product.firm_enabled',
-            $defaultFirmEnabled
-        );
+        $isFirmCategory = false;
+        $formProduct['firm_enabled'] = '0';
         $formProduct['firm_amount_paid'] = old(
             'product.firm_amount_paid',
             (string) ($this->productDetailRecord->memberPriceUsdt ?? ($this->product->price ?? '0'))
         );
-        $formProduct['firm_override_cost_guard'] = old(
-            'product.firm_override_cost_guard',
-            $this->boolAsFormValue($this->productDetailRecord->firmOverrideCostGuard ?? false)
-        );
-        $formProduct['firm_dcw_reward_amount'] = old(
-            'product.firm_dcw_reward_amount',
-            (string) ($this->productDetailRecord->firmDcwRewardAmount ?? '0')
-        );
-        $formProduct['firm_redeem_stock_limit'] = old(
-            'product.firm_redeem_stock_limit',
-            $this->productDetailRecord->firmRedeemStockLimit !== null
-                ? (string) $this->productDetailRecord->firmRedeemStockLimit
-                : ''
-        );
+        $formProduct['firm_override_cost_guard'] = '0';
+        $formProduct['firm_dcw_reward_amount'] = '0';
+        $formProduct['firm_redeem_stock_limit'] = '';
         $formProduct['stock_quantity'] = old(
             'product.stock_quantity',
             $this->productDetailRecord->stockQuantity !== null
@@ -246,7 +231,7 @@ class ProductEditScreen extends Screen
         $formProduct['firm_cost_guard_passed'] = $this->boolAsFormValue(
             $this->passesFirmCostGuard($formProduct['member_price'], $formProduct['cost_price'])
         );
-        $formProduct['firm_category_id'] = (string) $firmCategory->id;
+        $formProduct['firm_category_id'] = '';
         $formProduct['is_firm_category'] = $this->boolAsFormValue($isFirmCategory);
 
         return [
@@ -394,38 +379,20 @@ class ProductEditScreen extends Screen
         $product = $validated['product'];
         $this->assertRateFitsDatabase($product['pool_rate'] ?? 0, 'product.pool_rate', 'Pool rate');
         $this->assertRateFitsDatabase($product['dcw_reward_rate'] ?? 0, 'product.dcw_reward_rate', 'DCW reward rate');
-        $firmCategory = Category::ensurePermanentFirmCategory();
 
         $productId = $this->resolveProductId($product);
-        $productRecord = ProductRecord::query()->find($productId);
-        $isFirmCatalogProduct = $productRecord instanceof ProductRecord
-            && (int) $productRecord->categoryId === (int) $firmCategory->id;
-        $firmEnabled = $isFirmCatalogProduct || $this->truthy($product['firm_enabled'] ?? false);
-        $firmOverrideCostGuard = !$isFirmCatalogProduct && $this->truthy($product['firm_override_cost_guard'] ?? false);
-
-        if ($isFirmCatalogProduct) {
-            $product['member_price'] = $product['firm_amount_paid'] ?? $product['member_price'] ?? 0;
-            $product['cost_price'] = 0;
-            $product['retail_price'] = $product['member_price'];
-            $product['pool_rate'] = 0;
-            $product['active_days'] = 1;
-            $product['earning_cap_amount'] = $product['member_price'];
-            $product['dcw_spend_enabled'] = false;
-            $product['dcw_usage_amount'] = 0;
-            $product['dcw_usage_manual_override'] = false;
-            $product['dcw_reward_rate'] = 0;
-        }
-
+        $productRecord = ProductRecord::query()
+            ->with('category')
+            ->find($productId);
         if (
-            $firmEnabled
-            && !$isFirmCatalogProduct
-            && !$firmOverrideCostGuard
-            && !$this->passesFirmCostGuard($product['member_price'] ?? 0, $product['cost_price'] ?? 0)
+            $productRecord instanceof ProductRecord &&
+            $productRecord->category instanceof Category &&
+            $productRecord->category->isPermanentFirmCategory()
         ) {
-            throw ValidationException::withMessages([
-                'product.firm_enabled' => 'Non-firm products that do not pass the 30% cost guard must explicitly enable admin override before they can be shown in Firm catalog.',
-            ]);
+            abort(404);
         }
+        $firmEnabled = false;
+        $firmOverrideCostGuard = false;
 
         $resolvedDetailCode = $this->resolveDetailCode($product, $ignoreId);
         $normalizedYoutubeUrl = $this->normalizeYoutubeUrl($product['youtube_url'] ?? null);
@@ -467,12 +434,8 @@ class ProductEditScreen extends Screen
             ),
             'firmEnabled' => $firmEnabled,
             'firmOverrideCostGuard' => $firmOverrideCostGuard,
-            'firmDcwRewardAmount' => $this->decimalString($product['firm_dcw_reward_amount'] ?? 0),
-            'firmRedeemStockLimit' => array_key_exists('firm_redeem_stock_limit', $product)
-                && $product['firm_redeem_stock_limit'] !== null
-                && $product['firm_redeem_stock_limit'] !== ''
-                ? (int) $product['firm_redeem_stock_limit']
-                : null,
+            'firmDcwRewardAmount' => '0',
+            'firmRedeemStockLimit' => null,
             'stockQuantity' => array_key_exists('stock_quantity', $product)
                 && $product['stock_quantity'] !== null
                 && $product['stock_quantity'] !== ''

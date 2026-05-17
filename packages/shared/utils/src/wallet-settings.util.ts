@@ -79,10 +79,7 @@ export function normalizeWalletSettings(input: unknown): WalletSettings {
     input && typeof input === "object" ? (input as Record<string, unknown>) : {};
 
   return {
-    firmEnabled: normalizeBoolean(
-      candidate.firmEnabled ?? candidate.firm_enabled,
-      DEFAULT_SETTINGS.firmEnabled,
-    ),
+    firmEnabled: false,
     autoBuybackEnabled: normalizeBoolean(
       candidate.autoBuybackEnabled ?? candidate.auto_buyback_enabled,
       DEFAULT_SETTINGS.autoBuybackEnabled,

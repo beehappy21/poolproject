@@ -167,8 +167,6 @@ class MemberEditScreen extends Screen
                     ->readonly(),
             ])->title('Member profile'),
             Layout::legend('walletSummary', [
-                \Orchid\Screen\Sight::make('firmBalance', 'Firm balance:')
-                    ->render(fn () => number_format((float) ($this->walletSummary['firmBalance'] ?? '0'), 2)),
                 \Orchid\Screen\Sight::make('withdrawableBalance', 'Withdrawable balance:')
                     ->render(fn () => number_format((float) ($this->walletSummary['withdrawableBalance'] ?? '0'), 2)),
                 \Orchid\Screen\Sight::make('shoppingBalance', 'Shopping balance:')

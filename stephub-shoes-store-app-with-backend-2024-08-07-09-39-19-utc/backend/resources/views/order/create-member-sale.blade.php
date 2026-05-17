@@ -154,10 +154,6 @@
                 SW
             </label>
             <label>
-                <input type="radio" name="sale[payment_channel]" value="firm_wallet" @checked(old('sale.payment_channel', $sale['payment_channel'] ?? 'cash') === 'firm_wallet')>
-                FIRM
-            </label>
-            <label>
                 <input type="radio" name="sale[payment_channel]" value="other" @checked(old('sale.payment_channel', $sale['payment_channel'] ?? 'cash') === 'other')>
                 อื่นๆ
             </label>
@@ -445,9 +441,6 @@
         if (paymentChannel === 'shopping_wallet') {
             shoppingWalletAmountInput.value = subtotalText;
             summaryText = `ยอดรวมสินค้า ${subtotalText} บาท · ชำระด้วย SW`;
-        } else if (paymentChannel === 'firm_wallet') {
-            firmWalletAmountInput.value = subtotalText;
-            summaryText = `ยอดรวมสินค้า ${subtotalText} บาท · ชำระด้วย FIRM`;
         } else if (paymentChannel === 'bank_transfer') {
             cashPaymentMethodInput.value = 'bank_transfer';
             summaryText = `ยอดรวมสินค้า ${subtotalText} บาท · ชำระด้วยเงินโอน`;

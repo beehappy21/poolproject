@@ -171,17 +171,7 @@ export function normalizeMatrixSettings(input: unknown): MatrixSettings {
         : organizationBasePv
           ? organizationBasePv
           : DEFAULT_SETTINGS.autoOrderAmount,
-    autoOrderFirmAmount: isNonNegativeDecimalString(candidate.autoOrderFirmAmount)
-      ? candidate.autoOrderFirmAmount.trim()
-      : isNonNegativeDecimalString(candidate.reentryFirmAmount)
-        ? candidate.reentryFirmAmount.trim()
-        : isNonNegativeDecimalString(candidate.autoOrderAmount)
-          ? candidate.autoOrderAmount.trim()
-          : isNonNegativeDecimalString(candidate.cwReentryAmount)
-            ? candidate.cwReentryAmount.trim()
-            : organizationBasePv
-              ? organizationBasePv
-              : DEFAULT_SETTINGS.autoOrderFirmAmount,
+    autoOrderFirmAmount: "0",
     autoOrderPvAmount: isNonNegativeDecimalString(candidate.autoOrderPvAmount)
       ? candidate.autoOrderPvAmount.trim()
       : isNonNegativeDecimalString(candidate.reentryPvAmount)
@@ -196,15 +186,7 @@ export function normalizeMatrixSettings(input: unknown): MatrixSettings {
       : organizationBasePv
         ? organizationBasePv
         : DEFAULT_SETTINGS.cwReentryAmount,
-    reentryFirmAmount: isNonNegativeDecimalString(candidate.autoOrderFirmAmount)
-      ? candidate.autoOrderFirmAmount.trim()
-      : isNonNegativeDecimalString(candidate.reentryFirmAmount)
-        ? candidate.reentryFirmAmount.trim()
-      : isNonNegativeDecimalString(candidate.cwReentryAmount)
-        ? candidate.cwReentryAmount.trim()
-        : organizationBasePv
-          ? organizationBasePv
-          : DEFAULT_SETTINGS.reentryFirmAmount,
+    reentryFirmAmount: "0",
     reentryPvAmount: isNonNegativeDecimalString(candidate.autoOrderPvAmount)
       ? candidate.autoOrderPvAmount.trim()
       : isNonNegativeDecimalString(candidate.reentryPvAmount)

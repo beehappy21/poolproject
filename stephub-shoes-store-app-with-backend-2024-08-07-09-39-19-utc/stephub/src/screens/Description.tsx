@@ -4,18 +4,20 @@ import {useLocation} from 'react-router-dom';
 import {theme} from '../constants';
 import {components} from '../components';
 import {toRenderableProductRichTextHtml} from '../utils';
-import {fetchLiveProducts} from '../utils/liveCatalog';
+import {fetchLiveProducts, isFirmHiddenProduct} from '../utils/liveCatalog';
 import {ProductType} from '../types';
 
 export const Description: React.FC = () => {
   const location = useLocation();
   const routeItem = location.state?.item as ProductType | undefined;
-  const [item, setItem] = useState<ProductType | undefined>(routeItem);
+  const [item, setItem] = useState<ProductType | undefined>(
+    isFirmHiddenProduct(routeItem) ? undefined : routeItem,
+  );
   const descriptionHtml = toRenderableProductRichTextHtml(item?.description);
   const targetId = String(routeItem?.productDetailId || routeItem?.id || '').trim();
 
   useEffect(() => {
-    setItem(routeItem);
+    setItem(isFirmHiddenProduct(routeItem) ? undefined : routeItem);
   }, [routeItem]);
 
   useEffect(() => {
@@ -38,7 +40,10 @@ export const Description: React.FC = () => {
 
         if (latestProduct) {
           setItem(latestProduct);
+          return;
         }
+
+        setItem(undefined);
       })
       .catch((error) => {
         console.error('Unable to refresh product description.', error);

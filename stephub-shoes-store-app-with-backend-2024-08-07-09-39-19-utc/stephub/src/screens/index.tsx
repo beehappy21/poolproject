@@ -7,7 +7,6 @@ import {SignUp} from './SignUp';
 import {LineLiffSignIn, LineRichMenuShare} from './LineLiffSignIn';
 import {CompleteRegistration} from './CompleteRegistration';
 import {Commission} from './Commission';
-import {Firm} from './Firm';
 import {TransferSW} from './TransferSW';
 import {WithdrawSW} from './WithdrawSW';
 import {Home} from './tabs/Home';
@@ -52,7 +51,6 @@ export const screens = {
   CompleteRegistration,
   SignIn,
   Commission,
-  Firm,
   TransferSW,
   WithdrawSW,
   Filter,

@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 
 import { PrismaService } from "../../../../infrastructure/src/prisma/prisma.service";
+import { readWalletSettings } from "../../../../shared/utils/src/wallet-settings.util";
 import {
   floorDecimalString,
   maxDecimalString,
@@ -87,6 +88,10 @@ function computeFirmRedemptionEligible(input: {
   costPriceUsdt: string;
   memberPriceUsdt: string;
 }) {
+  if (!readWalletSettings().firmEnabled) {
+    return false;
+  }
+
   const categoryCode = String(input.categoryCode || "").trim().toLowerCase();
   const isFirmCategory = categoryCode === "firm";
 
@@ -958,7 +963,12 @@ export class PrismaPackagesRepository implements PackagesRepository {
         status: "ACTIVE",
         product: {
           status: "ACTIVE",
-          category: { status: "ACTIVE" },
+          category: {
+            status: "ACTIVE",
+            code: {
+              not: "FIRM",
+            },
+          },
           supplier: { status: "ACTIVE" },
         },
       },

@@ -268,12 +268,7 @@ export class AdminSettingsController {
     const current = readWalletSettings();
 
     return writeWalletSettings({
-      firmEnabled:
-        payload.firmEnabled === undefined
-          ? current.firmEnabled
-          : payload.firmEnabled === true ||
-            payload.firmEnabled === "true" ||
-            payload.firmEnabled === "1",
+      firmEnabled: false,
       autoBuybackEnabled:
         payload.autoBuybackEnabled === undefined
           ? current.autoBuybackEnabled

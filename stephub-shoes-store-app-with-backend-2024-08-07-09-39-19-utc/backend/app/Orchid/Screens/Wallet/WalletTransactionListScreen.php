@@ -215,7 +215,7 @@ class WalletTransactionListScreen extends Screen
             'WITHDRAWABLE' => 'CW',
             'SHOPPING' => 'SW',
             'DISCOUNT' => 'DCW',
-            'FIRM' => 'Firm',
+            'FIRM' => '-',
             default => $value !== '' ? $value : '-',
         };
     }

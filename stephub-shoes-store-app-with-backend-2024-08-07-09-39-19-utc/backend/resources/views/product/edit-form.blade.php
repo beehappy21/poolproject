@@ -701,7 +701,7 @@
 <div class="pool-block">
     <h3>SKU / Product detail</h3>
 
-    <div class="pool-grid">
+    <div class="pool-grid" style="display:none;">
         <div class="pool-field">
             <label for="product_supplier_id">Supplier</label>
             <select id="product_supplier_id" name="product[supplier_id]">
@@ -1174,7 +1174,7 @@
         </div>
     </div>
 
-    <div class="product-firm-mode" id="productFirmModeSummary" @if ((string) ($product['firm_enabled'] ?? '0') !== '1') style="display:none" @endif>
+    <div class="product-firm-mode" id="productFirmModeSummary" style="display:none;">
         โหมด Firm-to-DCW จะตั้งค่าให้อัตโนมัติบางส่วน เช่น cost = 0, retail = ยอด Firm, pool rate = 0, active days = 1, earning cap = ยอด Firm, และปิด DCW spend
         แต่ตอนนี้ admin สามารถกำหนด PV เองได้แล้ว หากต้องการใช้ค่าที่ต่างจากสูตรอัตโนมัติ
     </div>

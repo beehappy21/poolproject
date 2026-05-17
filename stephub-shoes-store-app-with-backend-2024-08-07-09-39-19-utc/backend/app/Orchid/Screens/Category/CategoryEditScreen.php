@@ -28,6 +28,9 @@ class CategoryEditScreen extends Screen
     public function query(Category $category): iterable
     {
         Category::ensurePermanentFirmCategory();
+        if ($category->exists && $category->isPermanentFirmCategory()) {
+            abort(404);
+        }
         $this->category = $category;
         $this->supplierOptions = Supplier::query()
             ->orderBy('name')
@@ -137,7 +140,7 @@ class CategoryEditScreen extends Screen
     public function remove(Category $category)
     {
         if ($category->isPermanentFirmCategory()) {
-            Alert::warning('Firm catalog is permanent and cannot be deleted.');
+            Alert::warning('Firm category is disabled and hidden.');
 
             return redirect()->route('platform.category.list');
         }
@@ -178,14 +181,6 @@ class CategoryEditScreen extends Screen
         ]);
 
         $category = $validated['category'];
-
-        if ($this->category->exists && $this->category->isPermanentFirmCategory()) {
-            $firmCategory = Category::ensurePermanentFirmCategory();
-            $category['supplier_id'] = $firmCategory->supplierId;
-            $category['name'] = Category::PERMANENT_FIRM_CATEGORY_NAME;
-            $category['code'] = Category::PERMANENT_FIRM_CATEGORY_CODE;
-            $category['status'] = 'ACTIVE';
-        }
 
         $resolvedImageUrl = $this->resolveImageUrl(
             $request,

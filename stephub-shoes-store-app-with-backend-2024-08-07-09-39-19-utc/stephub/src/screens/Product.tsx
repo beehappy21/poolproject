@@ -12,7 +12,7 @@ import {
   toPlainTextProductDescription,
   toRenderableProductRichTextHtml,
 } from '../utils';
-import {fetchLiveProducts} from '../utils/liveCatalog';
+import {fetchLiveProducts, isFirmHiddenProduct} from '../utils/liveCatalog';
 import {product} from '../product';
 import {actions} from '../store/actions';
 import {components} from '../components';
@@ -106,7 +106,9 @@ export const Product: React.FC = () => {
   const dispatch = hooks.useAppDispatch();
 
   const routeItem = location.state?.item;
-  const [item, setItem] = useState(routeItem);
+  const [item, setItem] = useState(
+    isFirmHiddenProduct(routeItem) ? undefined : routeItem,
+  );
   const mediaCacheKeyRef = useRef(
     `${routeItem?.productDetailId || routeItem?.id || 'product'}-${Date.now()}`,
   );
@@ -174,11 +176,17 @@ export const Product: React.FC = () => {
   };
 
   useEffect(() => {
+    if (isFirmHiddenProduct(routeItem)) {
+      setItem(undefined);
+      navigate('/Shop', {replace: true});
+      return;
+    }
+
     setItem(routeItem);
     mediaCacheKeyRef.current = `${
       routeItem?.productDetailId || routeItem?.id || 'product'
     }-${Date.now()}`;
-  }, [routeItem?.productDetailId, routeItem?.id]);
+  }, [navigate, routeItem]);
 
   useEffect(() => {
     const targetId = String(routeItem?.productDetailId || routeItem?.id || '').trim();
@@ -203,7 +211,11 @@ export const Product: React.FC = () => {
         if (latestProduct) {
           setItem(latestProduct);
           mediaCacheKeyRef.current = `${targetId}-${Date.now()}`;
+          return;
         }
+
+        setItem(undefined);
+        navigate('/Shop', {replace: true});
       })
       .catch((error) => {
         console.error('Unable to refresh product detail.', error);
@@ -212,7 +224,7 @@ export const Product: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [routeItem?.productDetailId, routeItem?.id]);
+  }, [navigate, routeItem?.productDetailId, routeItem?.id]);
 
   useEffect(() => {
     window.scrollTo(0, 0);

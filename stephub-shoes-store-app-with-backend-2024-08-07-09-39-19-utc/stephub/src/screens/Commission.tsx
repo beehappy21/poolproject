@@ -57,7 +57,6 @@ type WalletSummary = {
   withdrawableBalance?: string;
   shoppingBalance?: string;
   discountBalance?: string;
-  firmBalance?: string;
 };
 
 type DashboardResponse = {
@@ -131,7 +130,6 @@ type DashboardMetrics = {
   sw: string;
   withdrawPending: string;
   dcw: string;
-  firm: string;
 };
 
 const defaultMetrics: DashboardMetrics = {
@@ -140,7 +138,6 @@ const defaultMetrics: DashboardMetrics = {
   sw: '0.00',
   withdrawPending: '0.00',
   dcw: '0.00',
-  firm: '0.00',
 };
 
 const decimalFormatter = new Intl.NumberFormat('en-US', {
@@ -489,7 +486,6 @@ export const Commission: React.FC = () => {
         sw: formatDecimal(swBalance),
         withdrawPending: formatDecimal(pendingWithdrawTotal),
         dcw: formatDecimal(parseDecimal(wallet?.discountBalance)),
-        firm: formatDecimal(parseDecimal(wallet?.firmBalance)),
       });
 
     } catch (error) {

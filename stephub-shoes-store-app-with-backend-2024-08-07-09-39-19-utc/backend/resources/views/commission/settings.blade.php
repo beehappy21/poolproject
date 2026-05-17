@@ -101,7 +101,7 @@
     $cashbackRate = old('cashbackRate', $commissionSettings['cashbackRate'] ?? '0');
     $matrixOrgRate = old('organizationPvRate', $matrixSettings['organizationPvRate'] ?? '0.1');
     $matrixAutoOrderAmount = old('autoOrderAmount', $matrixSettings['autoOrderAmount'] ?? ($matrixSettings['cwReentryAmount'] ?? ($matrixSettings['organizationPvRate'] ?? '0.1')));
-    $matrixAutoOrderFirmAmount = old('autoOrderFirmAmount', $matrixSettings['autoOrderFirmAmount'] ?? ($matrixSettings['reentryFirmAmount'] ?? ($matrixSettings['cwReentryAmount'] ?? '0.1')));
+    $matrixAutoOrderFirmAmount = '0';
     $matrixAutoOrderPvAmount = old('autoOrderPvAmount', $matrixSettings['autoOrderPvAmount'] ?? ($matrixSettings['reentryPvAmount'] ?? ($matrixSettings['organizationPvRate'] ?? '0.1')));
     $matrixBoardWidth = old('boardWidth', $matrixSettings['boardWidth'] ?? 2);
     $matrixThresholds = old('boardOpenPvThresholds', $matrixSettings['boardOpenPvThresholds'] ?? ['100', '100', '100']);
@@ -165,8 +165,8 @@
         ],
         [
             'label' => 'Auto order rule',
-            'value' => 'ยอด Auto Order ' . ($matrixSettings['autoOrderAmount'] ?? ($matrixSettings['cwReentryAmount'] ?? '0')) . ' | Firm ' . ($matrixSettings['autoOrderFirmAmount'] ?? ($matrixSettings['reentryFirmAmount'] ?? ($matrixSettings['cwReentryAmount'] ?? '0'))) . ' | PV ' . ($matrixSettings['autoOrderPvAmount'] ?? ($matrixSettings['reentryPvAmount'] ?? ($matrixSettings['organizationPvRate'] ?? '0'))),
-            'note' => 'เมื่อเข้าเงื่อนไข auto order ระบบจะสร้างออเดอร์และใช้ Firm/PV ตามค่านี้ทันที',
+            'value' => 'ยอด Auto Order ' . ($matrixSettings['autoOrderAmount'] ?? ($matrixSettings['cwReentryAmount'] ?? '0')) . ' | PV ' . ($matrixSettings['autoOrderPvAmount'] ?? ($matrixSettings['reentryPvAmount'] ?? ($matrixSettings['organizationPvRate'] ?? '0'))),
+            'note' => 'เมื่อเข้าเงื่อนไข auto order ระบบจะสร้างออเดอร์โดยไม่ใช้ Firm แล้ว',
         ],
         [
             'label' => 'อัตราแต่ละบอร์ด',
@@ -454,10 +454,6 @@
                     <div class="commission-field">
                         <label>ยอด Auto Order</label>
                         <input name="autoOrderAmount" value="{{ $matrixAutoOrderAmount }}" required>
-                    </div>
-                    <div class="commission-field">
-                        <label>จำนวน Firm ของ Auto Order</label>
-                        <input name="autoOrderFirmAmount" value="{{ $matrixAutoOrderFirmAmount }}" required>
                     </div>
                     <div class="commission-field">
                         <label>จำนวน PV ของ Auto Order</label>
@@ -877,13 +873,6 @@
                         <input name="autoOrderAmount" value="{{ $matrixAutoOrderAmount }}" required>
                         <div class="commission-helper">
                             ยอดที่ระบบใช้สร้าง auto order เมื่อสมาชิกเข้าเงื่อนไข
-                        </div>
-                    </div>
-                    <div class="commission-field">
-                        <label>จำนวน Firm ที่ได้</label>
-                        <input name="autoOrderFirmAmount" value="{{ $matrixAutoOrderFirmAmount }}" required>
-                        <div class="commission-helper">
-                            เมื่อถึงกติกา auto order ระบบจะใช้จำนวน Firm นี้ในออเดอร์อัตโนมัติ
                         </div>
                     </div>
                     <div class="commission-field">

@@ -86,6 +86,11 @@ class ProductDetailRecord extends Model
         'isBestSeller' => 'boolean',
     ];
 
+    public function product()
+    {
+        return $this->belongsTo(ProductRecord::class, 'productId', 'id');
+    }
+
     public function getImageUrlsAttribute($value): array
     {
         if (is_array($value)) {

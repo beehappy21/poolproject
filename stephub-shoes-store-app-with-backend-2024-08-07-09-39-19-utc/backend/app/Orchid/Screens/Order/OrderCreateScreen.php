@@ -46,6 +46,9 @@ class OrderCreateScreen extends Screen
         $productDetails = ProductDetailRecord::query()
             ->where('status', 'ACTIVE')
             ->where('salesChannelMode', 'BAO_ONLY')
+            ->whereDoesntHave('product.category', function ($query) {
+                $query->where('code', 'FIRM');
+            })
             ->orderBy('name')
             ->get([
                 'id',
@@ -208,7 +211,7 @@ class OrderCreateScreen extends Screen
         $payload = $request->validate([
             'sale.member_id' => ['nullable', 'integer'],
             'sale.workflow_mode' => ['required', 'in:create_only,approve_and_process'],
-            'sale.payment_channel' => ['required', 'in:cash,bank_transfer,shopping_wallet,firm_wallet,other'],
+            'sale.payment_channel' => ['required', 'in:cash,bank_transfer,shopping_wallet,other'],
             'sale.fulfillment_method' => ['required', 'in:delivery,branch_pickup'],
             'sale.existing_shipping_address_id' => ['nullable', 'integer'],
             'sale.change_shipping_address' => ['nullable', 'boolean'],

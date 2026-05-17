@@ -5,6 +5,60 @@ Branch: `main`
 
 Latest Session Update (2026-05-17)
 
+- Completed the full `close firm` pass across WAP, BAO, and runtime settings with a disable-first approach:
+  - WAP `/Firm` route now redirects to `Commission`
+  - WAP screen registry no longer exposes `Firm`
+  - WAP live catalog collection builder now filters out:
+    - category code `firm`
+    - `firmRedemptionEligible` products
+  - storefront product reads now exclude `FIRM` category rows server-side as well
+- BAO member/admin display was reduced further:
+  - `Firm balance` is hidden from BAO member detail
+  - BAO wallet transaction list no longer displays `Firm` as a visible bucket label
+- BAO order/admin entry points for Firm were disabled:
+  - member-sale create screen no longer offers `firm_wallet`
+  - BAO-only product picker for that flow now excludes `FIRM` category SKUs
+  - order create validation no longer accepts `firm_wallet`
+- BAO catalog/admin surfaces were closed off:
+  - category list hides the permanent `FIRM` category
+  - direct access to `FIRM` category edit aborts with `404`
+  - product family list excludes families in the `FIRM` category
+  - direct access to a family in the `FIRM` category aborts with `404`
+  - product list excludes `FIRM` category items
+  - product edit excludes `FIRM` categories/options and forces Firm controls off
+  - Firm-specific product edit fields are hidden in the BAO form
+- Runtime/config gates now enforce Firm off even if older payloads/settings still carry values:
+  - `packages/shared/utils/src/wallet-settings.util.ts`
+    - `firmEnabled` is normalized to `false`
+  - `apps/api/src/admin-settings.controller.ts`
+    - wallet settings updates can no longer re-enable Firm
+  - `packages/shared/utils/src/matrix-settings.util.ts`
+    - `autoOrderFirmAmount` and `reentryFirmAmount` normalize to `0`
+  - `apps/api/src/admin-matrix-settings.controller.ts`
+    - matrix settings writes force Firm amounts to `0`
+  - `backend/app/Http/Controllers/Platform/CommissionSettingsController.php`
+    - BAO matrix save path also forces Firm amounts to `0`
+  - `runtime/matrix-settings.json`
+    - `autoOrderFirmAmount = "0"`
+    - `reentryFirmAmount = "0"`
+  - `runtime/wallet-settings.json`
+    - `firmEnabled = false`
+- Backend/package-level Firm storefront flagging was also closed:
+  - `packages/modules/packages/src/repositories/packages.repository.ts`
+    - `firmRedemptionEligible` now returns `false` when wallet settings have Firm disabled
+- Validation completed for this round:
+  - `php -l` passed on all touched BAO PHP files
+  - root `npm run lint` passed
+
+- Important remaining state after full close-firm pass:
+  - internal historical data, schema fields, and transaction types for Firm still exist
+  - `stephub/src/screens/Firm.tsx` still exists on disk but is no longer reachable from routing
+  - matrix/order/backend internal compatibility code still contains Firm-related fields and types where needed for historical/runtime compatibility
+  - runtime export/reference files under `runtime/server-product-export/` still contain historical `FIRM` rows and were not rewritten in this round
+  - if the next operator wants a true deletion pass, that should be treated as a separate migration/cleanup project
+
+Latest Session Update (2026-05-17)
+
 - WAP `Commission` UI was refined further after the earlier CW/SW alignment work:
   - `CW ที่ใช้ได้` in the CW -> SW flow was renamed to `CW ปัจจุบัน`
   - `CW ปัจจุบัน` and `CW รวม` tile meanings and detail popups were re-aligned
