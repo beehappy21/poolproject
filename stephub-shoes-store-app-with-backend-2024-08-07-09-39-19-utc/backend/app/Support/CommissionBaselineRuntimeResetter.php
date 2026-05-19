@@ -12,6 +12,7 @@ class CommissionBaselineRuntimeResetter
         '"Order"',
         '"OrderItem"',
         '"MemberPackageCycle"',
+        '"SpecialCommissionCycleGrant"',
         '"CommissionLedger"',
         '"CompanyBonusLedger"',
         '"DailyPoolPayout"',
@@ -60,6 +61,7 @@ class CommissionBaselineRuntimeResetter
         'public."CapLedger_id_seq"',
         'public."BuybackEvent_id_seq"',
         'public."UserBuybackProgress_id_seq"',
+        'public."SpecialCommissionCycleGrant_id_seq"',
         'public."MatrixCycle_id_seq"',
         'public."MatrixBoard_id_seq"',
         'public."MatrixPosition_id_seq"',
@@ -216,6 +218,7 @@ class CommissionBaselineRuntimeResetter
                 'orderIds' => [],
                 'orderItemIds' => [],
                 'memberPackageCycleIds' => [],
+                'specialCommissionCycleGrantIds' => [],
                 'commissionIds' => [],
                 'companyBonusIds' => [],
                 'walletTransactionIds' => [],
@@ -252,6 +255,12 @@ class CommissionBaselineRuntimeResetter
         $orderItemIds = $orderIn ? self::loadIds('"OrderItem"', 'id', 'where "orderId" in (' . $orderIn . ')') : [];
         $memberPackageCycleIds = self::loadIds('"MemberPackageCycle"', 'id', 'where "userId" in (' . $userIn . ')');
         $memberPackageCycleIn = self::idIn($memberPackageCycleIds);
+        $specialCommissionCycleGrantIds = self::loadIds(
+            '"SpecialCommissionCycleGrant"',
+            'id',
+            'where "userId" in (' . $userIn . ')'
+            . ' or ' . ($memberPackageCycleIn ? '"memberPackageCycleId" in (' . $memberPackageCycleIn . ')' : 'false')
+        );
 
         $commissionIds = self::loadIds(
             '"CommissionLedger"',
@@ -387,6 +396,7 @@ class CommissionBaselineRuntimeResetter
             'orderIds' => $orderIds,
             'orderItemIds' => $orderItemIds,
             'memberPackageCycleIds' => $memberPackageCycleIds,
+            'specialCommissionCycleGrantIds' => $specialCommissionCycleGrantIds,
             'commissionIds' => $commissionIds,
             'companyBonusIds' => $companyBonusIds,
             'walletTransactionIds' => $walletTransactionIds,
@@ -439,6 +449,7 @@ class CommissionBaselineRuntimeResetter
                 ['"CompanyBonusLedger"', $targets['companyBonusIds']],
                 ['"BuybackEvent"', $targets['buybackEventIds']],
                 ['"UserBuybackProgress"', $targets['userBuybackProgressIds']],
+                ['"SpecialCommissionCycleGrant"', $targets['specialCommissionCycleGrantIds']],
                 ['"MatrixReorder"', $targets['matrixReorderIds']],
                 ['"MatrixPayout"', $targets['matrixPayoutIds']],
                 ['"MatrixAccumulationEvent"', $targets['matrixAccumulationEventIds']],
@@ -508,6 +519,7 @@ class CommissionBaselineRuntimeResetter
                 '"CommissionLedger"',
                 '"BuybackEvent"',
                 '"UserBuybackProgress"',
+                '"SpecialCommissionCycleGrant"',
                 '"CapLedger"',
                 '"CapBucket"',
                 '"MatrixAccumulationEvent"',

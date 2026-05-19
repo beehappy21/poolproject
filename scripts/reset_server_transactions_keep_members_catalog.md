@@ -30,6 +30,7 @@ ALLOW_DESTRUCTIVE_UAT_RESET=1 node scripts/reset_server_transactions_keep_member
 What the script clears:
 
 - `Order`, `OrderItem`, `MemberPackageCycle`
+- `SpecialCommissionCycleGrant`
 - `CommissionLedger`, `CompanyBonusLedger`
 - `WalletTransaction`, `WalletTopupRequest`, `WithdrawRequest`
 - `CapBucket`, `CapLedger`

@@ -101,6 +101,8 @@ select 'order_items_total', count(*)::text from public."OrderItem"
 union all
 select 'member_package_cycles_total', count(*)::text from public."MemberPackageCycle"
 union all
+select 'special_commission_cycle_grant_total', count(*)::text from public."SpecialCommissionCycleGrant"
+union all
 select 'commission_ledger_total', count(*)::text from public."CommissionLedger"
 union all
 select 'company_bonus_total', count(*)::text from public."CompanyBonusLedger"
@@ -174,6 +176,7 @@ delete from public."CompanyBonusLedger";
 delete from public."CommissionLedger";
 delete from public."BuybackEvent";
 delete from public."UserBuybackProgress";
+delete from public."SpecialCommissionCycleGrant";
 delete from public."CapLedger";
 delete from public."CapBucket";
 
@@ -230,6 +233,7 @@ alter sequence if exists public."CapBucket_id_seq" restart with 1;
 alter sequence if exists public."CapLedger_id_seq" restart with 1;
 alter sequence if exists public."BuybackEvent_id_seq" restart with 1;
 alter sequence if exists public."UserBuybackProgress_id_seq" restart with 1;
+alter sequence if exists public."SpecialCommissionCycleGrant_id_seq" restart with 1;
 alter sequence if exists public."MatrixCycle_id_seq" restart with 1;
 alter sequence if exists public."MatrixBoard_id_seq" restart with 1;
 alter sequence if exists public."MatrixPosition_id_seq" restart with 1;
