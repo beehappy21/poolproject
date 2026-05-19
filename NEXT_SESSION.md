@@ -10,6 +10,21 @@ Updated: 2026-05-19
 
 ## Latest Session Update
 
+- UAT original business-member base now has bulk special cycles already granted.
+  - grant scope:
+    - oldest `210` non-admin members by `createdAt, id`
+    - effectively `TH0000001` through `TH0000210`
+  - grant type:
+    - `SPECIAL_200_PV`
+    - `200 PV / cap 10,000 / purchase base 1,000`
+  - result:
+    - `210/210` success
+    - `MemberPackageCycle = 210` for that target set
+    - `SpecialCommissionCycleGrant = 210` for that target set
+  - post-grant backup:
+    - `/home/nc-user/poolproject/backups/200PV210uesr`
+  - if later testing or go-live prep needs a different grant set, account for these pre-opened cycles first before adding more
+
 - UAT is now in a clean pre-go-live state after the final reset and test-data cleanup.
   - backup was created at:
     - `/home/nc-user/poolproject/backups/uat-full-20260519-164006`

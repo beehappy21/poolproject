@@ -5,6 +5,27 @@ Branch: `main`
 
 Latest Session Update (2026-05-19)
 
+- Special commission privilege `SPECIAL_200_PV` was bulk granted on UAT to the original business-member base.
+  - target selection:
+    - oldest `210` non-admin members by `createdAt, id`
+    - operationally this matched:
+      - `TH0000001`
+      - through
+      - `TH0000210`
+  - grant payload meaning:
+    - `200 PV / cap 10,000 / purchase base 1,000`
+  - execution result:
+    - `210/210` success
+    - `0` failures
+    - `MemberPackageCycle` rows created for target users: `210`
+    - `SpecialCommissionCycleGrant` rows created for target users: `210`
+    - sample log file:
+      - `/tmp/special_200pv_210_results.log`
+  - backup after completion:
+    - `/home/nc-user/poolproject/backups/200PV210uesr`
+  - note:
+    - this was applied through the live internal endpoint flow, not by direct SQL insert, so runtime cycle creation and audit rows stayed consistent
+
 - UAT was cleaned again for real-data readiness and the final cleanup completed successfully.
   - backup created first:
     - `/home/nc-user/poolproject/backups/uat-full-20260519-164006`
