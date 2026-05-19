@@ -59,6 +59,42 @@ function runCommand(command, commandArgs, options = {}) {
   return (result.stdout || "").trim();
 }
 
+function resolvePostgresContainerName() {
+  if (databaseUrl) {
+    return null;
+  }
+
+  try {
+    const names = runCommand("docker", [
+      "ps",
+      "--format",
+      "{{.Names}}",
+      "--filter",
+      "status=running",
+    ])
+      .split("\n")
+      .map((name) => name.trim())
+      .filter(Boolean);
+
+    if (names.includes(postgresContainer)) {
+      return postgresContainer;
+    }
+
+    const postgresCandidates = names.filter((name) =>
+      /poolproject.*postgres|postgres.*poolproject/i.test(name),
+    );
+    const preferredUatCandidate = postgresCandidates.find((name) =>
+      /poolproject-uat-postgres/i.test(name),
+    );
+
+    return preferredUatCandidate || postgresCandidates[0] || postgresContainer;
+  } catch {
+    return postgresContainer;
+  }
+}
+
+const resolvedPostgresContainer = resolvePostgresContainerName();
+
 function runSql(sql, extraArgs = []) {
   if (databaseUrl) {
     return runCommand("psql", [databaseUrl, "-v", "ON_ERROR_STOP=1", ...extraArgs], {
@@ -71,7 +107,7 @@ function runSql(sql, extraArgs = []) {
     [
       "exec",
       "-i",
-      postgresContainer,
+      resolvedPostgresContainer,
       "psql",
       "-U",
       postgresUser,
@@ -262,7 +298,7 @@ function main() {
   if (databaseUrl) {
     process.stdout.write(`database_url=${databaseUrl}\n`);
   } else {
-    process.stdout.write(`postgres_container=${postgresContainer}\n`);
+    process.stdout.write(`postgres_container=${resolvedPostgresContainer}\n`);
     process.stdout.write(`postgres_db=${postgresDb}\n`);
     process.stdout.write(`postgres_user=${postgresUser}\n`);
   }

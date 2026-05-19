@@ -22,7 +22,7 @@ Environment overrides:
   BAO_DB_PATH=/path/to/backend/database/database.sqlite
   RUNTIME_DIR=/path/to/runtime
   MANUAL_PAYMENTS_DIR=/path/to/backend/public/manual-payments
-  POSTGRES_CONTAINER=poolproject-postgres
+  POSTGRES_CONTAINER=poolproject-uat-postgres-1
   POSTGRES_DB=poolproject
   POSTGRES_USER=postgres
   DATABASE_URL=postgres://...
@@ -37,6 +37,32 @@ Safety:
   - This is destructive. It overwrites the current UAT database/runtime state.
   - The script requires both ALLOW_DESTRUCTIVE_UAT_RESTORE=1 and --yes.
 EOF
+}
+
+resolve_postgres_container() {
+  if [[ -n "${DATABASE_URL:-}" ]]; then
+    return
+  fi
+
+  if ! command -v docker >/dev/null 2>&1; then
+    return
+  fi
+
+  local names preferred first_match
+  names="$(docker ps --format '{{.Names}}' 2>/dev/null || true)"
+
+  if grep -Fxq "$POSTGRES_CONTAINER" <<<"$names"; then
+    return
+  fi
+
+  preferred="$(grep -E '^poolproject-uat-postgres' <<<"$names" | head -n1 || true)"
+  first_match="$(grep -E 'poolproject.*postgres|postgres.*poolproject' <<<"$names" | head -n1 || true)"
+
+  if [[ -n "$preferred" ]]; then
+    POSTGRES_CONTAINER="$preferred"
+  elif [[ -n "$first_match" ]]; then
+    POSTGRES_CONTAINER="$first_match"
+  fi
 }
 
 require_file() {
@@ -81,6 +107,8 @@ if [[ -z "$BACKUP_DIR" || "$BACKUP_DIR" == "-h" || "$BACKUP_DIR" == "--help" ]];
   usage
   exit 0
 fi
+
+resolve_postgres_container
 
 if [[ "$DESTRUCTIVE_FLAG" != "1" || "$CONFIRM_FLAG" != "--yes" ]]; then
   echo "Refusing to restore without explicit confirmation." >&2

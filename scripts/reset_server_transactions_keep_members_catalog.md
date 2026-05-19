@@ -27,6 +27,12 @@ Apply against the active database:
 ALLOW_DESTRUCTIVE_UAT_RESET=1 node scripts/reset_server_transactions_keep_members_catalog.mjs --apply
 ```
 
+Force the exact UAT Postgres container when needed:
+
+```bash
+POSTGRES_CONTAINER=poolproject-uat-postgres-1 node scripts/reset_server_transactions_keep_members_catalog.mjs
+```
+
 What the script clears:
 
 - `Order`, `OrderItem`, `MemberPackageCycle`
@@ -51,6 +57,7 @@ Extra behavior:
 - keeps `Wallet` rows but zeroes all balance buckets
 - resets `User.matrixPersonalPv` to `0`
 - restarts the main transactional sequences back to `1`
+- when multiple Postgres containers exist, the script prefers `poolproject-uat-postgres-*` automatically
 
 Recommended server order:
 

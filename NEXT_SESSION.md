@@ -1,14 +1,43 @@
 # Next Session
 
-Updated: 2026-05-17
+Updated: 2026-05-19
 
 ## Branch
 
 - Current branch: `main`
 - Latest merged PR: `#129` `https://github.com/beehappy21/poolproject/pull/129`
-- Main is currently at merge commit `9cab767b`
+- Main is currently at commit `9b35ce11`
 
 ## Latest Session Update
+
+- UAT is now in a clean pre-go-live state after the final reset and test-data cleanup.
+  - backup was created at:
+    - `/home/nc-user/poolproject/backups/uat-full-20260519-164006`
+  - transaction reset was rerun against:
+    - `poolproject-uat-postgres-1`
+  - reset now also clears:
+    - `SpecialCommissionCycleGrant`
+  - remaining UAT-only test members were deleted:
+    - `UTPVLOCK-134839`
+    - `UTPVLOCKC-134839`
+  - remaining UAT-only test catalog was deleted:
+    - `COMMTEST1000`
+    - `COMMTEST650`
+    - `COMMTESTPKG1000`
+    - `COMMTESTPKG650`
+  - final live-start counts on UAT:
+    - `User = 269`
+    - `Product = 6`
+    - `ProductDetail = 7`
+    - `Package = 1`
+    - `Order = 0`
+    - `CommissionLedger = 0`
+    - `MemberPackageCycle = 0`
+    - `SpecialCommissionCycleGrant = 0`
+  - health checks after cleanup still pass:
+    - `http://127.0.0.1:3000/health => {"status":"ok"}`
+    - `http://127.0.0.1:18001/admin/login => 200`
+  - reset/backup helper scripts now prefer `poolproject-uat-postgres-*` automatically if both old and UAT Postgres containers are present
 
 - Latest pushed WAP/BAO wallet and commission UI commits:
   - `37c24c74` `Add wallet transaction admin screens and refine commission CW/SW UI`
@@ -117,9 +146,7 @@ Updated: 2026-05-17
    - review the verified queued-cycle promotion result after the older cycle reaches cap
    - decide whether large-quantity self-purchase orders should intentionally fan out into many `200 PV` cycles
    - decide whether CAP grant should stay product-master-based or become cycle-cap-aware
-7. Reuse the prepared test catalog for the next round:
-   - `COMMTEST1000 / COMMTESTPKG1000 = 1000 THB / 200 PV`
-   - `COMMTEST650 / COMMTESTPKG650 = 650 THB / 100 PV`
+7. If future UAT scenario testing is needed, recreate isolated test catalog and test members intentionally first because `COMMTEST*` and `UTPVLOCK*` were removed during go-live cleanup
 
 ## Recently Merged Work
 

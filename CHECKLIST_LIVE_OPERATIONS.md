@@ -1,8 +1,31 @@
 # Live Operations Checklist
 
-Updated: 2026-05-17
+Updated: 2026-05-19
 
 Use this checklist before starting real data entry and real day-to-day usage on the current local/runtime stack.
+
+## Current UAT Go-Live State
+
+- [x] Full backup created before the final clean reset:
+  - [x] `/home/nc-user/poolproject/backups/uat-full-20260519-164006`
+- [x] Final UAT transaction reset executed against `poolproject-uat-postgres-1`
+- [x] Reset now clears `SpecialCommissionCycleGrant`
+- [x] Remaining UAT-only test data removed after reset:
+  - [x] members `UTPVLOCK-134839`, `UTPVLOCKC-134839`
+  - [x] catalog `COMMTEST1000`, `COMMTEST650`, `COMMTESTPKG1000`, `COMMTESTPKG650`
+- [x] Post-clean counts on UAT:
+  - [x] `User = 269`
+  - [x] `Product = 6`
+  - [x] `ProductDetail = 7`
+  - [x] `Package = 1`
+  - [x] `Order = 0`
+  - [x] `CommissionLedger = 0`
+  - [x] `MemberPackageCycle = 0`
+  - [x] `SpecialCommissionCycleGrant = 0`
+- [x] Post-clean health checks still pass:
+  - [x] `http://127.0.0.1:3000/health => {"status":"ok"}`
+  - [x] `http://127.0.0.1:18001/admin/login => 200`
+- [x] UAT ops scripts now prefer `poolproject-uat-postgres-*` automatically when both old and UAT Postgres containers exist
 
 ## Local Vs UAT Parity
 

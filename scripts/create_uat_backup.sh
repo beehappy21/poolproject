@@ -22,7 +22,7 @@ Environment overrides:
   BAO_DB_PATH=/path/to/backend/database/database.sqlite
   RUNTIME_DIR=/path/to/runtime
   MANUAL_PAYMENTS_DIR=/path/to/backend/public/manual-payments
-  POSTGRES_CONTAINER=poolproject-postgres
+  POSTGRES_CONTAINER=poolproject-uat-postgres-1
   POSTGRES_DB=poolproject
   POSTGRES_USER=postgres
   DATABASE_URL=postgres://...
@@ -40,10 +40,38 @@ Database dump modes:
 EOF
 }
 
+resolve_postgres_container() {
+  if [[ -n "${DATABASE_URL:-}" ]]; then
+    return
+  fi
+
+  if ! command -v docker >/dev/null 2>&1; then
+    return
+  fi
+
+  local names preferred first_match
+  names="$(docker ps --format '{{.Names}}' 2>/dev/null || true)"
+
+  if grep -Fxq "$POSTGRES_CONTAINER" <<<"$names"; then
+    return
+  fi
+
+  preferred="$(grep -E '^poolproject-uat-postgres' <<<"$names" | head -n1 || true)"
+  first_match="$(grep -E 'poolproject.*postgres|postgres.*poolproject' <<<"$names" | head -n1 || true)"
+
+  if [[ -n "$preferred" ]]; then
+    POSTGRES_CONTAINER="$preferred"
+  elif [[ -n "$first_match" ]]; then
+    POSTGRES_CONTAINER="$first_match"
+  fi
+}
+
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   usage
   exit 0
 fi
+
+resolve_postgres_container
 
 require_path() {
   local path="$1"

@@ -1,7 +1,46 @@
 Handoff Next
 
-Updated: 2026-05-18 15:12 +07
+Updated: 2026-05-19 16:53 +07
 Branch: `main`
+
+Latest Session Update (2026-05-19)
+
+- UAT was cleaned again for real-data readiness and the final cleanup completed successfully.
+  - backup created first:
+    - `/home/nc-user/poolproject/backups/uat-full-20260519-164006`
+  - reset script now clears:
+    - `SpecialCommissionCycleGrant`
+  - reset script now prefers `poolproject-uat-postgres-*` automatically when both old and UAT Postgres containers exist
+  - final reset was executed against:
+    - `poolproject-uat-postgres-1`
+  - final post-reset counts on UAT:
+    - `User = 269`
+    - `Product = 6`
+    - `ProductDetail = 7`
+    - `Package = 1`
+    - `Order = 0`
+    - `CommissionLedger = 0`
+    - `MemberPackageCycle = 0`
+    - `SpecialCommissionCycleGrant = 0`
+    - wallet rows with non-zero balance = `0`
+  - remaining UAT-only test data was removed after reset:
+    - members:
+      - `UTPVLOCK-134839`
+      - `UTPVLOCKC-134839`
+    - catalog:
+      - `COMMTEST1000`
+      - `COMMTEST650`
+      - `COMMTESTPKG1000`
+      - `COMMTESTPKG650`
+      - `COMMTESTPROD`
+      - `COMMTESTPROD650`
+      - `COMMTESTCAT`
+      - `COMMTESTSUP`
+  - health checks after cleanup:
+    - `http://127.0.0.1:3000/health => {"status":"ok"}`
+    - `http://127.0.0.1:18001/admin/login => 200`
+  - implication:
+    - if anyone wants to rerun old UAT commission scenarios again, they must recreate isolated test members/catalog intentionally first
 
 Latest Session Update (2026-05-18)
 
@@ -199,6 +238,7 @@ Latest Session Update (2026-05-18)
   - local and UAT/server must be changed from the same tested source revision
 
 - UAT server was prepared for go-live reset and the reset was executed successfully.
+- This older 2026-05-18 reset note was later superseded by the final 2026-05-19 cleanup above.
 - Backup created before reset:
   - `/home/nc-user/poolproject/backups/uat-full-20260518-003253`
 - BAO reset path was deployed to server and rebuilt on:
