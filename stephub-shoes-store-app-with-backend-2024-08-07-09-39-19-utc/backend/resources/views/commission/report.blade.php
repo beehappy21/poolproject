@@ -21,6 +21,9 @@
     $baselineOrderCount = (int) ($baselineResetStatus['baselineOrderCount'] ?? 0);
     $resetAffectedUserCount = (int) ($baselineResetStatus['affectedUserCount'] ?? 0);
     $resetNonBaselineOrderCount = (int) ($baselineResetStatus['nonBaselineOrderCount'] ?? 0);
+    $resetTransactionStateCount = (int) ($baselineResetStatus['transactionStateCount'] ?? 0);
+    $resetPreservedUserCount = (int) ($baselineResetStatus['preservedUserCount'] ?? 0);
+    $resetPreservedMemberProfileCount = (int) ($baselineResetStatus['preservedMemberProfileCount'] ?? 0);
     $canResetBaselineRuntime = (bool) ($baselineResetStatus['canReset'] ?? false);
     $screenPageSizeCapped = (bool) ($filters['screenPageSizeCapped'] ?? false);
     $screenPageSizeCap = (int) ($filters['screenPageSizeCap'] ?? 0);
@@ -28,12 +31,16 @@
     if ($nextMemberCode) {
         $baselineInlineNote .= ' โดยรายการถัดไปคือ ' . $nextMemberCode;
     }
-    $baselineInlineNote .= ' ปุ่มรีเซ็ตจะล้างเฉพาะข้อมูล baseline test ที่ผูกกับ tag นี้';
-    if ($baselineOrderCount > 0) {
-        $baselineInlineNote .= ' ตอนนี้พบ ' . $baselineOrderCount . ' order / ' . $resetAffectedUserCount . ' สมาชิก';
+    $baselineInlineNote .= ' ปุ่มเริ่มรอบคอมใหม่จะคง User / MemberProfile / member tree / catalog / package master ไว้';
+    $baselineInlineNote .= ' แต่จะล้าง order, commission, wallet transaction, cap, team/pool/matrix runtime และ PV สะสมทั้งหมด';
+    if ($resetPreservedUserCount > 0) {
+        $baselineInlineNote .= ' ปัจจุบันระบบมีสมาชิก ' . $resetPreservedUserCount . ' รหัส'
+            . ' และ member profile ' . $resetPreservedMemberProfileCount . ' รายการ';
     }
-    if ($resetNonBaselineOrderCount > 0) {
-        $baselineInlineNote .= ' แต่ยังถูก guard ไว้เพราะพบ order อื่นปะปน ' . $resetNonBaselineOrderCount . ' รายการ';
+    if ($resetTransactionStateCount > 0 || $baselineOrderCount > 0) {
+        $baselineInlineNote .= ' โดย state ที่พร้อมล้างตอนนี้มีอย่างน้อย '
+            . max($resetTransactionStateCount, $baselineOrderCount) . ' รายการ'
+            . ' และเคยผูกกับสมาชิก baseline เดิม ' . $resetAffectedUserCount . ' ราย';
     }
     $baselineInlineNote .= ' ส่วน PDF เหมาะกับรายงานขนาดเล็ก และรองรับการส่งออกได้ไม่เกิน 500 แถวต่อครั้ง หากข้อมูลมากกว่านี้แนะนำให้ใช้ CSV หรือ Excel';
     $resultCount = $rows instanceof \Illuminate\Contracts\Pagination\Paginator
@@ -244,7 +251,7 @@
                         class="commission-button is-secondary"
                         @disabled(!$canResetBaselineRuntime)
                     >
-                        รีเซ็ตข้อมูลทดสอบ
+                        เริ่มรอบคอมใหม่
                     </button>
                 </div>
                 <div class="commission-inline-note">

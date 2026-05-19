@@ -818,8 +818,8 @@ export const Profile: React.FC = () => {
     }
 
     const helperText = placementUnlocked
-      ? 'AUTO พร้อมใช้งาน และสามารถเลือก L / M / R สำหรับลิงก์แนะนำสมาชิกได้แล้ว'
-      : `AUTO ใช้งานได้ทันที ตอนนี้สมาชิกสายตรง ${directReferralCount} คน และครบ L:${hasLeftDirect ? '1' : '0'} / M:${hasMiddleDirect ? '1' : '0'} / R:${hasRightDirect ? '1' : '0'} เมื่อครบทั้ง 3 สายจึงจะเปิดลิงก์กำหนดขาได้`;
+      ? 'AUTO พร้อมใช้งานแล้ว โดยระบบจะลงขาที่ไม่มีคะแนนก่อน หรือขาที่คะแนน PV รวมน้อยสุด และสามารถเลือก L / M / R สำหรับลิงก์แนะนำสมาชิกได้แล้ว'
+      : `ก่อนครบ 3 ขา ระบบจะใช้ AUTO เท่านั้น ตอนนี้สมาชิกสายตรง ${directReferralCount} คน และครบ L:${hasLeftDirect ? '1' : '0'} / M:${hasMiddleDirect ? '1' : '0'} / R:${hasRightDirect ? '1' : '0'} เมื่อครบทั้ง 3 สายจึงจะเปิดลิงก์กำหนดขาได้`;
     const placementOptions: Array<{
       label: 'AUTO' | 'LEFT' | 'MIDDLE' | 'RIGHT';
       shortLabel: 'AUTO' | 'L' | 'M' | 'R';

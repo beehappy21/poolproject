@@ -49,30 +49,109 @@ Use this section first when continuing the new commission-round repurchase rule.
 - [ ] Open [HANDOFF_NEXT.md](/Users/macbook/poolproject/HANDOFF_NEXT.md:1)
 - [ ] Open [docs/technical-design/referral_commission_plan_thb.md](/Users/macbook/poolproject/docs/technical-design/referral_commission_plan_thb.md:1)
 - [ ] Open [docs/technical-design/commission_round_repurchase_spec.md](/Users/macbook/poolproject/docs/technical-design/commission_round_repurchase_spec.md:1)
+- [ ] Open [docs/technical-design/pv_cycle_cap_accumulation_plan.md](/Users/macbook/poolproject/docs/technical-design/pv_cycle_cap_accumulation_plan.md:1)
 - [ ] Treat the updated commission plan docs above as the only active source of truth for round repurchase behavior
 - [ ] Keep matrix out of scope unless the user explicitly reopens it
+- [ ] If using BAO special commission privilege, record the business reason in the form instead of leaving it blank
+- [ ] When granting a special commission cycle, confirm whether the member should receive `100 PV / cap 5,000` or `200 PV / cap 10,000`
+- [ ] After granting a special commission cycle, confirm the new cycle is `receivable` or `queued` as expected in `MemberPackageCycle`
 - [ ] Confirm current runtime gap before coding:
   - [ ] threshold must become `>= 10000`
   - [ ] grace period remains `3` Bangkok calendar days
-  - [ ] qualifying repurchase amount is `1000 THB`
+  - [ ] qualifying repurchase is approved self-purchase with `PV > 0`
   - [ ] direct `3 buyers` is a first-qualification-only gate
   - [ ] later rounds use self repurchase only
   - [ ] commission must still calculate during grace but release as held
   - [ ] commission must stop calculating after grace expiry until qualifying repurchase
+  - [ ] active daily team cap is `10000`
+- [ ] Confirm the latest referral-placement rule is preserved:
+  - [x] before the sponsor has directs in all `LEFT / MIDDLE / RIGHT`, signup placement must force `AUTO`
+  - [x] bootstrap placement must fill any missing top-side leg first
+  - [x] explicit `LEFT / MIDDLE / RIGHT` links are allowed only after the sponsor has at least one direct in each top-side leg
+  - [x] `AUTO` after unlock must choose the branch with no approved-PV score first, or else the branch with the lowest approved-PV score
 - [ ] Confirm current runtime mismatch is still understood:
   - [ ] no first-class `CommissionRound` model exists yet
   - [ ] `CommissionLedger` and pool payout rows still do not carry an explicit round id
   - [ ] historically qualified members may still need a one-time backfill for locked initial qualification
   - [ ] the updated runtime now passes a reused baseline rerun after the latest pool force-reprocess fix
   - [ ] if reporting needs clean final numbers, do one fully clean baseline reset and rerun before freezing results
+- [ ] Confirm the new PV cycle-cap gap is still understood:
+  - [ ] current runtime still opens `MemberPackageCycle` directly from approved items
+  - [ ] current runtime still snapshots `earningCap` from product/package master data
+  - [ ] no accumulated PV state exists yet on cycle runtime
+  - [ ] no queued next-cycle carry PV flow exists yet
+  - [ ] current cycle cannot yet upgrade from `5000` to `10000` when later PV reaches `200`
 - [ ] Preserve the existing local baseline of `210` non-admin members
 - [ ] Do not seed extra members for this phase
 - [ ] When touching pool logic, keep the first gate and renewal gate separate:
   - [ ] first gate = self purchase + `3` directs + `3` direct buyers
   - [ ] later rounds = self repurchase only
+- [ ] When touching cycle-cap logic, keep local and UAT/server on the same rule set:
+  - [ ] cycle cap uses PV only, not purchase amount
+  - [ ] `< 200 PV => 5000`
+  - [ ] `>= 200 PV => 10000`
+  - [ ] old cycle still pays first
+  - [ ] excess PV can seed the next queued cycle
 - [ ] If implementation changes the active rule again, update both:
   - [ ] [HANDOFF_NEXT.md](/Users/macbook/poolproject/HANDOFF_NEXT.md:1)
   - [ ] [CHECKLIST_LIVE_OPERATIONS.md](/Users/macbook/poolproject/CHECKLIST_LIVE_OPERATIONS.md:1)
+
+## PV Cycle Cap Rollout Shortcut
+
+Use this section first when the task is specifically the new `PV-only` cycle-cap rule.
+
+- [ ] Open [docs/technical-design/pv_cycle_cap_accumulation_plan.md](/Users/macbook/poolproject/docs/technical-design/pv_cycle_cap_accumulation_plan.md:1)
+- [ ] Confirm the locked rules:
+  - [ ] no order amount gate for cycle cap
+  - [ ] `< 200 PV => 5000`
+  - [ ] `>= 200 PV => 10000`
+  - [ ] current cycle can be upgraded mid-stream when later PV reaches `200`
+  - [ ] excess PV can carry into the next queued cycle
+  - [ ] payout still goes to the oldest receivable cycle first
+- [ ] Confirm implementation scope:
+  - [x] schema/data model
+  - [x] approved-order PV allocation
+  - [x] cycle-cap recompute logic
+  - [ ] local test coverage
+  - [x] UAT deploy and DB verification
+- [ ] Before coding:
+  - [x] inspect `packages/modules/orders/src/services/orders.service.ts`
+  - [x] inspect `packages/modules/members/src/repositories/members.repository.ts`
+  - [x] inspect `packages/modules/qualification/src/services/qualification.service.ts`
+  - [x] inspect `packages/modules/cap/src/services/cap.service.ts`
+- [ ] Local source status after the current round:
+  - [x] Prisma schema updated
+  - [x] migration file created
+  - [x] approved-order PV allocation path updated
+  - [x] cycle receivability normalization added
+  - [x] `npx prisma validate --schema prisma/schema.prisma`
+  - [x] `npx prisma generate --schema prisma/schema.prisma`
+  - [x] `npm run lint`
+- [ ] Before UAT rollout:
+  - [ ] back up DB
+  - [x] record current `ProductDetail` and `Package` PV/cap master rows
+  - [x] prepare post-deploy verification queries for `MemberPackageCycle`
+- [ ] After rollout:
+  - [x] verify one `< 200 PV` scenario
+  - [x] verify one `>= 200 PV` scenario
+  - [x] verify one `100 + 100 PV` upgrade scenario
+  - [x] verify one carry-forward-to-next-cycle scenario
+  - [x] verify queued-cycle promotion after the older cycle is capped
+  - [x] verify `carryOverPvOut` is populated for the `200 + 100` scenario
+  - [x] confirm `api` and `worker` restart cleanly after deploy
+  - [x] confirm new `MemberPackageCycle` PV fields exist on UAT
+  - [x] backfill old UAT cycles if the new fields default to zero on pre-existing rows
+  - [x] prepare matching test catalog on local and UAT:
+    - [x] `COMMTEST1000 / COMMTESTPKG1000 = 1000 THB / 200 PV`
+    - [x] `COMMTEST650 / COMMTESTPKG650 = 650 THB / 100 PV`
+  - [x] verify queued-cycle promotion after the older cycle is truly capped
+  - [x] decide whether `carryOverPvOut` needs a follow-up fix
+  - [ ] run threshold-upgrade scenario `150 PV + 60 PV`
+  - [ ] run grace-expiry scenario and confirm post-expiry state becomes `BLOCKED_EXPIRED`
+  - [ ] run late-repurchase-after-expiry scenario with `100 PV`
+  - [ ] run late-repurchase-after-expiry scenario with `200 PV`
+  - [ ] run repurchase-order cancel/recompute scenario and confirm round state rollback rules
+  - [ ] document expected large-quantity self-purchase fan-out behavior if business later wants a limit
 
 ## CAP/DCW/FIRM Phase Shortcut
 
@@ -196,7 +275,7 @@ Locked rules for next session:
 - [ ] Daily cap applies only to `2leg / 3leg`
 - [ ] Buyback threshold uses `final payable after cap`
 - [ ] Commission round completes at `>= 10000 THB`
-- [ ] Qualifying repurchase amount is `1000 THB`
+- [ ] Qualifying repurchase is approved self-purchase with `PV > 0`
 - [ ] No auto-deducted recycle purchase
 - [ ] Excess above threshold is held pending member-initiated repurchase for `3` calendar days in `Asia/Bangkok`
 - [ ] If not completed in time, status becomes `BLOCKED_AFTER_EXPIRY`

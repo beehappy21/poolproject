@@ -1,9 +1,202 @@
 Handoff Next
 
-Updated: 2026-05-18 00:45 +07
+Updated: 2026-05-18 15:12 +07
 Branch: `main`
 
 Latest Session Update (2026-05-18)
+
+- Daily team cap was raised again for the current runtime:
+  - `dailyCommissionCapAmount = 10000`
+  - intended scope for active communication:
+    - `Team 2-leg`
+    - `Team 3-leg`
+  - source/default files updated:
+    - [runtime/commission-settings.json](/Users/macbook/poolproject/runtime/commission-settings.json:1)
+    - [packages/shared/utils/src/commission-settings.util.ts](/Users/macbook/poolproject/packages/shared/utils/src/commission-settings.util.ts:1)
+    - [PoolprojectSettingsStore.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Support/PoolprojectSettingsStore.php:1)
+    - [CommissionSettingsController.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Http/Controllers/Platform/CommissionSettingsController.php:1)
+  - docs updated to reflect `10,000` instead of `5,000`
+
+- Commission dashboard now exposes the grace-held amount separately:
+  - `commissionRoundProgress.lockedDuringGraceAmount` is returned from `GET /auth/dashboard`
+  - WAP `Commission` shows `ยอดล็อกระหว่างรอ ... บาท` while the member is in the grace window and there is held commission pending repurchase
+  - this display is informational only; the held amount is still released after qualifying repurchase and is not counted into the new round accumulator
+  - UAT member-facing proof was captured on 2026-05-19:
+    - parent `UTPVLOCK-134839`
+    - dashboard returned `lockedDuringGraceAmount = 5000`
+    - UI preview from the runtime payload is `ครบรอบแล้ว ซื้อซ้ำใน 2 วัน` + `ยอดล็อกระหว่างรอ 5,000 บาท`
+    - report: [docs/archive/uat-history/2026-05-19-grace-locked-dashboard-demo.md](/Users/macbook/poolproject/docs/archive/uat-history/2026-05-19-grace-locked-dashboard-demo.md:1)
+
+- Special commission privilege menu was added for BAO admin:
+  - menu: `Commission Report > สิทธิ์พิเศษ`
+  - purpose: grant one receivable commission cycle without creating a real order
+  - supported grant types:
+    - `SPECIAL_100_PV` => `100 PV / cap 5,000 / purchase base 650`
+    - `SPECIAL_200_PV` => `200 PV / cap 10,000 / purchase base 1,000`
+  - runtime endpoint:
+    - `POST /internal/bao/members/special-commission-cycle`
+  - audit table:
+    - `SpecialCommissionCycleGrant`
+  - design note:
+    - [docs/technical-design/special_commission_privilege_cycle.md](/Users/macbook/poolproject/docs/technical-design/special_commission_privilege_cycle.md:1)
+  - UAT deploy + smoke verify completed on 2026-05-19:
+    - migration `20260519_add_special_commission_cycle_grants` applied manually on UAT
+    - `api`, `worker`, `bao` rebuilt and healthy
+    - public BAO needed `nginx` restart again after `bao` recreate so the upstream IP matched
+    - sample grant verified:
+      - member `UTPVLOCK-134839`
+      - `SPECIAL_100_PV`
+      - result `cycleNo = 2`, `earningCap = 5000`, `isReceivable = true`
+
+- UAT referral-placement validation was completed on 2026-05-19:
+  - report:
+    - [docs/archive/uat-history/2026-05-19-referral-placement-uat-scenarios.md](/Users/macbook/poolproject/docs/archive/uat-history/2026-05-19-referral-placement-uat-scenarios.md:1)
+  - raw UAT log:
+    - `~/poolproject/runtime/referral-signup-uat-20260519-121232.log`
+  - runtime behavior verified:
+    - before the sponsor has direct referrals in all `LEFT / MIDDLE / RIGHT`, placement is forced to `AUTO`
+    - bootstrap placement fills missing top-side legs first even if the invite tried to request a specific side
+    - after unlock, explicit `LEFT / MIDDLE / RIGHT` referral links place new members into the chosen top branch
+    - after unlock, `AUTO` prefers a branch with no approved-PV score first, otherwise the branch with the lowest approved-PV score
+  - note:
+    - public signup on UAT is in strict LINE verification mode, so the scenario runner exercised the same backend `createMember` runtime path inside the API container rather than the public endpoint
+
+- Referral placement rule was tightened to match the latest business requirement:
+  - if a sponsor still does not have at least one direct referral in each of `LEFT`, `MIDDLE`, and `RIGHT`, signup placement is forced to `AUTO`
+  - during that bootstrap phase, the next signup fills the missing top-side leg first
+  - only after all 3 top-side legs are present may the business use explicit `LEFT / MIDDLE / RIGHT` referral links
+  - when `AUTO` is used after all 3 top-side legs already exist, runtime placement now targets the branch with no approved-PV score first, or else the branch with the lowest approved-PV score
+  - backend change:
+    - [packages/modules/members/src/repositories/members.repository.ts](/Users/macbook/poolproject/packages/modules/members/src/repositories/members.repository.ts:1)
+  - WAP profile helper text was updated to explain the same rule:
+    - [stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/tabs/Profile.tsx](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/src/screens/tabs/Profile.tsx:1)
+
+- Runtime rule summary is now stable enough for go-live review:
+  - referral identity:
+    - `referralCode` is the only active invite identity
+    - `memberCode` remains login/support/back-office identity only
+    - placement modes in plan are `AUTO`, `LEFT`, `MIDDLE`, `RIGHT`
+    - only `AUTO` is active in runtime invite flow right now
+  - round reset / grace meaning:
+    - when a member reaches `>= 10000` payable commission in the current round, `UserBuybackProgress` moves to `HELD_PENDING_REPURCHASE`
+    - commission rows created during the `3`-day Bangkok grace window are still calculated, but release status stays held
+    - qualifying self-purchase with `PV > 0` opens the new round, resets the new round accumulator to `0`, and the new cycle cap follows repurchase PV:
+      - `< 200 PV => 5000`
+      - `>= 200 PV => 10000`
+    - held rows created during grace belong to the old round/grace period; the new round starts counting from zero after reopen
+  - next recommended UAT coverage before final production sign-off:
+    - `150 + 60 PV` threshold-upgrade scenario
+    - grace expiry to `BLOCKED_EXPIRED`
+    - late reopen after expiry with `100 PV`
+    - late reopen after expiry with `200 PV`
+    - repurchase cancel/recompute rollback behavior
+
+- UAT round-reopen validation was completed with the latest PV-based rule:
+  - report:
+    - [docs/archive/uat-history/2026-05-18-pv-cycle-cap-uat-scenarios.md](/Users/macbook/poolproject/docs/archive/uat-history/2026-05-18-pv-cycle-cap-uat-scenarios.md:1)
+  - verified on UAT:
+    - after threshold, `100 PV` self repurchase opens the next round with new cycle cap `5000`
+    - after threshold, `200 PV` self repurchase opens the next round with new cycle cap `10000`
+    - `UserBuybackProgress` clears after the qualifying repurchase and stores the repurchase order as `lastQualifyingOrderId`
+  - raw UAT log:
+    - `~/poolproject/runtime/pv-cycle-cap-uat-20260518-reopen-r3.log`
+
+- Round-renewal rule was changed on both local source and UAT/server target:
+  - old rule: qualifying self repurchase by `1000 THB`
+  - interim rule: qualifying self repurchase by `200 PV`
+  - latest rule: any approved self repurchase with `PV > 0` opens the next round
+  - the new round cycle cap now follows repurchase PV:
+    - `< 200 PV => 5000`
+    - `>= 200 PV => 10000`
+  - runtime config now uses `buybackRepurchasePv = 0`
+  - commission repurchase reset path now checks approved order `totalPv` instead of `totalUsdt`
+  - backward-compatible admin/settings parsing still accepts older `buybackRepurchaseAmount` input keys during transition
+  - related docs and marketing summaries were updated to use the PV-based round reopen rule
+
+- Marketing-ready summary docs were added for the current runtime plan:
+  - [docs/marketing/runtime_marketing_plan_th_2026-05-18.md](/Users/macbook/poolproject/docs/marketing/runtime_marketing_plan_th_2026-05-18.md:1)
+  - [docs/marketing/runtime_marketing_plan_table_th_2026-05-18.md](/Users/macbook/poolproject/docs/marketing/runtime_marketing_plan_table_th_2026-05-18.md:1)
+  - both documents summarize only the active runtime rules and explicitly exclude inactive plans such as `cashback`, `unilevel`, and `matrix`
+
+- Test catalog was prepared on both local and UAT for the next commission scenarios:
+  - existing test set confirmed and normalized:
+    - `COMMTEST1000`
+    - `COMMTESTPKG1000`
+    - `1000 THB / 200 PV / earningCap 10000`
+  - new additional test set created:
+    - `COMMTEST650`
+    - `COMMTESTPKG650`
+    - `650 THB / 100 PV / earningCap 5000`
+- Source and helper files updated for this catalog prep:
+  - [scripts/seed_member003_test_baseline.js](/Users/macbook/poolproject/scripts/seed_member003_test_baseline.js:1)
+  - [scripts/sql/upsert_commtest_catalog.sql](/Users/macbook/poolproject/scripts/sql/upsert_commtest_catalog.sql:1)
+- Verified after update:
+  - local `ProductDetail` and `Package` rows show:
+    - `COMMTEST1000 = 1000 / 200 / 10000`
+    - `COMMTEST650 = 650 / 100 / 5000`
+  - UAT `ProductDetail` and `Package` rows show the same values
+- UAT controlled order scenarios were executed against fresh isolated test members.
+  - result note:
+    - [docs/archive/uat-history/2026-05-18-pv-cycle-cap-uat-scenarios.md](/Users/macbook/poolproject/docs/archive/uat-history/2026-05-18-pv-cycle-cap-uat-scenarios.md:1)
+  - passes confirmed on UAT:
+    - `100 PV => 5000`
+    - `200 PV => 10000`
+    - `100 + 100` upgrades the same cycle to `200 / 10000`
+    - `200 + 100` creates queued cycle `100 / 5000 / isReceivable=false`
+    - `carryOverPvOut` is now populated on the older cycle in the `200 + 100` scenario
+    - queued cycle promotion after the older cycle is truly capped was verified with real downline orders
+  - remaining follow-up on UAT:
+    - decide whether large-quantity self-purchase orders should intentionally fan out into many `200 PV` cycles
+    - add a smaller/scoped promotion regression check so the runtime report stays compact
+
+- Local source implementation for the new PV-only cycle-cap rule is now in place:
+  - Prisma schema adds `CycleCapTier` and PV accumulation fields on `MemberPackageCycle`
+  - migration added:
+    - [prisma/migrations/20260518_add_member_cycle_pv_accumulation/migration.sql](/Users/macbook/poolproject/prisma/migrations/20260518_add_member_cycle_pv_accumulation/migration.sql:1)
+  - approved-order path now allocates `Order.totalPv` into cycles instead of opening cycles only per item count
+  - overflow above `200 PV` opens or fills the next queued cycle
+  - receivable-cycle normalization now promotes the next oldest active cycle after the older cycle is effectively capped
+- Files touched for the local runtime implementation:
+  - [prisma/schema.prisma](/Users/macbook/poolproject/prisma/schema.prisma:1)
+  - [packages/modules/members/src/repositories/members.repository.ts](/Users/macbook/poolproject/packages/modules/members/src/repositories/members.repository.ts:1)
+  - [packages/modules/members/src/services/members.service.ts](/Users/macbook/poolproject/packages/modules/members/src/services/members.service.ts:1)
+  - [packages/modules/orders/src/services/orders.service.ts](/Users/macbook/poolproject/packages/modules/orders/src/services/orders.service.ts:1)
+  - [packages/modules/commissions/src/repositories/commissions.repository.ts](/Users/macbook/poolproject/packages/modules/commissions/src/repositories/commissions.repository.ts:1)
+- Local validation completed after this implementation:
+  - `npx prisma validate --schema prisma/schema.prisma`
+  - `npx prisma generate --schema prisma/schema.prisma`
+  - `npm run lint`
+- Still pending after this local source round:
+  - scenario tests for `150 + 60 PV`, queued-cycle carry-forward, and recalc edge cases
+  - BAO/WAP browser verification of cycle-cap presentation if UI later exposes these new fields
+  - controlled UAT order scenarios for `150 + 60` PV and large-quantity fan-out expectations
+- UAT/server rollout status for this rule:
+  - changed source files were copied to `~/poolproject`
+  - `api` and `worker` were rebuilt and recreated successfully
+  - `poolproject-uat-api-1` is healthy after deploy
+  - migration was applied manually with `psql` because Prisma `migrate deploy` hit `P3005` on the non-baselined UAT database
+  - heuristic backfill applied to existing `210` `MemberPackageCycle` rows:
+    - if `earningCap >= 10000` and new PV fields were still zero, set:
+      - `accumulatedPv = 200`
+      - `cycleCapTier = AT_LEAST_200_PV`
+      - `sourceOrderCount = 1` when previously `0`
+      - timestamps defaulted from `activatedAt`
+  - this backfill was chosen because all existing `210` cycles on UAT had `earningCap >= 10000`
+
+- Planned next commission runtime change is now documented for both local and UAT/server:
+  - [docs/technical-design/pv_cycle_cap_accumulation_plan.md](/Users/macbook/poolproject/docs/technical-design/pv_cycle_cap_accumulation_plan.md:1)
+- Locked intent for the next phase:
+  - cycle cap must use `PV` only, not order amount
+  - `< 200 PV => 5000 THB`
+  - `>= 200 PV => 10000 THB`
+  - the current cycle must be upgradable from `5000` to `10000` when later self-purchase PV pushes it to `>= 200`
+  - excess PV must be allowed to seed the next queued cycle
+  - payout order must remain `oldest receivable cycle first`
+- Current gap before implementation:
+  - runtime still opens `MemberPackageCycle` directly from approved order items
+  - runtime still snapshots `earningCap` from product/package master data
+  - no accumulated-PV or queued-next-cycle state exists yet on cycle runtime
+  - local and UAT/server must be changed from the same tested source revision
 
 - UAT server was prepared for go-live reset and the reset was executed successfully.
 - Backup created before reset:
@@ -463,7 +656,7 @@ Latest Session Update (2026-05-01)
   - `CommissionLedger` and pool payout rows are not yet linked to an explicit round id
   - previously qualified members may still need a backfill path to lock `lastQualifyingOrderId` without waiting for a new qualifying self-purchase
   - the updated round runtime has now been re-verified against the existing local `210`-member baseline after the force-reprocess fix, but not yet from a perfectly clean reset
-- Local commission scenario verification from the existing `210`-member baseline was completed using product `test 1000 / 350 PV`:
+- Local commission scenario verification from the existing `210`-member baseline was completed using product `test 1000 / 200 PV`:
   - approved orders: `210`
   - settlement dates processed: `52`
   - direct/team/matching/fallback rows were created

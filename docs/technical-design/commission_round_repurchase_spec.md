@@ -63,7 +63,10 @@ A qualifying repurchase means:
 
 - member self-purchase
 - approved order
-- minimum order amount `1000 THB`
+- `PV > 0`
+- the new round cycle cap follows the repurchase PV:
+  - `< 200 PV => 5000`
+  - `>= 200 PV => 10000`
 
 Direct-buyer qualification is not re-checked after the first qualified round.
 
@@ -321,8 +324,9 @@ Current runtime behavior differs from this target spec in at least these ways:
 
 ### Scenario D: repurchase in time
 
-- member buys `1000 THB` within grace
+- member buys `100 PV` within grace
 - member returns to `ACTIVE`
+- new round cycle cap is `5000`
 - held rows are releasable by the approved repurchase flow
 
 ### Scenario E: grace expiry
@@ -333,6 +337,7 @@ Current runtime behavior differs from this target spec in at least these ways:
 
 ### Scenario F: late reopen
 
-- blocked member buys `1000 THB` later
+- blocked member buys `200 PV` later
 - new round opens
+- new round cycle cap is `10000`
 - future commission accrues again

@@ -6,6 +6,13 @@ import { QualificationCycleSnapshot } from "../../../qualification/src/domain/qu
 import { PrismaService } from "../../../../infrastructure/src/prisma/prisma.service";
 import { toIdString } from "../../../../infrastructure/src/prisma/prisma.mappers";
 import { hashPassword } from "../../../../shared/utils/src/password.util";
+import {
+  addDecimalStrings,
+  compareDecimalStrings,
+  minDecimalString,
+  multiplyDecimalStrings,
+  subtractDecimalStrings,
+} from "../../../../shared/utils/src/money.util";
 
 export interface MembersRepository {
   listMembers(filters?: {
@@ -82,6 +89,20 @@ export interface MembersRepository {
     }>;
     uplineLevelCount: number;
   } | null>;
+
+  findTopLeaderboardBySponsor(
+    memberId: string,
+    limit?: number,
+  ): Promise<
+    Array<{
+      memberId: string;
+      memberCode: string;
+      name: string;
+      sponsorMemberCode: string | null;
+      sponsorName: string | null;
+      totalCommission: string;
+    }>
+  >;
 
   findMemberById(memberId: string): Promise<{
     memberId: string;
@@ -294,6 +315,62 @@ export interface MembersRepository {
     activeUntil: string;
   }>;
 
+  allocateApprovedOrderPvToCycles(input: {
+    memberId: string;
+    totalPv: string;
+    sourceOrderId: string;
+    productDetailId?: string;
+    packageId?: string;
+    activatedAt?: string;
+  }): Promise<{
+    affectedCycleIds: string[];
+    openedCycleIds: string[];
+    totalAllocatedPv: string;
+    overflowCycleCount: number;
+  }>;
+
+  grantSpecialCommissionCycle(input: {
+    memberId: string;
+    grantCode: "SPECIAL_100_PV" | "SPECIAL_200_PV";
+    reason: string;
+    note?: string | null;
+    grantedByAdminName?: string | null;
+    grantedByAdminEmail?: string | null;
+    activatedAt?: string;
+  }): Promise<{
+    grantId: string;
+    cycleId: string;
+    memberId: string;
+    cycleNo: number;
+    memberCode: string;
+    grantCode: "SPECIAL_100_PV" | "SPECIAL_200_PV";
+    grantedPv: string;
+    purchaseBase: string;
+    earningCap: string;
+    cycleCapTier: "BELOW_200_PV" | "AT_LEAST_200_PV";
+    isReceivable: boolean;
+    activatedAt: string;
+    reason: string;
+    note: string | null;
+  }>;
+
+  closeLatestSpecialCommissionCycle(input: {
+    memberId: string;
+    closedByAdminName?: string | null;
+    closedByAdminEmail?: string | null;
+    closedAt?: string;
+  }): Promise<{
+    grantId: string;
+    cycleId: string;
+    memberId: string;
+    memberCode: string;
+    cycleNo: number;
+    grantCode: "SPECIAL_100_PV" | "SPECIAL_200_PV";
+    closedAt: string;
+    nextReceivableCycleId: string | null;
+    nextReceivableCycleNo: number | null;
+  }>;
+
   updateMemberPassword(
     memberId: string,
     newPassword: string,
@@ -303,6 +380,13 @@ export interface MembersRepository {
 @Injectable()
 export class PrismaMembersRepository implements MembersRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  private readonly cycleCapThresholdPv = "200";
+  private readonly cycleCapLowerAmount = "5000";
+  private readonly cycleCapUpperAmount = "10000";
+  private readonly specialCycleLowerPurchaseBase = "650";
+  private readonly specialCycleUpperPurchaseBase = "1000";
+  private readonly specialCycleActiveDays = 30;
 
   private toShippingAddressRecord(address: {
     id: bigint;
@@ -833,6 +917,65 @@ export class PrismaMembersRepository implements MembersRepository {
     };
   }
 
+  async findTopLeaderboardBySponsor(memberId: string, limit = 10) {
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        memberId: string;
+        memberCode: string;
+        name: string;
+        sponsorMemberCode: string | null;
+        sponsorName: string | null;
+        totalCommission: string;
+      }>
+    >(Prisma.sql`
+      with recursive downline as (
+        select
+          u.id,
+          u."memberCode",
+          u.name,
+          u."sponsorId"
+        from "User" u
+        where u."sponsorId" = ${BigInt(memberId)}
+
+        union all
+
+        select
+          child.id,
+          child."memberCode",
+          child.name,
+          child."sponsorId"
+        from "User" child
+        inner join downline parent on child."sponsorId" = parent.id
+      ),
+      commission_totals as (
+        select
+          cl."beneficiaryUserId" as beneficiary_user_id,
+          coalesce(sum(cl."commissionAmount"), 0)::text as total_commission
+        from "CommissionLedger" cl
+        inner join downline d on d.id = cl."beneficiaryUserId"
+        where cl."beneficiaryUserId" is not null
+          and cl.status <> 'FALLBACK'
+        group by cl."beneficiaryUserId"
+      )
+      select
+        d.id::text as "memberId",
+        d."memberCode" as "memberCode",
+        d.name as "name",
+        sponsor."memberCode" as "sponsorMemberCode",
+        sponsor.name as "sponsorName",
+        coalesce(ct.total_commission, '0') as "totalCommission"
+      from downline d
+      inner join commission_totals ct on ct.beneficiary_user_id = d.id
+      left join "User" sponsor on sponsor.id = d."sponsorId"
+      order by
+        coalesce(ct.total_commission, '0')::numeric desc,
+        d.id asc
+      limit ${Math.max(1, limit)}
+    `);
+
+    return rows;
+  }
+
   async findActiveDirectReferralCount(
     memberId: string,
     evaluationAt: string,
@@ -1307,41 +1450,100 @@ export class PrismaMembersRepository implements MembersRepository {
       };
     }
 
-    const candidates = await Promise.all(
-      topSides.map(async (side) => {
-        const branchRootUserId = branchRoots.get(side)!;
-        const placement = await this.resolveBinaryBranchPlacement(
-          tx,
-          branchRootUserId,
-        );
+    const branchScores = await this.loadTopBranchApprovedPvScores(
+      tx,
+      branchRoots,
+    );
+    const rankedSides = [...topSides].sort((a, b) => {
+      const scoreCompare = compareDecimalStrings(
+        branchScores[a] ?? "0",
+        branchScores[b] ?? "0",
+      );
+      if (scoreCompare !== 0) {
+        return scoreCompare;
+      }
 
-        return {
-          branchSide: side,
-          ...placement,
-        };
-      }),
+      return topSides.indexOf(a) - topSides.indexOf(b);
+    });
+    const targetBranchSide = rankedSides[0];
+    const targetPlacement = await this.resolveBinaryBranchPlacement(
+      tx,
+      branchRoots.get(targetBranchSide)!,
     );
 
-    candidates.sort((a, b) => {
-      if (a.path.length !== b.path.length) {
-        return a.path.length - b.path.length;
-      }
+    return {
+      uplineUserId: targetPlacement.uplineUserId,
+      placementSide: targetPlacement.placementSide,
+    };
+  }
 
-      for (let index = 0; index < Math.max(a.path.length, b.path.length); index += 1) {
-        const aValue = a.path[index] ?? -1;
-        const bValue = b.path[index] ?? -1;
-        if (aValue !== bValue) {
-          return aValue - bValue;
-        }
-      }
+  private async loadTopBranchApprovedPvScores(
+    tx: Prisma.TransactionClient,
+    branchRoots: Map<"LEFT" | "MIDDLE" | "RIGHT", bigint>,
+  ): Promise<Record<"LEFT" | "MIDDLE" | "RIGHT", string>> {
+    const defaultScores: Record<"LEFT" | "MIDDLE" | "RIGHT", string> = {
+      LEFT: "0",
+      MIDDLE: "0",
+      RIGHT: "0",
+    };
 
-      return topSides.indexOf(a.branchSide) - topSides.indexOf(b.branchSide);
+    if (branchRoots.size === 0) {
+      return defaultScores;
+    }
+
+    const branchSeeds = Array.from(branchRoots.entries()).map(([side, userId]) => {
+      return Prisma.sql`select ${side}::text as top_side, ${userId}::bigint as user_id`;
     });
 
-    return {
-      uplineUserId: candidates[0].uplineUserId,
-      placementSide: candidates[0].placementSide,
-    };
+    const rows = await tx.$queryRaw<
+      Array<{
+        top_side: "LEFT" | "MIDDLE" | "RIGHT";
+        total_pv: string;
+      }>
+    >(Prisma.sql`
+      with recursive branch_seed as (
+        ${Prisma.join(branchSeeds, " union all ")}
+      ),
+      branch_tree as (
+        select
+          bs.top_side,
+          bs.user_id
+        from branch_seed bs
+
+        union all
+
+        select
+          bt.top_side,
+          child."userId"
+        from branch_tree bt
+        inner join "MemberProfile" child
+          on child."uplineUserId" = bt.user_id
+      )
+      select
+        bt.top_side,
+        coalesce(
+          sum(
+            case
+              when o.status = 'APPROVED' and o."approvalStatus" = 'APPROVED'
+                then o."totalPv"
+              else 0
+            end
+          ),
+          0
+        )::text as total_pv
+      from branch_tree bt
+      left join "Order" o
+        on o."userId" = bt.user_id
+      group by bt.top_side
+    `);
+
+    for (const row of rows) {
+      if (row.top_side === "LEFT" || row.top_side === "MIDDLE" || row.top_side === "RIGHT") {
+        defaultScores[row.top_side] = row.total_pv ?? "0";
+      }
+    }
+
+    return defaultScores;
   }
 
   private async resolveBinaryBranchPlacement(
@@ -1574,14 +1776,49 @@ export class PrismaMembersRepository implements MembersRepository {
     };
   }
 
-  async activateProductCycle(input: {
-    memberId: string;
-    productDetailId?: string;
-    packageId?: string;
-    activatedAt?: string;
-  }) {
+  private deriveCycleCapState(accumulatedPv: string) {
+    const atLeastThreshold =
+      compareDecimalStrings(accumulatedPv, this.cycleCapThresholdPv) >= 0;
+
+    return {
+      accumulatedPv: atLeastThreshold
+        ? this.cycleCapThresholdPv
+        : accumulatedPv,
+      earningCap: atLeastThreshold
+        ? this.cycleCapUpperAmount
+        : this.cycleCapLowerAmount,
+      cycleCapTier: atLeastThreshold ? "AT_LEAST_200_PV" : "BELOW_200_PV",
+      reachedThreshold: atLeastThreshold,
+    } as const;
+  }
+
+  private resolveSpecialCycleGrantTemplate(
+    grantCode: "SPECIAL_100_PV" | "SPECIAL_200_PV",
+  ) {
+    if (grantCode === "SPECIAL_200_PV") {
+      return {
+        grantCode,
+        grantedPv: this.cycleCapThresholdPv,
+        purchaseBase: this.specialCycleUpperPurchaseBase,
+      } as const;
+    }
+
+    return {
+      grantCode,
+      grantedPv: "100",
+      purchaseBase: this.specialCycleLowerPurchaseBase,
+    } as const;
+  }
+
+  private async resolveCycleSourceSnapshot(
+    tx: Prisma.TransactionClient,
+    input: {
+      productDetailId?: string;
+      packageId?: string;
+    },
+  ) {
     const packageSnapshot = input.packageId
-      ? await this.prisma.package.findUnique({
+      ? await tx.package.findUnique({
           where: { id: BigInt(input.packageId) },
           select: {
             id: true,
@@ -1589,6 +1826,7 @@ export class PrismaMembersRepository implements MembersRepository {
             earningCapAmount: true,
             memberPriceUsdt: true,
             priceUsdt: true,
+            pv: true,
             poolRateMode: true,
             poolRate: true,
             poolCapMultiple: true,
@@ -1610,7 +1848,7 @@ export class PrismaMembersRepository implements MembersRepository {
             return undefined;
           }
 
-          const packageItem = await this.prisma.packageItem.findFirst({
+          const packageItem = await tx.packageItem.findFirst({
             where: {
               packageId: BigInt(input.packageId),
               package: { status: "ACTIVE" },
@@ -1626,13 +1864,14 @@ export class PrismaMembersRepository implements MembersRepository {
         })();
 
     const detail = resolvedProductDetailId
-      ? await this.prisma.productDetail.findUnique({
+      ? await tx.productDetail.findUnique({
           where: { id: BigInt(resolvedProductDetailId) },
           select: {
             id: true,
             activeDays: true,
             earningCapAmount: true,
             memberPriceUsdt: true,
+            pv: true,
             poolRateMode: true,
             poolRate: true,
             poolCapMultiple: true,
@@ -1646,51 +1885,607 @@ export class PrismaMembersRepository implements MembersRepository {
       throw new Error("Product detail not found.");
     }
 
-    const lastCycle = await this.prisma.memberPackageCycle.findFirst({
-      where: { userId: BigInt(input.memberId) },
-      orderBy: [{ cycleNo: "desc" }],
-      select: { cycleNo: true },
-    });
+    return {
+      packageSnapshot,
+      resolvedProductDetailId,
+      detail,
+    };
+  }
 
-    const activatedAt = input.activatedAt ? new Date(input.activatedAt) : new Date();
+  private computeActiveUntil(
+    activatedAt: Date,
+    activeDays: number | bigint | null | undefined,
+  ) {
     const activeUntil = new Date(activatedAt);
-    activeUntil.setUTCDate(
-      activeUntil.getUTCDate() +
-        Number(detail?.activeDays ?? packageSnapshot?.activeDays ?? 0),
-    );
+    activeUntil.setUTCDate(activeUntil.getUTCDate() + Number(activeDays ?? 0));
+    return activeUntil;
+  }
 
-    const cycle = await this.prisma.memberPackageCycle.create({
-      data: {
-        userId: BigInt(input.memberId),
-        packageId: input.packageId ? BigInt(input.packageId) : undefined,
-        productDetailId: detail?.id,
-        cycleNo: (lastCycle?.cycleNo ?? 0) + 1,
-        purchaseBase: detail?.memberPriceUsdt ?? packageSnapshot?.memberPriceUsdt ?? packageSnapshot?.priceUsdt,
-        poolRateMode: detail?.poolRateMode ?? packageSnapshot?.poolRateMode,
-        poolRate: detail?.poolRate ?? packageSnapshot?.poolRate,
-        poolCapMultiple: detail?.poolCapMultiple ?? packageSnapshot?.poolCapMultiple,
-        commissionCapScope:
-          detail?.commissionCapScope ?? packageSnapshot?.commissionCapScope,
-        commissionCapMultiple:
-          detail?.commissionCapMultiple ?? packageSnapshot?.commissionCapMultiple,
-        activatedAt,
-        activeUntil,
-        earningCap: detail?.earningCapAmount ?? packageSnapshot?.earningCapAmount ?? "0",
-        earnedTotalInCycle: "0",
-        earningStatus: "ACTIVE",
-        isReceivable: true,
+  private async normalizeCycleReceivability(
+    tx: Prisma.TransactionClient,
+    memberId: string,
+  ) {
+    const cycles = await tx.memberPackageCycle.findMany({
+      where: {
+        userId: BigInt(memberId),
         status: "ACTIVE",
       },
+      orderBy: [{ cycleNo: "asc" }],
+      select: {
+        id: true,
+        earningCap: true,
+        purchaseBase: true,
+        commissionCapScope: true,
+        commissionCapMultiple: true,
+        earnedTotalInCycle: true,
+        earningStatus: true,
+        isReceivable: true,
+        readyToReceiveAt: true,
+      },
+    });
+
+    let firstActiveCycleId: bigint | null = null;
+
+    for (const cycle of cycles) {
+      let effectiveCap = cycle.earningCap.toString();
+
+      if (
+        cycle.commissionCapScope === "ALL_COMMISSIONS" &&
+        compareDecimalStrings(cycle.commissionCapMultiple?.toString() ?? "0", "0") > 0 &&
+        compareDecimalStrings(cycle.purchaseBase?.toString() ?? "0", "0") > 0
+      ) {
+        const commissionCap = minDecimalString(
+          effectiveCap,
+          multiplyDecimalStrings(
+            cycle.purchaseBase?.toString() ?? "0",
+            cycle.commissionCapMultiple?.toString() ?? "0",
+          ),
+        );
+        effectiveCap = commissionCap;
+      }
+
+      const isCapped =
+        compareDecimalStrings(effectiveCap, "0") > 0 &&
+        compareDecimalStrings(cycle.earnedTotalInCycle.toString(), effectiveCap) >= 0;
+
+      await tx.memberPackageCycle.update({
+        where: { id: cycle.id },
+        data: {
+          earningStatus: isCapped ? "CAPPED" : "ACTIVE",
+          cappedAt: isCapped ? new Date() : null,
+        },
+      });
+
+      if (!isCapped && firstActiveCycleId === null) {
+        firstActiveCycleId = cycle.id;
+      }
+    }
+
+    for (const cycle of cycles) {
+      const shouldReceive = firstActiveCycleId !== null && cycle.id === firstActiveCycleId;
+      await tx.memberPackageCycle.update({
+        where: { id: cycle.id },
+        data: {
+          isReceivable: shouldReceive,
+          readyToReceiveAt:
+            shouldReceive && !cycle.readyToReceiveAt ? new Date() : cycle.readyToReceiveAt,
+        },
+      });
+    }
+  }
+
+  async activateProductCycle(input: {
+    memberId: string;
+    productDetailId?: string;
+    packageId?: string;
+    activatedAt?: string;
+  }) {
+    const cycle = await this.prisma.$transaction(async (tx) => {
+      const { packageSnapshot, resolvedProductDetailId, detail } =
+        await this.resolveCycleSourceSnapshot(tx, input);
+      const lastCycle = await tx.memberPackageCycle.findFirst({
+        where: { userId: BigInt(input.memberId) },
+        orderBy: [{ cycleNo: "desc" }],
+        select: { cycleNo: true },
+      });
+      const existingReceivableCycle = await tx.memberPackageCycle.findFirst({
+        where: {
+          userId: BigInt(input.memberId),
+          status: "ACTIVE",
+          earningStatus: "ACTIVE",
+          isReceivable: true,
+        },
+        select: { id: true },
+      });
+
+      const activatedAt = input.activatedAt ? new Date(input.activatedAt) : new Date();
+      const activeUntil = this.computeActiveUntil(
+        activatedAt,
+        detail?.activeDays ?? packageSnapshot?.activeDays,
+      );
+      const sourcePv = detail?.pv?.toString() ?? packageSnapshot?.pv?.toString() ?? "0";
+      const capState = this.deriveCycleCapState(
+        minDecimalString(sourcePv, this.cycleCapThresholdPv),
+      );
+
+      return tx.memberPackageCycle.create({
+        data: {
+          userId: BigInt(input.memberId),
+          packageId: input.packageId ? BigInt(input.packageId) : undefined,
+          productDetailId: detail?.id,
+          cycleNo: (lastCycle?.cycleNo ?? 0) + 1,
+          purchaseBase:
+            detail?.memberPriceUsdt ??
+            packageSnapshot?.memberPriceUsdt ??
+            packageSnapshot?.priceUsdt,
+          accumulatedPv: capState.accumulatedPv,
+          cycleCapTier: capState.cycleCapTier,
+          capThresholdPv: this.cycleCapThresholdPv,
+          poolRateMode: detail?.poolRateMode ?? packageSnapshot?.poolRateMode,
+          poolRate: detail?.poolRate ?? packageSnapshot?.poolRate,
+          poolCapMultiple: detail?.poolCapMultiple ?? packageSnapshot?.poolCapMultiple,
+          commissionCapScope:
+            detail?.commissionCapScope ?? packageSnapshot?.commissionCapScope,
+          commissionCapMultiple:
+            detail?.commissionCapMultiple ?? packageSnapshot?.commissionCapMultiple,
+          activatedAt,
+          activeUntil,
+          queuedAt: existingReceivableCycle ? activatedAt : null,
+          readyToReceiveAt: existingReceivableCycle ? null : activatedAt,
+          capUpgradedAt: capState.reachedThreshold ? activatedAt : null,
+          sourceOrderCount: compareDecimalStrings(sourcePv, "0") > 0 ? 1 : 0,
+          lastPvAccruedAt: compareDecimalStrings(sourcePv, "0") > 0 ? activatedAt : null,
+          earningCap: capState.earningCap,
+          earnedTotalInCycle: "0",
+          earningStatus: "ACTIVE",
+          isReceivable: !existingReceivableCycle,
+          status: "ACTIVE",
+        },
+      });
     });
 
     return {
       cycleId: toIdString(cycle.id),
       memberId: input.memberId,
-      productDetailId: resolvedProductDetailId ?? "",
+      productDetailId: cycle.productDetailId?.toString() ?? "",
       cycleNo: cycle.cycleNo,
       activatedAt: cycle.activatedAt.toISOString(),
       activeUntil: cycle.activeUntil.toISOString(),
     };
+  }
+
+  async allocateApprovedOrderPvToCycles(input: {
+    memberId: string;
+    totalPv: string;
+    sourceOrderId: string;
+    productDetailId?: string;
+    packageId?: string;
+    activatedAt?: string;
+  }) {
+    if (compareDecimalStrings(input.totalPv, "0") <= 0) {
+      return {
+        affectedCycleIds: [],
+        openedCycleIds: [],
+        totalAllocatedPv: "0",
+        overflowCycleCount: 0,
+      };
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const { packageSnapshot, detail } = await this.resolveCycleSourceSnapshot(tx, input);
+      const activatedAt = input.activatedAt ? new Date(input.activatedAt) : new Date();
+      const activeDays = detail?.activeDays ?? packageSnapshot?.activeDays;
+      let remainingPv = input.totalPv;
+      const affectedCycleIds: string[] = [];
+      const openedCycleIds: string[] = [];
+
+      await this.normalizeCycleReceivability(tx, input.memberId);
+
+      let lastCycle = await tx.memberPackageCycle.findFirst({
+        where: { userId: BigInt(input.memberId) },
+        orderBy: [{ cycleNo: "desc" }],
+        select: { cycleNo: true },
+      });
+
+      while (compareDecimalStrings(remainingPv, "0") > 0) {
+        const accumulatingCycle = await tx.memberPackageCycle.findFirst({
+          where: {
+            userId: BigInt(input.memberId),
+            status: "ACTIVE",
+          },
+          orderBy: [{ cycleNo: "desc" }],
+          select: {
+            id: true,
+            cycleNo: true,
+            accumulatedPv: true,
+            isReceivable: true,
+          },
+        });
+        const currentAccumulatedPv =
+          accumulatingCycle?.accumulatedPv?.toString() ?? this.cycleCapThresholdPv;
+        const remainingCapacity =
+          accumulatingCycle &&
+          compareDecimalStrings(currentAccumulatedPv, this.cycleCapThresholdPv) < 0
+            ? subtractDecimalStrings(this.cycleCapThresholdPv, currentAccumulatedPv)
+            : "0";
+
+        if (
+          accumulatingCycle &&
+          compareDecimalStrings(remainingCapacity, "0") > 0
+        ) {
+          const allocatedPv = minDecimalString(remainingPv, remainingCapacity);
+          const nextAccumulatedPv = addDecimalStrings(currentAccumulatedPv, allocatedPv);
+          const capState = this.deriveCycleCapState(nextAccumulatedPv);
+          const crossedThreshold =
+            compareDecimalStrings(currentAccumulatedPv, this.cycleCapThresholdPv) < 0 &&
+            compareDecimalStrings(nextAccumulatedPv, this.cycleCapThresholdPv) >= 0;
+
+          await tx.memberPackageCycle.update({
+            where: { id: accumulatingCycle.id },
+            data: {
+              accumulatedPv: capState.accumulatedPv,
+              cycleCapTier: capState.cycleCapTier,
+              earningCap: capState.earningCap,
+              capUpgradedAt: crossedThreshold ? activatedAt : undefined,
+              sourceOrderCount: { increment: 1 },
+              lastPvAccruedAt: activatedAt,
+              lastSourceOrderId: BigInt(input.sourceOrderId),
+            },
+          });
+
+          if (!affectedCycleIds.includes(accumulatingCycle.id.toString())) {
+            affectedCycleIds.push(accumulatingCycle.id.toString());
+          }
+
+          remainingPv = subtractDecimalStrings(remainingPv, allocatedPv);
+
+          continue;
+        }
+
+        const allocatedPv = minDecimalString(remainingPv, this.cycleCapThresholdPv);
+        const capState = this.deriveCycleCapState(allocatedPv);
+        const activeUntil = this.computeActiveUntil(activatedAt, activeDays);
+        const previousActiveCycle = await tx.memberPackageCycle.findFirst({
+          where: {
+            userId: BigInt(input.memberId),
+            status: "ACTIVE",
+          },
+          orderBy: [{ cycleNo: "desc" }],
+          select: { id: true },
+        });
+        const hasExistingActiveCycle = !!previousActiveCycle;
+        const newCycle = await tx.memberPackageCycle.create({
+          data: {
+            userId: BigInt(input.memberId),
+            packageId: input.packageId ? BigInt(input.packageId) : undefined,
+            productDetailId: detail?.id,
+            cycleNo: (lastCycle?.cycleNo ?? 0) + 1,
+            purchaseBase:
+              detail?.memberPriceUsdt ??
+              packageSnapshot?.memberPriceUsdt ??
+              packageSnapshot?.priceUsdt,
+            accumulatedPv: capState.accumulatedPv,
+            carryOverPvIn: hasExistingActiveCycle ? allocatedPv : "0",
+            cycleCapTier: capState.cycleCapTier,
+            capThresholdPv: this.cycleCapThresholdPv,
+            poolRateMode: detail?.poolRateMode ?? packageSnapshot?.poolRateMode,
+            poolRate: detail?.poolRate ?? packageSnapshot?.poolRate,
+            poolCapMultiple: detail?.poolCapMultiple ?? packageSnapshot?.poolCapMultiple,
+            commissionCapScope:
+              detail?.commissionCapScope ?? packageSnapshot?.commissionCapScope,
+            commissionCapMultiple:
+              detail?.commissionCapMultiple ?? packageSnapshot?.commissionCapMultiple,
+            activatedAt,
+            activeUntil,
+            queuedAt: hasExistingActiveCycle ? activatedAt : null,
+            readyToReceiveAt: hasExistingActiveCycle ? null : activatedAt,
+            capUpgradedAt: capState.reachedThreshold ? activatedAt : null,
+            sourceOrderCount: 1,
+            lastPvAccruedAt: activatedAt,
+            lastSourceOrderId: BigInt(input.sourceOrderId),
+            earningCap: capState.earningCap,
+            earnedTotalInCycle: "0",
+            earningStatus: "ACTIVE",
+            isReceivable: !hasExistingActiveCycle,
+            status: "ACTIVE",
+          },
+        });
+
+        affectedCycleIds.push(newCycle.id.toString());
+        openedCycleIds.push(newCycle.id.toString());
+        lastCycle = { cycleNo: newCycle.cycleNo };
+
+        if (previousActiveCycle) {
+          await tx.memberPackageCycle.update({
+            where: { id: previousActiveCycle.id },
+            data: {
+              carryOverPvOut: {
+                increment: allocatedPv,
+              },
+            },
+          });
+        }
+
+        remainingPv = subtractDecimalStrings(remainingPv, allocatedPv);
+
+        if (compareDecimalStrings(remainingPv, "0") > 0) {
+          await tx.memberPackageCycle.update({
+            where: { id: newCycle.id },
+            data: {
+              carryOverPvOut: {
+                increment: remainingPv,
+              },
+            },
+          });
+        }
+
+      }
+
+      await this.normalizeCycleReceivability(tx, input.memberId);
+
+      return {
+        affectedCycleIds,
+        openedCycleIds,
+        totalAllocatedPv: input.totalPv,
+        overflowCycleCount: Math.max(0, openedCycleIds.length - 1),
+      };
+    });
+  }
+
+  async grantSpecialCommissionCycle(input: {
+    memberId: string;
+    grantCode: "SPECIAL_100_PV" | "SPECIAL_200_PV";
+    reason: string;
+    note?: string | null;
+    grantedByAdminName?: string | null;
+    grantedByAdminEmail?: string | null;
+    activatedAt?: string;
+  }) {
+    return this.prisma.$transaction(async (tx) => {
+      const member = await tx.user.findUnique({
+        where: { id: BigInt(input.memberId) },
+        select: {
+          id: true,
+          memberCode: true,
+          isAdmin: true,
+        },
+      });
+
+      if (!member || member.isAdmin) {
+        throw new Error("Member not found.");
+      }
+
+      const template = this.resolveSpecialCycleGrantTemplate(input.grantCode);
+      const capState = this.deriveCycleCapState(template.grantedPv);
+      const activatedAt = input.activatedAt ? new Date(input.activatedAt) : new Date();
+
+      if (Number.isNaN(activatedAt.getTime())) {
+        throw new Error("Invalid activatedAt.");
+      }
+
+      const lastCycle = await tx.memberPackageCycle.findFirst({
+        where: { userId: BigInt(input.memberId) },
+        orderBy: [{ cycleNo: "desc" }],
+        select: { cycleNo: true },
+      });
+      const existingReceivableCycle = await tx.memberPackageCycle.findFirst({
+        where: {
+          userId: BigInt(input.memberId),
+          status: "ACTIVE",
+          earningStatus: "ACTIVE",
+          isReceivable: true,
+        },
+        select: { id: true },
+      });
+
+      const activeUntil = this.computeActiveUntil(
+        activatedAt,
+        this.specialCycleActiveDays,
+      );
+
+      const cycle = await tx.memberPackageCycle.create({
+        data: {
+          userId: BigInt(input.memberId),
+          cycleNo: (lastCycle?.cycleNo ?? 0) + 1,
+          purchaseBase: template.purchaseBase,
+          accumulatedPv: capState.accumulatedPv,
+          carryOverPvIn: "0",
+          carryOverPvOut: "0",
+          cycleCapTier: capState.cycleCapTier,
+          capThresholdPv: this.cycleCapThresholdPv,
+          poolRateMode: "DEFAULT_50_PERCENT",
+          poolRate: "0",
+          poolCapMultiple: "0",
+          commissionCapScope: "ALL_COMMISSIONS",
+          commissionCapMultiple: "0",
+          activatedAt,
+          activeUntil,
+          queuedAt: existingReceivableCycle ? activatedAt : null,
+          readyToReceiveAt: existingReceivableCycle ? null : activatedAt,
+          capUpgradedAt: capState.reachedThreshold ? activatedAt : null,
+          sourceOrderCount: 0,
+          lastPvAccruedAt: activatedAt,
+          earningCap: capState.earningCap,
+          earnedTotalInCycle: "0",
+          earningStatus: "ACTIVE",
+          repurchaseRequired: false,
+          isReceivable: !existingReceivableCycle,
+          status: "ACTIVE",
+        },
+      });
+
+      const createdGrantRows = await tx.$queryRaw<Array<{ id: bigint }>>(
+        Prisma.sql`
+          INSERT INTO "SpecialCommissionCycleGrant" (
+            "userId",
+            "memberPackageCycleId",
+            "cycleNo",
+            "grantCode",
+            "grantedPv",
+            "purchaseBase",
+            "earningCap",
+            "cycleCapTier",
+            "reason",
+            "note",
+            "grantedByAdminName",
+            "grantedByAdminEmail",
+            "activatedAt",
+            "updatedAt"
+          )
+          VALUES (
+            ${BigInt(input.memberId)},
+            ${cycle.id},
+            ${cycle.cycleNo},
+            ${template.grantCode},
+            ${template.grantedPv}::decimal,
+            ${template.purchaseBase}::decimal,
+            ${capState.earningCap}::decimal,
+            ${capState.cycleCapTier}::"CycleCapTier",
+            ${input.reason.trim()},
+            ${input.note?.trim() || null},
+            ${input.grantedByAdminName?.trim() || null},
+            ${input.grantedByAdminEmail?.trim() || null},
+            ${activatedAt},
+            NOW()
+          )
+          RETURNING "id"
+        `,
+      );
+      const grantId = createdGrantRows[0]?.id;
+
+      await this.normalizeCycleReceivability(tx, input.memberId);
+
+      const refreshedCycle = await tx.memberPackageCycle.findUnique({
+        where: { id: cycle.id },
+        select: {
+          id: true,
+          cycleNo: true,
+          isReceivable: true,
+          activatedAt: true,
+          earningCap: true,
+          purchaseBase: true,
+          cycleCapTier: true,
+        },
+      });
+
+      if (!refreshedCycle) {
+        throw new Error("Special commission cycle not found after grant.");
+      }
+
+      return {
+        grantId: grantId ? toIdString(grantId) : "",
+        cycleId: toIdString(refreshedCycle.id),
+        memberId: input.memberId,
+        cycleNo: refreshedCycle.cycleNo,
+        memberCode: member.memberCode,
+        grantCode: template.grantCode,
+        grantedPv: template.grantedPv,
+        purchaseBase: refreshedCycle.purchaseBase?.toString() ?? template.purchaseBase,
+        earningCap: refreshedCycle.earningCap.toString(),
+        cycleCapTier: refreshedCycle.cycleCapTier,
+        isReceivable: refreshedCycle.isReceivable,
+        activatedAt: refreshedCycle.activatedAt.toISOString(),
+        reason: input.reason.trim(),
+        note: input.note?.trim() || null,
+      };
+    });
+  }
+
+  async closeLatestSpecialCommissionCycle(input: {
+    memberId: string;
+    closedByAdminName?: string | null;
+    closedByAdminEmail?: string | null;
+    closedAt?: string;
+  }) {
+    return this.prisma.$transaction(async (tx) => {
+      const member = await tx.user.findUnique({
+        where: { id: BigInt(input.memberId) },
+        select: {
+          id: true,
+          memberCode: true,
+          isAdmin: true,
+        },
+      });
+
+      if (!member || member.isAdmin) {
+        throw new Error("Member not found.");
+      }
+
+      const closedAt = input.closedAt ? new Date(input.closedAt) : new Date();
+
+      if (Number.isNaN(closedAt.getTime())) {
+        throw new Error("Invalid closedAt.");
+      }
+
+      const latestActiveSpecialGrant = await tx.$queryRaw<
+        Array<{
+          grantId: bigint;
+          cycleId: bigint;
+          cycleNo: number;
+          grantCode: "SPECIAL_100_PV" | "SPECIAL_200_PV";
+        }>
+      >(Prisma.sql`
+        SELECT
+          grant.id as "grantId",
+          grant."memberPackageCycleId" as "cycleId",
+          grant."cycleNo" as "cycleNo",
+          grant."grantCode" as "grantCode"
+        FROM "SpecialCommissionCycleGrant" grant
+        JOIN "MemberPackageCycle" cycle
+          ON cycle.id = grant."memberPackageCycleId"
+        WHERE grant."userId" = ${BigInt(input.memberId)}
+          AND cycle.status = 'ACTIVE'
+        ORDER BY grant.id DESC
+        LIMIT 1
+      `);
+
+      const latestGrant = latestActiveSpecialGrant[0];
+
+      if (!latestGrant) {
+        throw new ConflictException(
+          "No active special commission cycle found for this member.",
+        );
+      }
+
+      await tx.memberPackageCycle.update({
+        where: { id: latestGrant.cycleId },
+        data: {
+          status: "CLOSED",
+          isReceivable: false,
+          closedAt,
+        },
+      });
+
+      await this.normalizeCycleReceivability(tx, input.memberId);
+
+      const nextReceivableCycle = await tx.memberPackageCycle.findFirst({
+        where: {
+          userId: BigInt(input.memberId),
+          status: "ACTIVE",
+          earningStatus: "ACTIVE",
+          isReceivable: true,
+        },
+        orderBy: [{ cycleNo: "asc" }],
+        select: {
+          id: true,
+          cycleNo: true,
+        },
+      });
+
+      return {
+        grantId: toIdString(latestGrant.grantId),
+        cycleId: toIdString(latestGrant.cycleId),
+        memberId: input.memberId,
+        memberCode: member.memberCode,
+        cycleNo: latestGrant.cycleNo,
+        grantCode: latestGrant.grantCode,
+        closedAt: closedAt.toISOString(),
+        nextReceivableCycleId: nextReceivableCycle
+          ? toIdString(nextReceivableCycle.id)
+          : null,
+        nextReceivableCycleNo: nextReceivableCycle?.cycleNo ?? null,
+      };
+    });
   }
 
   async updateMemberPassword(memberId: string, newPassword: string) {

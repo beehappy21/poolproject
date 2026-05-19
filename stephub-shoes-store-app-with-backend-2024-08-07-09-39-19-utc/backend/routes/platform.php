@@ -53,6 +53,7 @@ use App\Orchid\Screens\Supplier\SupplierListScreen;
 use App\Orchid\Screens\Supplier\SupplierEditScreen;
 use App\Orchid\Screens\Commission\CommissionSettingsScreen;
 use App\Orchid\Screens\Commission\CommissionReportScreen;
+use App\Orchid\Screens\Commission\SpecialCommissionPrivilegeScreen;
 use App\Orchid\Screens\Finance\MemberBankAccountListScreen;
 use App\Http\Controllers\Platform\CommissionReportController;
 use App\Http\Controllers\Platform\OrderDocumentController;
@@ -154,6 +155,9 @@ Route::middleware('admin.access:'.AdminPermissions::COMMISSIONS_MANAGE)->group(f
   Route::screen('commission/report', CommissionReportScreen::class)
     ->defaults('reportMode', 'overview')
     ->name('platform.commission.report');
+
+  Route::screen('commission/special-privilege', SpecialCommissionPrivilegeScreen::class)
+    ->name('platform.commission.specialPrivilege');
 
   Route::get('commission/report/export/{reportMode?}', [CommissionReportController::class, 'export'])
     ->name('platform.commission.report.export');

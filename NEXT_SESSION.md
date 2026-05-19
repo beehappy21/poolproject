@@ -112,6 +112,14 @@ Updated: 2026-05-17
    - in Docker on the VPS
    - or against a disposable VPS test DB
 5. If commission-round / pool baseline work resumes after deploy verification, first clean the local baseline test orders and rerun the baseline once for a final clean report
+6. If PV cycle-cap work resumes, open [docs/technical-design/pv_cycle_cap_accumulation_plan.md](/Users/macbook/poolproject/docs/technical-design/pv_cycle_cap_accumulation_plan.md:1) first and continue with:
+   - review [docs/archive/uat-history/2026-05-18-pv-cycle-cap-uat-scenarios.md](/Users/macbook/poolproject/docs/archive/uat-history/2026-05-18-pv-cycle-cap-uat-scenarios.md:1)
+   - review the verified queued-cycle promotion result after the older cycle reaches cap
+   - decide whether large-quantity self-purchase orders should intentionally fan out into many `200 PV` cycles
+   - decide whether CAP grant should stay product-master-based or become cycle-cap-aware
+7. Reuse the prepared test catalog for the next round:
+   - `COMMTEST1000 / COMMTESTPKG1000 = 1000 THB / 200 PV`
+   - `COMMTEST650 / COMMTESTPKG650 = 650 THB / 100 PV`
 
 ## Recently Merged Work
 
@@ -139,6 +147,7 @@ Updated: 2026-05-17
 5. If member work continues, the next obvious slice is a reusable member import/reset helper plus explicit login/reset guidance in admin beyond the current list-page note
 6. Reuse the BAO browser-check scripts before deploys or after commission/order-report changes
 7. Keep `member003` legacy matrix analysis positioned as research/sandbox work unless we explicitly want to productionize it further
+8. Treat PV cycle-cap accumulation as the next commission-runtime rule slice if the user continues that track
 
 ## Latest Verified Status
 
@@ -209,7 +218,26 @@ Updated: 2026-05-17
 - Member import now uses a more spreadsheet-friendly assumption set than the original core-user model:
   - duplicate `phone` values are allowed
   - duplicate `nationalId` values are allowed
-  - `email` is still unique, so duplicate/conflicting emails are skipped during seed
+- `email` is still unique, so duplicate/conflicting emails are skipped during seed
+- The next commission runtime rule under planning is the new `PV-only` cycle-cap accumulation flow:
+- The next commission runtime rule under active implementation is the new `PV-only` cycle-cap accumulation flow:
+  - `< 200 PV => 5000`
+  - `>= 200 PV => 10000`
+  - current cycle can upgrade when later PV reaches `200`
+  - excess PV can seed the next queued cycle
+  - see [docs/technical-design/pv_cycle_cap_accumulation_plan.md](/Users/macbook/poolproject/docs/technical-design/pv_cycle_cap_accumulation_plan.md:1)
+  - local source path is already implemented and lint-valid
+  - UAT/server schema and runtime rollout are done
+  - controlled order verification is still pending
+- Test catalog is ready on both local and UAT for those scenarios:
+  - `1000 THB / 200 PV`
+  - `650 THB / 100 PV`
+- UAT already passed the first controlled scenario round for:
+  - `100 PV`
+  - `200 PV`
+  - `100 + 100 PV`
+  - `200 + 100 PV`
+- Remaining UAT proof is the post-cap queued-cycle promotion path
 
 ## Useful Commands
 
@@ -252,6 +280,10 @@ Updated: 2026-05-17
 
 - Full cross-plan summary now lives in `docs/technical-design/commission_plan_summary.md`
 - Use this doc first before reopening direct / unilevel / pool / cashback investigation work
+- BAO now has a special commission privilege flow:
+  - `Commission Report > สิทธิ์พิเศษ`
+  - uses `SpecialCommissionCycleGrant` + runtime special cycle creation
+  - if continuing this feature, verify one `SPECIAL_100_PV` and one `SPECIAL_200_PV` grant on UAT after deploy
 
 ## Wallet Status
 

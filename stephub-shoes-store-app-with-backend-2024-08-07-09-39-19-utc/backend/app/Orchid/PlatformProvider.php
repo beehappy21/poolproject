@@ -78,6 +78,9 @@ class PlatformProvider extends OrchidServiceProvider {
           Menu::make('Pool Bonus')
             ->icon('bs-droplet')
             ->route('platform.commission.report.pool'),
+          Menu::make('สิทธิ์พิเศษ')
+            ->icon('bs-stars')
+            ->route('platform.commission.specialPrivilege'),
         ]),
 
       Menu::make('Orders')

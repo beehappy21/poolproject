@@ -22,7 +22,10 @@ class CommissionSettingsController extends Controller
             'teamThreeLegRate' => $request->input('teamThreeLegRate', $request->input('team_three_leg_rate')),
             'dailyCommissionCapAmount' => $request->input('dailyCommissionCapAmount', $request->input('daily_commission_cap_amount')),
             'buybackThresholdAmount' => $request->input('buybackThresholdAmount', $request->input('buyback_threshold_amount')),
-            'buybackRepurchaseAmount' => $request->input('buybackRepurchaseAmount', $request->input('buyback_repurchase_amount')),
+            'buybackRepurchasePv' => $request->input(
+                'buybackRepurchasePv',
+                $request->input('buyback_repurchase_pv', $request->input('buybackRepurchaseAmount', $request->input('buyback_repurchase_amount')))
+            ),
             'buybackGraceDays' => $request->input('buybackGraceDays', $request->input('buyback_grace_days')),
             'poolMinActivePackageBuyerDirects' => $request->input(
                 'poolMinActivePackageBuyerDirects',
@@ -83,7 +86,7 @@ class CommissionSettingsController extends Controller
             'teamThreeLegRate' => ['nullable', 'string'],
             'dailyCommissionCapAmount' => ['nullable', 'string'],
             'buybackThresholdAmount' => ['nullable', 'string'],
-            'buybackRepurchaseAmount' => ['nullable', 'string'],
+            'buybackRepurchasePv' => ['nullable', 'string'],
             'buybackGraceDays' => ['nullable', 'integer', 'min:1'],
             'poolMinActivePackageBuyerDirects' => ['nullable', 'integer', 'min:1'],
             'poolMaxEntitlementShareRate' => ['nullable', 'string'],
@@ -105,9 +108,9 @@ class CommissionSettingsController extends Controller
             'matchingLevelRates' => $this->cleanRates($payload['matchingLevelRates'] ?? ($current['matchingLevelRates'] ?? ['0.05', '0.05'])),
             'teamTwoLegRate' => $this->cleanSingleRate($payload['teamTwoLegRate'] ?? ($current['teamTwoLegRate'] ?? '0.3')),
             'teamThreeLegRate' => $this->cleanSingleRate($payload['teamThreeLegRate'] ?? ($current['teamThreeLegRate'] ?? '0.5')),
-            'dailyCommissionCapAmount' => $this->cleanSingleRate($payload['dailyCommissionCapAmount'] ?? ($current['dailyCommissionCapAmount'] ?? '3000')),
+            'dailyCommissionCapAmount' => $this->cleanSingleRate($payload['dailyCommissionCapAmount'] ?? ($current['dailyCommissionCapAmount'] ?? '10000')),
             'buybackThresholdAmount' => $this->cleanSingleRate($payload['buybackThresholdAmount'] ?? ($current['buybackThresholdAmount'] ?? '10000')),
-            'buybackRepurchaseAmount' => $this->cleanSingleRate($payload['buybackRepurchaseAmount'] ?? ($current['buybackRepurchaseAmount'] ?? '1000')),
+            'buybackRepurchasePv' => $this->cleanSingleRate($payload['buybackRepurchasePv'] ?? ($current['buybackRepurchasePv'] ?? ($current['buybackRepurchaseAmount'] ?? '0'))),
             'buybackGraceDays' => max(1, (int) ($payload['buybackGraceDays'] ?? ($current['buybackGraceDays'] ?? 3))),
             'poolMinActivePackageBuyerDirects' => max(1, (int) ($payload['poolMinActivePackageBuyerDirects'] ?? ($current['poolMinActivePackageBuyerDirects'] ?? 3))),
             'poolMaxEntitlementShareRate' => $this->cleanSingleRate($payload['poolMaxEntitlementShareRate'] ?? ($current['poolMaxEntitlementShareRate'] ?? '0.03')),

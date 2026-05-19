@@ -1,0 +1,256 @@
+<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:Thonburi,Arial,sans-serif;font-size:13px;line-height:1.45;color:#111}h1{font-size:22px}h2{font-size:18px;margin-top:18px}h3{font-size:15px;margin-top:14px}code{font-family:Menlo,monospace;background:#f3f3f3;padding:1px 3px;border-radius:3px}table{border-collapse:collapse;width:100%;margin:12px 0}th,td{border:1px solid #bbb;padding:6px 8px;vertical-align:top;text-align:left}ul{margin:6px 0 10px 20px}p{margin:6px 0}</style></head><body><h1>สรุปแผนการตลาดที่ระบบใช้จริง</h1>
+
+<p>Updated: 2026-05-18</p>
+
+<p>อ้างอิง runtime จริงจาก:</p>
+
+<ul>
+<li>[runtime/commission-settings.json](/Users/macbook/poolproject/runtime/commission-settings.json:1)</li>
+<li>[docs/technical-design/referral_commission_plan_thb.md](/Users/macbook/poolproject/docs/technical-design/referral_commission_plan_thb.md:1)</li>
+<li>[docs/technical-design/commission_round_repurchase_spec.md](/Users/macbook/poolproject/docs/technical-design/commission_round_repurchase_spec.md:1)</li>
+<li>[docs/archive/uat-history/2026-05-18-pv-cycle-cap-uat-scenarios.md](/Users/macbook/poolproject/docs/archive/uat-history/2026-05-18-pv-cycle-cap-uat-scenarios.md:1)</li>
+</ul>
+
+<h2>วัตถุประสงค์</h2>
+
+<p>เอกสารนี้สรุปเฉพาะกติกาแผนการตลาดที่ระบบ runtime ใช้งานจริงในปัจจุบัน เพื่อให้ฝ่ายการตลาดใช้ทำงานต่อได้โดยไม่ปนกับแผนเก่า แผนที่ปิดอยู่ หรือแผน sandbox</p>
+
+<h2>หลักคิดสำคัญ</h2>
+
+<ul>
+<li>ระบบคิดคอมจาก <code>PV</code> ของออเดอร์ที่ <code>approved</code> แล้วเท่านั้น</li>
+<li>สำหรับการคำนวณคอม ระบบตีความ <code>1 PV = 1 บาท</code></li>
+<li>ยอดขายจริงกับ PV เป็นคนละค่า:</li>
+</ul>
+<p>  - ยอดขาย ใช้เป็นราคาขายสินค้า</p>
+<p>  - PV ใช้เป็นฐานคำนวณคอม</p>
+<ul>
+<li>trigger เริ่มคำนวณคอมของระบบคือ <code>approved order</code></li>
+</ul>
+
+<h2>แผนที่เปิดใช้งานจริง</h2>
+
+<ul>
+<li><code>Direct</code></li>
+<li><code>Team 2-leg</code></li>
+<li><code>Team 3-leg</code></li>
+<li><code>Matching</code></li>
+<li><code>Pool</code></li>
+</ul>
+
+<h2>แผนที่ปิดอยู่ตอนนี้</h2>
+
+<ul>
+<li><code>Cashback</code></li>
+<li><code>Unilevel</code></li>
+<li><code>Matrix</code></li>
+</ul>
+
+<h2>กติกา Referral</h2>
+
+<ul>
+<li>ใช้ <code>referralCode</code> เป็นรหัสแนะนำสมัคร</li>
+<li>ใช้ <code>memberCode</code> เป็นรหัสสมาชิกสำหรับ login, support, และ back-office</li>
+<li>ห้ามใช้ <code>memberCode</code> แทน <code>referralCode</code> ใน flow การตลาดใหม่</li>
+</ul>
+
+<h2>กติกาการเกิดคอม</h2>
+
+<ul>
+<li>ออเดอร์ต้องเป็น <code>approved</code> ก่อน คอมจึงเริ่มคำนวณ</li>
+<li>สถานะต่อไปนี้ยังไม่เริ่มคำนวณ:</li>
+</ul>
+<p>  - <code>pending</code></p>
+<p>  - <code>unpaid</code></p>
+<p>  - จ่ายแล้วแต่ยังไม่ <code>approved</code></p>
+
+<h2>สูตรคอมที่ใช้จริง</h2>
+
+<h3>Direct</h3>
+
+<ul>
+<li>จ่าย <code>2 ชั้น</code></li>
+<li><code>L1 = 50% ของ PV</code></li>
+<li><code>L2 = 50% ของ PV</code></li>
+<li>คิดทันทีเมื่อออเดอร์ลูกทีมเป็น <code>approved</code></li>
+</ul>
+
+<p>ตัวอย่าง:</p>
+
+<ul>
+<li>order <code>200 PV</code></li>
+<li><code>Direct L1 = 100 บาท</code></li>
+<li><code>Direct L2 = 100 บาท</code></li>
+</ul>
+
+<h3>Team 2-leg</h3>
+
+<ul>
+<li>ใช้เมื่อมี <code>2 ขาที่จ่ายได้</code></li>
+<li>จ่าย <code>30%</code></li>
+<li>คิดจาก <code>ขาที่อ่อนกว่า</code></li>
+</ul>
+
+<p>สูตร:</p>
+
+<ul>
+<li><code>team2Leg = min(payableLegPv) x 0.30</code></li>
+</ul>
+
+<h3>Team 3-leg</h3>
+
+<ul>
+<li>ใช้เมื่อมี <code>3 ขาที่จ่ายได้</code></li>
+<li>จ่าย <code>50%</code></li>
+<li>คิดจากผลรวม <code>2 ขาที่อ่อนกว่า</code></li>
+</ul>
+
+<p>สูตร:</p>
+
+<ul>
+<li>เรียงจากน้อยไปมาก</li>
+<li><code>team3LegBasePv = weakest + middle</code></li>
+<li><code>team3Leg = team3LegBasePv x 0.50</code></li>
+</ul>
+
+<h3>Matching</h3>
+
+<ul>
+<li>จ่าย <code>2 ชั้น</code></li>
+<li>ชั้นละ <code>5%</code></li>
+<li>คิดจาก <code>team final payable</code> ที่จ่ายได้จริงหลังหัก cap แล้ว</li>
+</ul>
+
+<p>สูตร:</p>
+
+<ul>
+<li><code>matchingL1 = teamFinalPayableAmount x 0.05</code></li>
+<li><code>matchingL2 = teamFinalPayableAmount x 0.05</code></li>
+</ul>
+
+<h3>Pool</h3>
+
+<ul>
+<li>ใช้ <code>100% ของ approved sales PV</code> ของวันนั้นเป็นฐานเข้ากอง pool</li>
+<li>runtime ตอนนี้ใช้ <code>poolRate = 1</code></li>
+</ul>
+
+<h2>เพดานจ่ายรายวัน</h2>
+
+<ul>
+<li><code>Daily commission cap = 5,000 บาท</code></li>
+<li>ใช้กับคอมรวมต่อวันของสมาชิกคนนั้นใน runtime ปัจจุบัน</li>
+<li>แม้สูตรดิบคำนวณได้สูงกว่า final payable อาจถูกจำกัดด้วย daily cap</li>
+</ul>
+
+<h2>กติกา Cycle Cap ตาม PV</h2>
+
+<p>ระบบใช้กติกา <code>PV-only cycle cap</code> จริงแล้ว</p>
+
+<ul>
+<li>ถ้ารอบนั้นมี PV สะสม <code>&lt; 200 PV</code> ได้ <code>cycle cap 5,000 บาท</code></li>
+<li>ถ้ารอบนั้นมี PV สะสม <code>&gt;= 200 PV</code> ได้ <code>cycle cap 10,000 บาท</code></li>
+<li>PV สะสมข้ามหลาย order ได้</li>
+<li>ถ้ารอบเดิมเริ่มต่ำกว่า <code>200 PV</code> แล้วซื้อเพิ่มจนแตะ <code>200 PV</code> ระบบจะอัปเกรด cap จาก <code>5,000</code> เป็น <code>10,000</code> ทันที</li>
+<li>ถ้า PV เกินจากรอบปัจจุบัน ระบบจะยกส่วนเกินไปเปิดรอบถัดไปแบบรอจ่าย</li>
+<li>ระบบจะจ่ายรอบเก่าก่อน แล้วค่อยเลื่อนไปรอบถัดไป</li>
+</ul>
+
+<p>ตัวอย่างที่ทดสอบผ่านบน UAT แล้ว:</p>
+
+<ul>
+<li><code>100 PV =&gt; cap 5,000</code></li>
+<li><code>200 PV =&gt; cap 10,000</code></li>
+<li><code>100 + 100 =&gt; อัปเกรดรอบเดิมเป็น cap 10,000</code></li>
+<li><code>200 + 100 =&gt; เปิดรอบถัดไป 100 PV แบบรอ</code></li>
+<li>เมื่อรอบแรกจ่ายเต็ม cap แล้ว รอบถัดไปถูก promote ขึ้นมารับคอมได้จริง</li>
+</ul>
+
+<h2>กติกา Commission Round</h2>
+
+<ul>
+<li>หนึ่งรอบถือว่า <code>ครบรอบ</code> เมื่อคอมสะสม <code>&gt;= 10,000 บาท</code></li>
+<li>ยอดสะสมรอบนี้นับจาก:</li>
+</ul>
+<p>  - <code>Direct</code></p>
+<p>  - <code>Team 2-leg</code></p>
+<p>  - <code>Team 3-leg</code></p>
+<p>  - <code>Matching</code></p>
+<p>  - <code>Pool</code></p>
+<ul>
+<li>ไม่นับ <code>Company fallback</code></li>
+</ul>
+
+<h2>กติกา Re-purchase</h2>
+
+<ul>
+<li>เมื่อครบรอบ <code>10,000 บาท</code> ระบบเข้าสู่ช่วง <code>grace 3 วัน</code></li>
+<li>ระหว่าง grace ยังมีการคำนวณคอม แต่คอมใหม่จะถูก <code>hold</code></li>
+<li>หากซื้อซ้ำของตัวเองและออเดอร์ <code>approved</code> ที่มี <code>PV &gt; 0</code> ภายใน 3 วัน:</li>
+</ul>
+<p>  - ระบบเปิดรอบใหม่</p>
+<p>  - รีเซ็ตยอดสะสมรอบใหม่เป็น <code>0</code></p>
+<p>  - ระบบกำหนด cycle cap ของรอบใหม่ตาม PV ที่ซื้อ:</p>
+<p>    - <code>&lt; 200 PV = 5,000</code></p>
+<p>    - <code>&gt;= 200 PV = 10,000</code></p>
+<p>  - flow การรับคอมกลับมาทำงานปกติ</p>
+<ul>
+<li>หากไม่ซื้อซ้ำภายใน grace:</li>
+</ul>
+<p>  - หลังหมดเวลา ระบบหยุดการเกิดคอมใหม่</p>
+<p>  - ต้องมี qualifying repurchase จึงจะเปิดรอบใหม่ได้</p>
+
+<h2>กติกาเข้าพูลครั้งแรก</h2>
+
+<p>สมาชิกจะมีสิทธิ์ pool ครั้งแรกเมื่อมีครบ:</p>
+
+<ul>
+<li>มี order ซื้อเองที่ <code>approved</code></li>
+<li>มี direct อย่างน้อย <code>3 คน</code></li>
+<li>direct ทั้ง <code>3 คน</code> มี approved purchase อย่างน้อยคนละ <code>1 order</code></li>
+</ul>
+
+<p>หลังจากผ่านด่านแรกแล้ว:</p>
+
+<ul>
+<li>รอบถัดไปไม่ต้องสร้าง <code>3 direct buyers</code> ใหม่</li>
+<li>ใช้ qualifying self-repurchase เพื่อเปิดรอบใหม่</li>
+</ul>
+
+<h2>สิ่งที่การตลาดสื่อสารได้ทันที</h2>
+
+<ul>
+<li>ระบบคิดคอมจาก <code>PV</code></li>
+<li><code>Direct 2 ชั้น: 50% + 50%</code></li>
+<li><code>Team 2 ขา 30%</code></li>
+<li><code>Team 3 ขา 50%</code></li>
+<li><code>Matching 2 ชั้น: 5% + 5%</code></li>
+<li><code>Pool</code> ใช้เงื่อนไขแรกเข้า <code>ซื้อเอง + 3 direct + 3 direct buyers</code></li>
+<li><code>Daily cap 5,000 บาท</code></li>
+<li><code>ครบรอบที่ 10,000 บาท</code></li>
+<li><code>ซื้อซ้ำที่มี PV ภายใน 3 วัน</code> เพื่อเปิดรอบใหม่</li>
+<li><code>Cycle cap</code> ตาม PV สะสม:</li>
+</ul>
+<p>  - <code>&lt; 200 PV = 5,000</code></p>
+<p>  - <code>&gt;= 200 PV = 10,000</code></p>
+
+<h2>สิ่งที่ยังไม่ควรสื่อสารเป็นแผน active</h2>
+
+<ul>
+<li><code>Cashback</code></li>
+<li><code>Unilevel</code></li>
+<li><code>Matrix</code></li>
+<li>สูตรเก่าแบบ <code>35 USDT = 10 PV</code></li>
+<li>การใช้ <code>memberCode</code> เป็นรหัสชวนสมัคร</li>
+</ul>
+
+<h2>หมายเหตุ</h2>
+
+<ul>
+<li>เอกสารนี้ตั้งใจสรุปเฉพาะสิ่งที่ runtime ใช้อยู่จริงในปัจจุบัน</li>
+<li>หาก config หรือ runtime เปลี่ยน ต้องอัปเดตเอกสารนี้ตามรอบ deploy ด้วย</li>
+<li>กติกาเปิดรอบใหม่ล่าสุดคือ <code>ซื้อซ้ำที่มี PV &gt; 0 ภายใน 3 วัน</code></li>
+<li>ถ้าซื้อ <code>100 PV</code> รอบใหม่จะได้ cap <code>5,000</code></li>
+<li>ถ้าซื้อ <code>200 PV</code> รอบใหม่จะได้ cap <code>10,000</code></li>
+</ul>
+</body></html>

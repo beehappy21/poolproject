@@ -613,7 +613,7 @@ export class OrdersService implements OrdersServiceContract {
         beneficiaryUserId: approvedOrder.sourceUserId,
         approvedOrderId: approvedOrder.orderId,
         approvedAt: approvedOrder.approvedAt,
-        orderTotalUsdt: approvedOrder.totalUsdt,
+        orderTotalPv: approvedOrder.totalPv,
       });
       const existingCommissionEntries = this.asCommissionEntryArray(
         await this.commissionsService.listCommissions({ orderId }),
@@ -972,7 +972,9 @@ export class OrdersService implements OrdersServiceContract {
   }
 
   private async activateSourceMemberCyclesFromApprovedOrder(approvedOrder: {
+    orderId: string;
     sourceUserId: string;
+    totalPv: string;
     approvedAt: string;
     items: Array<{
       productDetailId: string | null;
@@ -980,27 +982,21 @@ export class OrdersService implements OrdersServiceContract {
       quantity: number;
     }>;
   }): Promise<void> {
-    for (const item of approvedOrder.items) {
-      const quantity = Math.max(1, item.quantity || 1);
+    const primaryItem = approvedOrder.items.find(
+      (item) => !!item.productDetailId || !!item.packageId,
+    );
 
-      for (let index = 0; index < quantity; index += 1) {
-        if (item.productDetailId) {
-          await this.membersService.activateProductCycle({
-            memberId: approvedOrder.sourceUserId,
-            productDetailId: item.productDetailId,
-            activatedAt: approvedOrder.approvedAt,
-          });
-          continue;
-        }
-
-        if (item.packageId) {
-          await this.membersService.activateProductCycle({
-            memberId: approvedOrder.sourceUserId,
-            packageId: item.packageId,
-            activatedAt: approvedOrder.approvedAt,
-          });
-        }
-      }
+    if (!primaryItem) {
+      return;
     }
+
+    await this.membersService.allocateApprovedOrderPvToCycles({
+      memberId: approvedOrder.sourceUserId,
+      totalPv: approvedOrder.totalPv,
+      sourceOrderId: approvedOrder.orderId,
+      productDetailId: primaryItem.productDetailId ?? undefined,
+      packageId: primaryItem.packageId ?? undefined,
+      activatedAt: approvedOrder.approvedAt,
+    });
   }
 }

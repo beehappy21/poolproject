@@ -79,6 +79,20 @@ export interface MembersServiceContract {
     uplineLevelCount: number;
   } | null>;
 
+  getTopLeaderboard(
+    memberId: string,
+    limit?: number,
+  ): Promise<
+    Array<{
+      memberId: string;
+      memberCode: string;
+      name: string;
+      sponsorMemberCode: string | null;
+      sponsorName: string | null;
+      totalCommission: string;
+    }>
+  >;
+
   getMemberCycles(
     memberId: string,
     evaluationAt: string,
@@ -297,6 +311,62 @@ export interface MembersServiceContract {
     activeUntil: string;
   }>;
 
+  allocateApprovedOrderPvToCycles(input: {
+    memberId: string;
+    totalPv: string;
+    sourceOrderId: string;
+    productDetailId?: string;
+    packageId?: string;
+    activatedAt?: string;
+  }): Promise<{
+    affectedCycleIds: string[];
+    openedCycleIds: string[];
+    totalAllocatedPv: string;
+    overflowCycleCount: number;
+  }>;
+
+  grantSpecialCommissionCycle(input: {
+    memberId: string;
+    grantCode: "SPECIAL_100_PV" | "SPECIAL_200_PV";
+    reason: string;
+    note?: string | null;
+    grantedByAdminName?: string | null;
+    grantedByAdminEmail?: string | null;
+    activatedAt?: string;
+  }): Promise<{
+    grantId: string;
+    cycleId: string;
+    memberId: string;
+    cycleNo: number;
+    memberCode: string;
+    grantCode: "SPECIAL_100_PV" | "SPECIAL_200_PV";
+    grantedPv: string;
+    purchaseBase: string;
+    earningCap: string;
+    cycleCapTier: "BELOW_200_PV" | "AT_LEAST_200_PV";
+    isReceivable: boolean;
+    activatedAt: string;
+    reason: string;
+    note: string | null;
+  }>;
+
+  closeLatestSpecialCommissionCycle(input: {
+    memberId: string;
+    closedByAdminName?: string | null;
+    closedByAdminEmail?: string | null;
+    closedAt?: string;
+  }): Promise<{
+    grantId: string;
+    cycleId: string;
+    memberId: string;
+    memberCode: string;
+    cycleNo: number;
+    grantCode: "SPECIAL_100_PV" | "SPECIAL_200_PV";
+    closedAt: string;
+    nextReceivableCycleId: string | null;
+    nextReceivableCycleNo: number | null;
+  }>;
+
   resetMemberPassword(
     memberId: string,
     newPassword: string,
@@ -321,6 +391,10 @@ export class MembersService implements MembersServiceContract {
 
   async getMemberNetwork(memberId: string) {
     return this.membersRepository.findMemberNetwork(memberId);
+  }
+
+  async getTopLeaderboard(memberId: string, limit = 10) {
+    return this.membersRepository.findTopLeaderboardBySponsor(memberId, limit);
   }
 
   async getMemberCycles(
@@ -485,6 +559,38 @@ export class MembersService implements MembersServiceContract {
     activatedAt?: string;
   }) {
     return this.membersRepository.activateProductCycle(input);
+  }
+
+  async allocateApprovedOrderPvToCycles(input: {
+    memberId: string;
+    totalPv: string;
+    sourceOrderId: string;
+    productDetailId?: string;
+    packageId?: string;
+    activatedAt?: string;
+  }) {
+    return this.membersRepository.allocateApprovedOrderPvToCycles(input);
+  }
+
+  async grantSpecialCommissionCycle(input: {
+    memberId: string;
+    grantCode: "SPECIAL_100_PV" | "SPECIAL_200_PV";
+    reason: string;
+    note?: string | null;
+    grantedByAdminName?: string | null;
+    grantedByAdminEmail?: string | null;
+    activatedAt?: string;
+  }) {
+    return this.membersRepository.grantSpecialCommissionCycle(input);
+  }
+
+  async closeLatestSpecialCommissionCycle(input: {
+    memberId: string;
+    closedByAdminName?: string | null;
+    closedByAdminEmail?: string | null;
+    closedAt?: string;
+  }) {
+    return this.membersRepository.closeLatestSpecialCommissionCycle(input);
   }
 
   async resetMemberPassword(memberId: string, newPassword: string) {

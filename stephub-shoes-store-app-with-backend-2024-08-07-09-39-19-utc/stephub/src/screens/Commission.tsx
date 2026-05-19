@@ -76,6 +76,7 @@ type CommissionRoundProgress = {
   completed?: boolean;
   thresholdReachedAt?: string | null;
   graceExpiresAt?: string | null;
+  lockedDuringGraceAmount?: string;
   repurchaseGraceDays?: number;
 };
 
@@ -89,6 +90,10 @@ type CommissionEntry = {
   commissionId?: string;
   orderId?: string | null;
   sourceUserId?: string;
+  sourceMemberCode?: string | null;
+  sourceMemberName?: string | null;
+  sourceSponsorMemberCode?: string | null;
+  sourceSponsorName?: string | null;
   beneficiaryUserId?: string | null;
   commissionType?: string;
   levelNo?: number | null;
@@ -133,6 +138,7 @@ type DirectReferralSummary = {
   memberId: string;
   memberCode: string;
   name: string;
+  sponsorId?: string | null;
   placementSide?: 'LEFT' | 'MIDDLE' | 'RIGHT' | null;
   childCount: number;
 };
@@ -144,6 +150,15 @@ type DirectReferralsResponse = {
     memberCode?: string;
     name?: string;
   };
+};
+
+type TopLeaderSummary = {
+  memberId: string;
+  memberCode: string;
+  name: string;
+  sponsorMemberCode?: string | null;
+  sponsorName?: string | null;
+  totalCommission: string;
 };
 
 type DashboardMetrics = {
@@ -334,6 +349,14 @@ export const Commission: React.FC = () => {
   const [commissionEntries, setCommissionEntries] = useState<CommissionEntry[]>([]);
   const [walletTransactions, setWalletTransactions] = useState<WalletTransactionSummary[]>([]);
   const [directReferrals, setDirectReferrals] = useState<DirectReferralSummary[]>([]);
+  const [topLeaderRows, setTopLeaderRows] = useState<
+    Array<{
+      sourceUserId: string;
+      memberLabel: string;
+      sponsorLabel: string;
+      amount: number;
+    }>
+  >([]);
   const [detailPanel, setDetailPanel] = useState<
     'cw-convert' | 'cw-current' | 'cw-total' | 'dcw' | 'top-leader' | null
   >(null);
@@ -357,6 +380,7 @@ export const Commission: React.FC = () => {
       completed: false,
       thresholdReachedAt: null,
       graceExpiresAt: null,
+      lockedDuringGraceAmount: '0',
       repurchaseGraceDays: 3,
     });
   const [countdownNow, setCountdownNow] = useState(() => Date.now());
@@ -473,6 +497,35 @@ export const Commission: React.FC = () => {
         }
       } else {
         setDirectReferrals([]);
+      }
+
+      if (user?.accessToken) {
+        try {
+          const topLeadersResponse = await axios.get<TopLeaderSummary[]>(
+            `${URLS.AUTH_NETWORK_TOP_LEADERS}?limit=10`,
+            {
+              headers,
+              withCredentials: true,
+            },
+          );
+
+          setTopLeaderRows(
+            (topLeadersResponse.data || []).map(row => ({
+              sourceUserId: row.memberId,
+              memberLabel: formatMemberDisplay(row.name, row.memberCode),
+              sponsorLabel: formatMemberDisplay(
+                row.sponsorName || 'ผู้แนะนำไม่ระบุ',
+                row.sponsorMemberCode || undefined,
+              ),
+              amount: parseDecimal(row.totalCommission),
+            })),
+          );
+        } catch (topLeaderError) {
+          console.error(topLeaderError);
+          setTopLeaderRows([]);
+        }
+      } else {
+        setTopLeaderRows([]);
       }
 
       const swBalance = parseDecimal(wallet?.shoppingBalance);
@@ -666,6 +719,11 @@ export const Commission: React.FC = () => {
     : `${formatPv(commissionRoundProgress.amount)}/${formatPv(
         commissionRoundProgress.threshold,
       )}`;
+  const lockedDuringGraceAmount =
+    commissionRoundProgress.lockedDuringGraceAmount || '0';
+  const showLockedDuringGrace =
+    commissionRoundProgress.completed &&
+    Number(lockedDuringGraceAmount || '0') > 0;
   const cashbackEntries = useMemo(() => {
     return commissionEntries
       .filter(
@@ -772,45 +830,72 @@ export const Commission: React.FC = () => {
   }, [walletTransactions]);
 
   const memberDirectory = useMemo(() => {
-    const directory = new Map<string, {memberCode?: string; name?: string}>();
+    const directory = new Map<
+      string,
+      {
+        memberCode?: string | null;
+        name?: string | null;
+        sponsorId?: string | null;
+        sponsorMemberCode?: string | null;
+        sponsorName?: string | null;
+      }
+    >();
+
+    commissionEntries.forEach(entry => {
+      if (!entry.sourceUserId) {
+        return;
+      }
+
+      directory.set(entry.sourceUserId, {
+        memberCode: entry.sourceMemberCode,
+        name: entry.sourceMemberName,
+        sponsorMemberCode: entry.sourceSponsorMemberCode,
+        sponsorName: entry.sourceSponsorName,
+      });
+    });
 
     directReferrals.forEach(referral => {
+      const current = directory.get(referral.memberId);
       directory.set(referral.memberId, {
         memberCode: referral.memberCode,
         name: referral.name,
+        sponsorId: referral.sponsorId ?? current?.sponsorId,
+        sponsorMemberCode: current?.sponsorMemberCode,
+        sponsorName: current?.sponsorName,
+      });
+    });
+
+    directReferrals.forEach(referral => {
+      if (!referral.sponsorId) {
+        return;
+      }
+
+      const sponsor = directory.get(referral.sponsorId);
+      const current = directory.get(referral.memberId);
+      if (!current) {
+        return;
+      }
+
+      directory.set(referral.memberId, {
+        ...current,
+        sponsorMemberCode: current.sponsorMemberCode || sponsor?.memberCode,
+        sponsorName: current.sponsorName || sponsor?.name,
       });
     });
 
     return directory;
-  }, [directReferrals]);
+  }, [commissionEntries, directReferrals]);
 
-  const topLeaderRows = useMemo(() => {
-    const totals = new Map<string, number>();
+  const formatMemberDisplay = (name?: string | null, memberCode?: string | null): string => {
+    const trimmedName = String(name || '').trim();
+    const trimmedCode = String(memberCode || '').trim();
 
-    commissionEntries.forEach(entry => {
-      if (!entry.sourceUserId || entry.status?.toLowerCase() === 'fallback') {
-        return;
-      }
+    if (trimmedName && trimmedCode) {
+      return `${trimmedName} (${trimmedCode})`;
+    }
 
-      totals.set(
-        entry.sourceUserId,
-        (totals.get(entry.sourceUserId) || 0) + parseDecimal(entry.amount),
-      );
-    });
-
-    return Array.from(totals.entries())
-      .map(([sourceUserId, amount]) => {
-        const member = memberDirectory.get(sourceUserId);
-        return {
-          sourceUserId,
-          memberCode: member?.memberCode || `U${sourceUserId}`,
-          name: member?.name || 'สมาชิกใต้สายงาน',
-          amount,
-        };
-      })
-      .sort((left, right) => right.amount - left.amount)
-      .slice(0, 10);
-  }, [commissionEntries, memberDirectory]);
+    return trimmedName || trimmedCode || '-';
+  };
 
   const tiles = dashboardTiles(metrics);
 
@@ -1540,9 +1625,11 @@ export const Commission: React.FC = () => {
             >
               <div>
                 <div style={{color: theme.colors.mainColor, ...theme.fonts.Mulish_700Bold}}>
-                  {index + 1}. {row.memberCode}
+                  {index + 1}. {row.memberLabel}
                 </div>
-                <div style={{color: theme.colors.textColor}}>{row.name}</div>
+                <div style={{color: theme.colors.textColor}}>
+                  ผู้แนะนำ: {row.sponsorLabel}
+                </div>
               </div>
               <div style={{color: theme.colors.mainColor, ...theme.fonts.Mulish_700Bold}}>
                 {formatDecimal(row.amount)}
@@ -1747,10 +1834,22 @@ export const Commission: React.FC = () => {
                 color: commissionRoundProgress.completed
                   ? '#15803D'
                   : theme.colors.mainColor,
-                whiteSpace: 'nowrap',
+                textAlign: 'right',
               }}
             >
-              {commissionRoundStatusLabel}
+              <div style={{whiteSpace: 'nowrap'}}>{commissionRoundStatusLabel}</div>
+              {showLockedDuringGrace ? (
+                <div
+                  style={{
+                    marginTop: 4,
+                    fontSize: 12,
+                    color: '#92400E',
+                    ...theme.fonts.Mulish_700Bold,
+                  }}
+                >
+                  ยอดล็อกระหว่างรอ {formatPv(lockedDuringGraceAmount)} บาท
+                </div>
+              ) : null}
             </div>
           </div>
         </section>

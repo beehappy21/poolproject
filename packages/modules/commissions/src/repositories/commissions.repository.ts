@@ -23,6 +23,8 @@ import {
   addDecimalStrings,
   compareDecimalStrings,
   maxDecimalString,
+  minDecimalString,
+  multiplyDecimalStrings,
   subtractDecimalStrings,
 } from "../../../../shared/utils/src/money.util";
 
@@ -327,6 +329,77 @@ export interface CommissionsRepository {
 @Injectable()
 export class PrismaCommissionsRepository implements CommissionsRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  private async normalizeMemberCycleReceivability(
+    tx: Prisma.TransactionClient,
+    userId: bigint,
+  ) {
+    const cycles = await tx.memberPackageCycle.findMany({
+      where: {
+        userId,
+        status: "ACTIVE",
+      },
+      orderBy: [{ cycleNo: "asc" }],
+      select: {
+        id: true,
+        earningCap: true,
+        purchaseBase: true,
+        commissionCapScope: true,
+        commissionCapMultiple: true,
+        earnedTotalInCycle: true,
+        readyToReceiveAt: true,
+      },
+    });
+
+    let nextReceivableCycleId: bigint | null = null;
+
+    for (const cycle of cycles) {
+      let effectiveCap = cycle.earningCap.toString();
+
+      if (
+        cycle.commissionCapScope === "ALL_COMMISSIONS" &&
+        compareDecimalStrings(cycle.commissionCapMultiple?.toString() ?? "0", "0") > 0 &&
+        compareDecimalStrings(cycle.purchaseBase?.toString() ?? "0", "0") > 0
+      ) {
+        effectiveCap = minDecimalString(
+          effectiveCap,
+          multiplyDecimalStrings(
+            cycle.purchaseBase?.toString() ?? "0",
+            cycle.commissionCapMultiple?.toString() ?? "0",
+          ),
+        );
+      }
+
+      const isCapped =
+        compareDecimalStrings(effectiveCap, "0") > 0 &&
+        compareDecimalStrings(cycle.earnedTotalInCycle.toString(), effectiveCap) >= 0;
+
+      await tx.memberPackageCycle.update({
+        where: { id: cycle.id },
+        data: {
+          earningStatus: isCapped ? "CAPPED" : "ACTIVE",
+          cappedAt: isCapped ? new Date() : null,
+        },
+      });
+
+      if (!isCapped && nextReceivableCycleId === null) {
+        nextReceivableCycleId = cycle.id;
+      }
+    }
+
+    for (const cycle of cycles) {
+      const shouldReceive =
+        nextReceivableCycleId !== null && cycle.id === nextReceivableCycleId;
+      await tx.memberPackageCycle.update({
+        where: { id: cycle.id },
+        data: {
+          isReceivable: shouldReceive,
+          readyToReceiveAt:
+            shouldReceive && !cycle.readyToReceiveAt ? new Date() : cycle.readyToReceiveAt,
+        },
+      });
+    }
+  }
 
   private asCapDate(capDate: string): Date {
     return new Date(`${capDate}T00:00:00.000Z`);
@@ -1472,6 +1545,15 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
             },
           },
         });
+
+        const cycle = await tx.memberPackageCycle.findUnique({
+          where: { id: nextBeneficiaryCycleId },
+          select: { userId: true },
+        });
+
+        if (cycle) {
+          await this.normalizeMemberCycleReceivability(tx, cycle.userId);
+        }
       }
     });
   }
@@ -1634,6 +1716,26 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
         });
       }
 
+      const affectedCycleOwners = new Set<string>();
+      for (const commission of commissions) {
+        if (!commission.beneficiaryCycleId) {
+          continue;
+        }
+
+        const cycle = await tx.memberPackageCycle.findUnique({
+          where: { id: commission.beneficiaryCycleId },
+          select: { userId: true },
+        });
+
+        if (cycle) {
+          affectedCycleOwners.add(cycle.userId.toString());
+        }
+      }
+
+      for (const userId of affectedCycleOwners) {
+        await this.normalizeMemberCycleReceivability(tx, BigInt(userId));
+      }
+
       if (walletTransactions.length > 0) {
         await tx.walletTransaction.deleteMany({
           where: {
@@ -1701,6 +1803,18 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
         id: true,
         orderId: true,
         sourceUserId: true,
+        sourceUser: {
+          select: {
+            memberCode: true,
+            name: true,
+            sponsor: {
+              select: {
+                memberCode: true,
+                name: true,
+              },
+            },
+          },
+        },
         beneficiaryUserId: true,
         beneficiaryCycleId: true,
         commissionType: true,
@@ -1722,6 +1836,10 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
       commissionId: entry.id.toString(),
       orderId: entry.orderId?.toString() ?? null,
       sourceUserId: entry.sourceUserId.toString(),
+      sourceMemberCode: entry.sourceUser.memberCode,
+      sourceMemberName: entry.sourceUser.name,
+      sourceSponsorMemberCode: entry.sourceUser.sponsor?.memberCode ?? null,
+      sourceSponsorName: entry.sourceUser.sponsor?.name ?? null,
       beneficiaryUserId: entry.beneficiaryUserId?.toString() ?? null,
       beneficiaryCycleId: entry.beneficiaryCycleId?.toString() ?? null,
       commissionType: entry.commissionType.toLowerCase(),

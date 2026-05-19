@@ -207,7 +207,7 @@ export interface CommissionsServiceContract {
     beneficiaryUserId: string;
     approvedOrderId: string;
     approvedAt: string;
-    orderTotalUsdt: string;
+    orderTotalPv: string;
   }): Promise<{
     resetApplied: boolean;
     previousStatus: BuybackProgressStatus | null;
@@ -226,6 +226,10 @@ export interface CommissionsServiceContract {
   getUserBuybackProgress(
     beneficiaryUserId: string,
   ): Promise<UserBuybackProgressSnapshot | null>;
+
+  getHeldRepurchaseCommissionAmount(
+    beneficiaryUserId: string,
+  ): Promise<string>;
 }
 
 @Injectable()
@@ -511,21 +515,43 @@ export class CommissionsService implements CommissionsServiceContract {
     return this.commissionsRepository.getUserBuybackProgress(beneficiaryUserId);
   }
 
+  async getHeldRepurchaseCommissionAmount(
+    beneficiaryUserId: string,
+  ): Promise<string> {
+    const heldRows =
+      await this.commissionsRepository.listHeldRepurchaseCommissions({
+        beneficiaryUserId,
+      });
+
+    return heldRows.reduce(
+      (total, row) => addDecimalStrings(total, row.amount),
+      "0",
+    );
+  }
+
   async handleQualifyingRepurchase(input: {
     beneficiaryUserId: string;
     approvedOrderId: string;
     approvedAt: string;
-    orderTotalUsdt: string;
+    orderTotalPv: string;
   }): Promise<{
     resetApplied: boolean;
     previousStatus: BuybackProgressStatus | null;
     releasedHeldCommissionCount: number;
   }> {
     const settings = readCommissionSettings();
+    if (compareDecimalStrings(input.orderTotalPv, "0") <= 0) {
+      return {
+        resetApplied: false,
+        previousStatus: null,
+        releasedHeldCommissionCount: 0,
+      };
+    }
+
     if (
       compareDecimalStrings(
-        input.orderTotalUsdt,
-        settings.buybackRepurchaseAmount,
+        input.orderTotalPv,
+        settings.buybackRepurchasePv,
       ) < 0
     ) {
       return {
@@ -586,10 +612,11 @@ export class CommissionsService implements CommissionsServiceContract {
 
     await this.commissionsRepository.createBuybackEvent({
       beneficiaryUserId: input.beneficiaryUserId,
-      triggerAmount: input.orderTotalUsdt,
+      triggerAmount: input.orderTotalPv,
       remainingAccumulatedAmount: "0",
       status: "RELEASED_AFTER_REPURCHASE",
-      message: "Qualifying self repurchase opened the next commission round.",
+      message:
+        "Qualifying self repurchase opened the next commission round under PV-based cycle cap.",
       referenceType: "repurchase_order",
       referenceId: input.approvedOrderId,
     });

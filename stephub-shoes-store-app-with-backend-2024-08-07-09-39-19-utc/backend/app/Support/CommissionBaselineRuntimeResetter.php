@@ -78,6 +78,10 @@ class CommissionBaselineRuntimeResetter
      *   baselineOrderCount:int,
      *   affectedUserCount:int,
      *   runtimeArtifactCount:int,
+     *   transactionStateCount:int,
+     *   walletNeedsReset:bool,
+     *   preservedUserCount:int,
+     *   preservedMemberProfileCount:int,
      *   nonBaselineOrderCount:int,
      *   canReset:bool
      * }
@@ -89,11 +93,17 @@ class CommissionBaselineRuntimeResetter
         $runtimeArtifactCount = self::runtimeArtifactCount();
         $transactionStateCount = self::transactionStateCount();
         $walletNeedsReset = self::walletNeedsReset();
+        $preservedUserCount = self::countRows('"User"');
+        $preservedMemberProfileCount = self::countRows('"MemberProfile"');
 
         return [
             'baselineOrderCount' => count($targets['baselineOrderIds']),
             'affectedUserCount' => count($targets['userIds']),
             'runtimeArtifactCount' => $runtimeArtifactCount,
+            'transactionStateCount' => $transactionStateCount,
+            'walletNeedsReset' => $walletNeedsReset,
+            'preservedUserCount' => $preservedUserCount,
+            'preservedMemberProfileCount' => $preservedMemberProfileCount,
             'nonBaselineOrderCount' => count($targets['nonBaselineOrderIds']),
             'canReset' => $runtimeArtifactCount > 0
                 || $transactionStateCount > 0
@@ -102,15 +112,35 @@ class CommissionBaselineRuntimeResetter
     }
 
     /**
-     * @return array{deletedBaselineOrderCount:int, affectedUserCount:int, deletedRuntimeArtifactCount:int}
+     * @return array{
+     *   deletedBaselineOrderCount:int,
+     *   affectedUserCount:int,
+     *   deletedRuntimeArtifactCount:int,
+     *   deletedCommissionLedgerCount:int,
+     *   deletedWalletTransactionCount:int,
+     *   deletedTeamSettlementBatchCount:int,
+     *   deletedPoolCycleCount:int,
+     *   resetWalletCount:int,
+     *   resetMatrixPvUserCount:int,
+     *   preservedUserCount:int,
+     *   preservedMemberProfileCount:int
+     * }
      */
     public static function reset(): array
     {
         $baselineOrders = self::loadBaselineOrders();
         $targets = self::loadTargets($baselineOrders);
         $deletedBaselineOrderCount = self::countRows('"Order"');
+        $deletedCommissionLedgerCount = self::countRows('"CommissionLedger"');
+        $deletedWalletTransactionCount = self::countRows('"WalletTransaction"');
+        $deletedTeamSettlementBatchCount = self::countRows('"TeamSettlementBatch"');
+        $deletedPoolCycleCount = self::countRows('"DailyPoolCycle"');
+        $resetWalletCount = self::walletResetCandidateCount();
+        $resetMatrixPvUserCount = self::matrixPvResetCandidateCount();
         $walletNeedsReset = self::walletNeedsReset();
         $transactionStateCount = self::transactionStateCount();
+        $preservedUserCount = self::countRows('"User"');
+        $preservedMemberProfileCount = self::countRows('"MemberProfile"');
 
         self::applyGlobalCleanup();
 
@@ -129,6 +159,14 @@ class CommissionBaselineRuntimeResetter
             'deletedBaselineOrderCount' => $deletedBaselineOrderCount,
             'affectedUserCount' => count($targets['userIds']),
             'deletedRuntimeArtifactCount' => $deletedRuntimeArtifactCount,
+            'deletedCommissionLedgerCount' => $deletedCommissionLedgerCount,
+            'deletedWalletTransactionCount' => $deletedWalletTransactionCount,
+            'deletedTeamSettlementBatchCount' => $deletedTeamSettlementBatchCount,
+            'deletedPoolCycleCount' => $deletedPoolCycleCount,
+            'resetWalletCount' => $resetWalletCount,
+            'resetMatrixPvUserCount' => $resetMatrixPvUserCount,
+            'preservedUserCount' => $preservedUserCount,
+            'preservedMemberProfileCount' => $preservedMemberProfileCount,
         ];
     }
 
@@ -587,6 +625,11 @@ class CommissionBaselineRuntimeResetter
 
     private static function walletNeedsReset(): bool
     {
+        return self::walletResetCandidateCount() > 0;
+    }
+
+    private static function walletResetCandidateCount(): int
+    {
         $row = DB::connection('poolproject')->selectOne(
             <<<'SQL'
             select count(*) as count
@@ -604,7 +647,20 @@ class CommissionBaselineRuntimeResetter
             SQL
         );
 
-        return (int) ($row->count ?? 0) > 0;
+        return (int) ($row->count ?? 0);
+    }
+
+    private static function matrixPvResetCandidateCount(): int
+    {
+        $row = DB::connection('poolproject')->selectOne(
+            <<<'SQL'
+            select count(*) as count
+            from "User"
+            where coalesce("matrixPersonalPv", 0) <> 0
+            SQL
+        );
+
+        return (int) ($row->count ?? 0);
     }
 
     private static function countRows(string $table): int

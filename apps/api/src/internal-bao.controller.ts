@@ -18,6 +18,7 @@ import {
   rethrowHttpError,
 } from "./http/request.util";
 import { CommissionsService } from "../../../packages/modules/commissions/src/services/commissions.service";
+import { MembersService } from "../../../packages/modules/members/src/services/members.service";
 import { OrdersService } from "../../../packages/modules/orders/src/services/orders.service";
 
 @Controller("internal/bao")
@@ -25,6 +26,7 @@ export class InternalBaoController {
   constructor(
     private readonly ordersService: OrdersService,
     private readonly commissionsService: CommissionsService,
+    private readonly membersService: MembersService,
   ) {}
 
   @Post("orders")
@@ -169,6 +171,71 @@ export class InternalBaoController {
     return this.commissionsService.processEndOfDayCommissionBatch(
       requireDateOnlyString(settlementDate, "settlementDate"),
     );
+  }
+
+  @Post("members/special-commission-cycle")
+  async grantSpecialCommissionCycle(
+    @Headers("x-internal-bao-token") token: string | undefined,
+    @Body()
+    body?: {
+      memberId?: string;
+      grantCode?: string;
+      reason?: string;
+      note?: string;
+      grantedByAdminName?: string;
+      grantedByAdminEmail?: string;
+      activatedAt?: string;
+    },
+  ) {
+    this.assertInternalToken(token);
+
+    const grantCode = requireNonEmptyString(
+      optionalString(body?.grantCode),
+      "grantCode",
+    ) as "SPECIAL_100_PV" | "SPECIAL_200_PV";
+
+    if (grantCode !== "SPECIAL_100_PV" && grantCode !== "SPECIAL_200_PV") {
+      throw new BadRequestException("grantCode must be SPECIAL_100_PV or SPECIAL_200_PV.");
+    }
+
+    try {
+      return await this.membersService.grantSpecialCommissionCycle({
+        memberId: requirePositiveIntegerString(body?.memberId, "memberId"),
+        grantCode,
+        reason: requireNonEmptyString(optionalString(body?.reason), "reason"),
+        note: optionalString(body?.note),
+        grantedByAdminName: optionalString(body?.grantedByAdminName),
+        grantedByAdminEmail: optionalString(body?.grantedByAdminEmail),
+        activatedAt: optionalString(body?.activatedAt),
+      });
+    } catch (error) {
+      rethrowHttpError(error);
+    }
+  }
+
+  @Post("members/special-commission-cycle/close-latest")
+  async closeLatestSpecialCommissionCycle(
+    @Headers("x-internal-bao-token") token: string | undefined,
+    @Body()
+    body?: {
+      memberId?: string;
+      closedByAdminName?: string;
+      closedByAdminEmail?: string;
+      closedAt?: string;
+    },
+  ) {
+    this.assertInternalToken(token);
+
+    try {
+      return await this.membersService.closeLatestSpecialCommissionCycle({
+        memberId: requirePositiveIntegerString(body?.memberId, "memberId"),
+        closedByAdminName: optionalString(body?.closedByAdminName),
+        closedByAdminEmail: optionalString(body?.closedByAdminEmail),
+        closedAt: optionalString(body?.closedAt),
+      });
+    } catch (error) {
+      rethrowHttpError(error);
+    }
   }
 
   private assertInternalToken(providedToken?: string): void {

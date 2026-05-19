@@ -87,6 +87,7 @@ export const AUTH_MATRIX_REENTRY = `${API_BASE_URL}/auth/matrix/reentry`;
 export const AUTH_MATRIX_REENTRY_PREFERENCE = `${API_BASE_URL}/auth/matrix/reentry-preference`;
 export const AUTH_ORDERS = `${API_BASE_URL}/auth/orders`;
 export const AUTH_COMMISSIONS = `${API_BASE_URL}/auth/commissions`;
+export const AUTH_NETWORK_TOP_LEADERS = `${API_BASE_URL}/auth/network-top-leaders`;
 export const AUTH_MATRIX = `${API_BASE_URL}/auth/matrix`;
 export const AUTH_MATRIX_PAYOUTS = `${API_BASE_URL}/auth/matrix-payouts`;
 export const AUTH_POOL_PAYOUTS = `${API_BASE_URL}/auth/pool-payouts`;
@@ -163,6 +164,7 @@ export const URLS = {
   AUTH_MATRIX_REENTRY_PREFERENCE,
   AUTH_ORDERS,
   AUTH_COMMISSIONS,
+  AUTH_NETWORK_TOP_LEADERS,
   AUTH_MATRIX,
   AUTH_MATRIX_PAYOUTS,
   AUTH_POOL_PAYOUTS,

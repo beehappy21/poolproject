@@ -152,7 +152,7 @@ export class AuthController {
     const user = await this.requireSessionUser(authorization, cookieHeader);
     const evaluationAt = new Date().toISOString();
     const commissionSettings = readCommissionSettings();
-    const [wallet, cycles, referral, teamPvRealtime, buybackProgress] = await Promise.all([
+    const [wallet, cycles, referral, teamPvRealtime, buybackProgress, lockedDuringGraceAmount] = await Promise.all([
       this.walletsService.getWalletSummary(user.userId),
       this.membersService.getMemberCycles(user.userId, evaluationAt),
       this.membersService.getReferralLink(
@@ -167,6 +167,7 @@ export class AuthController {
         evaluationAt,
       }),
       this.commissionsService.getUserBuybackProgress(user.userId),
+      this.commissionsService.getHeldRepurchaseCommissionAmount(user.userId),
     ]);
 
     return {
@@ -184,6 +185,7 @@ export class AuthController {
             Number(commissionSettings.buybackThresholdAmount),
         thresholdReachedAt: buybackProgress?.thresholdReachedAt ?? null,
         graceExpiresAt: buybackProgress?.graceExpiresAt ?? null,
+        lockedDuringGraceAmount: lockedDuringGraceAmount ?? "0",
         repurchaseGraceDays: commissionSettings.buybackGraceDays,
       },
       lineBinding: await this.authService.getLineBindingByUserId(user.userId),
@@ -375,6 +377,20 @@ export class AuthController {
   ) {
     const user = await this.requireSessionUser(authorization, cookieHeader);
     return this.membersService.getMemberNetwork(user.userId);
+  }
+
+  @Get("network-top-leaders")
+  async networkTopLeaders(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+    @Query("limit") limit?: string,
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+
+    return this.membersService.getTopLeaderboard(
+      user.userId,
+      optionalPositiveInteger(limit, "limit") ?? 10,
+    );
   }
 
   @Get("matrix")

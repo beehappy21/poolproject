@@ -176,10 +176,11 @@ export class AdminSettingsController {
           current.buybackThresholdAmount,
         "buybackThresholdAmount",
       ),
-      buybackRepurchaseAmount: requireDecimalRateString(
-        optionalString(payload.buybackRepurchaseAmount) ??
-          current.buybackRepurchaseAmount,
-        "buybackRepurchaseAmount",
+      buybackRepurchasePv: requireDecimalRateString(
+        optionalString(payload.buybackRepurchasePv) ??
+          optionalString(payload.buybackRepurchaseAmount) ??
+          current.buybackRepurchasePv,
+        "buybackRepurchasePv",
       ),
       buybackGraceDays:
         typeof payload.buybackGraceDays === "number"

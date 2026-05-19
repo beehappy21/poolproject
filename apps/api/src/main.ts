@@ -247,6 +247,7 @@ function resolveRouteAccess(
     path === "/auth/orders" ||
     path === "/auth/transactions" ||
     path === "/auth/commissions" ||
+    path === "/auth/network-top-leaders" ||
     path === "/auth/network" ||
     path === "/auth/activate-package" ||
     path === "/auth/activate-product" ||

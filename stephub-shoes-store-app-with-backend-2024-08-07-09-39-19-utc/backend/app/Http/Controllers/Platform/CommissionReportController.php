@@ -108,10 +108,16 @@ class CommissionReportController extends Controller
         }
 
         Alert::info(
-            'รีเซ็ตข้อมูล baseline test เรียบร้อยแล้ว'
-            . ' ลบ order ' . $result['deletedBaselineOrderCount'] . ' รายการ'
-            . ' และรีเซ็ตสมาชิกที่เกี่ยวข้อง ' . $result['affectedUserCount'] . ' ราย'
-            . ' พร้อมล้างไฟล์สรุป baseline ' . (int) ($result['deletedRuntimeArtifactCount'] ?? 0) . ' ไฟล์'
+            'เริ่มรอบคอมมิชชั่นใหม่เรียบร้อยแล้ว'
+            . ' คงสมาชิก ' . (int) ($result['preservedUserCount'] ?? 0) . ' รหัส'
+            . ' / member profile ' . (int) ($result['preservedMemberProfileCount'] ?? 0) . ' รายการ'
+            . ' ลบ order ' . (int) ($result['deletedBaselineOrderCount'] ?? 0) . ' รายการ'
+            . ' ลบ commission ' . (int) ($result['deletedCommissionLedgerCount'] ?? 0) . ' รายการ'
+            . ' ลบ wallet tx ' . (int) ($result['deletedWalletTransactionCount'] ?? 0) . ' รายการ'
+            . ' ล้าง team batch ' . (int) ($result['deletedTeamSettlementBatchCount'] ?? 0) . ' รายการ'
+            . ' ล้าง pool cycle ' . (int) ($result['deletedPoolCycleCount'] ?? 0) . ' รายการ'
+            . ' รีเซ็ต wallet ' . (int) ($result['resetWalletCount'] ?? 0) . ' กระเป๋า'
+            . ' และลบ PV สะสม ' . (int) ($result['resetMatrixPvUserCount'] ?? 0) . ' รหัส'
         );
 
         return $this->redirectToReport($mode, $validated);

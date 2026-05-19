@@ -98,6 +98,9 @@ class MemberEditScreen extends Screen
             Link::make('Back to Members')
                 ->icon('bs.arrow-left')
                 ->route('platform.member.list'),
+            Link::make('สิทธิ์พิเศษคอม')
+                ->icon('bs.stars')
+                ->route('platform.commission.specialPrivilege', ['member_code' => $member->member_code]),
             Button::make('Update Member')
                 ->icon('bs.check2-circle')
                 ->method('update'),

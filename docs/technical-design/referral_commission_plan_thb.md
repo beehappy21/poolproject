@@ -50,6 +50,11 @@ Current implementation status:
 - `AUTO` is active now.
 - `LEFT / MIDDLE / RIGHT` are active in UI planning and profile display.
 - If the business enables leg-specific sign-up payloads later, the sign-up contract must preserve the chosen placement mode from the referral link payload.
+- Placement runtime rule is now:
+  - if the sponsor still does not have at least one direct referral in each of `LEFT`, `MIDDLE`, and `RIGHT`, the system must force `AUTO`
+  - during that bootstrap phase, the next direct referral fills the missing top-side leg first
+  - only after the sponsor has at least one direct referral in all 3 top-side legs may the business share explicit `LEFT / MIDDLE / RIGHT` referral links
+  - when `AUTO` is used after all 3 top-side legs already exist, the system must choose the branch with no approved-PV score first, or else the branch with the lowest approved-PV score
 
 ### 3.3 Backward compatibility
 
@@ -178,8 +183,8 @@ Formula:
 
 ## 7. Daily Cap
 
-- Daily cap is `5000 THB`
-- The cap applies across all commission channels combined
+- Daily cap is `10000 THB`
+- The active runtime cap is applied to `Team 2-leg` and `Team 3-leg` settlement final payable control
 - Cap is enforced before final payable posting
 
 ## 8. Round Repurchase Gating
@@ -187,7 +192,7 @@ Formula:
 - Round threshold is `10000 THB`
 - Threshold uses member commission `finalPayableAmount` after cap
 - Threshold comparison must be `>= 10000`, not only `> 10000`
-- Required renewal purchase amount is `1000 THB`
+- Required renewal self-purchase is any approved self-purchase with `PV > 0`
 - No auto-deducted recycle purchase
 - When a member completes one round:
   - stop releasing new commission immediately
@@ -197,6 +202,9 @@ Formula:
   - close the old round
   - open a new round
   - reset new-round accumulated commission to `0`
+  - set the new round cycle cap by the repurchase PV rule:
+    - `< 200 PV => 5000`
+    - `>= 200 PV => 10000`
   - release held commission according to the normal post-repurchase flow
 - If the member does not complete a qualifying self-purchase within the `3`-day grace window:
   - stop calculating new commission after grace expiry

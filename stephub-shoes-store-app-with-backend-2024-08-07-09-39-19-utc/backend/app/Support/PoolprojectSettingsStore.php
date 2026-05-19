@@ -12,9 +12,9 @@ class PoolprojectSettingsStore
         'matchingLevelRates' => ['0.05', '0.05'],
         'teamTwoLegRate' => '0.3',
         'teamThreeLegRate' => '0.5',
-        'dailyCommissionCapAmount' => '3000',
+        'dailyCommissionCapAmount' => '10000',
         'buybackThresholdAmount' => '10000',
-        'buybackRepurchaseAmount' => '1000',
+        'buybackRepurchasePv' => '0',
         'buybackGraceDays' => 3,
         'poolMinActivePackageBuyerDirects' => 3,
         'poolMaxEntitlementShareRate' => '0.03',
@@ -229,9 +229,9 @@ class PoolprojectSettingsStore
                 $input['buybackThresholdAmount'] ?? ($input['buybackThreshold'] ?? null),
                 self::DEFAULT_COMMISSION_SETTINGS['buybackThresholdAmount']
             ),
-            'buybackRepurchaseAmount' => self::normalizeDecimalString(
-                $input['buybackRepurchaseAmount'] ?? ($input['buybackExecutionAmount'] ?? null),
-                self::DEFAULT_COMMISSION_SETTINGS['buybackRepurchaseAmount']
+            'buybackRepurchasePv' => self::normalizeDecimalString(
+                $input['buybackRepurchasePv'] ?? ($input['buybackRepurchaseAmount'] ?? ($input['buybackExecutionAmount'] ?? null)),
+                self::DEFAULT_COMMISSION_SETTINGS['buybackRepurchasePv']
             ),
             'buybackGraceDays' => self::normalizePositiveInt(
                 $input['buybackGraceDays'] ?? null,

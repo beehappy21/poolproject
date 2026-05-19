@@ -74,6 +74,11 @@ enum EarningStatus {
   CAPPED
 }
 
+enum CycleCapTier {
+  BELOW_200_PV
+  AT_LEAST_200_PV
+}
+
 enum OrderStatus {
   PENDING
   PAID
@@ -449,6 +454,7 @@ model User {
   teamSettlementBatchItems       TeamSettlementBatchItem[]
   buybackProgress                UserBuybackProgress?
   buybackEvents                  BuybackEvent[]
+  specialCommissionCycleGrants   SpecialCommissionCycleGrant[]
   poolSettlementBatchItems       PoolSettlementBatchItem[]
   companyBonusLedgers            CompanyBonusLedger[]           @relation("CompanyBonusCreatedByUser")
   dailyPoolEligibilitySnapshots  DailyPoolEligibilitySnapshot[]
@@ -751,6 +757,11 @@ model MemberPackageCycle {
   productDetailId       BigInt?
   cycleNo               Int
   purchaseBase          Decimal?            @db.Decimal(18, 8)
+  accumulatedPv         Decimal             @default(0) @db.Decimal(18, 8)
+  carryOverPvIn         Decimal             @default(0) @db.Decimal(18, 8)
+  carryOverPvOut        Decimal             @default(0) @db.Decimal(18, 8)
+  cycleCapTier          CycleCapTier        @default(BELOW_200_PV)
+  capThresholdPv        Decimal             @default(200) @db.Decimal(18, 8)
   poolRateMode          PoolRateMode?
   poolRate              Decimal?            @db.Decimal(10, 8)
   poolCapMultiple       Decimal?            @db.Decimal(10, 8)
@@ -758,6 +769,12 @@ model MemberPackageCycle {
   commissionCapMultiple Decimal?            @db.Decimal(10, 8)
   activatedAt           DateTime
   activeUntil           DateTime
+  queuedAt              DateTime?
+  readyToReceiveAt      DateTime?
+  capUpgradedAt         DateTime?
+  sourceOrderCount      Int                 @default(0)
+  lastPvAccruedAt       DateTime?
+  lastSourceOrderId     BigInt?
   earningCap            Decimal             @db.Decimal(18, 8)
   earnedTotalInCycle    Decimal             @default(0) @db.Decimal(18, 8)
   earningStatus         EarningStatus       @default(ACTIVE)
@@ -776,11 +793,40 @@ model MemberPackageCycle {
   capBuckets        CapBucket[]
   capLedgers        CapLedger[]        @relation("CapLedgerMemberPackageCycle")
   dailyPoolPayouts  DailyPoolPayout[]
+  specialCommissionCycleGrants SpecialCommissionCycleGrant[]
 
   @@unique([userId, cycleNo])
   @@index([userId, status, activatedAt])
   @@index([userId, earningStatus, activeUntil])
   @@index([userId, isReceivable, activatedAt])
+  @@index([userId, cycleCapTier, earningStatus])
+  @@index([userId, lastSourceOrderId])
+}
+
+model SpecialCommissionCycleGrant {
+  id                  BigInt           @id @default(autoincrement())
+  userId              BigInt
+  memberPackageCycleId BigInt?
+  cycleNo             Int
+  grantCode           String           @db.VarChar(50)
+  grantedPv           Decimal          @db.Decimal(18, 8)
+  purchaseBase        Decimal          @db.Decimal(18, 8)
+  earningCap          Decimal          @db.Decimal(18, 8)
+  cycleCapTier        CycleCapTier
+  reason              String           @db.VarChar(255)
+  note                String?          @db.Text
+  grantedByAdminName  String?          @db.VarChar(255)
+  grantedByAdminEmail String?          @db.VarChar(255)
+  activatedAt         DateTime
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  user               User               @relation(fields: [userId], references: [id])
+  memberPackageCycle MemberPackageCycle? @relation(fields: [memberPackageCycleId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([grantCode, createdAt])
+  @@index([memberPackageCycleId])
 }
 
 model Order {

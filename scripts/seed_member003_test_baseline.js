@@ -28,7 +28,13 @@ const PRODUCT_DETAIL_CODE = "COMMTEST1000";
 const PACKAGE_CODE = "COMMTESTPKG1000";
 const PRODUCT_NAME = "test";
 const PRODUCT_PRICE = "1000";
-const PRODUCT_PV = "350";
+const PRODUCT_PV = "200";
+const SECOND_PRODUCT_CODE = "COMMTESTPROD650";
+const SECOND_PRODUCT_DETAIL_CODE = "COMMTEST650";
+const SECOND_PACKAGE_CODE = "COMMTESTPKG650";
+const SECOND_PRODUCT_NAME = "test 650";
+const SECOND_PRODUCT_PRICE = "650";
+const SECOND_PRODUCT_PV = "100";
 const MAX_RATE_LIMIT_RETRIES = Number.parseInt(
   process.env.BASELINE_MAX_RATE_LIMIT_RETRIES || "20",
   10,
@@ -444,7 +450,7 @@ function ensureCatalog() {
         ${sqlLiteral(categoryId)}::bigint,
         ${sqlLiteral(PRODUCT_CODE)},
         ${sqlLiteral(PRODUCT_NAME)},
-        ${sqlLiteral("Commission baseline product 1000 THB / 350 PV")},
+        ${sqlLiteral("Commission baseline product 1000 THB / 200 PV")},
         'ACTIVE',
         now(),
         now()
@@ -481,8 +487,8 @@ function ensureCatalog() {
         ${sqlLiteral(productId)}::bigint,
         ${sqlLiteral(PRODUCT_DETAIL_CODE)},
         ${sqlLiteral(PRODUCT_NAME)},
-        ${sqlLiteral("1000 THB / 350 PV")},
-        ${sqlLiteral("Commission baseline product 1000 THB / 350 PV")},
+        ${sqlLiteral("1000 THB / 200 PV")},
+        ${sqlLiteral("Commission baseline product 1000 THB / 200 PV")},
         ${sqlLiteral(PRODUCT_PRICE)}::decimal,
         ${sqlLiteral(PRODUCT_PRICE)}::decimal,
         '400'::decimal,
@@ -588,9 +594,182 @@ function ensureCatalog() {
     `);
   }
 
+  const existingSecondDetailId = fetchSingleValue(
+    `select id::text from "ProductDetail" where code = ${sqlLiteral(SECOND_PRODUCT_DETAIL_CODE)} limit 1;`,
+  );
+  const existingSecondPackageId = fetchSingleValue(
+    `select id::text from "Package" where code = ${sqlLiteral(SECOND_PACKAGE_CODE)} limit 1;`,
+  );
+
+  const secondProductId =
+    fetchSingleValue(
+      `select id::text from "Product" where code = ${sqlLiteral(SECOND_PRODUCT_CODE)} limit 1;`,
+    ) ||
+    fetchSingleValue(`
+      insert into "Product" (
+        "supplierId",
+        "categoryId",
+        "code",
+        "name",
+        "description",
+        "status",
+        "createdAt",
+        "updatedAt"
+      )
+      values (
+        ${sqlLiteral(supplierId)}::bigint,
+        ${sqlLiteral(categoryId)}::bigint,
+        ${sqlLiteral(SECOND_PRODUCT_CODE)},
+        ${sqlLiteral(SECOND_PRODUCT_NAME)},
+        ${sqlLiteral("Commission baseline product 650 THB / 100 PV")},
+        'ACTIVE',
+        now(),
+        now()
+      )
+      returning id::text;
+    `);
+
+  const secondProductDetailId =
+    existingSecondDetailId ||
+    fetchSingleValue(`
+      insert into "ProductDetail" (
+        "productId",
+        "code",
+        "name",
+        "shortDescription",
+        "description",
+        "memberPriceUsdt",
+        "retailPriceUsdt",
+        "costPriceUsdt",
+        "pv",
+        "poolRateMode",
+        "poolRate",
+        "poolCapMultiple",
+        "commissionCapScope",
+        "commissionCapMultiple",
+        "activeDays",
+        "earningCapAmount",
+        "salesChannelMode",
+        "status",
+        "createdAt",
+        "updatedAt"
+      )
+      values (
+        ${sqlLiteral(secondProductId)}::bigint,
+        ${sqlLiteral(SECOND_PRODUCT_DETAIL_CODE)},
+        ${sqlLiteral(SECOND_PRODUCT_NAME)},
+        ${sqlLiteral("650 THB / 100 PV")},
+        ${sqlLiteral("Commission baseline product 650 THB / 100 PV")},
+        ${sqlLiteral(SECOND_PRODUCT_PRICE)}::decimal,
+        ${sqlLiteral(SECOND_PRODUCT_PRICE)}::decimal,
+        '260'::decimal,
+        ${sqlLiteral(SECOND_PRODUCT_PV)}::decimal,
+        'DEFAULT_50_PERCENT',
+        '0'::decimal,
+        '0'::decimal,
+        'ALL_COMMISSIONS',
+        '0'::decimal,
+        30,
+        '5000'::decimal,
+        'WAP_CATALOG',
+        'ACTIVE',
+        now(),
+        now()
+      )
+      returning id::text;
+    `);
+
+  const secondPackageId =
+    existingSecondPackageId ||
+    fetchSingleValue(`
+      insert into "Package" (
+        "code",
+        "name",
+        "costPriceUsdt",
+        "memberPriceUsdt",
+        "retailPriceUsdt",
+        "priceUsdt",
+        "pv",
+        "poolRateMode",
+        "poolRate",
+        "poolCapMultiple",
+        "commissionCapScope",
+        "commissionCapMultiple",
+        "activeDays",
+        "earningCapType",
+        "earningCapAmount",
+        "status",
+        "createdAt",
+        "updatedAt"
+      )
+      values (
+        ${sqlLiteral(SECOND_PACKAGE_CODE)},
+        ${sqlLiteral("test package 650")},
+        '260'::decimal,
+        ${sqlLiteral(SECOND_PRODUCT_PRICE)}::decimal,
+        ${sqlLiteral(SECOND_PRODUCT_PRICE)}::decimal,
+        ${sqlLiteral(SECOND_PRODUCT_PRICE)}::decimal,
+        ${sqlLiteral(SECOND_PRODUCT_PV)}::decimal,
+        'DEFAULT_50_PERCENT',
+        '0'::decimal,
+        '0'::decimal,
+        'ALL_COMMISSIONS',
+        '0'::decimal,
+        30,
+        'FIXED_AMOUNT',
+        '5000'::decimal,
+        'ACTIVE',
+        now(),
+        now()
+      )
+      returning id::text;
+    `);
+
+  const secondPackageItemExists = fetchSingleValue(
+    `select id::text from "PackageItem" where "packageId" = ${sqlLiteral(secondPackageId)}::bigint and "productDetailId" = ${sqlLiteral(secondProductDetailId)}::bigint limit 1;`,
+  );
+  if (!secondPackageItemExists) {
+    runPsql(`
+      insert into "PackageItem" (
+        "packageId",
+        "productDetailId",
+        "qty",
+        "unitCostPriceUsdt",
+        "unitMemberPriceUsdt",
+        "unitRetailPriceUsdt",
+        "unitPv",
+        "unitPoolRate",
+        "lineCostPriceUsdt",
+        "lineMemberPriceUsdt",
+        "lineRetailPriceUsdt",
+        "linePv",
+        "createdAt",
+        "updatedAt"
+      )
+      values (
+        ${sqlLiteral(secondPackageId)}::bigint,
+        ${sqlLiteral(secondProductDetailId)}::bigint,
+        1,
+        '260'::decimal,
+        ${sqlLiteral(SECOND_PRODUCT_PRICE)}::decimal,
+        ${sqlLiteral(SECOND_PRODUCT_PRICE)}::decimal,
+        ${sqlLiteral(SECOND_PRODUCT_PV)}::decimal,
+        '0'::decimal,
+        '260'::decimal,
+        ${sqlLiteral(SECOND_PRODUCT_PRICE)}::decimal,
+        ${sqlLiteral(SECOND_PRODUCT_PRICE)}::decimal,
+        ${sqlLiteral(SECOND_PRODUCT_PV)}::decimal,
+        now(),
+        now()
+      );
+    `);
+  }
+
   return {
     productDetailId,
     packageId,
+    secondProductDetailId,
+    secondPackageId,
     created: true,
   };
 }
@@ -1003,6 +1182,7 @@ function buildMarkdownReport(payload) {
     `- members: \`${payload.memberCount}\``,
     `- unique signup days: \`${payload.uniqueSignupDayCount}\``,
     `- product: \`${PRODUCT_NAME}\` \`${PRODUCT_PRICE} THB\` \`${PRODUCT_PV} PV\``,
+    `- extra product: \`${SECOND_PRODUCT_NAME}\` \`${SECOND_PRODUCT_PRICE} THB\` \`${SECOND_PRODUCT_PV} PV\``,
     `- source tag: \`${SOURCE_TAG}\``,
     "",
     "## Daily Summary",
