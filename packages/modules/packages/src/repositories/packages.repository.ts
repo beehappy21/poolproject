@@ -941,6 +941,7 @@ export class PrismaPackagesRepository implements PackagesRepository {
       FROM "ProductDetail"
       WHERE "status" = 'ACTIVE'
         AND COALESCE(NULLIF(TRIM("salesChannelMode"), ''), 'WAP_CATALOG') IN ('WAP_CATALOG', 'CATALOG_ONLY')
+        AND UPPER(COALESCE("code", '')) NOT LIKE 'COMMTEST%'
     `;
 
     const storefrontModeById = new Map(
