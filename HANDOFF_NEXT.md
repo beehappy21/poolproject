@@ -1522,3 +1522,124 @@ Exactly what to do next after this handoff
   - this fix affects future team settlement runs and reruns
   - existing historical `CommissionLedger` rows do not change automatically until the relevant settlement dates are reprocessed
   - for `TH0000013`, current history still shows one `TEAM_2LEG` row because old processed batches were not rerun after the fix
+
+## 2026-05-22 BAO Promotion 100 PV and WAP Hide-Test Follow-Up
+
+What changed today
+
+- promotion rule from yesterday was turned into a reusable BAO/UAT-ready setup for real `100 PV` products:
+  - promotion code: `PROMO-100PV-2PLUS-500-100PV`
+  - rule: `min qty = 2`, `promo price = 500`, `promo pv = 100`
+- active WAP storefront now hides test SKUs by code prefix:
+  - `COMMTEST1000`
+  - `COMMTEST650`
+- added reusable local scripts:
+  - [scripts/configure_bao_promotion_100pv.js](/Users/macbook/poolproject/scripts/configure_bao_promotion_100pv.js:1)
+  - [scripts/wap-promotion-commission-check.js](/Users/macbook/poolproject/scripts/wap-promotion-commission-check.js:1)
+- wired npm commands:
+  - `npm run ops:configure:bao:promotion-100pv`
+  - `npm run test:wap:promotion-100pv`
+- current storefront filter lives in:
+  - [packages/modules/packages/src/repositories/packages.repository.ts](/Users/macbook/poolproject/packages/modules/packages/src/repositories/packages.repository.ts:944)
+
+What was verified locally
+
+- local promotion record was created in BAO sqlite and snapshot-applied to these current real `100 PV` WAP products:
+  - `LON001`
+  - `PRO001`
+  - `DRI001`
+- local BAO dropdown now has the promotion and `ProductDetail` rows carry:
+  - `promotionStatus = ACTIVE`
+  - `promotionMinQuantity = 2`
+  - `promotionPriceUsdt = 500`
+  - `promotionPv = 100`
+- local storefront no longer exposes `COMMTEST1000` or `COMMTEST650`
+- local order verification for `TH0000013`, `TH0000016`, `TH0000023`, `TH0000074` on `DRI001`:
+  - `qty = 1` -> `700 / 100 PV`
+  - `qty = 2` -> `1000 / 200 PV`
+- local WAP-visible order snapshots and order-linked commission rows were captured by script
+- important local runtime note:
+  - local DB had schema drift and was missing `MemberPackageCycle.readyToReceiveAt`
+  - the local test only succeeded after applying the known SQL from:
+    - [prisma/migrations/20260518_add_member_cycle_pv_accumulation/migration.sql](/Users/macbook/poolproject/prisma/migrations/20260518_add_member_cycle_pv_accumulation/migration.sql:1)
+
+What was verified on UAT
+
+- backup created before changes:
+  - `/home/nc-user/backups/uat-promo100pv-20260522-130247`
+- local commit was pushed:
+  - `360fe362` `Configure real 100 PV promotion and hide test WAP products`
+- UAT repo cherry-pick commit:
+  - `de40c482` `Configure real 100 PV promotion and hide test WAP products`
+- UAT API was rebuilt/recreated from:
+  - `deploy/compose/docker-compose.yml`
+- UAT BAO sqlite was updated in-container to add the expanded `promotions` columns when missing, then upsert the real promotion row
+- UAT `ProductDetail` snapshot was applied to:
+  - `LON001`
+  - `PRO001`
+  - `DRI001`
+- UAT storefront API check confirmed:
+  - `COMMTEST1000` hidden
+  - `COMMTEST650` hidden
+- UAT internal order-flow verification on `DRI001` for user ids `13 / 16 / 23 / 74`:
+  - `qty = 1` -> `700 / 100 PV`
+  - `qty = 2` -> `1000 / 200 PV`
+- UAT direct commission rows from internal runtime verification:
+  - `TH0000013`
+    - `qty = 1` -> `TH0000012 = 50`, `TH0000007 = 50`
+    - `qty = 2` -> `TH0000012 = 100`, `TH0000007 = 100`
+  - `TH0000016`
+    - `qty = 1` -> `TH0000013 = 50`, `TH0000012 = 50`
+    - `qty = 2` -> `TH0000013 = 100`, `TH0000012 = 100`
+  - `TH0000023`
+    - `qty = 1` -> `TH0000016 = 50`, `TH0000013 = 50`
+    - `qty = 2` -> `TH0000016 = 100`, `TH0000013 = 100`
+  - `TH0000074`
+    - `qty = 1` -> `TH0000023 = 50`, `TH0000016 = 50`
+    - `qty = 2` -> `TH0000023 = 100`, `TH0000016 = 100`
+
+Important current business behavior
+
+- promotion counting is currently `per ProductDetail only`
+- examples with the current logic:
+  - `E NER G 2` gets promotion
+  - `Colla mineral 2` gets promotion
+  - `E NER G 1 + Colla mineral 1` does **not** get promotion
+  - `E NER G 3` gets promotion on all `3` pieces of that same SKU
+  - `E NER G 2 + Colla mineral 1` only promotes the `E NER G` line
+- the current calculation is in:
+  - [packages/modules/orders/src/repositories/orders.repository.ts](/Users/macbook/poolproject/packages/modules/orders/src/repositories/orders.repository.ts:1413)
+
+Open question left intentionally unresolved
+
+- user asked whether the system should support both:
+  - `per SKU` counting
+  - `grouped across multiple SKUs that share one promotion`
+- no code change was made for grouped counting yet
+- recommended implementation path:
+  - add a promotion scope field such as `SKU_ONLY` vs `PROMOTION_GROUP`
+  - update BAO promotion admin UI to choose the scope
+  - update order runtime to count either:
+    - quantity per `productDetailId`
+    - or quantity across all order lines that share the same promotion id/code
+
+What to do next
+
+1. Decide the final promotion counting rule
+- if business wants mixed basket promotion such as `E NER G 1 + Colla mineral 1` to qualify, runtime must be changed
+- do not patch this ad hoc per product; make it a promotion-level rule
+
+2. If grouped promotion is approved, change these areas together
+- BAO promotion schema/model
+- BAO promotion dropdown/admin surface
+- order pricing logic in `orders.repository.ts`
+- local and UAT regression tests
+
+3. If UAT member-facing WAP browser verification is still needed
+- get the real test passwords for:
+  - `TH0000013`
+  - `TH0000016`
+  - `TH0000023`
+  - `TH0000074`
+- `a1a1a1` and `123456` did not work on UAT member login during this session
+- internal runtime verification succeeded, but browser login verification could not be completed without those credentials
