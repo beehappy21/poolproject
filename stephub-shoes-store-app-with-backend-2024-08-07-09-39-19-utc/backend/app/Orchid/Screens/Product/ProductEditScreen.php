@@ -6,6 +6,7 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductDetailRecord;
 use App\Models\ProductRecord;
+use App\Models\Promotion;
 use App\Models\Supplier;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -44,6 +45,10 @@ class ProductEditScreen extends Screen
 
     private array $categoryOptions = [];
 
+    private array $promotionOptions = [];
+
+    private array $promotionMetadata = [];
+
     public function query(Request $request): iterable
     {
         $this->productDetailRecord = $this->findProductDetailRecord($request) ?? new ProductDetailRecord();
@@ -74,6 +79,9 @@ class ProductEditScreen extends Screen
             ->where('code', '!=', Category::PERMANENT_FIRM_CATEGORY_CODE)
             ->orderBy('name')
             ->get(['id', 'supplierId', 'code', 'name']);
+        $promotions = Promotion::query()
+            ->orderBy('name')
+            ->get(['id', 'name', 'status', 'min_quantity', 'promo_price', 'promo_pv']);
 
         $snapshotByProductId = Product::query()
             ->whereIn('id', $productRecords->pluck('id'))
@@ -135,11 +143,37 @@ class ProductEditScreen extends Screen
                 return [
                     $record->id => [
                         'label' => trim($record->code . ' • ' . $record->name),
+                        'code_label' => (string) ($record->code ?? ''),
+                        'name_label' => (string) ($record->name ?? ''),
                         'supplier_id' => (int) ($meta['supplier_id'] ?? 0),
                         'category_id' => (int) ($meta['category_id'] ?? 0),
                     ],
                 ];
             })
+            ->all();
+
+        $this->promotionOptions = $promotions
+            ->mapWithKeys(fn (Promotion $promotion) => [
+                $promotion->id => sprintf(
+                    '%s%s • ซื้อ %d+ • %s บาท • %s PV',
+                    (string) $promotion->name,
+                    strtoupper((string) $promotion->status) === Promotion::STATUS_INACTIVE ? ' [INACTIVE]' : '',
+                    (int) ($promotion->min_quantity ?? 0),
+                    number_format((float) ($promotion->promo_price ?? 0), 2),
+                    number_format((float) ($promotion->promo_pv ?? 0), 2),
+                ),
+            ])
+            ->all();
+        $this->promotionMetadata = $promotions
+            ->mapWithKeys(fn (Promotion $promotion) => [
+                $promotion->id => [
+                    'name' => (string) $promotion->name,
+                    'status' => (string) $promotion->status,
+                    'min_quantity' => (int) ($promotion->min_quantity ?? 0),
+                    'promo_price' => number_format((float) ($promotion->promo_price ?? 0), 8, '.', ''),
+                    'promo_pv' => number_format((float) ($promotion->promo_pv ?? 0), 8, '.', ''),
+                ],
+            ])
             ->all();
 
         $formProduct = [
@@ -228,6 +262,23 @@ class ProductEditScreen extends Screen
                 ? (string) $this->productDetailRecord->stockQuantity
                 : ''
         );
+        $formProduct['promotion_id'] = old(
+            'product.promotion_id',
+            $this->productDetailRecord->promotionId !== null
+                ? (string) $this->productDetailRecord->promotionId
+                : ''
+        );
+        $formProduct['promotion_name'] = (string) ($this->productDetailRecord->promotionName ?? '');
+        $formProduct['promotion_status'] = (string) ($this->productDetailRecord->promotionStatus ?? '');
+        $formProduct['promotion_min_quantity'] = $this->productDetailRecord->promotionMinQuantity !== null
+            ? (string) $this->productDetailRecord->promotionMinQuantity
+            : '';
+        $formProduct['promotion_price'] = $this->productDetailRecord->promotionPriceUsdt !== null
+            ? (string) $this->productDetailRecord->promotionPriceUsdt
+            : '';
+        $formProduct['promotion_pv'] = $this->productDetailRecord->promotionPv !== null
+            ? (string) $this->productDetailRecord->promotionPv
+            : '';
         $formProduct['firm_cost_guard_passed'] = $this->boolAsFormValue(
             $this->passesFirmCostGuard($formProduct['member_price'], $formProduct['cost_price'])
         );
@@ -240,6 +291,8 @@ class ProductEditScreen extends Screen
             'productMetadata' => $this->productMetadata,
             'supplierOptions' => $this->supplierOptions,
             'categoryOptions' => $categoryMetadata,
+            'promotionOptions' => $this->promotionOptions,
+            'promotionMetadata' => $this->promotionMetadata,
             'youtubeEmbedUrl' => $this->youtubeEmbedUrl($formProduct['youtube_url']),
             'imagePreviewUrl' => $this->publicImageUrl($this->productDetailRecord->primaryImageUrl ?? ($this->product->image ?? null)),
             'homeCardImagePreviewUrl' => $this->publicImageUrl($this->productDetailRecord->homeCardImageUrl ?? null),
@@ -362,6 +415,7 @@ class ProductEditScreen extends Screen
             'product.firm_dcw_reward_amount' => ['nullable', 'numeric', 'min:0'],
             'product.firm_redeem_stock_limit' => ['nullable', 'integer', 'min:1'],
             'product.stock_quantity' => ['nullable', 'integer', 'min:0'],
+            'product.promotion_id' => ['nullable', 'integer', Rule::exists('promotions', 'id')],
             'product.is_new' => ['nullable'],
             'product.is_top' => ['nullable'],
             'product.is_featured' => ['nullable'],
@@ -396,6 +450,9 @@ class ProductEditScreen extends Screen
 
         $resolvedDetailCode = $this->resolveDetailCode($product, $ignoreId);
         $normalizedYoutubeUrl = $this->normalizeYoutubeUrl($product['youtube_url'] ?? null);
+        $promotion = !empty($product['promotion_id'])
+            ? Promotion::query()->find((int) $product['promotion_id'])
+            : null;
         $uploadedImageUrls = $this->resolveGalleryImageUrls($request);
         $retainedImageUrls = $this->normalizeExistingImageUrls($product['existing_image_urls'] ?? []);
         $imageUrls = $this->mergeUploadedImageUrls(
@@ -440,6 +497,16 @@ class ProductEditScreen extends Screen
                 && $product['stock_quantity'] !== null
                 && $product['stock_quantity'] !== ''
                 ? (int) $product['stock_quantity']
+                : null,
+            'promotionId' => $promotion?->id,
+            'promotionName' => $promotion?->name,
+            'promotionStatus' => $promotion?->status,
+            'promotionMinQuantity' => $promotion?->min_quantity,
+            'promotionPriceUsdt' => $promotion?->promo_price !== null
+                ? number_format((float) $promotion->promo_price, 8, '.', '')
+                : null,
+            'promotionPv' => $promotion?->promo_pv !== null
+                ? number_format((float) $promotion->promo_pv, 8, '.', '')
                 : null,
             'dcwSpendEnabled' => $this->truthy($product['dcw_spend_enabled'] ?? false),
             'dcwUsageAmount' => $this->wholeNumberString(

@@ -57,6 +57,12 @@ class OrderCreateScreen extends Screen
                 'primaryImageUrl',
                 'memberPriceUsdt',
                 'pv',
+                'promotionId',
+                'promotionName',
+                'promotionStatus',
+                'promotionMinQuantity',
+                'promotionPriceUsdt',
+                'promotionPv',
             ]);
 
         $topSellingQty = OrderLine::query()
@@ -112,6 +118,16 @@ class OrderCreateScreen extends Screen
                     'name' => (string) $detail->name,
                     'memberPrice' => number_format((float) $detail->memberPriceUsdt, 2),
                     'pv' => number_format((float) $detail->pv, 2),
+                    'promotionId' => $detail->promotionId,
+                    'promotionName' => $detail->promotionName,
+                    'promotionStatus' => $detail->promotionStatus,
+                    'promotionMinQuantity' => $detail->promotionMinQuantity,
+                    'promotionPrice' => $detail->promotionPriceUsdt !== null
+                        ? number_format((float) $detail->promotionPriceUsdt, 2)
+                        : null,
+                    'promotionPv' => $detail->promotionPv !== null
+                        ? number_format((float) $detail->promotionPv, 2)
+                        : null,
                     'imageUrl' => $this->publicImageUrl($detail->primaryImageUrl),
                     'soldQty' => (int) ($topSellingQty[(string) $detail->id] ?? 0),
                 ];
@@ -566,18 +582,63 @@ class OrderCreateScreen extends Screen
 
         $priceMap = ProductDetailRecord::query()
             ->whereIn('id', $detailIds)
-            ->pluck('memberPriceUsdt', 'id');
+            ->get([
+                'id',
+                'memberPriceUsdt',
+                'promotionStatus',
+                'promotionMinQuantity',
+                'promotionPriceUsdt',
+            ])
+            ->keyBy('id');
 
         $subtotal = 0.0;
+        $requestedByDetail = [];
 
         foreach ($items as $item) {
             $detailId = (int) ($item['productDetailId'] ?? 0);
             $quantity = max(1, (int) ($item['quantity'] ?? 1));
-            $price = (float) ($priceMap[$detailId] ?? 0);
+
+            if ($detailId <= 0) {
+                continue;
+            }
+
+            $requestedByDetail[$detailId] = ($requestedByDetail[$detailId] ?? 0) + $quantity;
+        }
+
+        foreach ($items as $item) {
+            $detailId = (int) ($item['productDetailId'] ?? 0);
+            $quantity = max(1, (int) ($item['quantity'] ?? 1));
+            /** @var ProductDetailRecord|null $detail */
+            $detail = $priceMap->get($detailId);
+            $price = $this->promoAwareUnitPrice($detail, $requestedByDetail[$detailId] ?? $quantity);
             $subtotal += $price * $quantity;
         }
 
         return number_format($subtotal, 2, '.', '');
+    }
+
+    private function promoAwareUnitPrice(?ProductDetailRecord $detail, int $quantity): float
+    {
+        if (!$detail instanceof ProductDetailRecord) {
+            return 0.0;
+        }
+
+        $promotionStatus = strtoupper(trim((string) ($detail->promotionStatus ?? '')));
+        $promotionMinQuantity = (int) ($detail->promotionMinQuantity ?? 0);
+        $promotionPrice = $detail->promotionPriceUsdt !== null
+            ? (float) $detail->promotionPriceUsdt
+            : null;
+
+        if (
+            $promotionStatus === 'ACTIVE'
+            && $promotionMinQuantity >= 2
+            && $promotionPrice !== null
+            && $quantity >= $promotionMinQuantity
+        ) {
+            return $promotionPrice;
+        }
+
+        return (float) ($detail->memberPriceUsdt ?? 0);
     }
 
     /**

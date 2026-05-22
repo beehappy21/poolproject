@@ -665,6 +665,12 @@ model ProductDetail {
   firmDcwRewardAmount      Decimal            @default(0) @db.Decimal(18, 8)
   firmRedeemStockLimit     Int?
   stockQuantity            Int?
+  promotionId             BigInt?
+  promotionName           String?            @db.VarChar(255)
+  promotionStatus         String?            @db.VarChar(20)
+  promotionMinQuantity    Int?
+  promotionPriceUsdt      Decimal?           @db.Decimal(18, 8)
+  promotionPv             Decimal?           @db.Decimal(18, 8)
   salesChannelMode         String             @default("WAP_CATALOG") @db.VarChar(30)
   status                   CatalogStatus      @default(ACTIVE)
   createdAt                DateTime           @default(now())

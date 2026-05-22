@@ -1253,6 +1253,12 @@ export class PrismaOrdersRepository implements OrdersRepository {
             firmDcwRewardAmount: true,
             firmRedeemStockLimit: true,
             stockQuantity: true,
+            promotionId: true,
+            promotionName: true,
+            promotionStatus: true,
+            promotionMinQuantity: true,
+            promotionPriceUsdt: true,
+            promotionPv: true,
             product: {
               select: {
                 category: {
@@ -1267,6 +1273,21 @@ export class PrismaOrdersRepository implements OrdersRepository {
       : [];
     const productDetailMap = new Map(
       productDetails.map((detail) => [detail.id.toString(), detail]),
+    );
+    const requestedQuantityByProductDetail = normalizedItems.reduce(
+      (map, item) => {
+        if (!item.productDetailId) {
+          return map;
+        }
+
+        map.set(
+          item.productDetailId,
+          (map.get(item.productDetailId) ?? 0) + item.quantity,
+        );
+
+        return map;
+      },
+      new Map<string, number>(),
     );
 
     if (productDetails.length !== productDetailIds.length) {
@@ -1389,20 +1410,37 @@ export class PrismaOrdersRepository implements OrdersRepository {
             costPriceUsdt: detail.costPriceUsdt.toString(),
             memberPriceUsdt: detail.memberPriceUsdt.toString(),
           });
+      const promotionActive =
+        String(detail.promotionStatus || "").trim().toUpperCase() === "ACTIVE";
+      const promotionMinQuantity = detail.promotionMinQuantity ?? 0;
+      const totalRequestedQuantity =
+        requestedQuantityByProductDetail.get(item.productDetailId) ?? item.quantity;
+      const usePromotion =
+        promotionActive &&
+        promotionMinQuantity >= 2 &&
+        detail.promotionPriceUsdt !== null &&
+        detail.promotionPv !== null &&
+        totalRequestedQuantity >= promotionMinQuantity;
+      const effectiveUnitPrice = usePromotion
+        ? detail.promotionPriceUsdt!.toString()
+        : detail.memberPriceUsdt.toString();
+      const effectiveUnitPv = usePromotion
+        ? detail.promotionPv!.toString()
+        : detail.pv.toString();
       const lineTotalUsdt = multiplyDecimalStrings(
-        detail.memberPriceUsdt.toString(),
+        effectiveUnitPrice,
         item.quantity.toString(),
       );
       const lineTotalPv = multiplyDecimalStrings(
-        detail.pv.toString(),
+        effectiveUnitPv,
         item.quantity.toString(),
       );
 
       return {
         productId: item.productDetailId,
         qty: item.quantity,
-        unitPriceUsdt: detail.memberPriceUsdt,
-        unitPv: detail.pv,
+        unitPriceUsdt: effectiveUnitPrice,
+        unitPv: effectiveUnitPv,
         poolRateMode: detail.poolRateMode,
         unitPoolRate: detail.poolRate,
         dcwSpendEnabled: firmOrderRequested ? false : detail.dcwSpendEnabled,
