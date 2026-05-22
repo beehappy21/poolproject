@@ -36,6 +36,14 @@ Smoke helpers:
 - `npm run smoke:bao:shipment`
   Boots local API + BAO, creates a live order, and verifies BAO order list/detail shipment states through transfer review, awaiting shipment, shipped, and delivered buckets.
   This helper resets the local Postgres schema with `prisma db push --accept-data-loss`, seeds dev data, applies Stephub compat views, and normalizes the local BAO sqlite admin password to `Admin123`.
+- `npm run smoke:bao:promotion`
+  Runs a focused, non-destructive local BAO promotion smoke against the already-running local API and Postgres.
+  It temporarily injects a promotion snapshot into product code `COMMTEST650`, creates one `qty=1` and one `qty=2` BAO order through `/internal/bao/orders`, verifies normal price vs promotion price/PV behavior, then restores the original promotion snapshot and deletes the smoke orders.
+- `npm run ops:configure:bao:promotion-100pv`
+  Creates or updates the BAO promotion row for the agreed `2+ => 500 THB / 100 PV` rule, then applies that snapshot to every active non-test `100 PV` WAP product in local Postgres.
+  The default primary product for quick BAO verification is `DRI001`.
+- `npm run test:wap:promotion-100pv`
+  Logs in members `TH0000013`, `TH0000016`, `TH0000023`, and `TH0000074`, creates and approves one `qty=1` plus one `qty=2` WAP order against a real non-test `100 PV` product, then prints the WAP-visible order snapshot and order-linked commission rows for comparison.
 - `npm run smoke:bao:all`
   Runs the cashback smoke plus the BAO cashback and shipment browser checks in one pass.
   This helper is intentionally destructive for local state: it kills listeners on `:3000` and `:8001`, resets the local Postgres schema, reseeds dev data, reapplies compat views, and normalizes the local BAO sqlite admin password to `Admin123`.
