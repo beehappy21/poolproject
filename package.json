@@ -50,6 +50,7 @@
     "smoke:cashback": "node scripts/cashback-smoke.js",
     "smoke:firm": "node scripts/firm-wallet-smoke.js",
     "smoke:orders:create": "node scripts/order-creation-smoke.js",
+    "smoke:bao:promotion": "node scripts/bao-product-promotion-smoke.js",
     "smoke:orders:approve-commission": "node scripts/approve-order-commission-smoke.js",
     "smoke:matrix:by-code": "node scripts/matrix-by-code-smoke.js",
     "smoke:matrix:spill": "node scripts/matrix-spill-smoke.js",

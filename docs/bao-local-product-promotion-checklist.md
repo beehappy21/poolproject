@@ -36,3 +36,35 @@
   - ออเดอร์ 2 ชิ้น ได้ `totalUsdt = 1000`, `totalPv = 200` ใช้ราคาโปรโมชั่น `500/ชิ้น`
   - หลังจบทดสอบ revert promotion snapshot ชั่วคราวออกจาก `ProductDetail` แล้ว
   - test orders ที่ถูกสร้างระหว่างการยืนยัน flow คือ `0000003` และ `0000004`
+
+## Reusable Smoke
+
+- local non-destructive smoke:
+  - `npm run dev:check`
+  - `npm run smoke:bao:promotion`
+- ค่า default ของ smoke นี้ใช้:
+  - product code `COMMTEST650`
+  - BAO internal token `local-bao-internal-token-20260508`
+  - user id `2`
+  - promotion rule `min qty = 2`, `price = 500`, `PV = 100`
+- สามารถ override ได้ผ่าน env:
+  - `BAO_PROMO_SMOKE_PRODUCT_CODE`
+  - `BAO_PROMO_SMOKE_USER_ID`
+  - `BAO_PROMO_SMOKE_PROMOTION_NAME`
+  - `BAO_PROMO_SMOKE_PROMOTION_MIN_QTY`
+  - `BAO_PROMO_SMOKE_PROMOTION_UNIT_PRICE`
+  - `BAO_PROMO_SMOKE_PROMOTION_UNIT_PV`
+  - `INTERNAL_BAO_TOKEN`
+
+## UAT Manual Flow
+
+1. เปิด `https://bao.blifehealthy.com/admin/product/edit/<id>`
+2. ยืนยันว่า `Supplier`, `Category`, `Product family code`, และ `Product family name` เลือกจาก dropdown ได้จริง
+3. เลือก `Promotion` แล้วดูว่า summary field อัปเดตตามค่า promotion ที่เลือก
+4. กด `Update` แล้วเปิดหน้าเดิมซ้ำเพื่อเช็กว่าค่าถูกบันทึก
+5. เปิด `https://bao.blifehealthy.com/admin/order/create-member-sale`
+6. เลือกสินค้าที่ผูก promotion และลองจำนวน `1`
+7. ยืนยันว่าราคาและ PV ยังเป็นค่าปกติ
+8. เปลี่ยนจำนวนเป็น `2` หรือค่าที่ถึง threshold
+9. ยืนยันว่า line total, subtotal, และ PV รวม เปลี่ยนเป็นค่า promotion
+10. ถ้าจะ sign off ให้สร้าง test order ต่ำกว่า threshold 1 รายการ และถึง threshold 1 รายการ แล้วตรวจ `totalUsdt` กับ `totalPv` ใน order detail ให้ตรงกับที่หน้า create order แสดง

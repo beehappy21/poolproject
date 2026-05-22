@@ -36,6 +36,9 @@ Smoke helpers:
 - `npm run smoke:bao:shipment`
   Boots local API + BAO, creates a live order, and verifies BAO order list/detail shipment states through transfer review, awaiting shipment, shipped, and delivered buckets.
   This helper resets the local Postgres schema with `prisma db push --accept-data-loss`, seeds dev data, applies Stephub compat views, and normalizes the local BAO sqlite admin password to `Admin123`.
+- `npm run smoke:bao:promotion`
+  Runs a focused, non-destructive local BAO promotion smoke against the already-running local API and Postgres.
+  It temporarily injects a promotion snapshot into product code `COMMTEST650`, creates one `qty=1` and one `qty=2` BAO order through `/internal/bao/orders`, verifies normal price vs promotion price/PV behavior, then restores the original promotion snapshot and deletes the smoke orders.
 - `npm run smoke:bao:all`
   Runs the cashback smoke plus the BAO cashback and shipment browser checks in one pass.
   This helper is intentionally destructive for local state: it kills listeners on `:3000` and `:8001`, resets the local Postgres schema, reseeds dev data, reapplies compat views, and normalizes the local BAO sqlite admin password to `Admin123`.
