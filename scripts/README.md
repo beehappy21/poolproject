@@ -6,6 +6,9 @@ Placeholder scripts directory for:
 - reconciliation
 
 Smoke helpers:
+- `bash scripts/update_pr_description_with_retry.sh <pr-number> --body-file /path/to/body.md`
+  Retries `gh pr edit` for flaky GitHub API sessions such as `read ECONNRESET` from IDE pull-request integrations.
+  You can also pipe stdin, for example `cat body.md | bash scripts/update_pr_description_with_retry.sh 119`.
 - `npm run dev:backup`
   Creates a restore-compatible local snapshot under `backups/stephub-full-<timestamp>` including the current Postgres dump, BAO sqlite database, runtime directory, base commit, and git status.
 - `npm run dev:check:public-auth`

@@ -25,6 +25,7 @@
     "ops:check:secrets": "node scripts/check_secret_placeholders.mjs",
     "ops:preflight:deploy": "bash scripts/preflight_deploy_check.sh",
     "dev:check:public-auth": "bash scripts/check_public_auth_bridge.sh",
+    "ops:pr:update-description": "bash scripts/update_pr_description_with_retry.sh",
     "dev:backup": "bash scripts/create_local_backup.sh",
     "uat:backup": "bash scripts/create_uat_backup.sh",
     "uat:restore": "bash scripts/restore_uat_backup.sh",
