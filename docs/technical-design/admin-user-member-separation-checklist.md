@@ -12,6 +12,17 @@
 - Business members, sponsor tree, wallets, orders, and commissions still use the shared business `User` model in Prisma.
 - Several BAO screens still read member data directly from the business `User` table.
 - Reset scripts and maintenance flows still treat `User.isAdmin = true` as the divider.
+- As of `2026-05-23`, BAO `superadmin` can manage admin `username` and set admin passwords from the `Admins` screen, but dashboard login still authenticates by `email + password`.
+
+## Latest Implementation Snapshot
+
+- admin credential management landed in BAO local code:
+  - `username` column added to Laravel/Orchid `users`
+  - `superadmin` can edit admin `username`
+  - `superadmin` can set admin password directly from the admin edit screen
+- this is a tactical improvement for BAO admin operations, not the final `AdminUser` domain split
+- current auth is intentionally unchanged to reduce risk during ongoing promotion/UAT work
+- next architectural work should not assume that `username` login already exists
 
 ## Decisions To Lock First
 
@@ -101,5 +112,6 @@
 
 - Add a dependency map for every `User.isAdmin` call site.
 - Decide whether BAO admin auth stays on Laravel `users` or is renamed to `admin_users`.
+- Decide whether login should remain `email`-based during the migration window or move to `email or username` before the full split.
 - Define the migration order for sponsor tree, orders, commissions, wallets, and audit logs.
 - Prepare a dry-run migration plan for local before any UAT schema cutover.

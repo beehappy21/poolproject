@@ -1643,3 +1643,83 @@ What to do next
   - `TH0000074`
 - `a1a1a1` and `123456` did not work on UAT member login during this session
 - internal runtime verification succeeded, but browser login verification could not be completed without those credentials
+
+## 2026-05-23 Admin Credential Management and Next Sync Focus
+
+What changed today
+
+- added a working checklist for the long-running `AdminUser / Member` split:
+  - [docs/technical-design/admin-user-member-separation-checklist.md](/Users/macbook/poolproject/docs/technical-design/admin-user-member-separation-checklist.md:1)
+- added BAO admin-management support for `username` plus direct password-setting by `superadmin` on the Orchid `Admins` screen
+- local BAO migration was applied to add the new `username` column to Laravel/Orchid `users`
+- added a retry helper for flaky GitHub PR-description updates:
+  - [scripts/update_pr_description_with_retry.sh](/Users/macbook/poolproject/scripts/update_pr_description_with_retry.sh:1)
+
+Key commits pushed today
+
+- `bfad7cb5` `Add admin credential management checklist and BAO username support`
+- `4173fd91` `Add retry helper for PR description updates`
+
+Important current behavior
+
+- BAO `Admins` can now store:
+  - `name`
+  - `username`
+  - `email`
+  - `password`
+- only `superadmin` can change admin `username/password` from the admin-edit screen
+- current BAO login is still `email + password`
+- `username` is now managed data for admins, but it is **not** yet a login credential
+
+Files involved for the admin credential work
+
+- [UserEditScreen.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Screens/User/UserEditScreen.php:37)
+- [UserEditLayout.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Layouts/User/UserEditLayout.php:18)
+- [UserListLayout.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Orchid/Layouts/User/UserListLayout.php:28)
+- [App\Models\User.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/app/Models/User.php:10)
+- [2026_05_23_143525_add_username_to_users_table.php](/Users/macbook/poolproject/stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/database/migrations/2026_05_23_143525_add_username_to_users_table.php:13)
+
+Known inventory mismatch left for the next session
+
+- runtime transaction data was already cleaned and aligned between local and UAT
+- master data still differs intentionally and remains unresolved:
+  - local:
+    - `users = 212`
+    - `products = 8`
+    - `productDetails = 9`
+    - `packages = 3`
+  - UAT:
+    - `users = 269`
+    - `products = 6`
+    - `productDetails = 7`
+    - `packages = 1`
+- this mismatch is the next main task if the goal is to make local and UAT comparable for member/catalog troubleshooting
+
+What to do next
+
+1. Decide the sync direction for master data
+- either treat `UAT` as source of truth and pull members/catalog/package masters down to local
+- or treat `local` as curated baseline and promote specific missing masters up to UAT
+
+2. Compare these domains separately before changing data
+- members/admin-related users
+- products
+- product details / SKU rows
+- packages
+- supporting masters referenced by product details such as category, supplier, and family
+
+3. Prepare a safe diff pass before any data sync
+- export counts and keys by:
+  - `memberCode`
+  - `product code`
+  - `productDetail code / SKU`
+  - `package code`
+- identify:
+  - rows only in local
+  - rows only in UAT
+  - rows present in both but with different business fields
+
+4. Do not mix this sync work with the `AdminUser / Member` schema split yet
+- the admin/member split is still architecture work
+- the local/UAT mismatch is operational master-data reconciliation
+- treat them as separate workstreams to keep rollback and verification manageable
