@@ -157,7 +157,7 @@ class ProductEditScreen extends Screen
                 $promotion->id => sprintf(
                     '%s%s • ซื้อ %d+ • %s บาท • %s PV',
                     (string) $promotion->name,
-                    strtoupper((string) $promotion->status) === Promotion::STATUS_INACTIVE ? ' [INACTIVE]' : '',
+                    strtoupper((string) $promotion->status) === 'INACTIVE' ? ' [INACTIVE]' : '',
                     (int) ($promotion->min_quantity ?? 0),
                     number_format((float) ($promotion->promo_price ?? 0), 2),
                     number_format((float) ($promotion->promo_pv ?? 0), 2),

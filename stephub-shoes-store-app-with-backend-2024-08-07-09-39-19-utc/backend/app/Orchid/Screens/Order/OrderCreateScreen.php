@@ -593,6 +593,7 @@ class OrderCreateScreen extends Screen
 
         $subtotal = 0.0;
         $requestedByDetail = [];
+        $requestedByPromotionGroup = [];
 
         foreach ($items as $item) {
             $detailId = (int) ($item['productDetailId'] ?? 0);
@@ -603,6 +604,14 @@ class OrderCreateScreen extends Screen
             }
 
             $requestedByDetail[$detailId] = ($requestedByDetail[$detailId] ?? 0) + $quantity;
+
+            /** @var ProductDetailRecord|null $detail */
+            $detail = $priceMap->get($detailId);
+            $promotionGroupKey = $this->promotionGroupKey($detail);
+
+            if ($promotionGroupKey !== null) {
+                $requestedByPromotionGroup[$promotionGroupKey] = ($requestedByPromotionGroup[$promotionGroupKey] ?? 0) + $quantity;
+            }
         }
 
         foreach ($items as $item) {
@@ -610,11 +619,48 @@ class OrderCreateScreen extends Screen
             $quantity = max(1, (int) ($item['quantity'] ?? 1));
             /** @var ProductDetailRecord|null $detail */
             $detail = $priceMap->get($detailId);
-            $price = $this->promoAwareUnitPrice($detail, $requestedByDetail[$detailId] ?? $quantity);
+            $promotionGroupKey = $this->promotionGroupKey($detail);
+            $effectiveQuantity = $promotionGroupKey !== null
+                ? ($requestedByPromotionGroup[$promotionGroupKey] ?? ($requestedByDetail[$detailId] ?? $quantity))
+                : ($requestedByDetail[$detailId] ?? $quantity);
+            $price = $this->promoAwareUnitPrice($detail, $effectiveQuantity);
             $subtotal += $price * $quantity;
         }
 
         return number_format($subtotal, 2, '.', '');
+    }
+
+    private function promotionGroupKey(?ProductDetailRecord $detail): ?string
+    {
+        if (!$detail instanceof ProductDetailRecord) {
+            return null;
+        }
+
+        $promotionStatus = strtoupper(trim((string) ($detail->promotionStatus ?? '')));
+        $promotionMinQuantity = (int) ($detail->promotionMinQuantity ?? 0);
+        $promotionPrice = $detail->promotionPriceUsdt !== null
+            ? number_format((float) $detail->promotionPriceUsdt, 8, '.', '')
+            : null;
+        $promotionPv = $detail->promotionPv !== null
+            ? number_format((float) $detail->promotionPv, 8, '.', '')
+            : null;
+        $basePv = number_format((float) ($detail->pv ?? 0), 8, '.', '');
+
+        if (
+            $promotionStatus !== 'ACTIVE'
+            || $promotionMinQuantity < 2
+            || $promotionPrice === null
+            || $promotionPv === null
+            || $basePv !== number_format(100, 8, '.', '')
+        ) {
+            return null;
+        }
+
+        $promotionIdentity = $detail->promotionId !== null
+            ? 'id:' . (string) $detail->promotionId
+            : sprintf('snapshot:%d:%s:%s', $promotionMinQuantity, $promotionPrice, $promotionPv);
+
+        return '100pv:' . $promotionIdentity;
     }
 
     private function promoAwareUnitPrice(?ProductDetailRecord $detail, int $quantity): float

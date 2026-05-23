@@ -338,17 +338,53 @@
         memberResults.classList.remove('member-sale-hidden');
     }
 
-    function effectiveProductPricing(product, quantity) {
+    function promotionGroupKey(product) {
         const minQty = Math.max(0, Number(product?.promotionMinQuantity || 0) || 0);
         const promoActive = String(product?.promotionStatus || '').toUpperCase() === 'ACTIVE';
         const promoPrice = Number(product?.promotionPrice || 0);
         const promoPv = Number(product?.promotionPv || 0);
 
-        if (promoActive && minQty >= 2 && quantity >= minQty && promoPrice > 0) {
+        if (!promoActive || minQty < 2 || promoPrice <= 0 || promoPv <= 0 || Number(product?.pv || 0) !== 100) {
+            return null;
+        }
+
+        const promotionIdentity = product?.promotionId
+            ? `id:${product.promotionId}`
+            : `snapshot:${minQty}:${promoPrice.toFixed(2)}:${promoPv.toFixed(2)}`;
+
+        return `100pv:${promotionIdentity}`;
+    }
+
+    function promotionGroupQuantity(product, items = selectedItems, fallbackQuantity = 1) {
+        const key = promotionGroupKey(product);
+        if (!key) {
+            return Math.max(1, Number(fallbackQuantity || 1) || 1);
+        }
+
+        const total = items.reduce((sum, item) => {
+            const entry = productCatalog.find((candidate) => String(candidate.id) === String(item.product_detail_id));
+            if (!entry || promotionGroupKey(entry) !== key) {
+                return sum;
+            }
+
+            return sum + Math.max(1, Number(item.quantity || 1) || 1);
+        }, 0);
+
+        return total > 0 ? total : Math.max(1, Number(fallbackQuantity || 1) || 1);
+    }
+
+    function effectiveProductPricing(product, quantity, items = selectedItems) {
+        const minQty = Math.max(0, Number(product?.promotionMinQuantity || 0) || 0);
+        const promoActive = String(product?.promotionStatus || '').toUpperCase() === 'ACTIVE';
+        const promoPrice = Number(product?.promotionPrice || 0);
+        const promoPv = Number(product?.promotionPv || 0);
+        const eligibleQuantity = promotionGroupQuantity(product, items, quantity);
+
+        if (promoActive && minQty >= 2 && eligibleQuantity >= minQty && promoPrice > 0) {
             return {
                 unitPrice: promoPrice,
                 unitPv: promoPv,
-                note: `${product.promotionName || 'Promotion'}: ซื้อ ${minQty} ชิ้นขึ้นไป • ${promoPrice.toFixed(2)} บาท • PV ${promoPv.toFixed(2)}`,
+                note: `${product.promotionName || 'Promotion'}: ซื้อรวม ${minQty} ชิ้นขึ้นไป (ต่าง SKU ได้) • ${promoPrice.toFixed(2)} บาท • PV ${promoPv.toFixed(2)}`,
             };
         }
 
@@ -359,14 +395,14 @@
         };
     }
 
-    function productMetaText(product, quantity = 1) {
-        const pricing = effectiveProductPricing(product, quantity);
+    function productMetaText(product, quantity = 1, items = selectedItems) {
+        const pricing = effectiveProductPricing(product, quantity, items);
         const baseText = `${product.code} · ${pricing.unitPrice.toFixed(2)} บาท · PV ${pricing.unitPv.toFixed(2)}`;
         const minQty = Math.max(0, Number(product?.promotionMinQuantity || 0) || 0);
         const promoActive = String(product?.promotionStatus || '').toUpperCase() === 'ACTIVE';
         const hasPromo = promoActive && minQty >= 2 && Number(product?.promotionPrice || 0) > 0;
         const availableNote = hasPromo
-            ? `${product.promotionName || 'Promotion'}: ซื้อ ${minQty} ชิ้นขึ้นไป • ${Number(product.promotionPrice || 0).toFixed(2)} บาท • PV ${Number(product.promotionPv || 0).toFixed(2)}`
+            ? `${product.promotionName || 'Promotion'}: ซื้อรวม ${minQty} ชิ้นขึ้นไป (ต่าง SKU ได้) • ${Number(product.promotionPrice || 0).toFixed(2)} บาท • PV ${Number(product.promotionPv || 0).toFixed(2)}`
             : '';
 
         if (pricing.note) {
@@ -432,7 +468,7 @@
             const product = productCatalog.find((entry) => String(entry.id) === String(item.product_detail_id));
             if (!product) return '';
             const quantity = Math.max(1, Number(item.quantity || 1) || 1);
-            const pricing = effectiveProductPricing(product, quantity);
+            const pricing = effectiveProductPricing(product, quantity, selectedItems);
             const lineTotal = (pricing.unitPrice * quantity).toFixed(2);
             const linePv = (pricing.unitPv * quantity).toFixed(2);
 
@@ -440,7 +476,7 @@
                 <div class="member-sale-selected-item">
                     <div>
                         <strong>${product.name}</strong><br>
-                        <span class="member-sale-note">${productMetaText(product, quantity)}</span><br>
+                        <span class="member-sale-note">${productMetaText(product, quantity, selectedItems)}</span><br>
                         <span class="member-sale-note">รวม ${lineTotal} บาท · PV รวม ${linePv}</span>
                     </div>
                     <div>
@@ -463,7 +499,7 @@
         return selectedItems.reduce((sum, item) => {
             const product = productCatalog.find((entry) => String(entry.id) === String(item.product_detail_id));
             const quantity = Math.max(1, Number(item.quantity || 1) || 1);
-            const pricing = effectiveProductPricing(product, quantity);
+            const pricing = effectiveProductPricing(product, quantity, selectedItems);
 
             return sum + (pricing.unitPrice * quantity);
         }, 0);
@@ -476,7 +512,7 @@
         const totalPv = selectedItems.reduce((sum, item) => {
             const product = productCatalog.find((entry) => String(entry.id) === String(item.product_detail_id));
             const quantity = Math.max(1, Number(item.quantity || 1) || 1);
-            const pricing = effectiveProductPricing(product, quantity);
+            const pricing = effectiveProductPricing(product, quantity, selectedItems);
 
             return sum + (pricing.unitPv * quantity);
         }, 0).toFixed(2);

@@ -1358,6 +1358,58 @@ export class PrismaOrdersRepository implements OrdersRepository {
     if (!isBranchPickup && input.shippingAddressId && !shippingAddress) {
       throw new Error("Shipping address not found.");
     }
+
+    const promotionGroupKeyForDetail = (detail: (typeof productDetails)[number]) => {
+      const promotionActive =
+        String(detail.promotionStatus || "").trim().toUpperCase() === "ACTIVE";
+      const promotionMinQuantity = detail.promotionMinQuantity ?? 0;
+
+      if (
+        !promotionActive ||
+        promotionMinQuantity < 2 ||
+        detail.promotionPriceUsdt === null ||
+        detail.promotionPv === null ||
+        Number(detail.pv) !== 100
+      ) {
+        return null;
+      }
+
+      const promotionIdentity =
+        detail.promotionId !== null
+          ? `id:${detail.promotionId.toString()}`
+          : `snapshot:${promotionMinQuantity}:${detail.promotionPriceUsdt.toString()}:${detail.promotionPv.toString()}`;
+
+      return `100pv:${promotionIdentity}`;
+    };
+
+    const requestedQuantityByPromotionGroup = normalizedItems.reduce(
+      (map, item) => {
+        if (!item.productDetailId) {
+          return map;
+        }
+
+        const detail = productDetailMap.get(item.productDetailId);
+
+        if (!detail) {
+          return map;
+        }
+
+        const promotionGroupKey = promotionGroupKeyForDetail(detail);
+
+        if (!promotionGroupKey) {
+          return map;
+        }
+
+        map.set(
+          promotionGroupKey,
+          (map.get(promotionGroupKey) ?? 0) + item.quantity,
+        );
+
+        return map;
+      },
+      new Map<string, number>(),
+    );
+
     const orderItemCreates = normalizedItems.map((item) => {
       if (!item.productDetailId && item.packageId) {
         const pkg = packageMap.get(item.packageId);
@@ -1413,8 +1465,14 @@ export class PrismaOrdersRepository implements OrdersRepository {
       const promotionActive =
         String(detail.promotionStatus || "").trim().toUpperCase() === "ACTIVE";
       const promotionMinQuantity = detail.promotionMinQuantity ?? 0;
-      const totalRequestedQuantity =
+      const requestedQuantityForDetail =
         requestedQuantityByProductDetail.get(item.productDetailId) ?? item.quantity;
+      const promotionGroupKey = promotionGroupKeyForDetail(detail);
+      const totalRequestedQuantity =
+        promotionGroupKey !== null
+          ? (requestedQuantityByPromotionGroup.get(promotionGroupKey) ??
+            requestedQuantityForDetail)
+          : requestedQuantityForDetail;
       const usePromotion =
         promotionActive &&
         promotionMinQuantity >= 2 &&
