@@ -7,7 +7,7 @@ import {URLS} from '../config';
 import {hooks} from '../hooks';
 import {svg} from '../assets/svg';
 import {theme} from '../constants';
-import {formatTHB} from '../utils/currency';
+import {formatTHB, formatTHBText} from '../utils/currency';
 import {
   toPlainTextProductDescription,
   toRenderableProductRichTextHtml,
@@ -100,6 +100,30 @@ const buildMediaItems = (item: any, cacheKey: string): MediaItem[] => {
   return media;
 };
 
+const buildPromotionLabel = (item: any): string => {
+  const promotionStatus = String(item?.promotionStatus || '').trim().toUpperCase();
+  const minQuantity = Number(item?.promotionMinQuantity || 0);
+  const promotionPrice = Number(item?.promotionPrice || 0);
+  const promotionPv = Number(item?.promotionPv || 0);
+
+  if (
+    promotionStatus !== 'ACTIVE' ||
+    minQuantity < 2 ||
+    !Number.isFinite(promotionPrice) ||
+    promotionPrice <= 0 ||
+    !Number.isFinite(promotionPv) ||
+    promotionPv <= 0
+  ) {
+    return '';
+  }
+
+  const promotionPriceLabel = Number.isInteger(promotionPrice)
+    ? `${promotionPrice} บาท`
+    : formatTHBText(promotionPrice);
+
+  return `โปรโมชั่นซื้อ ${minQuantity} ชิ้นขึ้นไป เหลือชิ้นละ ${promotionPriceLabel} ${promotionPv} PV`;
+};
+
 export const Product: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -136,6 +160,7 @@ export const Product: React.FC = () => {
   const descriptionHtml = toRenderableProductRichTextHtml(item?.description);
   const descriptionSummary =
     item?.shortDescription || toPlainTextProductDescription(item?.description);
+  const promotionLabel = buildPromotionLabel(item);
   const descriptionHasEmbeddedMedia = /<img|<figure/i.test(descriptionHtml);
   const hasLongDescription =
     descriptionSummary.length > 260 ||
@@ -561,6 +586,20 @@ export const Product: React.FC = () => {
                   }}
                 >
                   {item.supplierName}
+                </div>
+              ) : null}
+
+              {promotionLabel ? (
+                <div
+                  style={{
+                    padding: '8px 12px',
+                    backgroundColor: '#fff3e8',
+                    color: '#b45309',
+                    ...theme.fonts.Mulish_700Bold,
+                    fontSize: 12,
+                  }}
+                >
+                  {promotionLabel}
                 </div>
               ) : null}
             </div>

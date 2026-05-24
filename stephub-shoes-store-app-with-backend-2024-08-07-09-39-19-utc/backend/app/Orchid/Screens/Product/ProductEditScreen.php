@@ -53,13 +53,28 @@ class ProductEditScreen extends Screen
     {
         $this->productDetailRecord = $this->findProductDetailRecord($request) ?? new ProductDetailRecord();
         $selectedProductId = (int) old('product.product_id', $this->productDetailRecord->productId ?? $request->query('product_id', 0));
+        $selectedProductRecord = $selectedProductId > 0
+            ? ProductRecord::query()
+                ->with(['supplier', 'category'])
+                ->find($selectedProductId)
+            : null;
         $selectedProductSnapshot = $this->catalogSnapshot($selectedProductId);
         $selectedProductMeta = $this->matchedCatalogMetadata($selectedProductSnapshot);
         if (($selectedProductMeta['category_code'] ?? '') === Category::PERMANENT_FIRM_CATEGORY_CODE) {
             abort(404);
         }
-        $selectedSupplierId = (int) old('product.supplier_id', $selectedProductMeta['supplier_id'] ?? 0);
-        $selectedCategoryId = (int) old('product.category_id', $selectedProductMeta['category_id'] ?? 0);
+        $selectedSupplierId = (int) old(
+            'product.supplier_id',
+            $selectedProductRecord?->supplierId
+                ?? $selectedProductMeta['supplier_id']
+                ?? 0
+        );
+        $selectedCategoryId = (int) old(
+            'product.category_id',
+            $selectedProductRecord?->categoryId
+                ?? $selectedProductMeta['category_id']
+                ?? 0
+        );
 
         $this->product = $selectedProductSnapshot;
 
@@ -212,12 +227,24 @@ class ProductEditScreen extends Screen
             'is_best_seller' => old('product.is_best_seller', $this->boolAsFormValue($this->productDetailRecord->isBestSeller ?? ($this->product->is_best_seller ?? false))),
             'sales_channel_mode' => old('product.sales_channel_mode', $this->normalizeSalesChannelMode($this->productDetailRecord->salesChannelMode ?? null)),
             'status' => old('product.status', $this->productDetailRecord->status ?? ($this->product->status ?? 'ACTIVE')),
-            'product_name' => $this->product->product_name ?? ($this->productMetadata[$selectedProductId]['product_name'] ?? ''),
-            'product_code' => $this->product->product_code ?? ($this->productMetadata[$selectedProductId]['product_code'] ?? ''),
-            'category_name' => $this->product->category_name ?? ($this->productMetadata[$selectedProductId]['category_name'] ?? ''),
-            'category_code' => $this->product->category_code ?? ($this->productMetadata[$selectedProductId]['category_code'] ?? ''),
-            'supplier_name' => $this->product->supplier_name ?? ($this->productMetadata[$selectedProductId]['supplier_name'] ?? ''),
-            'supplier_code' => $this->product->supplier_code ?? ($this->productMetadata[$selectedProductId]['supplier_code'] ?? ''),
+            'product_name' => $this->product->product_name
+                ?? $selectedProductRecord?->name
+                ?? ($this->productMetadata[$selectedProductId]['product_name'] ?? ''),
+            'product_code' => $this->product->product_code
+                ?? $selectedProductRecord?->code
+                ?? ($this->productMetadata[$selectedProductId]['product_code'] ?? ''),
+            'category_name' => $this->product->category_name
+                ?? $selectedProductRecord?->category?->name
+                ?? ($this->productMetadata[$selectedProductId]['category_name'] ?? ''),
+            'category_code' => $this->product->category_code
+                ?? $selectedProductRecord?->category?->code
+                ?? ($this->productMetadata[$selectedProductId]['category_code'] ?? ''),
+            'supplier_name' => $this->product->supplier_name
+                ?? $selectedProductRecord?->supplier?->name
+                ?? ($this->productMetadata[$selectedProductId]['supplier_name'] ?? ''),
+            'supplier_code' => $this->product->supplier_code
+                ?? $selectedProductRecord?->supplier?->code
+                ?? ($this->productMetadata[$selectedProductId]['supplier_code'] ?? ''),
         ];
 
         $defaultPv = $this->defaultPvValue($formProduct['member_price'], $formProduct['cost_price']);
