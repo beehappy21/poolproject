@@ -2,6 +2,13 @@ export interface AuthContext {
   userId?: string;
 }
 
+export type AuthRole =
+  | "member"
+  | "admin"
+  | "super_admin"
+  | "system"
+  | "worker";
+
 export interface AuthUserSummary {
   userId: string;
   memberCode: string;

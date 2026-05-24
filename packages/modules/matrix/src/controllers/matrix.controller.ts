@@ -1,4 +1,6 @@
 import { Controller, Get, NotFoundException, Param, Query } from "@nestjs/common";
+import { Public } from "../../../auth/src/access-control/public.decorator";
+import { Roles } from "../../../auth/src/access-control/roles.decorator";
 
 import {
   optionalPositiveInteger,
@@ -8,6 +10,7 @@ import { readCommissionSettings } from "../../../../shared/utils/src/commission-
 import { MembersService } from "../../../members/src/services/members.service";
 import { MatrixService } from "../services/matrix.service";
 
+@Roles("admin")
 @Controller("matrix")
 export class MatrixController {
   constructor(
@@ -15,6 +18,7 @@ export class MatrixController {
     private readonly membersService: MembersService,
   ) {}
 
+  @Public()
   @Get("member/by-code/:memberCode")
   async getMemberMatrixByCode(@Param("memberCode") memberCode: string) {
     const validatedMemberCode = memberCode.trim();

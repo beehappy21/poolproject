@@ -1,4 +1,5 @@
 import { Controller, Get, Param, Post, Query } from "@nestjs/common";
+import { Roles } from "../../../auth/src/access-control/roles.decorator";
 
 import {
   requireDateOnlyString,
@@ -7,6 +8,7 @@ import {
 } from "../../../../../apps/api/src/http/request.util";
 import { PoolService } from "../services/pool.service";
 
+@Roles("admin")
 @Controller("pool")
 export class PoolController {
   constructor(

@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { APP_GUARD } from "@nestjs/core";
 import { AuthModule } from "../../../packages/modules/auth";
 import { CapModule } from "../../../packages/modules/cap";
 import { CommissionsModule } from "../../../packages/modules/commissions";
@@ -15,6 +16,8 @@ import { ContentController } from "./content.controller";
 import { HealthController } from "./health.controller";
 import { NotificationsController } from "./notifications.controller";
 import { ShippingController } from "./shipping.controller";
+import { AuthGuard } from "./auth/guards/auth.guard";
+import { RolesGuard } from "./auth/guards/roles.guard";
 
 @Module({
   imports: [
@@ -37,6 +40,15 @@ import { ShippingController } from "./shipping.controller";
     NotificationsController,
     ShippingController,
   ],
-  providers: [],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: AuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: RolesGuard,
+    },
+  ],
 })
 export class ApiAppModule {}

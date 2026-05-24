@@ -1,9 +1,11 @@
 import { Controller, Get, Param } from "@nestjs/common";
+import { Public } from "../../../auth/src/access-control/public.decorator";
 
 import { requirePositiveIntegerString } from "../../../../../apps/api/src/http/request.util";
 
 import { PackagesService } from "../services/packages.service";
 
+@Public()
 @Controller("products")
 export class ProductsController {
   constructor(private readonly packagesService: PackagesService) {}

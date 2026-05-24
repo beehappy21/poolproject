@@ -20,8 +20,10 @@ import {
   requirePositiveIntegerString,
 } from "../../../../../apps/api/src/http/request.util";
 import { AuthService } from "../../../auth";
+import { Roles } from "../../../auth/src/access-control/roles.decorator";
 import { WalletsService } from "../services/wallets.service";
 
+@Roles("admin")
 @Controller("wallets")
 export class WalletsController {
   constructor(

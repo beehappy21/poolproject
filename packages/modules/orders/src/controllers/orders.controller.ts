@@ -1,4 +1,5 @@
 import { Body, Controller, ForbiddenException, Get, NotFoundException, Param, Post, Query, Req, Res } from "@nestjs/common";
+import { Roles } from "../../../auth/src/access-control/roles.decorator";
 
 import {
   optionalString,
@@ -11,6 +12,7 @@ import {
 import { CommissionsService } from "../../../commissions/src/services/commissions.service";
 import { OrdersService } from "../services/orders.service";
 
+@Roles("admin")
 @Controller("orders")
 export class OrdersController {
   private static readonly RECEIPT_COMPANY_NAME = "บริษัท บีไลฟ์ แฮลตี้ จำกัด";
@@ -321,6 +323,7 @@ export class OrdersController {
     return order;
   }
 
+  @Roles("member")
   @Get(":orderId/receipt")
   async getOrderReceipt(
     @Param("orderId") orderId: string,

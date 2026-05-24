@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Put } from "@nestjs/common";
 import { BadRequestException } from "@nestjs/common";
+import { Roles } from "../../../packages/modules/auth/src/access-control/roles.decorator";
 
 import {
   optionalString,
@@ -110,6 +111,8 @@ const readLineRuntimeSettings = () => {
   };
 };
 
+// TODO(security): keep settings endpoints private unless a specific public storefront use case is reviewed.
+@Roles("admin")
 @Controller("settings")
 export class AdminSettingsController {
   @Get("commissions")

@@ -8,6 +8,7 @@ import {
   Param,
   Post,
 } from "@nestjs/common";
+import { Public } from "../../../packages/modules/auth/src/access-control/public.decorator";
 
 import {
   optionalString,
@@ -21,6 +22,7 @@ import { CommissionsService } from "../../../packages/modules/commissions/src/se
 import { MembersService } from "../../../packages/modules/members/src/services/members.service";
 import { OrdersService } from "../../../packages/modules/orders/src/services/orders.service";
 
+@Public()
 @Controller("internal/bao")
 export class InternalBaoController {
   constructor(

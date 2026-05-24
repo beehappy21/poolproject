@@ -12,6 +12,8 @@ import {
   Req,
   UnauthorizedException,
 } from "@nestjs/common";
+import { Public } from "../../../auth/src/access-control/public.decorator";
+import { Roles } from "../../../auth/src/access-control/roles.decorator";
 
 import {
   requireIsoDateTimeString,
@@ -25,6 +27,7 @@ import { PrismaService } from "../../../../infrastructure/src/prisma/prisma.serv
 import { MembersService } from "../services/members.service";
 import { WalletsService } from "../../../wallets/src/services/wallets.service";
 
+@Roles("admin")
 @Controller("members")
 export class MembersController {
   constructor(
@@ -114,6 +117,7 @@ export class MembersController {
     );
   }
 
+  @Public()
   @Get("by-code/:memberCode")
   async getMemberByCode(@Param("memberCode") memberCode: string) {
     const validatedMemberCode = requireNonEmptyString(memberCode, "memberCode");
@@ -126,6 +130,7 @@ export class MembersController {
     return member;
   }
 
+  @Roles("member")
   @Get("by-code/:memberCode/direct-referrals")
   async getDirectReferralsByMemberCode(
     @Param("memberCode") memberCode: string,
@@ -148,6 +153,7 @@ export class MembersController {
     return result;
   }
 
+  @Public()
   @Get("by-code/:memberCode/referral-link")
   async getReferralLink(
     @Param("memberCode") memberCode: string,
@@ -167,6 +173,7 @@ export class MembersController {
     }
   }
 
+  @Public()
   @Post()
   async createMember(
     @Body()

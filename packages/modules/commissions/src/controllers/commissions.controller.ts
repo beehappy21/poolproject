@@ -6,6 +6,7 @@ import {
   Post,
   Query,
 } from "@nestjs/common";
+import { Roles } from "../../../auth/src/access-control/roles.decorator";
 
 import {
   optionalPositiveInteger,
@@ -14,6 +15,7 @@ import {
 } from "../../../../../apps/api/src/http/request.util";
 import { CommissionsService } from "../services/commissions.service";
 
+@Roles("admin")
 @Controller("commissions")
 export class CommissionsController {
   constructor(private readonly commissionsService: CommissionsService) {}

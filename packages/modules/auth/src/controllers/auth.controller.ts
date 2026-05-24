@@ -11,6 +11,7 @@ import {
   Query,
   Res,
   UnauthorizedException,
+  Req,
 } from "@nestjs/common";
 
 import {
@@ -32,7 +33,10 @@ import { PackagesService } from "../../../packages";
 import { PoolService } from "../../../pool";
 import { WalletsService } from "../../../wallets";
 import { AuthService } from "../services/auth.service";
+import { Public } from "../access-control/public.decorator";
+import { Roles } from "../access-control/roles.decorator";
 
+@Roles("member")
 @Controller("auth")
 export class AuthController {
   constructor(
@@ -46,6 +50,7 @@ export class AuthController {
     private readonly poolService: PoolService,
   ) {}
 
+  @Public()
   @Post("login")
   async login(
     @Body()
@@ -64,6 +69,7 @@ export class AuthController {
     return session;
   }
 
+  @Public()
   @Post("forgot-password-reset")
   async forgotPasswordReset(
     @Body()
@@ -78,6 +84,7 @@ export class AuthController {
     });
   }
 
+  @Public()
   @Post("line-login")
   async lineLogin(
     @Body()
@@ -109,6 +116,7 @@ export class AuthController {
     };
   }
 
+  @Public()
   @Post("line-binding/check")
   async checkLineBinding(
     @Body()
@@ -206,6 +214,7 @@ export class AuthController {
     };
   }
 
+  @Roles("admin")
   @Get("line-bindings")
   async listAllLineBindings(
     @Headers("authorization") authorization?: string,
@@ -253,6 +262,7 @@ export class AuthController {
     });
   }
 
+  @Roles("admin")
   @Post("line-bindings/:userId/unbind")
   async adminUnbindLineProfile(
     @Param("userId") userId: string,
@@ -279,6 +289,7 @@ export class AuthController {
     };
   }
 
+  @Roles("admin")
   @Post("line-bindings/:userId/force-rebind")
   async adminForceRebindLineProfile(
     @Param("userId") userId: string,

@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Post } from "@nestjs/common";
+import { Roles } from "../../../packages/modules/auth/src/access-control/roles.decorator";
 
 import {
   optionalString,
@@ -23,6 +24,7 @@ type ContentItem = {
 
 const CONTENT_FILE = "admin-content-items.json";
 
+@Roles("admin")
 @Controller("content")
 export class ContentController {
   @Get()

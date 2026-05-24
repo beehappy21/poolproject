@@ -13,6 +13,8 @@ import {
 } from "../../../../../apps/api/src/http/request.util";
 import { readWalletSettings } from "../../../../shared/utils/src/wallet-settings.util";
 import { PackagesService } from "../services/packages.service";
+import { Public } from "../../../auth/src/access-control/public.decorator";
+import { Roles } from "../../../auth/src/access-control/roles.decorator";
 
 function normalizePoolEnabledInput(input: {
   poolEnabled?: boolean | string;
@@ -44,6 +46,7 @@ function normalizePoolEnabledInput(input: {
   );
 }
 
+@Roles("admin")
 @Controller("packages")
 export class PackagesController {
   constructor(private readonly packagesService: PackagesService) {}
@@ -109,6 +112,7 @@ export class PackagesController {
     return this.packagesService.listProductDetails();
   }
 
+  @Public()
   @Get("storefront-products")
   async listStorefrontProducts() {
     return this.packagesService.listStorefrontProducts();
@@ -223,6 +227,7 @@ export class PackagesController {
     }
   }
 
+  @Public()
   @Get()
   async listPackages() {
     return this.packagesService.listPackages();
