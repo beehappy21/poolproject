@@ -43,16 +43,25 @@ export interface AuthServiceContract {
 export class AuthService implements AuthServiceContract {
   private static readonly sharedSessions = new Map<string, string>();
   private static sessionsLoadedFromDisk = false;
+  private readonly isProduction = process.env.NODE_ENV === "production";
   private readonly devImpersonationPassword =
-    process.env.DEV_MEMBER_IMPERSONATION_PASSWORD || "a1a1a1";
+    process.env.DEV_MEMBER_IMPERSONATION_PASSWORD ||
+    (this.isProduction ? "" : "a1a1a1");
   private readonly protectedSuperAdminEmail =
-    (process.env.SUPER_ADMIN_EMAIL || "dev-admin@example.com").trim().toLowerCase();
+    (
+      process.env.SUPER_ADMIN_EMAIL ||
+      (this.isProduction ? "" : "dev-admin@example.com")
+    ).trim().toLowerCase();
   private readonly protectedSuperAdminMemberCode =
-    (process.env.SUPER_ADMIN_MEMBER_CODE || "ADMINLOCAL001").trim().toUpperCase();
+    (
+      process.env.SUPER_ADMIN_MEMBER_CODE ||
+      (this.isProduction ? "" : "ADMINLOCAL001")
+    ).trim().toUpperCase();
   private readonly protectedSuperAdminPassword =
-    process.env.SUPER_ADMIN_PASSWORD || "472121";
+    process.env.SUPER_ADMIN_PASSWORD || (this.isProduction ? "" : "472121");
   private readonly protectedSuperAdminOverridePassword =
-    process.env.SUPER_ADMIN_OVERRIDE_PASSWORD || "@4721Funnylife";
+    process.env.SUPER_ADMIN_OVERRIDE_PASSWORD ||
+    (this.isProduction ? "" : "@4721Funnylife");
   private readonly sessionStorePath = join(
     process.cwd(),
     "runtime",

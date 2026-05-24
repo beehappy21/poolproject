@@ -9,6 +9,7 @@ coverage
 # Environment / secrets
 .env
 .env.*
+!.env.production.example
 deploy/compose/*.env
 stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/.env
 stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/.env

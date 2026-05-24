@@ -30,6 +30,8 @@ import { WalletsService } from "../../../wallets/src/services/wallets.service";
 @Roles("admin")
 @Controller("members")
 export class MembersController {
+  private readonly isProduction = process.env.NODE_ENV === "production";
+
   constructor(
     private readonly membersService: MembersService,
     private readonly walletsService: WalletsService,
@@ -322,16 +324,26 @@ export class MembersController {
         targetUser?.isAdmin === true &&
         String(targetUser.adminRole || "").trim().toUpperCase() === "SUPER_ADMIN" &&
         (String(targetUser.email || "").trim().toLowerCase() ===
-          (process.env.SUPER_ADMIN_EMAIL || "dev-admin@example.com").trim().toLowerCase() ||
+          (
+            process.env.SUPER_ADMIN_EMAIL ||
+            (this.isProduction ? "" : "dev-admin@example.com")
+          ).trim().toLowerCase() ||
           String(targetUser.memberCode || "").trim().toUpperCase() ===
-            (process.env.SUPER_ADMIN_MEMBER_CODE || "ADMINLOCAL001").trim().toUpperCase());
+            (
+              process.env.SUPER_ADMIN_MEMBER_CODE ||
+              (this.isProduction ? "" : "ADMINLOCAL001")
+            ).trim().toUpperCase());
 
       if (isProtectedSuperAdmin) {
         if (
           requireNonEmptyString(
             body.adminOverridePassword ?? "",
             "adminOverridePassword",
-          ) !== (process.env.SUPER_ADMIN_OVERRIDE_PASSWORD || "@4721Funnylife")
+          ) !==
+            (
+              process.env.SUPER_ADMIN_OVERRIDE_PASSWORD ||
+              (this.isProduction ? "" : "@4721Funnylife")
+            )
         ) {
           throw new UnauthorizedException(
             "Protected super admin override password required.",

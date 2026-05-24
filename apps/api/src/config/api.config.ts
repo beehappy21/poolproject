@@ -23,7 +23,7 @@ const DEFAULT_CORS_ORIGINS = [
 
 function parseCorsOrigins(value?: string): string[] {
   if (!value?.trim()) {
-    return DEFAULT_CORS_ORIGINS;
+    return process.env.NODE_ENV === "production" ? [] : DEFAULT_CORS_ORIGINS;
   }
 
   return value

@@ -3,6 +3,7 @@ import { NestExpressApplication } from "@nestjs/platform-express";
 
 import { ApiAppModule } from "./app.module";
 import { apiConfig } from "./config/api.config";
+import { assertValidApiEnvironment } from "./config/env.validation";
 import { shouldAuditRequest, writeAuditEntry } from "./http/audit.util";
 
 const expressBodyParsers = require("express") as {
@@ -18,6 +19,7 @@ interface RateLimitEntry {
 const rateLimitState = new Map<string, RateLimitEntry>();
 
 async function bootstrap(): Promise<void> {
+  assertValidApiEnvironment(process.env, { sourceName: "process.env" });
   const app = await NestFactory.create<NestExpressApplication>(ApiAppModule);
   const expressApp = app.getHttpAdapter().getInstance() as {
     disable: (name: string) => void;
