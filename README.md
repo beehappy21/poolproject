@@ -25,3 +25,8 @@ Local Stephub stack:
 - `npm run dev:launchd:install`: install macOS launch agents for API, BAO, and Stephub app so the stack can auto-start at login
 - `npm run dev:launchd:status`: show plist/load/listening status for the launchd-managed local stack
 - `npm run dev:launchd:uninstall`: remove the macOS launch agents for the local stack
+
+Operations docs:
+- [CI/CD security checks](docs/operations/ci-cd-security.md)
+- [Monitoring and alerting](docs/operations/monitoring-and-alerting.md)
+- [Backup and restore](docs/operations/backup-and-restore.md)
