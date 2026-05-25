@@ -4,6 +4,8 @@
     $productMetadata = $productMetadata ?? [];
     $supplierOptions = $supplierOptions ?? [];
     $categoryOptions = $categoryOptions ?? [];
+    $promotionOptions = $promotionOptions ?? [];
+    $promotionMetadata = $promotionMetadata ?? [];
     $youtubeEmbedUrl = $youtubeEmbedUrl ?? null;
     $imagePreviewUrl = $imagePreviewUrl ?? null;
     $homeCardImagePreviewUrl = $homeCardImagePreviewUrl ?? null;
@@ -701,9 +703,29 @@
 <div class="pool-block">
     <h3>SKU / Product detail</h3>
 
+    <input type="hidden" id="product_family_code" name="product[product_family_code]" value="{{ old('product.product_family_code', $product['product_code'] ?? '') }}">
+    <input type="hidden" id="product_family_name" name="product[product_family_name]" value="{{ old('product.product_family_name', $product['product_name'] ?? '') }}">
+
     <div class="pool-grid" style="display:none;">
         <div class="pool-field">
-            <label for="product_supplier_id">Supplier</label>
+            <label for="product_product_id">Product family (system)</label>
+            <select id="product_product_id" name="product[product_id]">
+                <option value="">Select product family</option>
+                @foreach ($productOptions as $id => $option)
+                    <option
+                        value="{{ $id }}"
+                        data-supplier-id="{{ (int) ($option['supplier_id'] ?? 0) }}"
+                        data-category-id="{{ (int) ($option['category_id'] ?? 0) }}"
+                        data-code-label="{{ $option['code_label'] ?? '' }}"
+                        data-name-label="{{ $option['name_label'] ?? '' }}"
+                        @selected((string) $id === (string) ($product['product_id'] ?? ''))
+                    >{{ $option['label'] ?? '' }}</option>
+                @endforeach
+            </select>
+        </div>
+
+        <div class="pool-field">
+            <label for="product_supplier_id">Supplier (system)</label>
             <select id="product_supplier_id" name="product[supplier_id]">
                 <option value="">Select supplier</option>
                 @foreach ($supplierOptions as $id => $label)
@@ -713,29 +735,13 @@
         </div>
 
         <div class="pool-field">
-            <label for="product_category_id">Category</label>
+            <label for="product_category_id">Category (system)</label>
             <select id="product_category_id" name="product[category_id]">
                 <option value="">Select category</option>
                 @foreach ($categoryOptions as $id => $option)
                     <option value="{{ $id }}" @selected((string) $id === (string) ($product['category_id'] ?? ''))>{{ $option['label'] ?? '' }}</option>
                 @endforeach
             </select>
-        </div>
-
-        <div class="pool-field">
-            <label for="product_product_id">Product family</label>
-            <select id="product_product_id" name="product[product_id]">
-                <option value="">Select product family</option>
-                @foreach ($productOptions as $id => $option)
-                    <option
-                        value="{{ $id }}"
-                        data-supplier-id="{{ (int) ($option['supplier_id'] ?? 0) }}"
-                        data-category-id="{{ (int) ($option['category_id'] ?? 0) }}"
-                        @selected((string) $id === (string) ($product['product_id'] ?? ''))
-                    >{{ $option['label'] ?? '' }}</option>
-                @endforeach
-            </select>
-            <div class="pool-note">เลือก product family เดิมได้ หรือปล่อยว่างแล้วกรอก Product family code และ Product family name ด้านล่างเพื่อสร้าง family ใหม่</div>
         </div>
 
         <div class="pool-field">
@@ -760,25 +766,61 @@
 
     <div class="pool-grid">
         <div class="pool-field">
-            <label for="product_family_code">Product family code</label>
-            <input id="product_family_code" name="product[product_family_code]" value="{{ old('product.product_family_code', $product['product_code'] ?? '') }}">
+            <label for="product_family_code_select">Product family code</label>
+            <select id="product_family_code_select">
+                <option value="">Select product family code</option>
+                @foreach ($productOptions as $id => $option)
+                    <option value="{{ $id }}" @selected((string) $id === (string) ($product['product_id'] ?? ''))>{{ $option['code_label'] ?? '' }}</option>
+                @endforeach
+            </select>
         </div>
 
         <div class="pool-field">
-            <label for="product_family_name">Product family name</label>
-            <input id="product_family_name" name="product[product_family_name]" value="{{ old('product.product_family_name', $product['product_name'] ?? '') }}">
+            <label for="product_family_name_select">Product family name</label>
+            <select id="product_family_name_select">
+                <option value="">Select product family name</option>
+                @foreach ($productOptions as $id => $option)
+                    <option value="{{ $id }}" @selected((string) $id === (string) ($product['product_id'] ?? ''))>{{ $option['name_label'] ?? '' }}</option>
+                @endforeach
+            </select>
         </div>
 
         <div class="pool-field">
-            <label for="product_category_name">Category</label>
-            <input id="product_category_name" value="{{ $product['category_name'] ?? '' }}" readonly>
+            <label for="product_category_id_visible">Category</label>
+            <select id="product_category_id_visible" data-linked-select="product_category_id">
+                <option value="">Select category</option>
+                @foreach ($categoryOptions as $id => $option)
+                    <option value="{{ $id }}" @selected((string) $id === (string) ($product['category_id'] ?? ''))>{{ $option['label'] ?? '' }}</option>
+                @endforeach
+            </select>
         </div>
 
         <div class="pool-field">
-            <label for="product_supplier_name">Supplier</label>
-            <input id="product_supplier_name" value="{{ $product['supplier_name'] ?? '' }}" readonly>
+            <label for="product_supplier_id_visible">Supplier</label>
+            <select id="product_supplier_id_visible" data-linked-select="product_supplier_id">
+                <option value="">Select supplier</option>
+                @foreach ($supplierOptions as $id => $label)
+                    <option value="{{ $id }}" @selected((string) $id === (string) ($product['supplier_id'] ?? ''))>{{ $label }}</option>
+                @endforeach
+            </select>
         </div>
     </div>
+
+    <div class="pool-grid" id="productFamilyManualFields" style="display:none;">
+        <div class="pool-field">
+            <label for="product_family_code_manual">New product family code</label>
+            <input id="product_family_code_manual" value="{{ old('product.product_family_code', $product['product_code'] ?? '') }}" placeholder="e.g. COLLA">
+            <div class="pool-note">ถ้าไม่มี family เดิมให้เลือก สามารถสร้าง family ใหม่โดยกรอกรหัสตรงนี้</div>
+        </div>
+
+        <div class="pool-field">
+            <label for="product_family_name_manual">New product family name</label>
+            <input id="product_family_name_manual" value="{{ old('product.product_family_name', $product['product_name'] ?? '') }}" placeholder="e.g. Colla Mineral">
+            <div class="pool-note">ชื่อนี้จะถูกใช้ตอนสร้าง product family ใหม่</div>
+        </div>
+    </div>
+
+    <div class="pool-note">เลือก supplier, category, product family code, และ product family name จาก dropdown ได้เลย ถ้ายังไม่มี family เดิม ระบบจะเปิดช่องให้สร้าง family ใหม่ด้านล่างอัตโนมัติ</div>
 </div>
 
 <div class="pool-block">
@@ -988,6 +1030,37 @@
     <h3>Pricing</h3>
 
     <div class="pool-grid">
+        <div class="pool-field">
+            <label for="product_promotion_id">Promotion</label>
+            <select id="product_promotion_id" name="product[promotion_id]">
+                <option value="">No promotion</option>
+                @foreach ($promotionOptions as $id => $label)
+                    <option value="{{ $id }}" @selected((string) $id === (string) ($product['promotion_id'] ?? ''))>{{ $label }}</option>
+                @endforeach
+            </select>
+            <div class="pool-note">ถ้าเลือกโปร ระบบจะใช้ rule ของโปรนี้ตอนสร้างออเดอร์เมื่อจำนวนชิ้นถึงเงื่อนไข</div>
+        </div>
+
+        <div class="pool-field">
+            <label for="product_promotion_status">Promotion status</label>
+            <input id="product_promotion_status" value="{{ $product['promotion_status'] ?? '' }}" readonly>
+        </div>
+
+        <div class="pool-field">
+            <label for="product_promotion_min_quantity">Promotion minimum qty</label>
+            <input id="product_promotion_min_quantity" value="{{ $product['promotion_min_quantity'] ?? '' }}" readonly>
+        </div>
+
+        <div class="pool-field">
+            <label for="product_promotion_price">Promotion unit price</label>
+            <input id="product_promotion_price" value="{{ $product['promotion_price'] ?? '' }}" readonly>
+        </div>
+
+        <div class="pool-field">
+            <label for="product_promotion_pv">Promotion unit PV</label>
+            <input id="product_promotion_pv" value="{{ $product['promotion_pv'] ?? '' }}" readonly>
+        </div>
+
         <div class="pool-field" data-firm-hide="1">
             <label for="product_cost_price">Cost price</label>
             <input id="product_cost_price" name="product[cost_price]" type="number" step="0.00000001" min="0" value="{{ old('product.cost_price', $product['cost_price'] ?? '0') }}" class="@if($fieldHasError('product.cost_price')) pool-input-error @endif">
@@ -1292,15 +1365,21 @@
 <script>
     (function () {
         const supplierSelect = document.getElementById('product_supplier_id');
+        const supplierVisibleSelect = document.getElementById('product_supplier_id_visible');
         const categorySelect = document.getElementById('product_category_id');
+        const categoryVisibleSelect = document.getElementById('product_category_id_visible');
         const productFamilySelect = document.getElementById('product_product_id');
+        const productFamilyCodeSelect = document.getElementById('product_family_code_select');
+        const productFamilyNameSelect = document.getElementById('product_family_name_select');
         const productMetadata = @json($productMetadata);
         const categoryOptions = @json($categoryOptions);
+        const promotionMetadata = @json($promotionMetadata);
         const existingImageUrls = @json($existingImageUrls);
         const productFamilyCode = document.getElementById('product_family_code');
         const productFamilyName = document.getElementById('product_family_name');
-        const productCategoryName = document.getElementById('product_category_name');
-        const productSupplierName = document.getElementById('product_supplier_name');
+        const productFamilyCodeManual = document.getElementById('product_family_code_manual');
+        const productFamilyNameManual = document.getElementById('product_family_name_manual');
+        const productFamilyManualFields = document.getElementById('productFamilyManualFields');
         const detailCodeInput = document.getElementById('product_code');
         const detailCodeHint = document.getElementById('productCodeHint');
         const galleryFilesInput = document.getElementById('product_gallery_files');
@@ -1315,6 +1394,11 @@
         const dropzone = document.getElementById('productDropzone');
         const costPriceInput = document.getElementById('product_cost_price');
         const memberPriceInput = document.getElementById('product_member_price');
+        const promotionSelect = document.getElementById('product_promotion_id');
+        const promotionStatusInput = document.getElementById('product_promotion_status');
+        const promotionMinQtyInput = document.getElementById('product_promotion_min_quantity');
+        const promotionPriceInput = document.getElementById('product_promotion_price');
+        const promotionPvInput = document.getElementById('product_promotion_pv');
         const memberPriceLabel = document.getElementById('productMemberPriceLabel');
         const memberPriceNote = document.getElementById('productMemberPriceNote');
         const retailPriceInput = document.getElementById('product_retail_price');
@@ -1401,6 +1485,8 @@
                 return {
                     value: option.value,
                     label: option.textContent,
+                    codeLabel: String(option.dataset.codeLabel || ''),
+                    nameLabel: String(option.dataset.nameLabel || ''),
                     supplierId: String(option.dataset.supplierId || ''),
                     categoryId: String(option.dataset.categoryId || ''),
                 };
@@ -1418,13 +1504,21 @@
 
         function applyProductFamilyMetadata() {
             const meta = productMetadata[String(productFamilySelect.value)] || {};
-            productFamilyCode.value = meta.product_code || '';
-            productFamilyName.value = meta.product_name || '';
-            productCategoryName.value = meta.category_name || '';
-            productSupplierName.value = meta.supplier_name || '';
+            const hasSelectedFamily = String(productFamilySelect.value || '') !== '';
+
+            if (hasSelectedFamily) {
+                productFamilyCode.value = meta.product_code || '';
+                productFamilyName.value = meta.product_name || '';
+                productFamilyCodeManual.value = meta.product_code || '';
+                productFamilyNameManual.value = meta.product_name || '';
+                return;
+            }
+
+            productFamilyCode.value = productFamilyCodeManual.value.trim();
+            productFamilyName.value = productFamilyNameManual.value.trim();
         }
 
-        function repopulateSelect(select, options, selectedValue, placeholder) {
+        function repopulateSelect(select, options, selectedValue, placeholder, labelKey) {
             select.innerHTML = '';
 
             const placeholderOption = document.createElement('option');
@@ -1435,7 +1529,7 @@
             options.forEach(function (option) {
                 const node = document.createElement('option');
                 node.value = option.value;
-                node.textContent = option.label;
+                node.textContent = option[labelKey || 'label'] || option.label || '';
 
                 if (option.supplierId) {
                     node.dataset.supplierId = option.supplierId;
@@ -1443,6 +1537,14 @@
 
                 if (option.categoryId) {
                     node.dataset.categoryId = option.categoryId;
+                }
+
+                if (option.codeLabel) {
+                    node.dataset.codeLabel = option.codeLabel;
+                }
+
+                if (option.nameLabel) {
+                    node.dataset.nameLabel = option.nameLabel;
                 }
 
                 if (String(option.value) === String(selectedValue || '')) {
@@ -1495,6 +1597,7 @@
             });
 
             repopulateSelect(categorySelect, options, hasSelected ? selectedCategory : '', 'Select category');
+            repopulateSelect(categoryVisibleSelect, options, hasSelected ? selectedCategory : '', 'Select category');
         }
 
         function syncProductFamilyOptions() {
@@ -1505,20 +1608,18 @@
             });
 
             repopulateSelect(productFamilySelect, options, hasSelected ? selectedProduct : '', 'Select product family');
+            repopulateSelect(productFamilyCodeSelect, options, hasSelected ? selectedProduct : '', 'Select product family code', 'codeLabel');
+            repopulateSelect(productFamilyNameSelect, options, hasSelected ? selectedProduct : '', 'Select product family name', 'nameLabel');
         }
 
         function syncFamilyInputMode() {
             const hasSelectedFamily = String(productFamilySelect.value || '') !== '';
 
-            productFamilyCode.readOnly = hasSelectedFamily;
-            productFamilyName.readOnly = hasSelectedFamily;
-            productFamilyCode.style.background = hasSelectedFamily ? '#f8fafc' : '#fff';
-            productFamilyName.style.background = hasSelectedFamily ? '#f8fafc' : '#fff';
-
-            if (!hasSelectedFamily) {
-                productCategoryName.value = categorySelect.options[categorySelect.selectedIndex]?.textContent || '';
-                productSupplierName.value = supplierSelect.options[supplierSelect.selectedIndex]?.textContent || '';
+            if (productFamilyManualFields) {
+                productFamilyManualFields.style.display = hasSelectedFamily ? 'none' : '';
             }
+
+            applyProductFamilyMetadata();
         }
 
         function updateSalesModeUi(selectedMode) {
@@ -1600,13 +1701,36 @@
 
             if (meta.supplier_id) {
                 supplierSelect.value = String(meta.supplier_id);
+                supplierVisibleSelect.value = String(meta.supplier_id);
             }
 
             syncCategoryOptions();
 
             if (meta.category_id) {
                 categorySelect.value = String(meta.category_id);
+                categoryVisibleSelect.value = String(meta.category_id);
             }
+        }
+
+        function syncVisibleSelectors() {
+            supplierVisibleSelect.value = supplierSelect.value || '';
+            categoryVisibleSelect.value = categorySelect.value || '';
+        }
+
+        function setSelectedProductFamily(productId) {
+            const normalized = String(productId || '');
+            productFamilySelect.value = normalized;
+            productFamilyCodeSelect.value = normalized;
+            productFamilyNameSelect.value = normalized;
+            syncSelectorsFromProductFamily();
+            syncProductFamilyOptions();
+            productFamilyCodeSelect.value = productFamilySelect.value || '';
+            productFamilyNameSelect.value = productFamilySelect.value || '';
+            syncVisibleSelectors();
+            applyProductFamilyMetadata();
+            syncFamilyInputMode();
+            syncDetailCodeSuggestion(false);
+            syncFirmState();
         }
 
         function youtubeEmbedUrl(url) {
@@ -2223,6 +2347,30 @@
 
             if (!manual) {
                 dcwUsageInput.value = formula;
+            }
+        }
+
+        function syncPromotionSummary() {
+            if (!promotionSelect) {
+                return;
+            }
+
+            const selected = promotionMetadata[String(promotionSelect.value || '')] || null;
+
+            if (promotionStatusInput) {
+                promotionStatusInput.value = selected ? String(selected.status || '') : '';
+            }
+
+            if (promotionMinQtyInput) {
+                promotionMinQtyInput.value = selected ? String(selected.min_quantity || '') : '';
+            }
+
+            if (promotionPriceInput) {
+                promotionPriceInput.value = selected ? String(selected.promo_price || '') : '';
+            }
+
+            if (promotionPvInput) {
+                promotionPvInput.value = selected ? String(selected.promo_pv || '') : '';
             }
         }
 
@@ -3186,9 +3334,31 @@
             syncRichDescriptionValue({ rewriteEditor: true });
         }
 
+        supplierVisibleSelect.addEventListener('change', function () {
+            supplierSelect.value = supplierVisibleSelect.value || '';
+            syncCategoryOptions();
+            syncProductFamilyOptions();
+            syncVisibleSelectors();
+            applyProductFamilyMetadata();
+            syncFamilyInputMode();
+            syncDetailCodeSuggestion(false);
+            syncFirmState();
+        });
+
         supplierSelect.addEventListener('change', function () {
             syncCategoryOptions();
             syncProductFamilyOptions();
+            syncVisibleSelectors();
+            applyProductFamilyMetadata();
+            syncFamilyInputMode();
+            syncDetailCodeSuggestion(false);
+            syncFirmState();
+        });
+
+        categoryVisibleSelect.addEventListener('change', function () {
+            categorySelect.value = categoryVisibleSelect.value || '';
+            syncProductFamilyOptions();
+            syncVisibleSelectors();
             applyProductFamilyMetadata();
             syncFamilyInputMode();
             syncDetailCodeSuggestion(false);
@@ -3197,6 +3367,7 @@
 
         categorySelect.addEventListener('change', function () {
             syncProductFamilyOptions();
+            syncVisibleSelectors();
             applyProductFamilyMetadata();
             syncFamilyInputMode();
             syncDetailCodeSuggestion(false);
@@ -3204,12 +3375,23 @@
         });
 
         productFamilySelect.addEventListener('change', function () {
-            syncSelectorsFromProductFamily();
-            syncProductFamilyOptions();
-            applyProductFamilyMetadata();
-            syncFamilyInputMode();
-            syncDetailCodeSuggestion(false);
-            syncFirmState();
+            setSelectedProductFamily(productFamilySelect.value || '');
+        });
+
+        productFamilyCodeSelect.addEventListener('change', function () {
+            setSelectedProductFamily(productFamilyCodeSelect.value || '');
+        });
+
+        productFamilyNameSelect.addEventListener('change', function () {
+            setSelectedProductFamily(productFamilyNameSelect.value || '');
+        });
+
+        productFamilyCodeManual.addEventListener('input', function () {
+            productFamilyCode.value = productFamilyCodeManual.value.trim();
+        });
+
+        productFamilyNameManual.addEventListener('input', function () {
+            productFamilyName.value = productFamilyNameManual.value.trim();
         });
 
         youtubeInput.addEventListener('input', updateYoutubePreview);
@@ -3221,6 +3403,9 @@
         memberPriceInput.addEventListener('input', syncFirmState);
         pvManualOverrideInput.addEventListener('change', syncPvState);
         dcwManualOverrideInput.addEventListener('change', syncDcwState);
+        if (promotionSelect) {
+            promotionSelect.addEventListener('change', syncPromotionSummary);
+        }
         firmEnabledInput.addEventListener('change', syncFirmState);
         if (firmOverrideInput) {
             firmOverrideInput.addEventListener('change', syncFirmState);
@@ -3320,11 +3505,10 @@
             updateGalleryPreview();
         });
 
+        syncVisibleSelectors();
         syncCategoryOptions();
         syncProductFamilyOptions();
-        syncSelectorsFromProductFamily();
-        applyProductFamilyMetadata();
-        syncFamilyInputMode();
+        setSelectedProductFamily(productFamilySelect.value || '');
         syncDetailCodeSuggestion(false);
         updateYoutubePreview();
         syncExistingGalleryInputs();
@@ -3332,6 +3516,7 @@
         updateHomeCardPreview();
         syncPvState();
         syncDcwState();
+        syncPromotionSummary();
         syncFirmState();
         setupRichDescriptionEditor();
 

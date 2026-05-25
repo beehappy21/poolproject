@@ -11,6 +11,10 @@ export type ProductType = {
   name: string;
   price: number;
   pv?: number;
+  promotionStatus?: string;
+  promotionMinQuantity?: number;
+  promotionPrice?: number;
+  promotionPv?: number;
   dcwSpendEnabled?: boolean;
   dcwUsageAmount?: number;
   dcwRewardRate?: number;

@@ -95,7 +95,33 @@
 
                 nav.dataset.menuPersistenceBound = 'true';
 
+                nav.querySelectorAll('[data-bs-toggle="collapse"]').forEach((toggle) => {
+                    toggle.addEventListener('click', (event) => {
+                        const selector = toggle.getAttribute('data-bs-target')
+                            || toggle.getAttribute('href');
+
+                        if (!selector || !selector.startsWith('#')) {
+                            return;
+                        }
+
+                        const menu = nav.querySelector(selector);
+
+                        if (!menu?.classList.contains('show')) {
+                            return;
+                        }
+
+                        event.preventDefault();
+                        event.stopPropagation();
+
+                        window.bootstrap?.Collapse.getOrCreateInstance(menu, {
+                            toggle: false,
+                        }).show();
+                    });
+                });
+
                 nav.querySelectorAll('.sub-menu[id]').forEach((menu) => {
+                    menu.removeAttribute('data-bs-parent');
+
                     menu.addEventListener('shown.bs.collapse', () => {
                         window.localStorage.setItem(storageKey, menu.id);
                     });

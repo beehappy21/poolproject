@@ -22,6 +22,10 @@ type StorefrontProduct = {
   imageUrls?: string[];
   memberPriceUsdt: string;
   pv: string;
+  promotionStatus?: string | null;
+  promotionMinQuantity?: number | null;
+  promotionPriceUsdt?: string | null;
+  promotionPv?: string | null;
   firmRedemptionEligible?: boolean;
   dcwSpendEnabled?: boolean;
   dcwUsageAmount?: string;
@@ -184,6 +188,13 @@ export const mapStorefrontProductToProduct = (
     name: productName,
     price: toProductNumber(item.memberPriceUsdt),
     pv: toProductNumber(item.pv),
+    promotionStatus: safeString(item.promotionStatus),
+    promotionMinQuantity:
+      typeof item.promotionMinQuantity === 'number'
+        ? item.promotionMinQuantity
+        : toProductNumber(item.promotionMinQuantity),
+    promotionPrice: toProductNumber(item.promotionPriceUsdt),
+    promotionPv: toProductNumber(item.promotionPv),
     firmRedemptionEligible: Boolean(item.firmRedemptionEligible),
     salesChannelMode,
     showOnHome: salesChannelMode === 'WAP_CATALOG',

@@ -1,0 +1,7 @@
+ALTER TABLE "ProductDetail"
+  ADD COLUMN IF NOT EXISTS "promotionId" BIGINT,
+  ADD COLUMN IF NOT EXISTS "promotionName" VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS "promotionStatus" VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS "promotionMinQuantity" INTEGER,
+  ADD COLUMN IF NOT EXISTS "promotionPriceUsdt" DECIMAL(18, 8),
+  ADD COLUMN IF NOT EXISTS "promotionPv" DECIMAL(18, 8);

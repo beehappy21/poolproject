@@ -36,6 +36,10 @@ type ProductDetailRecord = {
   memberPriceUsdt: { toString(): string };
   retailPriceUsdt: { toString(): string };
   pv: { toString(): string };
+  promotionStatus: string | null;
+  promotionMinQuantity: number | null;
+  promotionPriceUsdt: { toString(): string } | null;
+  promotionPv: { toString(): string } | null;
   poolRateMode: { toString(): string };
   poolRate: { toString(): string };
   poolCapMultiple: { toString(): string };
@@ -1068,6 +1072,10 @@ export class PrismaPackagesRepository implements PackagesRepository {
         memberPriceUsdt: detail.memberPriceUsdt.toString(),
         retailPriceUsdt: detail.retailPriceUsdt.toString(),
         pv: detail.pv.toString(),
+        promotionStatus: detail.promotionStatus,
+        promotionMinQuantity: detail.promotionMinQuantity,
+        promotionPriceUsdt: detail.promotionPriceUsdt?.toString() ?? null,
+        promotionPv: detail.promotionPv?.toString() ?? null,
         dcwSpendEnabled: detail.dcwSpendEnabled,
         dcwUsageAmount: detail.dcwUsageAmount.toString(),
         dcwRewardRate:
