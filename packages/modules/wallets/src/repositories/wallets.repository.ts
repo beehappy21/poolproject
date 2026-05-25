@@ -45,6 +45,12 @@ export interface WalletsRepository {
     result: WalletPostingResult,
   ): Promise<WalletPostingResult>;
 
+  releaseHeldCommissionCredit(input: {
+    userId: string;
+    commissionId: string;
+    amount: string;
+  }): Promise<void>;
+
   applyNegativeOffsetResult(
     userId: string,
     result: WalletNegativeOffsetResult,
@@ -485,6 +491,86 @@ export class PrismaWalletsRepository implements WalletsRepository {
     });
 
     return result;
+  }
+
+  async releaseHeldCommissionCredit(input: {
+    userId: string;
+    commissionId: string;
+    amount: string;
+  }): Promise<void> {
+    const existingRelease = await this.prisma.walletTransaction.findFirst({
+      where: {
+        userId: BigInt(input.userId),
+        txType: "BUYBACK_RELEASE",
+        refType: "COMMISSION",
+        refId: BigInt(input.commissionId),
+        status: "POSTED",
+      },
+      select: { id: true },
+    });
+
+    if (existingRelease) {
+      return;
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const wallet = await tx.wallet.upsert({
+        where: { userId: BigInt(input.userId) },
+        update: {},
+        create: { userId: BigInt(input.userId) },
+        select: {
+          approvedBalance: true,
+          heldBalance: true,
+          withdrawableBalance: true,
+          shoppingBalance: true,
+          discountBalance: true,
+          negativeOffsetBalance: true,
+        },
+      });
+
+      const releasableAmount = minDecimalString(
+        wallet.heldBalance.toString(),
+        input.amount,
+      );
+
+      if (compareDecimalStrings(releasableAmount, "0") <= 0) {
+        return;
+      }
+
+      await tx.wallet.update({
+        where: { userId: BigInt(input.userId) },
+        data: {
+          approvedBalance: wallet.approvedBalance.toString(),
+          heldBalance: maxDecimalString(
+            subtractDecimalStrings(wallet.heldBalance.toString(), releasableAmount),
+            "0",
+          ),
+          withdrawableBalance: maxDecimalString(
+            addDecimalStrings(
+              wallet.withdrawableBalance.toString(),
+              releasableAmount,
+            ),
+            "0",
+          ),
+          shoppingBalance: wallet.shoppingBalance.toString(),
+          discountBalance: wallet.discountBalance.toString(),
+          negativeOffsetBalance: wallet.negativeOffsetBalance.toString(),
+        },
+      });
+
+      await tx.walletTransaction.create({
+        data: {
+          userId: BigInt(input.userId),
+          txType: "BUYBACK_RELEASE",
+          direction: "CREDIT",
+          balanceBucket: "WITHDRAWABLE",
+          refType: "COMMISSION",
+          refId: BigInt(input.commissionId),
+          amount: releasableAmount,
+          status: "POSTED",
+        },
+      });
+    });
   }
 
   async applyNegativeOffsetResult(
@@ -1529,21 +1615,21 @@ export class PrismaWalletsRepository implements WalletsRepository {
         where: { userId: BigInt(input.userId) },
         update: {},
         create: { userId: BigInt(input.userId) },
-        select: { shoppingBalance: true },
+        select: { withdrawableBalance: true },
       });
 
-      if (compareDecimalStrings(wallet.shoppingBalance.toString(), input.amount) < 0) {
-        throw new Error("Insufficient SW balance.");
+      if (compareDecimalStrings(wallet.withdrawableBalance.toString(), input.amount) < 0) {
+        throw new Error("Insufficient CW balance.");
       }
 
-      const nextShoppingBalance = subtractDecimalStrings(
-        wallet.shoppingBalance.toString(),
+      const nextWithdrawableBalance = subtractDecimalStrings(
+        wallet.withdrawableBalance.toString(),
         input.amount,
       );
 
       await tx.wallet.update({
         where: { userId: BigInt(input.userId) },
-        data: { shoppingBalance: nextShoppingBalance },
+        data: { withdrawableBalance: nextWithdrawableBalance },
       });
 
       const request = await tx.withdrawRequest.create({
@@ -1577,12 +1663,12 @@ export class PrismaWalletsRepository implements WalletsRepository {
           userId: BigInt(input.userId),
           txType: "MANUAL_ADJUSTMENT",
           direction: "DEBIT",
-          balanceBucket: "SHOPPING",
+          balanceBucket: "WITHDRAWABLE",
           refType: "withdraw_request",
           refId: request.id,
           amount: input.amount,
           status: "POSTED",
-          note: "SW reserved for withdraw request",
+          note: "CW reserved for withdraw request",
         },
       });
 
@@ -1941,7 +2027,7 @@ export class PrismaWalletsRepository implements WalletsRepository {
         refType: "withdraw_request",
         refId: withdrawRequestId,
         direction: "DEBIT",
-        balanceBucket: "SHOPPING",
+        balanceBucket: "WITHDRAWABLE",
       },
     });
 
@@ -1953,17 +2039,17 @@ export class PrismaWalletsRepository implements WalletsRepository {
       where: { userId: reserveTransaction.userId },
       update: {},
       create: { userId: reserveTransaction.userId },
-      select: { shoppingBalance: true },
+      select: { withdrawableBalance: true },
     });
 
-    const nextShoppingBalance = addDecimalStrings(
-      wallet.shoppingBalance.toString(),
+    const nextWithdrawableBalance = addDecimalStrings(
+      wallet.withdrawableBalance.toString(),
       reserveTransaction.amount.toString(),
     );
 
     await tx.wallet.update({
       where: { userId: reserveTransaction.userId },
-      data: { shoppingBalance: nextShoppingBalance },
+      data: { withdrawableBalance: nextWithdrawableBalance },
     });
 
     await tx.walletTransaction.create({
@@ -1971,13 +2057,13 @@ export class PrismaWalletsRepository implements WalletsRepository {
         userId: reserveTransaction.userId,
         txType: "MANUAL_ADJUSTMENT",
         direction: "CREDIT",
-        balanceBucket: "SHOPPING",
+        balanceBucket: "WITHDRAWABLE",
         refType: "withdraw_request",
         refId: withdrawRequestId,
         counterpartyUserId: BigInt(actorUserId),
         amount: reserveTransaction.amount,
         status: "POSTED",
-        note: "SW refunded for cancelled withdraw request",
+        note: "CW refunded for cancelled withdraw request",
       },
     });
   }

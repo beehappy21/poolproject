@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Put } from "@nestjs/common";
 import { BadRequestException } from "@nestjs/common";
+import { Roles } from "../../../packages/modules/auth/src/access-control/roles.decorator";
 
 import {
   optionalString,
@@ -110,6 +111,8 @@ const readLineRuntimeSettings = () => {
   };
 };
 
+// TODO(security): keep settings endpoints private unless a specific public storefront use case is reviewed.
+@Roles("admin")
 @Controller("settings")
 export class AdminSettingsController {
   @Get("commissions")
@@ -153,6 +156,56 @@ export class AdminSettingsController {
       uniLevelRates: payload.uniLevelRates.map((value, index) =>
         requireDecimalRateString(value, `uniLevelRates[${index}]`),
       ),
+      matchingLevelRates: Array.isArray(payload.matchingLevelRates)
+        ? payload.matchingLevelRates.map((value, index) =>
+            requireDecimalRateString(value, `matchingLevelRates[${index}]`),
+          )
+        : current.matchingLevelRates,
+      teamTwoLegRate: requireDecimalRateString(
+        optionalString(payload.teamTwoLegRate) ?? current.teamTwoLegRate,
+        "teamTwoLegRate",
+      ),
+      teamThreeLegRate: requireDecimalRateString(
+        optionalString(payload.teamThreeLegRate) ?? current.teamThreeLegRate,
+        "teamThreeLegRate",
+      ),
+      dailyCommissionCapAmount: requireDecimalRateString(
+        optionalString(payload.dailyCommissionCapAmount) ??
+          current.dailyCommissionCapAmount,
+        "dailyCommissionCapAmount",
+      ),
+      buybackThresholdAmount: requireDecimalRateString(
+        optionalString(payload.buybackThresholdAmount) ??
+          current.buybackThresholdAmount,
+        "buybackThresholdAmount",
+      ),
+      buybackRepurchasePv: requireDecimalRateString(
+        optionalString(payload.buybackRepurchasePv) ??
+          optionalString(payload.buybackRepurchaseAmount) ??
+          current.buybackRepurchasePv,
+        "buybackRepurchasePv",
+      ),
+      buybackGraceDays:
+        typeof payload.buybackGraceDays === "number"
+          ? payload.buybackGraceDays
+          : Number.parseInt(
+              optionalString(payload.buybackGraceDays) ??
+                `${current.buybackGraceDays}`,
+              10,
+            ),
+      poolMinActivePackageBuyerDirects:
+        typeof payload.poolMinActivePackageBuyerDirects === "number"
+          ? payload.poolMinActivePackageBuyerDirects
+          : Number.parseInt(
+              optionalString(payload.poolMinActivePackageBuyerDirects) ??
+                `${current.poolMinActivePackageBuyerDirects}`,
+              10,
+            ),
+      poolMaxEntitlementShareRate: requireDecimalRateString(
+        optionalString(payload.poolMaxEntitlementShareRate) ??
+          current.poolMaxEntitlementShareRate,
+        "poolMaxEntitlementShareRate",
+      ),
       poolRate: requireDecimalRateString(payload.poolRate, "poolRate"),
       cashbackRate: requireDecimalRateString(payload.cashbackRate, "cashbackRate"),
       appVisibility: {
@@ -168,6 +221,18 @@ export class AdminSettingsController {
             : payload.directVisible === true ||
               payload.directVisible === "true" ||
               payload.directVisible === "1",
+        matching:
+          payload.matchingVisible === undefined
+            ? current.appVisibility.matching
+            : payload.matchingVisible === true ||
+              payload.matchingVisible === "true" ||
+              payload.matchingVisible === "1",
+        team:
+          payload.teamVisible === undefined
+            ? current.appVisibility.team
+            : payload.teamVisible === true ||
+              payload.teamVisible === "true" ||
+              payload.teamVisible === "1",
         unilevel:
           payload.unilevelVisible === undefined
             ? current.appVisibility.unilevel
@@ -204,36 +269,54 @@ export class AdminSettingsController {
   @Put("wallets")
   updateWalletSettings(@Body() body: Record<string, unknown>) {
     const payload = body ?? {};
+    const current = readWalletSettings();
 
     return writeWalletSettings({
+      firmEnabled: false,
+      autoBuybackEnabled:
+        payload.autoBuybackEnabled === undefined
+          ? current.autoBuybackEnabled
+          : payload.autoBuybackEnabled === true ||
+            payload.autoBuybackEnabled === "true" ||
+            payload.autoBuybackEnabled === "1",
       commissionToShoppingEnabled:
-        payload.commissionToShoppingEnabled === true ||
-        payload.commissionToShoppingEnabled === "true" ||
-        payload.commissionToShoppingEnabled === "1",
+        payload.commissionToShoppingEnabled === undefined
+          ? current.commissionToShoppingEnabled
+          : payload.commissionToShoppingEnabled === true ||
+            payload.commissionToShoppingEnabled === "true" ||
+            payload.commissionToShoppingEnabled === "1",
       commissionToShoppingFeeRate: requireDecimalRateString(
-        payload.commissionToShoppingFeeRate ?? "0",
+        payload.commissionToShoppingFeeRate ?? current.commissionToShoppingFeeRate,
         "commissionToShoppingFeeRate",
       ),
       walletTransferEnabled:
-        payload.walletTransferEnabled === true ||
-        payload.walletTransferEnabled === "true" ||
-        payload.walletTransferEnabled === "1",
+        payload.walletTransferEnabled === undefined
+          ? current.walletTransferEnabled
+          : payload.walletTransferEnabled === true ||
+            payload.walletTransferEnabled === "true" ||
+            payload.walletTransferEnabled === "1",
       walletTransferFeeRate: requireDecimalRateString(
-        payload.walletTransferFeeRate ?? "0",
+        payload.walletTransferFeeRate ?? current.walletTransferFeeRate,
         "walletTransferFeeRate",
       ),
       walletTopupEnabled:
-        payload.walletTopupEnabled === true ||
-        payload.walletTopupEnabled === "true" ||
-        payload.walletTopupEnabled === "1",
+        payload.walletTopupEnabled === undefined
+          ? current.walletTopupEnabled
+          : payload.walletTopupEnabled === true ||
+            payload.walletTopupEnabled === "true" ||
+            payload.walletTopupEnabled === "1",
       shoppingWalletSpendEnabled:
-        payload.shoppingWalletSpendEnabled === true ||
-        payload.shoppingWalletSpendEnabled === "true" ||
-        payload.shoppingWalletSpendEnabled === "1",
+        payload.shoppingWalletSpendEnabled === undefined
+          ? current.shoppingWalletSpendEnabled
+          : payload.shoppingWalletSpendEnabled === true ||
+            payload.shoppingWalletSpendEnabled === "true" ||
+            payload.shoppingWalletSpendEnabled === "1",
       discountWalletSpendEnabled:
-        payload.discountWalletSpendEnabled === true ||
-        payload.discountWalletSpendEnabled === "true" ||
-        payload.discountWalletSpendEnabled === "1",
+        payload.discountWalletSpendEnabled === undefined
+          ? current.discountWalletSpendEnabled
+          : payload.discountWalletSpendEnabled === true ||
+            payload.discountWalletSpendEnabled === "true" ||
+            payload.discountWalletSpendEnabled === "1",
       orderCashPaymentMethods: Array.isArray(payload.orderCashPaymentMethods)
         ? payload.orderCashPaymentMethods
             .map((value) => optionalString(value))

@@ -53,7 +53,69 @@ create schema public;
 SQL
 DATABASE_URL="$DATABASE_URL" ./node_modules/.bin/prisma db push --schema prisma/schema.prisma --accept-data-loss >/dev/null
 DATABASE_URL="$DATABASE_URL" node scripts/seed-dev.js >/dev/null
+DATABASE_URL="$DATABASE_URL" node <<'JS' >/dev/null
+const { PrismaClient } = require("@prisma/client");
+const { randomBytes, scryptSync } = require("node:crypto");
+const prisma = new PrismaClient();
+function hashPassword(password) {
+  const salt = randomBytes(16).toString("hex");
+  const hash = scryptSync(password, salt, 64).toString("hex");
+  return `scrypt$${salt}$${hash}`;
+}
+async function main() {
+  const alice = await prisma.user.findUnique({ where: { memberCode: "ALICE" }, select: { id: true } });
+  const bob = await prisma.user.findUnique({ where: { memberCode: "BOB" }, select: { id: true } });
+  const seedOrder = await prisma.order.findFirst({ where: { orderNo: "ORD-DEV-001" }, select: { id: true } });
+  await prisma.user.upsert({
+    where: { email: "dev-admin@example.com" },
+    update: {
+      memberCode: "ADMINLOCAL001",
+      referralCode: "ADMINLOCAL001",
+      passwordHash: hashPassword("472121"),
+      isAdmin: true,
+      adminRole: "SUPER_ADMIN",
+      status: "ACTIVE",
+      payoutStatus: "ACTIVE",
+    },
+    create: {
+      memberCode: "ADMINLOCAL001",
+      referralCode: "ADMINLOCAL001",
+      name: "Dev Admin",
+      email: "dev-admin@example.com",
+      passwordHash: hashPassword("472121"),
+      isAdmin: true,
+      adminRole: "SUPER_ADMIN",
+      status: "ACTIVE",
+      payoutStatus: "ACTIVE",
+      riskLevel: "NORMAL",
+    },
+  });
+  await prisma.memberPackageCycle.updateMany({
+    where: { user: { memberCode: { in: ["ALICE", "BOB"] } } },
+    data: { purchaseBase: "10000" },
+  });
+  for (const user of [alice, bob]) {
+    await prisma.userBuybackProgress.upsert({
+      where: { userId: user.id },
+      update: {
+        status: "CLEAR",
+        currentBuybackCycleId: `qualified:${seedOrder.id.toString()}`,
+        lastQualifyingOrderId: seedOrder.id,
+      },
+      create: {
+        userId: user.id,
+        accumulatedAmount: "0",
+        status: "CLEAR",
+        currentBuybackCycleId: `qualified:${seedOrder.id.toString()}`,
+        lastQualifyingOrderId: seedOrder.id,
+      },
+    });
+  }
+}
+main().finally(async () => prisma.$disconnect());
+JS
 
+npm run build >/tmp/poolproject-pool-config-build.log 2>&1
 DATABASE_URL="$DATABASE_URL" npm run start:api >/tmp/poolproject-pool-config-api.log 2>&1 &
 API_PID=$!
 
@@ -68,7 +130,7 @@ curl -s "$API_BASE_URL/health" >/dev/null
 
 AUTH_JSON="$(curl -s -X POST "$API_BASE_URL/auth/login" \
   -H 'content-type: application/json' \
-  -d '{"identifier":"ALICE","password":"dev-password"}')"
+  -d '{"identifier":"dev-admin@example.com","password":"472121"}')"
 ACCESS_TOKEN="$(node -e 'const data = JSON.parse(process.argv[1]); process.stdout.write(String(data.accessToken || ""));' "$AUTH_JSON")"
 AUTH_HEADER="Authorization: Bearer $ACCESS_TOKEN"
 
@@ -142,11 +204,17 @@ const prisma = new PrismaClient();
 async function main() {
   const dave = await prisma.user.findUnique({ where: { memberCode: "DAVE" }, select: { id: true } });
   const starter = await prisma.package.findUnique({ where: { code: "STARTER" }, select: { id: true } });
+  const alice = await prisma.user.findUnique({ where: { memberCode: "ALICE" }, select: { id: true } });
+  const bob = await prisma.user.findUnique({ where: { memberCode: "BOB" }, select: { id: true } });
+  await prisma.memberPackageCycle.updateMany({
+    where: { userId: { in: [alice.id, bob.id] } },
+    data: { earnedTotalInCycle: "0" },
+  });
   await prisma.package.update({
     where: { id: starter.id },
     data: {
-      poolRateMode: "CUSTOM_RATE",
-      poolRate: "0.25",
+      poolRateMode: "DEFAULT_50_PERCENT",
+      poolRate: "1",
       poolCapMultiple: "0",
       commissionCapScope: "POOL_ONLY",
       commissionCapMultiple: "0",
@@ -163,7 +231,7 @@ async function main() {
       approvedAt: new Date(`${process.env.DATE}T08:30:00.000Z`),
       approvalStatus: "APPROVED",
       status: "APPROVED",
-      orderItems: { create: [{ packageId: starter.id, qty: 1, unitPriceUsdt: "400", unitPv: "400", poolRateMode: "CUSTOM_RATE", unitPoolRate: "0.25", lineTotalUsdt: "400", lineTotalPv: "400" }] },
+      orderItems: { create: [{ packageId: starter.id, qty: 1, unitPriceUsdt: "400", unitPv: "400", poolRateMode: "DEFAULT_50_PERCENT", unitPoolRate: "1", lineTotalUsdt: "400", lineTotalPv: "400" }] },
     },
   });
 }
@@ -178,6 +246,12 @@ const prisma = new PrismaClient();
 async function main() {
   const dave = await prisma.user.findUnique({ where: { memberCode: "DAVE" }, select: { id: true } });
   const starter = await prisma.package.findUnique({ where: { code: "STARTER" }, select: { id: true } });
+  const alice = await prisma.user.findUnique({ where: { memberCode: "ALICE" }, select: { id: true } });
+  const bob = await prisma.user.findUnique({ where: { memberCode: "BOB" }, select: { id: true } });
+  await prisma.memberPackageCycle.updateMany({
+    where: { userId: { in: [alice.id, bob.id] } },
+    data: { earnedTotalInCycle: "0" },
+  });
   await prisma.package.update({
     where: { id: starter.id },
     data: {
@@ -224,7 +298,7 @@ async function main() {
     where: { id: starter.id },
     data: {
       poolRateMode: "DEFAULT_50_PERCENT",
-      poolRate: "0",
+      poolRate: "1",
       poolCapMultiple: "3.0",
       commissionCapScope: "ALL_COMMISSIONS",
       commissionCapMultiple: "3.0",
@@ -241,7 +315,7 @@ async function main() {
       approvedAt: new Date(`${process.env.DATE}T08:30:00.000Z`),
       approvalStatus: "APPROVED",
       status: "APPROVED",
-      orderItems: { create: [{ packageId: starter.id, qty: 1, unitPriceUsdt: "400", unitPv: "400", poolRateMode: "DEFAULT_50_PERCENT", unitPoolRate: "0", lineTotalUsdt: "400", lineTotalPv: "400" }] },
+      orderItems: { create: [{ packageId: starter.id, qty: 1, unitPriceUsdt: "400", unitPv: "400", poolRateMode: "DEFAULT_50_PERCENT", unitPoolRate: "1", lineTotalUsdt: "400", lineTotalPv: "400" }] },
     },
   });
 }
@@ -296,12 +370,12 @@ async function main() {
   const approvedAllComm = payoutsAllComm.filter((row) => row.status === "APPROVED");
 
   const pass =
-    custom.poolFund === "100" &&
+    custom.poolFund === "400" &&
     customRerun.poolFund === custom.poolFund &&
-    custom.payoutPerMember === "50" &&
+    custom.payoutPerMember === "200" &&
     customRerun.payoutPerMember === custom.payoutPerMember &&
     approvedCustom.length === 2 &&
-    approvedCustom.every((row) => row.payoutAmount === "50") &&
+    approvedCustom.every((row) => row.payoutAmount === "200") &&
     disabled.poolFund === "0" &&
     disabledRerun.poolFund === disabled.poolFund &&
     disabled.payoutPerMember === "0" &&
@@ -309,11 +383,11 @@ async function main() {
     disabled.companyFallbackAmount === "0" &&
     disabledRerun.companyFallbackAmount === disabled.companyFallbackAmount &&
     payoutsDisabled.length === 0 &&
-    allCommissions.poolFund === "200" &&
+    allCommissions.poolFund === "400" &&
     allCommissionsRerun.poolFund === allCommissions.poolFund &&
-    allCommissions.payoutPerMember === "100" &&
+    allCommissions.payoutPerMember === "200" &&
     allCommissionsRerun.payoutPerMember === allCommissions.payoutPerMember &&
-    allCommissions.companyFallbackAmount === "100" &&
+    allCommissions.companyFallbackAmount === "300" &&
     allCommissionsRerun.companyFallbackAmount === allCommissions.companyFallbackAmount &&
     approvedAllComm.length === 2 &&
     approvedAllComm.every((row) => row.payoutAmount === "50");
@@ -322,9 +396,9 @@ async function main() {
     scenario: "pool_config_rules_local_smoke",
     pass,
     expected: {
-      customRate: "custom 25% of 400 PV => pool fund 100 => 2 recipients get 50 each",
+      customRate: "enabled pool item on 400 PV => pool fund 400 => 2 recipients get 200 each when cycle cap allows",
       disabled: "disabled pool => pool fund 0 and no payout rows are created",
-      allCommissions: "with earnedTotalInCycle preloaded to 250 on 3.0x cap, each recipient can receive only 50 more from a requested 100",
+      allCommissions: "with earnedTotalInCycle preloaded to 250 on 3.0x cap, each recipient can receive only 50 more from a requested 200 and the blocked excess falls back",
     },
     actual: {
       customRate: {

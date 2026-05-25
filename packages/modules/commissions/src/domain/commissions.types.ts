@@ -1,12 +1,56 @@
+// Active commission-calculation scope:
+// - direct
+// - team_2leg / team_3leg
+// - matching
+// - pool
+// Types in this module must be interpreted through that four-plan runtime
+// scope only. Older unilevel, legacy/member003 sandbox, and unrelated archived
+// plans must not be treated as active calculation rules.
+
 export interface CommissionItemSummary {
   commissionId: string;
 }
+
+export interface EndOfDayCommissionBatchResult {
+  settlementDate: string;
+  teamSettlement: TeamSettlementBatchProcessResult;
+  pool: {
+    poolDate: string;
+    fundingTotalApprovedPv: string;
+    poolFund: string;
+    eligibleMemberCount: number;
+    payoutPerMember: string;
+    companyFallbackAmount: string;
+    reprocessed?: boolean;
+  };
+}
+
+export type CommissionSourceType =
+  | "direct"
+  | "uni"
+  | "pool"
+  | "cashback"
+  | "team_2leg"
+  | "team_3leg"
+  | "matching_l1"
+  | "matching_l2";
+
+export type CommissionReleaseStatus =
+  | "withdrawable"
+  | "held_pending_repurchase"
+  | "released_after_repurchase"
+  | "blocked_after_expiry";
+
+export type BuybackProgressStatus =
+  | "clear"
+  | "held_pending_repurchase"
+  | "blocked_after_expiry";
 
 export interface BonusToCycleAllocationInput {
   beneficiaryUserId: string;
   evaluationAt: string;
   bonusAmount: string;
-  sourceType?: "direct" | "uni" | "pool" | "cashback";
+  sourceType?: CommissionSourceType;
   candidateCycles: Array<{
     cycleId: string;
     activatedAt: string;
@@ -36,7 +80,7 @@ export interface BonusToCycleAllocationResult {
 }
 
 export interface CommissionFinalizationInput {
-  sourceType: "direct" | "uni" | "pool" | "cashback";
+  sourceType: CommissionSourceType;
   sourceRefId: string;
   sourceUserId: string;
   beneficiaryUserId: string | null;
@@ -44,8 +88,20 @@ export interface CommissionFinalizationInput {
   basePv: string;
   rate: string;
   amount: string;
+  grossAmount?: string;
+  finalPayableAmount?: string;
+  discardedAmount?: string;
+  releaseStatus?: CommissionReleaseStatus;
+  sourceCommissionLedgerId?: string | null;
+  metadata?: Record<string, unknown> | null;
   levelNo?: number | null;
   tierNo?: number | null;
+  commissionConfig?: {
+    dailyCommissionCapAmount: string;
+    buybackThresholdAmount: string;
+    buybackGraceDays: number;
+  };
+  applyDailyCap?: boolean;
 }
 
 export interface CommissionFinalizationResult {
@@ -56,6 +112,10 @@ export interface CommissionFinalizationResult {
     | "withdrawable";
   beneficiaryCycleId: string | null;
   fallbackReason: string | null;
+  grossAmount: string;
+  finalPayableAmount: string;
+  discardedAmount: string;
+  releaseStatus: CommissionReleaseStatus;
 }
 
 export type DirectCommissionFallbackReason =
@@ -66,6 +126,35 @@ export type DirectCommissionFallbackReason =
 export interface DirectCommissionFinalizationResult
   extends Omit<CommissionFinalizationResult, "fallbackReason"> {
   fallbackReason: DirectCommissionFallbackReason | null;
+}
+
+export interface DailyCommissionCapSnapshot {
+  beneficiaryUserId: string;
+  capDate: string;
+  capAmount: string;
+  usedAmount: string;
+}
+
+export interface UserBuybackProgressSnapshot {
+  beneficiaryUserId: string;
+  accumulatedAmount: string;
+  status: BuybackProgressStatus;
+  thresholdReachedAt: string | null;
+  graceExpiresAt: string | null;
+  blockedAt: string | null;
+  currentBuybackCycleId?: string | null;
+  lastQualifyingOrderId?: string | null;
+}
+
+export interface BuybackEventDraft {
+  beneficiaryUserId: string;
+  triggerAmount: string;
+  remainingAccumulatedAmount: string;
+  status: string;
+  message?: string | null;
+  referenceType?: string | null;
+  referenceId?: string | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface CommissionSourceOrder {
@@ -127,4 +216,74 @@ export interface ApprovedOrderCommissionFlowResult {
   }>;
   directDrafts: DirectCommissionDraftResult[];
   uniDrafts: UniCommissionDraftResult[];
+}
+
+export interface TeamSettlementCandidateSnapshot {
+  userId: string;
+  placementSide: "LEFT" | "MIDDLE" | "RIGHT";
+  totalPv: string;
+  memberCount: number;
+}
+
+export interface TeamSettlementCarryForwardSnapshot {
+  userId: string;
+  carryForwardPvByLeg: Record<"LEFT" | "MIDDLE" | "RIGHT", string>;
+}
+
+export interface TeamSettlementBatchScaffoldResult {
+  settlementDate: string;
+  status: "scaffolded" | "processed";
+  totalUsers: number;
+  processedUsers?: number;
+  carriedForwardUsers?: number;
+  totalPayablePv?: string;
+  totalBonusAmount?: string;
+  items: Array<{
+    userId: string;
+    availablePvByLeg: Record<
+      "LEFT" | "MIDDLE" | "RIGHT",
+      { memberCount: number; totalPv: string }
+    >;
+    plannedPaidPvByLeg: Record<"LEFT" | "MIDDLE" | "RIGHT", string>;
+    carryForwardPvByLeg: Record<"LEFT" | "MIDDLE" | "RIGHT", string>;
+    payablePv: string;
+    bonusAmount: string;
+    status: "planned" | "processed" | "carried_forward";
+  }>;
+}
+
+export interface TeamSettlementBatchItemSnapshot {
+  itemId: string;
+  userId: string;
+  availablePvByLeg: Record<
+    "LEFT" | "MIDDLE" | "RIGHT",
+    { memberCount: number; totalPv: string }
+  >;
+  plannedPaidPvByLeg: Record<"LEFT" | "MIDDLE" | "RIGHT", string>;
+  carryForwardPvByLeg: Record<"LEFT" | "MIDDLE" | "RIGHT", string>;
+  payablePv: string;
+  bonusAmount: string;
+  status: "planned" | "processed" | "carried_forward";
+}
+
+export interface TeamSettlementBatchProcessResult {
+  settlementDate: string;
+  status: "processed";
+  totalUsers: number;
+  processedUsers: number;
+  carriedForwardUsers: number;
+  totalPayablePv: string;
+  totalBonusAmount: string;
+  items: TeamSettlementBatchItemSnapshot[];
+}
+
+export interface TeamSettlementBatchSnapshotResult {
+  settlementDate: string;
+  batchStatus: "missing" | "scaffolded" | "processed";
+  totalUsers: number;
+  processedUsers: number;
+  carriedForwardUsers: number;
+  totalPayablePv: string;
+  totalBonusAmount: string;
+  items: TeamSettlementBatchItemSnapshot[];
 }

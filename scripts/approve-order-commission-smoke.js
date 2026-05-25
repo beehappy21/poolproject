@@ -5,8 +5,8 @@ const { URL } = require("node:url");
 const API_BASE_URL = process.env.API_BASE_URL || "http://127.0.0.1:3000";
 const MEMBER_IDENTIFIER = process.env.ORDER_APPROVAL_SMOKE_MEMBER || "TH0000002";
 const MEMBER_PASSWORD = process.env.ORDER_APPROVAL_SMOKE_MEMBER_PASSWORD || "a1a1a1";
-const ADMIN_IDENTIFIER = process.env.ORDER_APPROVAL_SMOKE_ADMIN || "TH0000013";
-const ADMIN_PASSWORD = process.env.ORDER_APPROVAL_SMOKE_ADMIN_PASSWORD || "a1a1a1";
+const ADMIN_IDENTIFIER = process.env.ORDER_APPROVAL_SMOKE_ADMIN || "dev-admin@example.com";
+const ADMIN_PASSWORD = process.env.ORDER_APPROVAL_SMOKE_ADMIN_PASSWORD || "472121";
 const PRODUCT_DETAIL_ID = process.env.ORDER_APPROVAL_SMOKE_PRODUCT_DETAIL_ID || "1";
 
 function request(path, options = {}) {

@@ -1,24 +1,30 @@
 import {
   NotFoundException,
   BadRequestException,
-  Body,
-  Controller,
+    Body,
+    Controller,
+  ForbiddenException,
   Get,
   Headers,
   Param,
   Post,
+  Query,
   Res,
-  UnauthorizedException,
+    UnauthorizedException,
+    Req,
 } from "@nestjs/common";
 
 import {
+  optionalPositiveInteger,
   requireNonEmptyString,
   requireDecimalString,
   requirePositiveIntegerString,
   optionalString,
   optionalImageReferenceString,
   optionalUrlString,
+  requireImageReferenceString,
 } from "../../../../../apps/api/src/http/request.util";
+import { writeSecurityAuditEntry } from "../../../../../apps/api/src/http/audit.util";
 import { readCommissionSettings } from "../../../../shared/utils/src/commission-settings.util";
 import { readManualPaymentSettings } from "../../../../shared/utils/src/manual-payment-settings.util";
 import { CommissionsService } from "../../../commissions";
@@ -29,7 +35,19 @@ import { PackagesService } from "../../../packages";
 import { PoolService } from "../../../pool";
 import { WalletsService } from "../../../wallets";
 import { AuthService } from "../services/auth.service";
+import { Public } from "../access-control/public.decorator";
+import { Roles } from "../access-control/roles.decorator";
+import {
+  ChangePasswordDto,
+  ForgotPasswordResetDto,
+  LineBindingDto,
+  LineLoginDto,
+  LoginDto,
+  TransferSlipDto,
+  UpdateProfileDto,
+} from "../dto";
 
+@Roles("member")
 @Controller("auth")
 export class AuthController {
   constructor(
@@ -43,43 +61,38 @@ export class AuthController {
     private readonly poolService: PoolService,
   ) {}
 
+  @Public()
   @Post("login")
   async login(
-    @Body()
-    body: {
-      identifier: string;
-      password: string;
-    },
+    @Req() request: any,
+    @Body() body: LoginDto,
     @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void },
   ) {
     const session = await this.authService.login({
       identifier: requireNonEmptyString(body.identifier, "identifier"),
       password: requireNonEmptyString(body.password, "password"),
+      ip: this.getRequestIp(request),
     });
 
     response.setHeader("Set-Cookie", this.buildSessionCookie(session.accessToken));
     return session;
   }
 
+  @Public()
   @Post("forgot-password-reset")
   async forgotPasswordReset(
-    @Body()
-    body: {
-      identifier: string;
-    },
+    @Body() body: ForgotPasswordResetDto,
   ) {
     return this.authService.resetPasswordFromIdentifier({
       identifier: requireNonEmptyString(body.identifier, "identifier"),
+      adminOverridePassword: optionalString(body.adminOverridePassword),
     });
   }
 
+  @Public()
   @Post("line-login")
   async lineLogin(
-    @Body()
-    body: {
-      lineUserId?: string;
-      lineIdToken?: string;
-    },
+    @Body() body: LineLoginDto,
     @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void },
   ) {
     await this.authService.verifyLineIdentity({
@@ -104,13 +117,10 @@ export class AuthController {
     };
   }
 
+  @Public()
   @Post("line-binding/check")
   async checkLineBinding(
-    @Body()
-    body: {
-      lineUserId?: string;
-      lineIdToken?: string;
-    },
+    @Body() body: LineLoginDto,
   ) {
     await this.authService.verifyLineIdentity({
       lineUserId: requireNonEmptyString(body?.lineUserId, "lineUserId"),
@@ -146,7 +156,8 @@ export class AuthController {
   ) {
     const user = await this.requireSessionUser(authorization, cookieHeader);
     const evaluationAt = new Date().toISOString();
-    const [wallet, cycles, referral] = await Promise.all([
+    const commissionSettings = readCommissionSettings();
+    const [wallet, cycles, referral, teamPvRealtime, buybackProgress, lockedDuringGraceAmount] = await Promise.all([
       this.walletsService.getWalletSummary(user.userId),
       this.membersService.getMemberCycles(user.userId, evaluationAt),
       this.membersService.getReferralLink(
@@ -156,6 +167,12 @@ export class AuthController {
           process.env.APP_BASE_URL ||
           "http://127.0.0.1:3002",
       ),
+      this.commissionsService.getRealtimeTeamPvBalance({
+        userId: user.userId,
+        evaluationAt,
+      }),
+      this.commissionsService.getUserBuybackProgress(user.userId),
+      this.commissionsService.getHeldRepurchaseCommissionAmount(user.userId),
     ]);
 
     return {
@@ -163,6 +180,19 @@ export class AuthController {
       wallet,
       cycles,
       referral,
+      teamPvRealtime,
+      commissionRoundProgress: {
+        amount: buybackProgress?.accumulatedAmount ?? "0",
+        threshold: commissionSettings.buybackThresholdAmount,
+        completed:
+          Boolean(buybackProgress?.thresholdReachedAt) ||
+          Number(buybackProgress?.accumulatedAmount ?? "0") >=
+            Number(commissionSettings.buybackThresholdAmount),
+        thresholdReachedAt: buybackProgress?.thresholdReachedAt ?? null,
+        graceExpiresAt: buybackProgress?.graceExpiresAt ?? null,
+        lockedDuringGraceAmount: lockedDuringGraceAmount ?? "0",
+        repurchaseGraceDays: commissionSettings.buybackGraceDays,
+      },
       lineBinding: await this.authService.getLineBindingByUserId(user.userId),
     };
   }
@@ -181,6 +211,7 @@ export class AuthController {
     };
   }
 
+  @Roles("admin")
   @Get("line-bindings")
   async listAllLineBindings(
     @Headers("authorization") authorization?: string,
@@ -202,17 +233,9 @@ export class AuthController {
 
   @Post("line-binding")
   async bindOwnLineProfile(
+    @Body() body: LineBindingDto,
     @Headers("authorization") authorization?: string,
     @Headers("cookie") cookieHeader?: string,
-    @Body()
-    body?: {
-      lineUserId?: string;
-      lineIdToken?: string;
-      displayName?: string;
-      pictureUrl?: string;
-      statusMessage?: string;
-      source?: string;
-    },
   ) {
     const user = await this.requireSessionUser(authorization, cookieHeader);
 
@@ -228,6 +251,7 @@ export class AuthController {
     });
   }
 
+  @Roles("admin")
   @Post("line-bindings/:userId/unbind")
   async adminUnbindLineProfile(
     @Param("userId") userId: string,
@@ -254,6 +278,7 @@ export class AuthController {
     };
   }
 
+  @Roles("admin")
   @Post("line-bindings/:userId/force-rebind")
   async adminForceRebindLineProfile(
     @Param("userId") userId: string,
@@ -330,14 +355,16 @@ export class AuthController {
   async commissions(
     @Headers("authorization") authorization?: string,
     @Headers("cookie") cookieHeader?: string,
+    @Query("page") page?: string,
+    @Query("pageSize") pageSize?: string,
   ) {
     const user = await this.requireSessionUser(authorization, cookieHeader);
 
     return filterCommissionResponseByVisibility(
       await this.commissionsService.listCommissions({
         beneficiaryUserId: user.userId,
-        page: 1,
-        pageSize: 20,
+        page: optionalPositiveInteger(page, "page") ?? 1,
+        pageSize: optionalPositiveInteger(pageSize, "pageSize") ?? 20,
       }),
       readCommissionSettings().appVisibility,
     );
@@ -350,6 +377,20 @@ export class AuthController {
   ) {
     const user = await this.requireSessionUser(authorization, cookieHeader);
     return this.membersService.getMemberNetwork(user.userId);
+  }
+
+  @Get("network-top-leaders")
+  async networkTopLeaders(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+    @Query("limit") limit?: string,
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+
+    return this.membersService.getTopLeaderboard(
+      user.userId,
+      optionalPositiveInteger(limit, "limit") ?? 10,
+    );
   }
 
   @Get("matrix")
@@ -762,9 +803,9 @@ export class AuthController {
   @Post("orders/:orderId/submit-transfer-slip")
   async submitOwnTransferSlip(
     @Param("orderId") orderId: string,
+    @Body() body: TransferSlipDto,
     @Headers("authorization") authorization?: string,
     @Headers("cookie") cookieHeader?: string,
-    @Body() body?: { transferSlipUrl?: string; transferSlipNote?: string },
   ) {
     const user = await this.requireSessionUser(authorization, cookieHeader);
     const validatedOrderId = requirePositiveIntegerString(orderId, "orderId");
@@ -776,7 +817,7 @@ export class AuthController {
 
     return this.ordersService.submitTransferSlip({
       orderId: validatedOrderId,
-      transferSlipUrl: requireNonEmptyString(body?.transferSlipUrl, "transferSlipUrl"),
+      transferSlipUrl: requireImageReferenceString(body?.transferSlipUrl, "transferSlipUrl"),
       transferSlipNote: body?.transferSlipNote
         ? requireNonEmptyString(body.transferSlipNote, "transferSlipNote")
         : undefined,
@@ -813,6 +854,47 @@ export class AuthController {
     };
   }
 
+  @Get("orders/:orderId/receipt")
+  async getOwnOrderReceipt(
+    @Param("orderId") orderId: string,
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+    @Res() response?: any,
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+    const validatedOrderId = requirePositiveIntegerString(orderId, "orderId");
+    const order = await this.ordersService.getOrder(validatedOrderId);
+
+    if (!order || order.sourceUserId !== user.userId) {
+      throw new UnauthorizedException("Order not found for session.");
+    }
+
+    const baoBaseUrl = (process.env.INTERNAL_BAO_BASE_URL || "http://bao:8001").replace(/\/+$/, "");
+    const receiptToken = (process.env.INTERNAL_RECEIPT_TOKEN || "").trim();
+    const receiptUrl = `${baoBaseUrl}/internal/order-source/${validatedOrderId}/receipt.pdf`;
+    const upstreamResponse = await fetch(receiptUrl, {
+      headers: receiptToken
+        ? {
+            "x-internal-receipt-token": receiptToken,
+          }
+        : undefined,
+    });
+
+    if (!upstreamResponse.ok) {
+      throw new NotFoundException("Receipt PDF is not available.");
+    }
+
+    const contentType = upstreamResponse.headers.get("content-type") || "application/pdf";
+    const buffer = Buffer.from(await upstreamResponse.arrayBuffer());
+
+    response.setHeader("Content-Type", contentType);
+    response.setHeader(
+      "Content-Disposition",
+      `inline; filename="receipt-${order.orderNo}.pdf"`,
+    );
+    response.send(buffer);
+  }
+
   @Post("products/:productDetailId/reviews")
   async upsertOwnProductReview(
     @Param("productDetailId") productDetailId: string,
@@ -840,6 +922,10 @@ export class AuthController {
     @Headers("authorization") authorization?: string,
     @Headers("cookie") cookieHeader?: string,
   ) {
+    if (readCommissionSettings().appVisibility.matrix === false) {
+      throw new ForbiddenException("Matrix is disabled.");
+    }
+
     const user = await this.requireSessionUser(authorization, cookieHeader);
 
     try {
@@ -876,6 +962,10 @@ export class AuthController {
     @Headers("cookie") cookieHeader?: string,
     @Body() body?: { enabled?: boolean },
   ) {
+    if (readCommissionSettings().appVisibility.matrix === false) {
+      throw new ForbiddenException("Matrix is disabled.");
+    }
+
     const user = await this.requireSessionUser(authorization, cookieHeader);
 
     if (typeof body?.enabled !== "boolean") {
@@ -905,21 +995,55 @@ export class AuthController {
 
   @Post("logout")
   async logout(
+    @Req() request: any,
     @Headers("authorization") authorization?: string,
     @Headers("cookie") cookieHeader?: string,
     @Res({ passthrough: true }) response?: { setHeader(name: string, value: string): void },
   ) {
     const token = this.extractToken(authorization, cookieHeader);
     await this.authService.logout(token);
+    writeSecurityAuditEntry({
+      event: "auth.logout.success",
+      at: new Date().toISOString(),
+      ip: this.getRequestIp(request),
+      requestId: request?.requestId ?? null,
+    });
     response?.setHeader("Set-Cookie", this.clearSessionCookie());
     return { success: true };
   }
 
-  @Post("change-password")
-  async changePassword(
+  @Post("logout-all")
+  async logoutAll(
+    @Req() request: any,
     @Headers("authorization") authorization?: string,
     @Headers("cookie") cookieHeader?: string,
-    @Body() body?: { currentPassword?: string; newPassword?: string },
+    @Res({ passthrough: true }) response?: { setHeader(name: string, value: string): void },
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+    const revokedCount = await this.authService.logoutAllForUser(user.userId);
+    writeSecurityAuditEntry({
+      event: "auth.logout_all.success",
+      at: new Date().toISOString(),
+      ip: this.getRequestIp(request),
+      requestId: request?.requestId ?? null,
+      metadata: {
+        userId: user.userId,
+        memberCode: user.memberCode,
+        revokedCount,
+      },
+    });
+    response?.setHeader("Set-Cookie", this.clearSessionCookie());
+    return {
+      success: true,
+      revokedCount,
+    };
+  }
+
+  @Post("change-password")
+  async changePassword(
+    @Body() body: ChangePasswordDto,
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
   ) {
     const user = await this.requireSessionUser(authorization, cookieHeader);
     const newPassword = requireNonEmptyString(body?.newPassword, "newPassword");
@@ -932,14 +1056,15 @@ export class AuthController {
       userId: user.userId,
       currentPassword: requireNonEmptyString(body?.currentPassword, "currentPassword"),
       newPassword,
+      adminOverridePassword: optionalString(body?.adminOverridePassword),
     });
   }
 
   @Post("profile")
   async updateProfile(
+    @Body() body: UpdateProfileDto,
     @Headers("authorization") authorization?: string,
     @Headers("cookie") cookieHeader?: string,
-    @Body() body?: { name?: string; email?: string; phone?: string },
   ) {
     const user = await this.requireSessionUser(authorization, cookieHeader);
     const name = body?.name?.trim() || undefined;
@@ -948,6 +1073,12 @@ export class AuthController {
 
     if (!name && !email && !phone) {
       throw new BadRequestException("Name, email, or phone is required.");
+    }
+
+    if (this.authService.isProtectedSuperAdminUser(user)) {
+      this.authService.assertProtectedSuperAdminOverride(
+        optionalString(body?.adminOverridePassword),
+      );
     }
 
     return this.membersService.updateMemberProfile(user.userId, {
@@ -1014,6 +1145,16 @@ export class AuthController {
   private clearSessionCookie(): string {
     return "adminAccessToken=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0";
   }
+
+  private getRequestIp(request: any): string | null {
+    const forwardedFor = request?.headers?.["x-forwarded-for"];
+    const firstForwarded = Array.isArray(forwardedFor)
+      ? forwardedFor[0]
+      : forwardedFor;
+    return String(firstForwarded || request?.ip || request?.socket?.remoteAddress || "")
+      .split(",")[0]
+      .trim() || null;
+  }
 }
 
 function isCommissionTypeVisible(
@@ -1024,6 +1165,17 @@ function isCommissionTypeVisible(
     case "cashback":
       return appVisibility.cashback !== false;
     case "direct":
+    case "matching_l1":
+    case "matching_l2":
+      return commissionType?.toLowerCase().startsWith("matching")
+        ? appVisibility.matching !== false
+        : appVisibility.direct !== false;
+    case "team_2leg":
+    case "team_3leg":
+    case "team":
+      return appVisibility.team !== false;
+    case "direct_l1":
+    case "direct_l2":
       return appVisibility.direct !== false;
     case "uni":
     case "unilevel":

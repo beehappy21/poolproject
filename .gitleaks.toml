@@ -1,0 +1,15 @@
+title = "poolproject gitleaks config"
+
+[allowlist]
+description = "Known fake/example values committed for env docs and local smoke scripts only."
+regexes = [
+  '''postgresql://poolproject_app:Pm7X4vB28V6nQ91M3cYfL2sZ8tRaK5hD@(db\.internal\.example|postgres):5432/poolproject\?schema=public''',
+  '''auth-session-hmac-secret-0123456789abcdef0123456789abcd''',
+  '''receipt-token-0123456789abcdef0123456789abcd''',
+  '''line-secret-0123456789abcdef0123456789abcd''',
+  '''Sup3rAdminProdPass!''',
+  '''Sup3rAdminOverride#2026''',
+  '''redis://redis(\.internal\.example)?:6379''',
+  '''local-bao-internal-token-20260508''',
+  '''postgresql://postgres:postgres@(127\.0\.0\.1|localhost):5432/poolproject(_retest)?\?schema=public''',
+]

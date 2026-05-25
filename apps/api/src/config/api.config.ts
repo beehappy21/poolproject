@@ -2,9 +2,11 @@ export interface ApiConfig {
   port: number;
   corsOrigins: string[];
   bodyLimit: string;
+  uploadBodyLimit: string;
   trustProxyHops: number;
   rateLimitWindowMs: number;
   rateLimitMaxRequests: number;
+  enableHsts: boolean;
 }
 
 const DEFAULT_CORS_ORIGINS = [
@@ -23,7 +25,7 @@ const DEFAULT_CORS_ORIGINS = [
 
 function parseCorsOrigins(value?: string): string[] {
   if (!value?.trim()) {
-    return DEFAULT_CORS_ORIGINS;
+    return process.env.NODE_ENV === "production" ? [] : DEFAULT_CORS_ORIGINS;
   }
 
   return value
@@ -42,11 +44,21 @@ function parsePositiveInteger(value: string | undefined, fallback: number): numb
   return Math.floor(parsed);
 }
 
+function parseBoolean(value: string | undefined, fallback: boolean): boolean {
+  if (value === undefined) {
+    return fallback;
+  }
+
+  return value.trim().toLowerCase() === "true";
+}
+
 export const apiConfig: ApiConfig = {
   port: Number(process.env.APP_PORT || process.env.PORT || 3000),
   corsOrigins: parseCorsOrigins(process.env.APP_CORS_ORIGINS),
-  bodyLimit: process.env.APP_BODY_LIMIT?.trim() || "12mb",
+  bodyLimit: process.env.APP_BODY_LIMIT?.trim() || "1mb",
+  uploadBodyLimit: process.env.APP_UPLOAD_BODY_LIMIT?.trim() || "8mb",
   trustProxyHops: parsePositiveInteger(process.env.APP_TRUST_PROXY_HOPS, 1),
   rateLimitWindowMs: parsePositiveInteger(process.env.APP_RATE_LIMIT_WINDOW_MS, 60_000),
   rateLimitMaxRequests: parsePositiveInteger(process.env.APP_RATE_LIMIT_MAX_REQUESTS, 120),
+  enableHsts: parseBoolean(process.env.APP_ENABLE_HSTS, process.env.NODE_ENV === "production"),
 };

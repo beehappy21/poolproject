@@ -98,6 +98,9 @@ class MemberEditScreen extends Screen
             Link::make('Back to Members')
                 ->icon('bs.arrow-left')
                 ->route('platform.member.list'),
+            Link::make('สิทธิ์พิเศษคอม')
+                ->icon('bs.stars')
+                ->route('platform.commission.specialPrivilege', ['member_code' => $member->member_code]),
             Button::make('Update Member')
                 ->icon('bs.check2-circle')
                 ->method('update'),
@@ -167,8 +170,6 @@ class MemberEditScreen extends Screen
                     ->readonly(),
             ])->title('Member profile'),
             Layout::legend('walletSummary', [
-                \Orchid\Screen\Sight::make('firmBalance', 'Firm balance:')
-                    ->render(fn () => number_format((float) ($this->walletSummary['firmBalance'] ?? '0'), 2)),
                 \Orchid\Screen\Sight::make('withdrawableBalance', 'Withdrawable balance:')
                     ->render(fn () => number_format((float) ($this->walletSummary['withdrawableBalance'] ?? '0'), 2)),
                 \Orchid\Screen\Sight::make('shoppingBalance', 'Shopping balance:')

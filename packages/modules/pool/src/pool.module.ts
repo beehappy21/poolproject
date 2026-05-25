@@ -2,10 +2,10 @@ import { Module, forwardRef } from "@nestjs/common";
 
 import { PrismaModule } from "../../../infrastructure";
 import { CommissionsModule } from "../../commissions";
-import { MembersModule } from "../../members";
+import { MembersModule } from "../../members/src/members.module";
 import { OrdersModule } from "../../orders";
 import { QualificationModule } from "../../qualification";
-import { WalletsModule } from "../../wallets";
+import { WalletsModule } from "../../wallets/src/wallets.module";
 import { PoolController } from "./controllers/pool.controller";
 import { PrismaPoolRepository } from "./repositories/pool.repository";
 import { PoolService } from "./services/pool.service";
@@ -13,9 +13,9 @@ import { PoolService } from "./services/pool.service";
 @Module({
   imports: [
     PrismaModule,
-    MembersModule,
+    forwardRef(() => MembersModule),
     QualificationModule,
-    WalletsModule,
+    forwardRef(() => WalletsModule),
     forwardRef(() => OrdersModule),
     forwardRef(() => CommissionsModule),
   ],

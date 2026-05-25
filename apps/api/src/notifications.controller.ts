@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Post } from "@nestjs/common";
+import { Roles } from "../../../packages/modules/auth/src/access-control/roles.decorator";
 
 import {
   optionalString,
@@ -23,6 +24,7 @@ type NotificationItem = {
 
 const NOTIFICATIONS_FILE = "admin-notifications.json";
 
+@Roles("admin")
 @Controller("notifications")
 export class NotificationsController {
   @Get()

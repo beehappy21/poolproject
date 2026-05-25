@@ -6,7 +6,7 @@ Updated: 2026-04-05
 
 This document is no longer the primary source of truth when it conflicts with the locked business rules approved on `2026-04-05`.
 
-Use [commission_main_plan_spec.md](/Users/macbook/poolproject/docs/technical-design/commission_main_plan_spec.md) as the primary business rule reference for current implementation.
+Use [referral_commission_plan_thb.md](/Users/macbook/poolproject/docs/technical-design/referral_commission_plan_thb.md) as the primary business rule reference for current implementation.
 
 This file may still be used as supporting background for matrix-only reasoning where it does not conflict with the main plan.
 
@@ -199,7 +199,7 @@ The following rules are not yet locked in this document:
 - whether the `500 PV` granted at `B2` open is a virtual matrix calculation amount or must come from a separate business posting
 - which exact ancestor path receives the single counted `B2` payout when the same source point is displayed in two `B2` rounds
 
-For current implementation, any item above that has already been resolved in the main commission plan must follow the rule in [commission_main_plan_spec.md](/Users/macbook/poolproject/docs/technical-design/commission_main_plan_spec.md).
+For current implementation, any item above that has already been resolved in the main commission plan must follow the rule in [referral_commission_plan_thb.md](/Users/macbook/poolproject/docs/technical-design/referral_commission_plan_thb.md).
 
 ## Implementation Guidance
 

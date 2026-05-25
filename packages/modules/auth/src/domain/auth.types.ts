@@ -2,12 +2,21 @@ export interface AuthContext {
   userId?: string;
 }
 
+export type AuthRole =
+  | "member"
+  | "admin"
+  | "super_admin"
+  | "system"
+  | "worker";
+
 export interface AuthUserSummary {
   userId: string;
   memberCode: string;
   name: string;
   email: string | null;
   phone: string | null;
+  isAdmin: boolean;
+  adminRole?: string | null;
   matrixAutoOrderEnabled?: boolean;
   matrixReentryEnabled: boolean;
 }

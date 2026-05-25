@@ -1,6 +1,30 @@
 # Commission Runtime Main
 
-เอกสารนี้สรุปกติกา runtime หลักของระบบสำหรับการคำนวณ `direct`, `matrix`, `pool`, และรายได้ที่เกี่ยวข้องจาก order ที่ถูกอนุมัติแล้ว
+## Active Scope Guardrail
+
+This file may be used only with the current commission-calculation scope:
+
+- `direct`
+- `2leg / 3leg`
+- `matching`
+- `pool`
+
+Do not use unrelated or older plans from this repository for active commission work, including `unilevel`, legacy/member003 research or sandbox notes, or deprecated `CommissionMainPlan` assumptions, unless a later approved spec explicitly restores them.
+
+If any older section in this file conflicts with the four-plan scope above, the four-plan scope wins and the older section must be treated as historical only.
+
+## Historical Mixed Runtime Notice
+
+The remaining content in this file contains older mixed runtime notes, including deprecated `matrix` and `unilevel` material.
+
+Do not use the rest of this file as the active implementation plan.
+For active commission work, use only:
+
+- [docs/technical-design/referral_commission_plan_thb.md](/Users/macbook/poolproject/docs/technical-design/referral_commission_plan_thb.md:1)
+- [docs/technical-design/pool_daily_eod_spec.md](/Users/macbook/poolproject/docs/technical-design/pool_daily_eod_spec.md:1)
+- [HANDOFF_NEXT.md](/Users/macbook/poolproject/HANDOFF_NEXT.md:185)
+
+Everything below should be treated as historical background only unless explicitly rewritten into the active four-plan scope.
 
 ## หลักการหลักของระบบ
 

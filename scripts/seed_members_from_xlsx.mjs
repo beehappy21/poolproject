@@ -8,6 +8,10 @@ const xlsxPath = process.argv[2] ?? "member003.xlsx";
 const defaultPassword = process.argv[3] ?? "123456";
 const apply = process.argv.includes("--apply");
 const sqlOnly = process.argv.includes("--sql-only");
+const container = process.env.POSTGRES_DOCKER_CONTAINER || "poolproject-postgres";
+const databaseUrl =
+  process.env.DATABASE_URL ||
+  "postgresql://postgres:postgres@127.0.0.1:5432/poolproject";
 
 function hashPassword(password) {
   const salt = randomBytes(16).toString("hex");
@@ -39,6 +43,9 @@ with zipfile.ZipFile(path) as z:
         vals = []
         for c in row.findall('a:c', ns):
             t = c.attrib.get('t')
+            if t == 'inlineStr':
+                vals.append(''.join(text.text or '' for text in c.findall('.//a:t', ns)))
+                continue
             v = c.find('a:v', ns)
             val = ''
             if v is not None and v.text is not None:
@@ -64,6 +71,10 @@ print(json.dumps(items, ensure_ascii=False))
 function parseDate(value) {
   const trimmed = String(value ?? "").trim();
   return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : null;
+}
+
+function toBangkokNoonTimestamp(value) {
+  return value ? `${value} 12:00:00` : null;
 }
 
 function clean(value) {
@@ -113,10 +124,10 @@ where "email" is not null
     [
       "exec",
       "-i",
-      "poolproject-postgres",
+      container,
       "psql",
       "-At",
-      "postgresql://postgres:postgres@127.0.0.1:5432/poolproject",
+      databaseUrl,
       "-c",
       query,
     ],
@@ -155,6 +166,7 @@ function buildSql(rows, reservedEmails) {
       continue;
     }
     createCandidates += 1;
+    const joinedAtTimestamp = toBangkokNoonTimestamp(row.joinedDate);
     const password = deriveMemberPassword(row.nationalId, defaultPassword);
     const passwordHash = hashPassword(password);
     if (password === defaultPassword) {
@@ -193,8 +205,8 @@ select
   'ACTIVE',
   'NORMAL',
   'ACTIVE',
-  coalesce(${sqlLiteral(row.joinedDate)}::timestamptz, now()),
-  coalesce(${sqlLiteral(row.joinedDate)}::timestamptz, now())
+  coalesce(${sqlLiteral(joinedAtTimestamp)}::timestamp, now()),
+  coalesce(${sqlLiteral(joinedAtTimestamp)}::timestamp, now())
 where not exists (
   select 1 from public."User" u where u."memberCode" = ${sqlLiteral(row.memberCode)}
 );`.trim());
@@ -202,6 +214,7 @@ where not exists (
     statements.push(`
 update public."User"
 set
+  "createdAt" = coalesce(${sqlLiteral(joinedAtTimestamp)}::timestamp, "createdAt"),
   "passwordHash" = ${sqlLiteral(passwordHash)},
   "updatedAt" = now()
 where "memberCode" = ${sqlLiteral(row.memberCode)};`.trim());
@@ -241,11 +254,11 @@ function applySql(sql) {
       [
         "exec",
         "-i",
-        "poolproject-postgres",
+        container,
         "psql",
         "-v",
         "ON_ERROR_STOP=1",
-        "postgresql://postgres:postgres@127.0.0.1:5432/poolproject",
+        databaseUrl,
       ],
       {
         input: sql,
@@ -306,6 +319,8 @@ function main() {
   console.log(`password_from_national_id=${passwordFromNationalId}`);
   console.log(`password_fallback_default=${passwordFallbackCount}`);
   console.log(`fallback_password=${defaultPassword}`);
+  console.log(`container=${container}`);
+  console.log(`database_url=${databaseUrl}`);
 
   if (!apply) {
     console.log("dry_run=yes");

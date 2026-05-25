@@ -125,7 +125,7 @@ const normalizeBaoMediaUrl = (value: unknown): string | undefined => {
 
     return parsed.toString();
   } catch (_error) {
-    return trimmed;
+    return resolvePublicStorageUrl(trimmed);
   }
 };
 
@@ -448,10 +448,13 @@ export const Home: FC = () => {
 
   const displayedBanners = useMemo(() => {
     if (!Array.isArray(bannersData) || bannersData.length === 0) {
-      return BANNER_PLACEHOLDERS;
+      return carouselData.length
+        ? carouselData.map(item => ({image: item.image}))
+        : BANNER_PLACEHOLDERS;
     }
 
-    const shuffled = [...bannersData];
+    const visualBanners = bannersData.filter(item => Boolean(item.image));
+    const shuffled = [...(visualBanners.length ? visualBanners : bannersData)];
     for (let index = shuffled.length - 1; index > 0; index -= 1) {
       const randomIndex = Math.floor(Math.random() * (index + 1));
       [shuffled[index], shuffled[randomIndex]] = [
@@ -461,7 +464,7 @@ export const Home: FC = () => {
     }
 
     return shuffled;
-  }, [bannersData]);
+  }, [bannersData, carouselData]);
 
   const getBannerForSlot = (slot: number): BannerType | undefined => {
     if (!displayedBanners.length) {

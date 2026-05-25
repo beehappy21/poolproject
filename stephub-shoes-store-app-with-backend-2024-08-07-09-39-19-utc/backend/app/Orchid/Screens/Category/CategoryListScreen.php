@@ -20,6 +20,7 @@ class CategoryListScreen extends Screen
 
         return [
             'categories' => Category::query()
+                ->where('code', '!=', Category::PERMANENT_FIRM_CATEGORY_CODE)
                 ->with('supplier')
                 ->orderByDesc('updatedAt')
                 ->paginate(10),
@@ -105,7 +106,7 @@ class CategoryListScreen extends Screen
     public function remove(Category $category)
     {
         if ($category->isPermanentFirmCategory()) {
-            Alert::warning('Firm catalog is permanent and cannot be deleted.');
+            Alert::warning('Firm category is disabled and hidden.');
 
             return;
         }

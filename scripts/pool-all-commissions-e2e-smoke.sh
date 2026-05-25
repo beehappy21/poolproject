@@ -56,7 +56,69 @@ create schema public;
 SQL
 DATABASE_URL="$DATABASE_URL" ./node_modules/.bin/prisma db push --schema prisma/schema.prisma --accept-data-loss >/dev/null
 DATABASE_URL="$DATABASE_URL" node scripts/seed-dev.js >/dev/null
+DATABASE_URL="$DATABASE_URL" node <<'JS' >/dev/null
+const { PrismaClient } = require("@prisma/client");
+const { randomBytes, scryptSync } = require("node:crypto");
+const prisma = new PrismaClient();
+function hashPassword(password) {
+  const salt = randomBytes(16).toString("hex");
+  const hash = scryptSync(password, salt, 64).toString("hex");
+  return `scrypt$${salt}$${hash}`;
+}
+async function main() {
+  const alice = await prisma.user.findUnique({ where: { memberCode: "ALICE" }, select: { id: true } });
+  const bob = await prisma.user.findUnique({ where: { memberCode: "BOB" }, select: { id: true } });
+  const seedOrder = await prisma.order.findFirst({ where: { orderNo: "ORD-DEV-001" }, select: { id: true } });
+  await prisma.user.upsert({
+    where: { email: "dev-admin@example.com" },
+    update: {
+      memberCode: "ADMINLOCAL001",
+      referralCode: "ADMINLOCAL001",
+      passwordHash: hashPassword("472121"),
+      isAdmin: true,
+      adminRole: "SUPER_ADMIN",
+      status: "ACTIVE",
+      payoutStatus: "ACTIVE",
+    },
+    create: {
+      memberCode: "ADMINLOCAL001",
+      referralCode: "ADMINLOCAL001",
+      name: "Dev Admin",
+      email: "dev-admin@example.com",
+      passwordHash: hashPassword("472121"),
+      isAdmin: true,
+      adminRole: "SUPER_ADMIN",
+      status: "ACTIVE",
+      payoutStatus: "ACTIVE",
+      riskLevel: "NORMAL",
+    },
+  });
+  await prisma.memberPackageCycle.updateMany({
+    where: { user: { memberCode: { in: ["ALICE", "BOB"] } } },
+    data: { purchaseBase: "10000" },
+  });
+  for (const user of [alice, bob]) {
+    await prisma.userBuybackProgress.upsert({
+      where: { userId: user.id },
+      update: {
+        status: "CLEAR",
+        currentBuybackCycleId: `qualified:${seedOrder.id.toString()}`,
+        lastQualifyingOrderId: seedOrder.id,
+      },
+      create: {
+        userId: user.id,
+        accumulatedAmount: "0",
+        status: "CLEAR",
+        currentBuybackCycleId: `qualified:${seedOrder.id.toString()}`,
+        lastQualifyingOrderId: seedOrder.id,
+      },
+    });
+  }
+}
+main().finally(async () => prisma.$disconnect());
+JS
 
+npm run build >/tmp/poolproject-pool-all-comm-build.log 2>&1
 DATABASE_URL="$DATABASE_URL" npm run start:api >/tmp/poolproject-pool-all-comm-api.log 2>&1 &
 API_PID=$!
 
@@ -71,7 +133,7 @@ curl -s "$API_BASE_URL/health" >/dev/null
 
 AUTH_JSON="$(curl -s -X POST "$API_BASE_URL/auth/login" \
   -H 'content-type: application/json' \
-  -d '{"identifier":"ALICE","password":"dev-password"}')"
+  -d '{"identifier":"dev-admin@example.com","password":"472121"}')"
 ACCESS_TOKEN="$(node -e 'const data = JSON.parse(process.argv[1]); process.stdout.write(String(data.accessToken || ""));' "$AUTH_JSON")"
 AUTH_HEADER="Authorization: Bearer $ACCESS_TOKEN"
 ORIGINAL_COMMISSION_SETTINGS_JSON="$(curl -s "$API_BASE_URL/settings/commissions" \
@@ -80,15 +142,22 @@ ORIGINAL_COMMISSION_SETTINGS_JSON="$(curl -s "$API_BASE_URL/settings/commissions
 curl -s -X PUT "$API_BASE_URL/settings/commissions" \
   -H "$AUTH_HEADER" \
   -H 'content-type: application/json' \
-  -d '{"directLevelRates":["2.5"],"uniLevelRates":["0","2.5"],"poolRate":"0.5","cashbackRate":"0"}' >/dev/null
+  -d '{"directLevelRates":["2.5"],"uniLevelRates":["0"],"poolRate":"0.5","cashbackRate":"0"}' >/dev/null
 
 DATABASE_URL="$DATABASE_URL" DATE_COMM="$DATE_COMM" DATE_POOL="$DATE_POOL" RUN_SUFFIX="$RUN_SUFFIX" node <<'JS'
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
 async function main() {
-  const starter = await prisma.package.update({
+  const starter = await prisma.package.findUnique({
     where: { code: "STARTER" },
+    select: { id: true },
+  });
+  if (!starter) {
+    throw new Error("STARTER package not found");
+  }
+  await prisma.package.update({
+    where: { id: starter.id },
     data: {
       priceUsdt: "100",
       memberPriceUsdt: "100",
@@ -101,7 +170,6 @@ async function main() {
       commissionCapMultiple: "3.0",
       earningCapAmount: "1000",
     },
-    select: { id: true },
   });
   const dave = await prisma.user.findUnique({
     where: { memberCode: "DAVE" },
@@ -123,7 +191,7 @@ async function main() {
       approvedAt: new Date(`${process.env.DATE_COMM}T08:30:00.000Z`),
       commissionSettingsSnapshot: JSON.stringify({
         directLevelRates: ["2.5"],
-        uniLevelRates: ["0", "2.5"],
+        uniLevelRates: ["0"],
         poolRate: "0.5",
         cashbackRate: "0",
       }),
@@ -157,7 +225,7 @@ async function main() {
       approvedAt: new Date(`${process.env.DATE_POOL}T08:30:00.000Z`),
       commissionSettingsSnapshot: JSON.stringify({
         directLevelRates: ["2.5"],
-        uniLevelRates: ["0", "2.5"],
+        uniLevelRates: ["0"],
         poolRate: "0.5",
         cashbackRate: "0",
       }),
@@ -253,22 +321,23 @@ async function main() {
   const approvedPayouts = poolPayouts.filter((row) => row.status === "APPROVED");
   const pass =
     processResult.orderId &&
-    cycleTotals.ALICE === "300" &&
+    cycleTotals.ALICE === "200" &&
     cycleTotals.BOB === "300" &&
-    poolResult.poolFund === "200" &&
-    poolResult.payoutPerMember === "100" &&
-    poolResult.companyFallbackAmount === "100" &&
+    poolResult.poolFund === "400" &&
+    poolResult.payoutPerMember === "200" &&
+    poolResult.companyFallbackAmount === "150" &&
     approvedPayouts.length === 2 &&
-    approvedPayouts.every((row) => row.payoutAmount.toString() === "50");
+    approvedPayouts.some((row) => row.user.memberCode === "ALICE" && row.payoutAmount.toString() === "200") &&
+    approvedPayouts.some((row) => row.user.memberCode === "BOB" && row.payoutAmount.toString() === "50");
 
   console.log(JSON.stringify({
     scenario: "pool_all_commissions_e2e_smoke",
     pass,
     expected: {
       commissionAccumulation:
-        "process-approved should accumulate 250 direct to BOB and 250 uni to ALICE before pool close",
+        "process-approved should accumulate 250 direct to BOB before pool close, with no unilevel contribution in this project",
       poolClose:
-        "next-day pool should request 100 each, pay 50 each, and fallback the remaining 100 because combined earned total reaches 3.0x",
+        "next-day pool should request 200 each, pay 200 to ALICE and 50 to BOB, and fallback the remaining 150 because BOB reaches the all-commissions cap first",
     },
     actual: {
       processResult,

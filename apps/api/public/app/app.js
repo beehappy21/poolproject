@@ -99,7 +99,7 @@ function renderCycles(cycles) {
             </div>`,
           )
           .join("")
-      : '<div class="stack-item"><p class="muted">No active cycles.</p></div>';
+      : '<div class="stack-item"><p class="muted">No receivable cycles.</p></div>';
 }
 
 function renderOrders(orderResult) {
@@ -275,13 +275,45 @@ function renderPoolPayouts(rows) {
             (payout) => `<tr>
               <td>${payout.poolDate}</td>
               <td>${payout.payoutAmount}</td>
-              <td>${payout.status}</td>
+              <td>${formatPoolPayoutStatus(payout)}</td>
               <td>${payout.beneficiaryCycleId ?? "-"}</td>
               <td>${payout.createdAt}</td>
             </tr>`,
           )
           .join("")
       : '<tr><td colspan="5" class="muted">No pool payouts</td></tr>';
+}
+
+function formatPoolPayoutStatus(payout) {
+  const status = String(payout.status || "-");
+  const reason = formatPoolReason(payout.blockReason);
+
+  if (!reason) {
+    return status;
+  }
+
+  return `${status} (${reason})`;
+}
+
+function formatPoolReason(reasonCode) {
+  switch (String(reasonCode || "").trim()) {
+    case "no_receivable_cycle":
+      return "ยังไม่มีรอบรับรายได้สำหรับรองรับคอมมิชชั่น";
+    case "cap_blocked_all_receivable_cycles":
+      return "ติดเพดานรับรายได้ของรอบ";
+    case "initial_qualification_missing_own_purchase":
+      return "ยังไม่มีออเดอร์ตัวเองในรอบ";
+    case "initial_qualification_missing_three_direct_buyers":
+      return "ยอดแนะนำตรงในรอบยังไม่ครบ 3 คน";
+    case "initial_qualification_not_locked":
+      return "ยังไม่ผ่านการล็อกสิทธิรอบแรก";
+    case "repurchase_grace_expired":
+      return "พ้นกำหนด repurchase";
+    case "pool_eligibility_failed":
+      return "ยังไม่ผ่านเงื่อนไขรับ pool";
+    default:
+      return reasonCode ? String(reasonCode) : "";
+  }
 }
 
 function getApprovalClassName(approvalStatus) {

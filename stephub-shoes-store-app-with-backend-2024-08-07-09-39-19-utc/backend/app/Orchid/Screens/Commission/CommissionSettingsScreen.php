@@ -12,122 +12,6 @@ use Orchid\Support\Facades\Layout;
 class CommissionSettingsScreen extends Screen
 {
     private const SECTIONS = [
-        'settings' => [
-            'title' => 'Commission Setting',
-            'routeName' => 'platform.commission.settings',
-            'eyebrow' => 'Commission Setting',
-            'description' => 'หน้าแก้ค่า commission กลางสำหรับ Stephub BAO ใช้ปรับ direct, unilevel, matrix, auto order, pool, cashback และการแสดงผลเมนูบนแอปจากหน้าเดียว.',
-            'accent' => '#4f46e5',
-            'cards' => [
-                ['label' => 'Direct bonus', 'value' => 'Live runtime', 'note' => 'แก้อัตรา direct bonus และบันทึกเข้าค่า runtime จริง'],
-                ['label' => 'Unilevel bonus', 'value' => 'Live runtime', 'note' => 'แก้ level rates ของ unilevel ได้จากหน้าจอนี้'],
-                ['label' => 'Matrix + Auto Order', 'value' => 'Live runtime', 'note' => 'แก้ board, threshold, auto order, firm, และ pv ได้จากหน้าจอนี้'],
-                ['label' => 'Pool + Cashback', 'value' => 'Live runtime', 'note' => 'แก้อัตรา pool และ cashback ได้ทันที'],
-                ['label' => 'App visibility', 'value' => 'Live runtime', 'note' => 'ควบคุมว่าเมนู commission ไหนจะแสดงบนแอปสมาชิก'],
-            ],
-            'bullets' => [
-                'ใช้หน้านี้เป็นจุดแก้หลักของ commission settings บน BAO',
-                'ค่าที่บันทึกจะเขียนลง runtime settings ของระบบ poolproject ทันที',
-                'ถ้าต้องการดู flow แบบแยกหน้า ยังสามารถเข้า direct, unilevel, matrix, auto order, pool, cashback ได้จากเมนูซ้าย',
-            ],
-        ],
-        'direct' => [
-            'title' => 'Direct Bonus',
-            'routeName' => 'platform.commission.direct',
-            'eyebrow' => 'Commission Setting',
-            'description' => 'กำหนดอัตรา direct bonus รายชั้นสำหรับสมาชิกที่แนะนำตรง และบันทึกเข้าค่า runtime จริงของระบบ.',
-            'accent' => '#0ea5e9',
-            'cards' => [
-                ['label' => 'Rate source', 'value' => 'Live runtime', 'note' => 'กำหนดอัตราแต่ละ level และบันทึกเข้าค่า commission settings จริง'],
-                ['label' => 'Write flow', 'value' => 'POST /commission/save', 'note' => 'ใช้ controller กลางของ BAO เพื่อ persist ค่า direct level rates'],
-                ['label' => 'App visibility', 'value' => 'Shared with root settings', 'note' => 'สามารถควบคุมการแสดงผลเมนู direct บนแอปสมาชิกได้'],
-            ],
-            'bullets' => [
-                'ใช้หน้านี้แก้อัตรา direct bonus แบบแยกหน้า หากไม่ต้องการแก้จากหน้า root settings',
-                'เมื่อกดบันทึก ระบบจะเขียนลง runtime settings และ redirect กลับมาที่หน้า direct โดยตรง',
-            ],
-        ],
-        'unilevel' => [
-            'title' => 'Unilevel Bonus',
-            'routeName' => 'platform.commission.unilevel',
-            'eyebrow' => 'Commission Setting',
-            'description' => 'กำหนดอัตรา unilevel bonus หลายชั้น และบันทึกเข้าค่า runtime จริงของระบบ commission.',
-            'accent' => '#10b981',
-            'cards' => [
-                ['label' => 'Levels', 'value' => 'Live runtime', 'note' => 'กำหนดเปอร์เซ็นต์แต่ละ level ของ unilevel bonus ได้จากหน้าจอนี้'],
-                ['label' => 'Write flow', 'value' => 'POST /commission/save', 'note' => 'ใช้ save flow เดียวกับ direct/pool/cashback เพื่อ persist ค่า runtime'],
-                ['label' => 'Read-back source', 'value' => 'Commission settings store', 'note' => 'รีเฟรชหน้าแล้วค่าที่บันทึกจะถูกอ่านกลับจาก runtime settings เดียวกัน'],
-            ],
-            'bullets' => [
-                'ใช้หน้านี้แก้อัตรา unilevel แบบแยกหน้าได้ โดยไม่ต้องกลับไปหน้า root settings',
-                'ค่าที่บันทึกจะสะท้อนในหน้า overview และ endpoint settings ของระบบสมาชิก',
-            ],
-        ],
-        'matrix' => [
-            'title' => 'Matrix Bonus',
-            'routeName' => 'platform.commission.matrix',
-            'eyebrow' => 'Commission Setting',
-            'description' => 'กำหนดกติกาเปิดบอร์ดด้วย PV ส่วนตัว, การดันสมาชิกในสายเลือดเข้าบอร์ด, และอัตราจ่ายของเมทริกซ์.',
-            'accent' => '#f59e0b',
-            'cards' => [
-                ['label' => 'การเปิดบอร์ด', 'value' => 'PV ส่วนตัว', 'note' => 'ใช้ PV ส่วนตัวขั้นต่ำเพื่อเปิดบอร์ดแต่ละใบ'],
-                ['label' => 'การวางสมาชิก', 'value' => 'สายเลือดเข้าบอร์ด', 'note' => 'สมาชิกในสายเลือดจะไหลลงใต้สมาชิกก่อนหน้า โดยเริ่มทางซ้าย'],
-                ['label' => 'การเปิดบอร์ดถัดไป', 'value' => 'บอร์ดเต็มแล้วเปิดต่อ', 'note' => 'บอร์ด 2 และ 3 เปิดเมื่อบอร์ดก่อนหน้าครบ และใช้ยอด PV ส่วนตัวในบอร์ดนั้นคำนวณต่อ'],
-            ],
-            'bullets' => [
-                'ใช้หน้านี้กำหนดกติกาเปิดบอร์ดจาก PV ส่วนตัวของสมาชิก เช่น มี PV ส่วนตัว 500 จึงเปิดบอร์ด 1 ได้',
-                'เมื่อสมาชิกในสายเลือดมี PV ตามเกณฑ์ เช่น 500 จะเข้ามาเป็นตำแหน่งถัดไปในบอร์ด และถ้าคนนั้นมีสายงานต่อ จะลงใต้คนนั้นทางซ้ายก่อน',
-                'การไปบอร์ด 2 เกิดเมื่อคนในบอร์ด 1 ครบแล้ว และคำนวณต่อจากยอด PV ส่วนตัวของสมาชิกในบอร์ด 1 ส่วนบอร์ด 3 ใช้หลักเดียวกับบอร์ด 2',
-            ],
-        ],
-        'reentry' => [
-            'title' => 'Auto Order Rules',
-            'routeName' => 'platform.commission.reentry',
-            'eyebrow' => 'Commission Setting',
-            'description' => 'กำหนดกติกา Auto Order ว่าเมื่อเข้าเงื่อนไขแล้วระบบจะสร้างออเดอร์อัตโนมัติด้วยยอดเท่าไร และใช้ Firm/PV เท่าไรใน flow นี้',
-            'accent' => '#14b8a6',
-            'cards' => [
-                ['label' => 'ยอด Auto Order', 'value' => 'Configured amount', 'note' => 'ยอดที่ระบบใช้สร้างออเดอร์อัตโนมัติเมื่อเข้าเงื่อนไข'],
-                ['label' => 'Firm ที่ใช้', 'value' => 'Auto order amount', 'note' => 'ใช้เป็นมูลค่า Firm ของออเดอร์อัตโนมัติ'],
-                ['label' => 'PV ที่ใช้', 'value' => 'Auto order PV', 'note' => 'ใช้เป็น PV ของออเดอร์อัตโนมัติใน flow matrix'],
-            ],
-            'bullets' => [
-                'ใช้หน้านี้กำหนดค่า auto order แยกจาก matrix board shape และอัตราจ่ายแต่ละชั้น',
-                'เมื่อถึงกติกา auto order ระบบจะสร้างออเดอร์อัตโนมัติตามค่า Firm และ PV ที่ตั้งไว้',
-            ],
-        ],
-        'pool' => [
-            'title' => 'Pool Bonus',
-            'routeName' => 'platform.commission.pool',
-            'eyebrow' => 'Commission Setting',
-            'description' => 'กำหนดอัตรา pool bonus และ cashback ที่ใช้ใน runtime ปัจจุบันของระบบ commission.',
-            'accent' => '#ef4444',
-            'cards' => [
-                ['label' => 'Pool rate', 'value' => 'Live runtime', 'note' => 'แก้อัตรา pool contribution ที่ runtime ใช้อยู่จริง'],
-                ['label' => 'Cashback rate', 'value' => 'Live runtime', 'note' => 'แก้อัตรา cashback ที่ใช้จ่ายจาก personal PV ของผู้ซื้อได้จากหน้าเดียวกัน'],
-                ['label' => 'Write flow', 'value' => 'POST /commission/save', 'note' => 'บันทึกผ่าน BAO controller กลางและอ่านกลับได้จากหน้า summary'],
-            ],
-            'bullets' => [
-                'ใช้หน้านี้แก้อัตรา pool และ cashback แบบแยกหน้าได้ หากไม่ต้องการแก้จากหน้า root settings',
-                'หลังบันทึกควรรีเฟรชหน้า summary หรือ endpoint settings เพื่อตรวจ read-back ของค่า runtime ที่เพิ่งเปลี่ยน',
-            ],
-        ],
-        'cashback' => [
-            'title' => 'Cash Back',
-            'routeName' => 'platform.commission.cashback',
-            'eyebrow' => 'Commission Setting',
-            'description' => 'Cash back configuration for personal purchase PV, paid immediately when an order is approved.',
-            'accent' => '#8b5cf6',
-            'cards' => [
-                ['label' => 'Calculation base', 'value' => 'Personal PV', 'note' => 'Uses the approved order PV of the buyer'],
-                ['label' => 'Payout timing', 'value' => 'On approval', 'note' => 'Creates ledger and wallet credit immediately after approval'],
-                ['label' => 'Reversal flow', 'value' => 'Same as commissions', 'note' => 'Reprocess and reversal behavior follow the standard commission flow'],
-            ],
-            'bullets' => [
-                'Use this page to set the cashback percentage applied to each member\'s own approved PV.',
-                'Cashback should appear alongside other commission reports and reuse the same ledger history model.',
-            ],
-        ],
         'manual-payment' => [
             'title' => 'Manual Payment',
             'routeName' => 'platform.commission.manualPayment',
@@ -178,78 +62,60 @@ class CommissionSettingsScreen extends Screen
         ],
     ];
 
-    private array $sectionConfig = self::SECTIONS['settings'];
+    private array $sectionConfig = self::SECTIONS['manual-payment'];
 
     public function screenBaseView(): string
     {
         return 'orchid.no-form-screen';
     }
 
-    public static function commissionNav(string $activeKey): array
+    public static function commissionNav(string $activeKey, array $query = []): array
     {
-        $nav = collect(self::SECTIONS)->map(
-            fn (array $config, string $key) => [
-                'key' => $key,
-                'title' => $config['title'],
-                'route' => route($config['routeName']),
-                'isActive' => $key === $activeKey,
-            ]
-        );
+        $query = array_filter($query, static fn ($value) => $value !== null && $value !== '');
 
-        $nav->push([
-            'key' => 'report',
-            'title' => 'Commission Report',
-            'route' => route('platform.commission.report'),
-            'isActive' => $activeKey === 'report',
-        ]);
-
-        return $nav->values()->all();
+        return [
+            [
+                'key' => 'overview',
+                'title' => 'Commission Report',
+                'route' => route('platform.commission.report', $query),
+                'isActive' => $activeKey === 'overview',
+            ],
+            [
+                'key' => 'direct',
+                'title' => 'Direct Bonus',
+                'route' => route('platform.commission.report.direct', $query),
+                'isActive' => $activeKey === 'direct',
+            ],
+            [
+                'key' => 'team',
+                'title' => 'Team Bonus',
+                'route' => route('platform.commission.report.team', $query),
+                'isActive' => $activeKey === 'team',
+            ],
+            [
+                'key' => 'matching',
+                'title' => 'Matching Bonus',
+                'route' => route('platform.commission.report.matching', $query),
+                'isActive' => $activeKey === 'matching',
+            ],
+            [
+                'key' => 'pool',
+                'title' => 'Pool Bonus',
+                'route' => route('platform.commission.report.pool', $query),
+                'isActive' => $activeKey === 'pool',
+            ],
+        ];
     }
 
     public function query(Request $request): iterable
     {
-        $section = (string) ($request->route('section') ?? 'settings');
+        $section = (string) ($request->route('section') ?? 'manual-payment');
         if (!array_key_exists($section, self::SECTIONS)) {
-            $section = 'settings';
+            $section = 'manual-payment';
         }
         $this->sectionConfig = self::SECTIONS[$section];
 
         return $this->buildPayload($section);
-    }
-
-    public function settings()
-    {
-        return $this->renderSectionScreen('settings');
-    }
-
-    public function direct()
-    {
-        return $this->renderSectionScreen('direct');
-    }
-
-    public function unilevel()
-    {
-        return $this->renderSectionScreen('unilevel');
-    }
-
-    public function matrix()
-    {
-        return $this->renderSectionScreen('matrix');
-    }
-
-    public function pool()
-    {
-        return $this->renderSectionScreen('pool');
-    }
-
-    public function reentry()
-    {
-        return $this->renderSectionScreen('reentry');
-    }
-
-    public function cashback()
-    {
-        return $this->renderSectionScreen('cashback');
     }
 
     public function manualPayment()
@@ -264,7 +130,7 @@ class CommissionSettingsScreen extends Screen
 
     private function renderSectionScreen(string $section)
     {
-        $this->sectionConfig = self::SECTIONS[$section] ?? self::SECTIONS['settings'];
+        $this->sectionConfig = self::SECTIONS[$section] ?? self::SECTIONS['manual-payment'];
 
         return $this->view($this->buildPayload($section));
     }

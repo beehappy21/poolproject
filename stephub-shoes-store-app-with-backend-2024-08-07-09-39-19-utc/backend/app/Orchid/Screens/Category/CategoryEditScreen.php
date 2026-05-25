@@ -18,6 +18,9 @@ use Orchid\Support\Facades\Layout;
 
 class CategoryEditScreen extends Screen
 {
+    private const IMAGE_MAX_DIMENSION = 2048;
+    private const IMAGE_JPEG_QUALITY = 82;
+
     public $category;
 
     public $supplierOptions = [];
@@ -25,6 +28,9 @@ class CategoryEditScreen extends Screen
     public function query(Category $category): iterable
     {
         Category::ensurePermanentFirmCategory();
+        if ($category->exists && $category->isPermanentFirmCategory()) {
+            abort(404);
+        }
         $this->category = $category;
         $this->supplierOptions = Supplier::query()
             ->orderBy('name')
@@ -134,7 +140,7 @@ class CategoryEditScreen extends Screen
     public function remove(Category $category)
     {
         if ($category->isPermanentFirmCategory()) {
-            Alert::warning('Firm catalog is permanent and cannot be deleted.');
+            Alert::warning('Firm category is disabled and hidden.');
 
             return redirect()->route('platform.category.list');
         }
@@ -175,14 +181,6 @@ class CategoryEditScreen extends Screen
         ]);
 
         $category = $validated['category'];
-
-        if ($this->category->exists && $this->category->isPermanentFirmCategory()) {
-            $firmCategory = Category::ensurePermanentFirmCategory();
-            $category['supplier_id'] = $firmCategory->supplierId;
-            $category['name'] = Category::PERMANENT_FIRM_CATEGORY_NAME;
-            $category['code'] = Category::PERMANENT_FIRM_CATEGORY_CODE;
-            $category['status'] = 'ACTIVE';
-        }
 
         $resolvedImageUrl = $this->resolveImageUrl(
             $request,
@@ -228,14 +226,99 @@ class CategoryEditScreen extends Screen
 
     private function storeUploadedImage(UploadedFile $file, string $directory): string
     {
-        $extension = strtolower($file->getClientOriginalExtension() ?: $file->extension() ?: 'jpg');
-        $path = $file->storeAs(
-            $directory,
-            Str::uuid()->toString() . '.' . $extension,
-            'public'
-        );
+        $binary = $this->prepareUploadedImageBinary($file);
+        $extension = strtolower((string) ($file->guessExtension() ?: $file->extension() ?: 'jpg'));
+        $path = $directory . '/' . Str::uuid()->toString() . '.' . $extension;
+
+        Storage::disk('public')->put($path, $binary);
 
         return $path;
+    }
+
+    private function prepareUploadedImageBinary(UploadedFile $file): string
+    {
+        $binary = file_get_contents($file->getRealPath()) ?: '';
+
+        if ($binary === '') {
+            return '';
+        }
+
+        return $this->resizeImageBinaryIfNeeded(
+            $binary,
+            $file->getMimeType() ?: 'application/octet-stream'
+        );
+    }
+
+    private function resizeImageBinaryIfNeeded(string $binary, string $mime): string
+    {
+        if (!function_exists('gd_info')) {
+            return $binary;
+        }
+
+        $source = match ($mime) {
+            'image/jpeg', 'image/jpg' => @imagecreatefromstring($binary) ?: null,
+            'image/png' => @imagecreatefromstring($binary) ?: null,
+            'image/webp' => function_exists('imagecreatefromwebp') ? @imagecreatefromstring($binary) ?: null : null,
+            default => null,
+        };
+
+        if ($source === null) {
+            return $binary;
+        }
+
+        $width = imagesx($source);
+        $height = imagesy($source);
+        $needsResize =
+            $width > self::IMAGE_MAX_DIMENSION ||
+            $height > self::IMAGE_MAX_DIMENSION;
+
+        if (!$needsResize) {
+            imagedestroy($source);
+
+            return $binary;
+        }
+
+        $scale = min(
+            self::IMAGE_MAX_DIMENSION / max($width, 1),
+            self::IMAGE_MAX_DIMENSION / max($height, 1)
+        );
+        $targetWidth = max(1, (int) round($width * $scale));
+        $targetHeight = max(1, (int) round($height * $scale));
+
+        $target = imagecreatetruecolor($targetWidth, $targetHeight);
+        if ($target === false) {
+            imagedestroy($source);
+
+            return $binary;
+        }
+
+        if ($mime === 'image/png' || $mime === 'image/webp') {
+            imagealphablending($target, false);
+            imagesavealpha($target, true);
+            $transparent = imagecolorallocatealpha($target, 0, 0, 0, 127);
+            imagefilledrectangle($target, 0, 0, $targetWidth, $targetHeight, $transparent);
+        }
+
+        imagecopyresampled($target, $source, 0, 0, 0, 0, $targetWidth, $targetHeight, $width, $height);
+
+        ob_start();
+        $encoded = match ($mime) {
+            'image/png' => imagepng($target),
+            'image/webp' => function_exists('imagewebp')
+                ? imagewebp($target, null, self::IMAGE_JPEG_QUALITY)
+                : imagejpeg($target, null, self::IMAGE_JPEG_QUALITY),
+            default => imagejpeg($target, null, self::IMAGE_JPEG_QUALITY),
+        };
+        $resizedBinary = (string) ob_get_clean();
+
+        imagedestroy($target);
+        imagedestroy($source);
+
+        if ($encoded !== true || $resizedBinary === '') {
+            return $binary;
+        }
+
+        return $resizedBinary;
     }
 
     private function normalizeStoredImageReference(?string $value): ?string

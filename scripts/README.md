@@ -6,6 +6,9 @@ Placeholder scripts directory for:
 - reconciliation
 
 Smoke helpers:
+- `bash scripts/update_pr_description_with_retry.sh <pr-number> --body-file /path/to/body.md`
+  Retries `gh pr edit` for flaky GitHub API sessions such as `read ECONNRESET` from IDE pull-request integrations.
+  You can also pipe stdin, for example `cat body.md | bash scripts/update_pr_description_with_retry.sh 119`.
 - `npm run dev:backup`
   Creates a restore-compatible local snapshot under `backups/stephub-full-<timestamp>` including the current Postgres dump, BAO sqlite database, runtime directory, base commit, and git status.
 - `npm run dev:check:public-auth`
@@ -14,16 +17,33 @@ Smoke helpers:
   Creates a UAT-oriented snapshot under `backups/uat-full-<timestamp>` including the Postgres dump, BAO sqlite database, runtime directory, and `manual-payments/` when present. The script supports either `DATABASE_URL` or Docker-based Postgres access.
 - `npm run uat:restore -- <backup-dir> --yes`
   Destructively restores a UAT backup created by `uat:backup`. Requires `ALLOW_DESTRUCTIVE_UAT_RESTORE=1` and supports either `DATABASE_URL` or Docker-based Postgres access.
+- `npm run ops:backup:db`
+  Creates a timestamped PostgreSQL backup using `BACKUP_DATABASE_URL` or `DATABASE_URL`, compresses it by default, and prints only a sanitized summary.
+- `npm run ops:backup:retention`
+  Deletes old database backups matching the expected timestamped backup filename pattern. Use `DRY_RUN=true` to preview deletions first.
+- `npm run ops:restore:db -- <backup-file>`
+  Destructively restores a PostgreSQL backup into an explicitly confirmed staging or production target. Production restores require `CONFIRM_PRODUCTION_RESTORE=true`.
+- `npm run ops:restore:drill`
+  Restores the latest matching backup into a staging/test drill database using `DRILL_DATABASE_URL` and runs a simple validation query.
+- `npm run smoke:health`
+  Checks `/health`, `/health/live`, `/health/ready`, and `/metrics` when enabled. Use it for lightweight uptime and readiness verification.
+- `npm run smoke:production`
+  Runs the production go-live smoke checks without real credentials: health, readiness, optional metrics, optional storefront routes, login surface reachability, security headers, and optional CORS validation through `SMOKE_ALLOWED_ORIGIN`.
+- `npm run ops:reset:transactions:keep-members-catalog`
+  Dry-runs a local/server transaction wipe that keeps members, placement tree, line bindings, and catalog/package masters while clearing orders, commissions, wallet runtime, CAP, pool, team, buyback, payout, and matrix rows.
+  Apply with `npm run ops:reset:transactions:keep-members-catalog:apply` after taking a backup and confirming the preflight counts.
+- `npm run ops:cleanup:test-artifacts`
+  Dry-runs removal of local runtime test artifacts such as `commission-test-*`, `member003*`, `saletest*`, session dumps, summary workbooks, and old release zips.
+- `npm run ops:prepare:full-reset-deploy-bundle`
+  Creates a full source release zip for clean server rebuilds while excluding local junk such as `.git`, `node_modules`, backups, logs, and known runtime test artifacts.
 - `npm run smoke:cashback`
   Runs a focused cashback end-to-end smoke against the local API and Postgres, including `reprocess` idempotency checks for cashback-only ledger and wallet-credit rows.
 - `npm run smoke:firm`
   Runs a focused Firm wallet redemption smoke against the local API and Postgres by creating a firm-category product, a matching package bridge, and one member order paid fully by Firm wallet, then verifies the firm debit plus DCW credit wallet rows.
 - `npm run smoke:matrix:spill`
   Runs a focused matrix legacy-parity smoke against the local API and Postgres by forcing a `Board 1 round 2` completion and verifying that the nearest upline with an open `Board 2 round 1` receives one synthetic spill point and payout.
-- `npm run smoke:commissions:direct-uni`
-  Runs a focused direct + unilevel runtime smoke against the local API and Postgres by creating a three-member sponsor chain, processing one approved order, and verifying commission ledger plus wallet-credit rows end to end.
 - `npm run smoke:pool:rules`
-  Resets local state and verifies custom-rate, disabled, and all-commissions pool-cap behavior, including rerun idempotency for repeated pool close calls on the same date.
+  Resets local state and verifies full-PV pool funding for enabled items, disabled-item exclusion, and rerun idempotency for repeated pool close calls on the same date.
 - `npm run smoke:pool:weekly`
   Resets local state and verifies the weekly pool rule set: only Sunday close is allowed, the funding window covers the full Bangkok week, pool fund uses 30% of weekly PV, and an eligible member with 2 directs plus recent B1 completion receives the payout.
 - `npm run smoke:bao:cashback`
@@ -31,6 +51,14 @@ Smoke helpers:
 - `npm run smoke:bao:shipment`
   Boots local API + BAO, creates a live order, and verifies BAO order list/detail shipment states through transfer review, awaiting shipment, shipped, and delivered buckets.
   This helper resets the local Postgres schema with `prisma db push --accept-data-loss`, seeds dev data, applies Stephub compat views, and normalizes the local BAO sqlite admin password to `Admin123`.
+- `npm run smoke:bao:promotion`
+  Runs a focused, non-destructive local BAO promotion smoke against the already-running local API and Postgres.
+  It temporarily injects a promotion snapshot into product code `COMMTEST650`, creates one `qty=1` and one `qty=2` BAO order through `/internal/bao/orders`, verifies normal price vs promotion price/PV behavior, then restores the original promotion snapshot and deletes the smoke orders.
+- `npm run ops:configure:bao:promotion-100pv`
+  Creates or updates the BAO promotion row for the agreed `2+ => 500 THB / 100 PV` rule, then applies that snapshot to every active non-test `100 PV` WAP product in local Postgres.
+  The default primary product for quick BAO verification is `DRI001`.
+- `npm run test:wap:promotion-100pv`
+  Logs in members `TH0000013`, `TH0000016`, `TH0000023`, and `TH0000074`, creates and approves one `qty=1` plus one `qty=2` WAP order against a real non-test `100 PV` product, then prints the WAP-visible order snapshot and order-linked commission rows for comparison.
 - `npm run smoke:bao:all`
   Runs the cashback smoke plus the BAO cashback and shipment browser checks in one pass.
   This helper is intentionally destructive for local state: it kills listeners on `:3000` and `:8001`, resets the local Postgres schema, reseeds dev data, reapplies compat views, and normalizes the local BAO sqlite admin password to `Admin123`.
@@ -43,6 +71,8 @@ Smoke helpers:
 - `npm run test:commissions:summary`
   Reads live commission runtime data directly through Prisma and prints one summary for `CommissionLedger`, `MatrixPayout`, `DailyPoolPayout`, and `CompanyBonusLedger`.
   Supports `MEMBER_CODE`, `DATE_FROM`, `DATE_TO`, `POOL_DATE`, `LIMIT_ROWS`, and `OUTPUT=json`.
+- `npm run test:commissions:member003-baseline -- --apply`
+  Creates the commission-test baseline on the local `member003` dataset by ensuring product `test` (`1000 THB / 350 PV`) exists, creating one approved order per non-admin member grouped by signup day and sorted by `memberCode` within each day, then running the real `End Of Day` settlement after the last code of each day. It continues until all `210` member codes are processed and writes the daily summary plus BAO gap notes under `runtime/`.
 - `npm run test:commissions:real`
   Runs a reusable real-data commission test flow for the new main plan: optional binary-tree member seeding, runtime order seeding through the live API, weekly pool close, then beneficiary and all-member summaries.
   Useful env vars include `REAL_TEST_SEED_TREE=1`, `MAIN_PLAN_BENEFICIARY=TH0000023`, `MAIN_PLAN_POOL_DATE=2026-04-05`, `DATE_FROM`, `DATE_TO`, and `LIMIT_ROWS`.

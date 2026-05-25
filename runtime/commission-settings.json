@@ -1,0 +1,32 @@
+{
+  "directLevelRates": [
+    "0.5",
+    "0.5"
+  ],
+  "uniLevelRates": [
+    "0"
+  ],
+  "matchingLevelRates": [
+    "0.05",
+    "0.05"
+  ],
+  "teamTwoLegRate": "0.3",
+  "teamThreeLegRate": "0.5",
+  "dailyCommissionCapAmount": "10000",
+  "buybackThresholdAmount": "10000",
+  "buybackRepurchasePv": "0",
+  "buybackGraceDays": 3,
+  "poolMinActivePackageBuyerDirects": 3,
+  "poolMaxEntitlementShareRate": "0.03",
+  "poolRate": "1",
+  "cashbackRate": "0",
+  "appVisibility": {
+    "cashback": false,
+    "direct": true,
+    "matching": true,
+    "team": true,
+    "unilevel": false,
+    "matrix": false,
+    "pool": true
+  }
+}

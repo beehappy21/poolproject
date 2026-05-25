@@ -26,6 +26,14 @@ class ProductFamilyEditScreen extends Screen
     public function query(ProductRecord $family): iterable
     {
         Category::ensurePermanentFirmCategory();
+        $family->loadMissing('category');
+        if (
+            $family->exists &&
+            $family->category instanceof Category &&
+            $family->category->isPermanentFirmCategory()
+        ) {
+            abort(404);
+        }
 
         $this->family = $family;
         $this->supplierOptions = Supplier::query()
@@ -37,6 +45,7 @@ class ProductFamilyEditScreen extends Screen
             ->all();
 
         $this->categoryOptions = Category::query()
+            ->where('code', '!=', Category::PERMANENT_FIRM_CATEGORY_CODE)
             ->orderBy('name')
             ->get(['id', 'supplierId', 'code', 'name'])
             ->mapWithKeys(fn (Category $category) => [
@@ -182,6 +191,9 @@ class ProductFamilyEditScreen extends Screen
         $category = Category::query()->find($categoryId);
         if (!$category instanceof Category) {
             abort(422, 'Selected category does not exist.');
+        }
+        if ($category->isPermanentFirmCategory()) {
+            abort(422, 'Firm category is disabled.');
         }
 
         $family = $validated['family'];

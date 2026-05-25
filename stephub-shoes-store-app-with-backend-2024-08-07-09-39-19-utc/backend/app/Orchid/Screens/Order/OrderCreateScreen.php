@@ -46,6 +46,9 @@ class OrderCreateScreen extends Screen
         $productDetails = ProductDetailRecord::query()
             ->where('status', 'ACTIVE')
             ->where('salesChannelMode', 'BAO_ONLY')
+            ->whereDoesntHave('product.category', function ($query) {
+                $query->where('code', 'FIRM');
+            })
             ->orderBy('name')
             ->get([
                 'id',
@@ -54,6 +57,12 @@ class OrderCreateScreen extends Screen
                 'primaryImageUrl',
                 'memberPriceUsdt',
                 'pv',
+                'promotionId',
+                'promotionName',
+                'promotionStatus',
+                'promotionMinQuantity',
+                'promotionPriceUsdt',
+                'promotionPv',
             ]);
 
         $topSellingQty = OrderLine::query()
@@ -109,6 +118,16 @@ class OrderCreateScreen extends Screen
                     'name' => (string) $detail->name,
                     'memberPrice' => number_format((float) $detail->memberPriceUsdt, 2),
                     'pv' => number_format((float) $detail->pv, 2),
+                    'promotionId' => $detail->promotionId,
+                    'promotionName' => $detail->promotionName,
+                    'promotionStatus' => $detail->promotionStatus,
+                    'promotionMinQuantity' => $detail->promotionMinQuantity,
+                    'promotionPrice' => $detail->promotionPriceUsdt !== null
+                        ? number_format((float) $detail->promotionPriceUsdt, 2)
+                        : null,
+                    'promotionPv' => $detail->promotionPv !== null
+                        ? number_format((float) $detail->promotionPv, 2)
+                        : null,
                     'imageUrl' => $this->publicImageUrl($detail->primaryImageUrl),
                     'soldQty' => (int) ($topSellingQty[(string) $detail->id] ?? 0),
                 ];
@@ -208,7 +227,7 @@ class OrderCreateScreen extends Screen
         $payload = $request->validate([
             'sale.member_id' => ['nullable', 'integer'],
             'sale.workflow_mode' => ['required', 'in:create_only,approve_and_process'],
-            'sale.payment_channel' => ['required', 'in:cash,bank_transfer,shopping_wallet,firm_wallet,other'],
+            'sale.payment_channel' => ['required', 'in:cash,bank_transfer,shopping_wallet,other'],
             'sale.fulfillment_method' => ['required', 'in:delivery,branch_pickup'],
             'sale.existing_shipping_address_id' => ['nullable', 'integer'],
             'sale.change_shipping_address' => ['nullable', 'boolean'],
@@ -563,18 +582,109 @@ class OrderCreateScreen extends Screen
 
         $priceMap = ProductDetailRecord::query()
             ->whereIn('id', $detailIds)
-            ->pluck('memberPriceUsdt', 'id');
+            ->get([
+                'id',
+                'memberPriceUsdt',
+                'promotionStatus',
+                'promotionMinQuantity',
+                'promotionPriceUsdt',
+            ])
+            ->keyBy('id');
 
         $subtotal = 0.0;
+        $requestedByDetail = [];
+        $requestedByPromotionGroup = [];
 
         foreach ($items as $item) {
             $detailId = (int) ($item['productDetailId'] ?? 0);
             $quantity = max(1, (int) ($item['quantity'] ?? 1));
-            $price = (float) ($priceMap[$detailId] ?? 0);
+
+            if ($detailId <= 0) {
+                continue;
+            }
+
+            $requestedByDetail[$detailId] = ($requestedByDetail[$detailId] ?? 0) + $quantity;
+
+            /** @var ProductDetailRecord|null $detail */
+            $detail = $priceMap->get($detailId);
+            $promotionGroupKey = $this->promotionGroupKey($detail);
+
+            if ($promotionGroupKey !== null) {
+                $requestedByPromotionGroup[$promotionGroupKey] = ($requestedByPromotionGroup[$promotionGroupKey] ?? 0) + $quantity;
+            }
+        }
+
+        foreach ($items as $item) {
+            $detailId = (int) ($item['productDetailId'] ?? 0);
+            $quantity = max(1, (int) ($item['quantity'] ?? 1));
+            /** @var ProductDetailRecord|null $detail */
+            $detail = $priceMap->get($detailId);
+            $promotionGroupKey = $this->promotionGroupKey($detail);
+            $effectiveQuantity = $promotionGroupKey !== null
+                ? ($requestedByPromotionGroup[$promotionGroupKey] ?? ($requestedByDetail[$detailId] ?? $quantity))
+                : ($requestedByDetail[$detailId] ?? $quantity);
+            $price = $this->promoAwareUnitPrice($detail, $effectiveQuantity);
             $subtotal += $price * $quantity;
         }
 
         return number_format($subtotal, 2, '.', '');
+    }
+
+    private function promotionGroupKey(?ProductDetailRecord $detail): ?string
+    {
+        if (!$detail instanceof ProductDetailRecord) {
+            return null;
+        }
+
+        $promotionStatus = strtoupper(trim((string) ($detail->promotionStatus ?? '')));
+        $promotionMinQuantity = (int) ($detail->promotionMinQuantity ?? 0);
+        $promotionPrice = $detail->promotionPriceUsdt !== null
+            ? number_format((float) $detail->promotionPriceUsdt, 8, '.', '')
+            : null;
+        $promotionPv = $detail->promotionPv !== null
+            ? number_format((float) $detail->promotionPv, 8, '.', '')
+            : null;
+        $basePv = number_format((float) ($detail->pv ?? 0), 8, '.', '');
+
+        if (
+            $promotionStatus !== 'ACTIVE'
+            || $promotionMinQuantity < 2
+            || $promotionPrice === null
+            || $promotionPv === null
+            || $basePv !== number_format(100, 8, '.', '')
+        ) {
+            return null;
+        }
+
+        $promotionIdentity = $detail->promotionId !== null
+            ? 'id:' . (string) $detail->promotionId
+            : sprintf('snapshot:%d:%s:%s', $promotionMinQuantity, $promotionPrice, $promotionPv);
+
+        return '100pv:' . $promotionIdentity;
+    }
+
+    private function promoAwareUnitPrice(?ProductDetailRecord $detail, int $quantity): float
+    {
+        if (!$detail instanceof ProductDetailRecord) {
+            return 0.0;
+        }
+
+        $promotionStatus = strtoupper(trim((string) ($detail->promotionStatus ?? '')));
+        $promotionMinQuantity = (int) ($detail->promotionMinQuantity ?? 0);
+        $promotionPrice = $detail->promotionPriceUsdt !== null
+            ? (float) $detail->promotionPriceUsdt
+            : null;
+
+        if (
+            $promotionStatus === 'ACTIVE'
+            && $promotionMinQuantity >= 2
+            && $promotionPrice !== null
+            && $quantity >= $promotionMinQuantity
+        ) {
+            return $promotionPrice;
+        }
+
+        return (float) ($detail->memberPriceUsdt ?? 0);
     }
 
     /**
@@ -633,13 +743,13 @@ class OrderCreateScreen extends Screen
         $identifier = trim((string) (
             env('BAO_API_ADMIN_IDENTIFIER')
             ?: env('APP_BAO_API_ADMIN_IDENTIFIER')
-            ?: 'TH0000013'
+            ?: ''
         ));
         $password = trim((string) (
             env('BAO_API_ADMIN_PASSWORD')
             ?: env('APP_BAO_API_ADMIN_PASSWORD')
             ?: env('DEV_MEMBER_IMPERSONATION_PASSWORD')
-            ?: 'a1a1a1'
+            ?: ''
         ));
 
         if ($identifier === '' || $password === '') {

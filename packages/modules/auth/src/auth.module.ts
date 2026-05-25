@@ -1,21 +1,21 @@
 import { Module, forwardRef } from "@nestjs/common";
 
 import { PrismaModule } from "../../../infrastructure";
-import { CommissionsModule } from "../../commissions";
+import { CommissionsModule } from "../../commissions/src/commissions.module";
 import { MatrixModule } from "../../matrix/src";
-import { MembersModule } from "../../members";
+import { MembersModule } from "../../members/src/members.module";
 import { OrdersModule } from "../../orders";
 import { PackagesModule } from "../../packages";
 import { PoolModule } from "../../pool";
-import { WalletsModule } from "../../wallets";
+import { WalletsModule } from "../../wallets/src/wallets.module";
+import { AuthCoreModule } from "./auth-core.module";
 import { AuthController } from "./controllers/auth.controller";
-import { PrismaAuthRepository } from "./repositories/auth.repository";
-import { AuthService } from "./services/auth.service";
 
 @Module({
   imports: [
     PrismaModule,
-    MembersModule,
+    AuthCoreModule,
+    forwardRef(() => MembersModule),
     OrdersModule,
     PackagesModule,
     forwardRef(() => WalletsModule),
@@ -24,7 +24,6 @@ import { AuthService } from "./services/auth.service";
     PoolModule,
   ],
   controllers: [AuthController],
-  providers: [PrismaAuthRepository, AuthService],
-  exports: [AuthService, PrismaAuthRepository],
+  exports: [AuthCoreModule],
 })
 export class AuthModule {}

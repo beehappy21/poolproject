@@ -1,11 +1,21 @@
-import { BadRequestException, Controller, Get, Query } from "@nestjs/common";
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+} from "@nestjs/common";
+import { Roles } from "../../../auth/src/access-control/roles.decorator";
 
 import {
   optionalPositiveInteger,
+  requireDateOnlyString,
   requirePositiveIntegerString,
 } from "../../../../../apps/api/src/http/request.util";
 import { CommissionsService } from "../services/commissions.service";
 
+@Roles("admin")
 @Controller("commissions")
 export class CommissionsController {
   constructor(private readonly commissionsService: CommissionsService) {}
@@ -25,10 +35,14 @@ export class CommissionsController {
       normalizedCommissionType !== "direct" &&
       normalizedCommissionType !== "uni" &&
       normalizedCommissionType !== "pool" &&
-      normalizedCommissionType !== "cashback"
+      normalizedCommissionType !== "cashback" &&
+      normalizedCommissionType !== "team_2leg" &&
+      normalizedCommissionType !== "team_3leg" &&
+      normalizedCommissionType !== "matching_l1" &&
+      normalizedCommissionType !== "matching_l2"
     ) {
       throw new BadRequestException(
-        "commissionType must be direct, uni, pool, or cashback.",
+        "commissionType must be direct, uni, pool, cashback, team_2leg, team_3leg, matching_l1, or matching_l2.",
       );
     }
 
@@ -57,10 +71,14 @@ export class CommissionsController {
       normalizedSourceType !== "direct" &&
       normalizedSourceType !== "uni" &&
       normalizedSourceType !== "pool" &&
-      normalizedSourceType !== "cashback"
+      normalizedSourceType !== "cashback" &&
+      normalizedSourceType !== "team_2leg" &&
+      normalizedSourceType !== "team_3leg" &&
+      normalizedSourceType !== "matching_l1" &&
+      normalizedSourceType !== "matching_l2"
     ) {
       throw new BadRequestException(
-        "sourceType must be direct, uni, pool, or cashback.",
+        "sourceType must be direct, uni, pool, cashback, team_2leg, team_3leg, matching_l1, or matching_l2.",
       );
     }
 
@@ -72,5 +90,41 @@ export class CommissionsController {
       page: optionalPositiveInteger(page, "page"),
       pageSize: optionalPositiveInteger(pageSize, "pageSize"),
     });
+  }
+
+  @Post("team-settlement-batches/:settlementDate/scaffold")
+  async scaffoldTeamSettlementBatch(
+    @Param("settlementDate") settlementDate: string,
+  ) {
+    return this.commissionsService.scaffoldTeamSettlementBatch(
+      requireDateOnlyString(settlementDate, "settlementDate"),
+    );
+  }
+
+  @Post("team-settlement-batches/:settlementDate/process")
+  async processTeamSettlementBatch(
+    @Param("settlementDate") settlementDate: string,
+  ) {
+    return this.commissionsService.processTeamSettlementBatch(
+      requireDateOnlyString(settlementDate, "settlementDate"),
+    );
+  }
+
+  @Post("end-of-day/:settlementDate/process")
+  async processEndOfDayCommissionBatch(
+    @Param("settlementDate") settlementDate: string,
+  ) {
+    return this.commissionsService.processEndOfDayCommissionBatch(
+      requireDateOnlyString(settlementDate, "settlementDate"),
+    );
+  }
+
+  @Get("team-settlement-batches/:settlementDate/snapshot")
+  async getTeamSettlementBatchSnapshot(
+    @Param("settlementDate") settlementDate: string,
+  ) {
+    return this.commissionsService.getTeamSettlementBatchSnapshot(
+      requireDateOnlyString(settlementDate, "settlementDate"),
+    );
   }
 }

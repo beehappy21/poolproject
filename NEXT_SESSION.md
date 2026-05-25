@@ -1,12 +1,167 @@
 # Next Session
 
-Updated: 2026-03-23
+Updated: 2026-05-19
 
 ## Branch
 
 - Current branch: `main`
-- Latest merged PR: `#19` `https://github.com/beehappy21/poolproject/pull/19`
-- Main is currently at merge commit `05b20f0`
+- Latest merged PR: `#129` `https://github.com/beehappy21/poolproject/pull/129`
+- Main is currently at commit `9b35ce11`
+
+## Latest Session Update
+
+- UAT original business-member base now has bulk special cycles already granted.
+  - grant scope:
+    - oldest `210` non-admin members by `createdAt, id`
+    - effectively `TH0000001` through `TH0000210`
+  - grant type:
+    - `SPECIAL_200_PV`
+    - `200 PV / cap 10,000 / purchase base 1,000`
+  - result:
+    - `210/210` success
+    - `MemberPackageCycle = 210` for that target set
+    - `SpecialCommissionCycleGrant = 210` for that target set
+  - post-grant backup:
+    - `/home/nc-user/poolproject/backups/200PV210uesr`
+  - if later testing or go-live prep needs a different grant set, account for these pre-opened cycles first before adding more
+
+- UAT is now in a clean pre-go-live state after the final reset and test-data cleanup.
+  - backup was created at:
+    - `/home/nc-user/poolproject/backups/uat-full-20260519-164006`
+  - transaction reset was rerun against:
+    - `poolproject-uat-postgres-1`
+  - reset now also clears:
+    - `SpecialCommissionCycleGrant`
+  - remaining UAT-only test members were deleted:
+    - `UTPVLOCK-134839`
+    - `UTPVLOCKC-134839`
+  - remaining UAT-only test catalog was deleted:
+    - `COMMTEST1000`
+    - `COMMTEST650`
+    - `COMMTESTPKG1000`
+    - `COMMTESTPKG650`
+  - final live-start counts on UAT:
+    - `User = 269`
+    - `Product = 6`
+    - `ProductDetail = 7`
+    - `Package = 1`
+    - `Order = 0`
+    - `CommissionLedger = 0`
+    - `MemberPackageCycle = 0`
+    - `SpecialCommissionCycleGrant = 0`
+  - health checks after cleanup still pass:
+    - `http://127.0.0.1:3000/health => {"status":"ok"}`
+    - `http://127.0.0.1:18001/admin/login => 200`
+  - reset/backup helper scripts now prefer `poolproject-uat-postgres-*` automatically if both old and UAT Postgres containers are present
+
+- Latest pushed WAP/BAO wallet and commission UI commits:
+  - `37c24c74` `Add wallet transaction admin screens and refine commission CW/SW UI`
+  - `24ee2414` `Align CW display and withdraw balance with current CW logic`
+  - `d099085a` `Refine commission summary panels and hide extra dashboard tiles`
+- WAP `Commission` latest state:
+  - `CW รวม` = cumulative received `direct + team + matching + pool`
+  - `CW ปัจจุบัน` = cumulative received `direct + team + matching + pool`
+    - minus CW -> SW conversion
+    - minus CW withdraw
+  - CW popup now shows commission summary cards instead of recent movement rows
+  - lower `Direct / Team / Matching / Pool` cards on the main page are hidden
+  - `Firm` should be treated as hidden on the WAP commission surface
+- WAP `WithdrawSW` latest state:
+  - withdrawable CW on the page now follows the same derived `CW ปัจจุบัน` logic as `Commission`
+  - do not remap it back to raw `wallet.withdrawableBalance` unless the business meaning changes again
+- BAO latest wallet tooling state:
+  - wallet submenu now includes:
+    - `CW > SW Transactions`
+    - `SW Transfer Transactions`
+  - dedicated Orchid screens/routes exist for both views
+- New `Firm` follow-up planning doc:
+  - [close_firm.md](/Users/macbook/poolproject/close_firm.md:1)
+  - use this first if the user asks to continue hiding `Firm` safely across WAP and BAO
+- Current safest `Firm` approach:
+  - hide UI first
+  - do not remove order/payment/settings/product logic tied to `Firm` until dependency review is complete
+
+- Local CW/SW/Commission-page update landed in commit `2b711f14`:
+  - `Align CW/SW wallet logic and commission display`
+- WAP `Commission` page now uses the latest agreed meaning:
+  - `CW รวม` = cumulative received `direct + team + matching + pool`
+  - `CW ปัจจุบัน` = cumulative received `direct + team + matching + pool`
+    - minus CW -> SW conversion
+    - minus CW withdraw
+- WAP member withdraw flow is now expressed as CW withdraw instead of SW withdraw:
+  - page labels updated
+  - backend reserve/cancel flow now uses `withdrawableBalance`
+- Fee requirement from latest session is implemented locally:
+  - CW -> SW conversion fee = `5%`
+  - CW withdraw fee = `5%`
+  - WAP now shows fee and net-amount breakdown on both flows
+- Local runtime settings changed:
+  - `runtime/wallet-settings.json`
+    - `commissionToShoppingFeeRate = "0.05"`
+  - `runtime/withdraw-settings.json`
+    - `feeRate = "0.05"`
+- Validation after this round:
+  - root `npm run lint` passed
+  - WAP `npm run build` passed
+  - remaining WAP warnings are old hook-dependency warnings in:
+    - `src/screens/Product.tsx`
+    - `src/screens/tabs/Home.tsx`
+- Important caution for follow-up work:
+  - `CW รวม` and `CW ปัจจุบัน` on WAP are UI-derived numbers, not direct wallet fields
+  - if exact audit parity is needed for a member such as `TH000013`, verify:
+    - `/auth/commissions`
+    - `/auth/transactions`
+    - `/auth/withdraw-requests`
+    - raw wallet summary
+  - do not assume `CW ปัจจุบัน === wallet.withdrawableBalance`
+
+- PR `#129` is merged into `main`:
+  - worker bootstrap circular-dependency fix
+  - direct module-file imports in the auth/members/wallets/commissions/worker chain
+  - `AuthCoreModule` added to narrow the auth dependency surface used by wallets
+  - temporary `AuthModule` debug logging removed before merge
+- Local validation passed before merge:
+  - `npm run lint`
+  - `npm run build`
+- VPS dry-run status reached a usable pre-server checkpoint:
+  - Stage 1 local pre-copy verification passed
+  - Stage 2 VPS pre-boot verification passed after installing user-level `nvm` and `Node 20`
+  - Stage 3 core stack passed for `postgres`, `redis`, `api`, `bao`, `wap`, and `nginx`
+  - compatibility views were applied
+  - host-header checks passed for API / BAO / WAP
+- Worker is now stable on VPS after the merged bootstrap fix:
+  - `docker compose ps worker` reached stable `Up`
+  - logs show `[worker] started`
+  - no remaining Nest module/import bootstrap error
+- Stage 4 status so far:
+  - `npm run smoke:wap:surface` passed
+  - `npm run smoke:bao:all` is blocked on the VPS host because `./node_modules/.bin/prisma` is missing there
+  - `npm run smoke:pool:all` is blocked by the destructive reset guard and should not be forced on a non-disposable VPS DB
+- Important worker note:
+  - worker stability was not solved by source sync alone
+  - worker needed the module-bootstrap fix from PR `#129`
+  - stale Docker cache was explicitly ruled out with a `--no-cache` worker rebuild during investigation
+- Current safest next step:
+  - inspect the BAO and pool smoke scripts
+  - decide whether each smoke is intended for VPS host execution, local-only execution, or a dockerized smoke runner
+  - do not force `ALLOW_DESTRUCTIVE_LOCAL_RESET=1` on the VPS unless using a disposable/test DB
+
+## Immediate Next Steps
+
+1. If the user resumes `Firm` cleanup, open [close_firm.md](/Users/macbook/poolproject/close_firm.md:1) first and keep the first pass UI-only
+2. Inspect `smoke:bao:all` and determine whether it assumes host-installed `node_modules` / Prisma tooling on the VPS
+3. Inspect `smoke:pool:all` and determine whether it is intentionally local-only because of destructive reset behavior
+4. Decide whether BAO/pool smoke should run:
+   - on local only
+   - in Docker on the VPS
+   - or against a disposable VPS test DB
+5. If commission-round / pool baseline work resumes after deploy verification, first clean the local baseline test orders and rerun the baseline once for a final clean report
+6. If PV cycle-cap work resumes, open [docs/technical-design/pv_cycle_cap_accumulation_plan.md](/Users/macbook/poolproject/docs/technical-design/pv_cycle_cap_accumulation_plan.md:1) first and continue with:
+   - review [docs/archive/uat-history/2026-05-18-pv-cycle-cap-uat-scenarios.md](/Users/macbook/poolproject/docs/archive/uat-history/2026-05-18-pv-cycle-cap-uat-scenarios.md:1)
+   - review the verified queued-cycle promotion result after the older cycle reaches cap
+   - decide whether large-quantity self-purchase orders should intentionally fan out into many `200 PV` cycles
+   - decide whether CAP grant should stay product-master-based or become cycle-cap-aware
+7. If future UAT scenario testing is needed, recreate isolated test catalog and test members intentionally first because `COMMTEST*` and `UTPVLOCK*` were removed during go-live cleanup
 
 ## Recently Merged Work
 
@@ -27,12 +182,14 @@ Updated: 2026-03-23
 
 ## What To Do Next
 
-1. If deployment work continues, follow `DEPLOY_CHECKLIST.md`
-2. Use `docs/technical-design/commission_plan_summary.md` as the single summary for plan-calculation status
-3. If wallet/DCW work continues, the next high-value slice is member-facing CW/SW/DCW UI and/or richer admin review tooling beyond the current local admin panel
-4. If member work continues, the next obvious slice is a reusable member import/reset helper plus explicit login/reset guidance in admin beyond the current list-page note
-5. Reuse the BAO browser-check scripts before deploys or after commission/order-report changes
-6. Keep `member003` legacy matrix analysis positioned as research/sandbox work unless we explicitly want to productionize it further
+1. If the commission-round / pool baseline work continues, first clean the local baseline test orders and rerun the baseline once for a final clean report
+2. If deployment work continues, follow `DEPLOY_CHECKLIST.md`
+3. Use `docs/technical-design/commission_plan_summary.md` as the single summary for plan-calculation status
+4. If wallet/DCW work continues, the next high-value slice is member-facing CW/SW/DCW UI and/or richer admin review tooling beyond the current local admin panel
+5. If member work continues, the next obvious slice is a reusable member import/reset helper plus explicit login/reset guidance in admin beyond the current list-page note
+6. Reuse the BAO browser-check scripts before deploys or after commission/order-report changes
+7. Keep `member003` legacy matrix analysis positioned as research/sandbox work unless we explicitly want to productionize it further
+8. Treat PV cycle-cap accumulation as the next commission-runtime rule slice if the user continues that track
 
 ## Latest Verified Status
 
@@ -43,6 +200,15 @@ Updated: 2026-03-23
   - `POOL_ONLY` partial payout to cap
   - `ALL_COMMISSIONS` partial payout to remaining combined cap
   - `ALL_COMMISSIONS` full-flow accumulation from real `process-approved` direct/uni commissions before next-day pool close
+- Pool rerun behavior now has an explicit force-reprocess path across runtime and API:
+  - `closePool()` in `pool.service.ts` accepts `forceReprocess`
+  - end-of-day processing calls pool close with `forceReprocess`
+  - `POST /pool/:poolDate/close?force=1` is available for direct rerun validation
+- Local baseline rerun after the force-reprocess fix now confirms recipient-positive pool payouts again:
+  - `2025-11-17` -> `poolLedgerAmount = 60`, `poolPayoutCount = 2`
+  - `2025-11-18` -> `poolLedgerAmount = 60`, `poolPayoutCount = 2`
+  - `2025-12-02` -> `poolLedgerAmount = 360`, `poolPayoutCount = 12`
+- Direct validation of `2025-11-22` after the fix returned `eligibleMemberCount = 6`, confirming pool reprocess is working
 - Pool funding now snapshots rate config on `OrderItem`, so later package edits do not retroactively change historical pool funding
 - Effective pool-rate snapshots were updated to use decimal-safe math instead of JS `Number`
 - Commission plan summary doc is up to date and can be used as the current handoff source for direct / unilevel / pool / matrix / cashback status
@@ -78,6 +244,8 @@ Updated: 2026-03-23
 ## Review Notes
 
 - No open merge blocker remains from the configurable pool rules, BAO browser-check, wallet/payment work, and member import/login updates that landed in PR `#15`, PR `#16`, `#17`, `#18`, and `#19`
+- The latest local commission baseline is functionally correct for direct / team / matching / pool, but the working dataset is not yet a fully clean reset because older reruns still affect some order/PV totals
+- If a final report is needed, the next operator should clear the baseline test orders and rerun once from a clean state before freezing numbers
 - The previously requested browser verification of BAO cashback and Stephub shipment-state flows is now covered by local reusable smoke scripts
 - Wallet smoke now covers:
   - commission credit
@@ -92,7 +260,26 @@ Updated: 2026-03-23
 - Member import now uses a more spreadsheet-friendly assumption set than the original core-user model:
   - duplicate `phone` values are allowed
   - duplicate `nationalId` values are allowed
-  - `email` is still unique, so duplicate/conflicting emails are skipped during seed
+- `email` is still unique, so duplicate/conflicting emails are skipped during seed
+- The next commission runtime rule under planning is the new `PV-only` cycle-cap accumulation flow:
+- The next commission runtime rule under active implementation is the new `PV-only` cycle-cap accumulation flow:
+  - `< 200 PV => 5000`
+  - `>= 200 PV => 10000`
+  - current cycle can upgrade when later PV reaches `200`
+  - excess PV can seed the next queued cycle
+  - see [docs/technical-design/pv_cycle_cap_accumulation_plan.md](/Users/macbook/poolproject/docs/technical-design/pv_cycle_cap_accumulation_plan.md:1)
+  - local source path is already implemented and lint-valid
+  - UAT/server schema and runtime rollout are done
+  - controlled order verification is still pending
+- Test catalog is ready on both local and UAT for those scenarios:
+  - `1000 THB / 200 PV`
+  - `650 THB / 100 PV`
+- UAT already passed the first controlled scenario round for:
+  - `100 PV`
+  - `200 PV`
+  - `100 + 100 PV`
+  - `200 + 100 PV`
+- Remaining UAT proof is the post-cap queued-cycle promotion path
 
 ## Useful Commands
 
@@ -135,6 +322,10 @@ Updated: 2026-03-23
 
 - Full cross-plan summary now lives in `docs/technical-design/commission_plan_summary.md`
 - Use this doc first before reopening direct / unilevel / pool / cashback investigation work
+- BAO now has a special commission privilege flow:
+  - `Commission Report > สิทธิ์พิเศษ`
+  - uses `SpecialCommissionCycleGrant` + runtime special cycle creation
+  - if continuing this feature, verify one `SPECIAL_100_PV` and one `SPECIAL_200_PV` grant on UAT after deploy
 
 ## Wallet Status
 
@@ -170,10 +361,31 @@ Updated: 2026-03-23
 - BAO member tooling now includes:
   - a top search bar on `/admin/member/list`
   - an inline note explaining imported-member login credentials
+- Placement import for `member003` was updated on `2026-05-10` for test-fixture use:
+  - keep real `sponsorId`
+  - rebuild placement by sponsor lineage and member-code order
+  - first `3` directs become `LEFT / MIDDLE / RIGHT`
+  - directs beyond `3` continue into the next open slot within that sponsor subtree
+- This rebuilt placement is now produced consistently by:
+  - `scripts/import_member_profiles_from_xlsx.py`
+  - `scripts/fill_member_profiles_from_member003.mjs`
+  - `scripts/export_member003_members_fixture.py`
+  - `scripts/member003-members.json`
 
 ## Current Local State
 
-- Working tree has no tracked file changes left from this work
+- Working tree had no tracked file changes right after the last push; re-check with `git status --short` before starting new work
+- Local runtime was intentionally reset on `2026-05-10` without touching product/catalog data
+- Current DB baseline state after reset/import:
+  - `User = 210`
+  - `Order = 0`
+  - `CommissionLedger = 0`
+  - `TeamSettlementBatchItem = 0`
+  - `DailyPoolPayout = 0`
+- The rebuilt placement for the earlier blocked team case is now:
+  - `TH0000014 -> TH0000013 / LEFT`
+  - `TH0000016 -> TH0000013 / MIDDLE`
+  - `TH0000017 -> TH0000013 / RIGHT`
 - These files are intentionally local-only and should be ignored unless explicitly needed:
   - `Book1.xlsx`
   - `allcom22032026.xlsx`
@@ -185,3 +397,13 @@ Updated: 2026-03-23
 - `app` should default to Stephub in future discussion
 - BAO paths live under `stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend`
 - For a cleaner starting point, also check the worktree guidance in `HANDOFF_NEXT.md`
+- The main commits pushed on `2026-05-10` were:
+  - `3c5ff55e` `Fix member003 placement import and baseline timezone flow`
+  - `7eb99681` `Auto-open local WAP and BAO after launcher`
+
+## Next Recommended Action
+
+- Re-run the `member003` commission baseline from the now-clean local state and verify that `team / matching / pool` follow the rebuilt `L / M / R` placement tree instead of the old chained-right placement
+- Preferred tools:
+  - BAO commission baseline controls
+  - `node scripts/run_member003_baseline_until_pool.js --apply --reset`

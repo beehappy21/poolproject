@@ -58,8 +58,7 @@ export class PackagesService {
     memberPriceUsdt: string;
     retailPriceUsdt: string;
     pv: string;
-    poolRateMode: "default_50_percent" | "custom_rate" | "disabled";
-    poolRate: string;
+    poolEnabled: boolean;
     poolCapMultiple: string;
     commissionCapScope: "pool_only" | "all_commissions";
     commissionCapMultiple: string;
@@ -91,8 +90,7 @@ export class PackagesService {
     memberPriceUsdt?: string;
     activeDays: number;
     earningCapAmount: string;
-    poolRateMode?: "default_50_percent" | "custom_rate" | "disabled";
-    poolRate?: string;
+    poolEnabled?: boolean;
     poolCapMultiple?: string;
     commissionCapScope?: "pool_only" | "all_commissions";
     commissionCapMultiple?: string;

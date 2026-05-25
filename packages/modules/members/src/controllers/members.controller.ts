@@ -9,8 +9,11 @@ import {
   Param,
   Post,
   Query,
+  Req,
   UnauthorizedException,
 } from "@nestjs/common";
+import { Public } from "../../../auth/src/access-control/public.decorator";
+import { Roles } from "../../../auth/src/access-control/roles.decorator";
 
 import {
   requireIsoDateTimeString,
@@ -24,8 +27,11 @@ import { PrismaService } from "../../../../infrastructure/src/prisma/prisma.serv
 import { MembersService } from "../services/members.service";
 import { WalletsService } from "../../../wallets/src/services/wallets.service";
 
+@Roles("admin")
 @Controller("members")
 export class MembersController {
+  private readonly isProduction = process.env.NODE_ENV === "production";
+
   constructor(
     private readonly membersService: MembersService,
     private readonly walletsService: WalletsService,
@@ -113,6 +119,7 @@ export class MembersController {
     );
   }
 
+  @Public()
   @Get("by-code/:memberCode")
   async getMemberByCode(@Param("memberCode") memberCode: string) {
     const validatedMemberCode = requireNonEmptyString(memberCode, "memberCode");
@@ -125,20 +132,30 @@ export class MembersController {
     return member;
   }
 
+  @Roles("member")
   @Get("by-code/:memberCode/direct-referrals")
-  async getDirectReferralsByMemberCode(@Param("memberCode") memberCode: string) {
+  async getDirectReferralsByMemberCode(
+    @Param("memberCode") memberCode: string,
+    @Req() request: any,
+  ) {
     const validatedMemberCode = requireNonEmptyString(memberCode, "memberCode");
+    const viewerMemberCode = String(request?.authUser?.memberCode ?? "").trim();
+    if (!viewerMemberCode) {
+      throw new UnauthorizedException("Session required.");
+    }
     const result = await this.membersService.getDirectReferralsByMemberCode(
       validatedMemberCode,
+      { viewerMemberCode },
     );
 
     if (!result) {
-      throw new NotFoundException("Member not found.");
+      throw new NotFoundException("Member not found in your downline.");
     }
 
     return result;
   }
 
+  @Public()
   @Get("by-code/:memberCode/referral-link")
   async getReferralLink(
     @Param("memberCode") memberCode: string,
@@ -158,6 +175,7 @@ export class MembersController {
     }
   }
 
+  @Public()
   @Post()
   async createMember(
     @Body()
@@ -169,6 +187,7 @@ export class MembersController {
       sponsorId?: string | null;
       sponsorCode?: string | null;
       ref?: string | null;
+      placementPreference?: "AUTO" | "LEFT" | "MIDDLE" | "RIGHT" | null;
       password?: string | null;
       lineUserId?: string | null;
       lineIdToken?: string | null;
@@ -181,6 +200,12 @@ export class MembersController {
     const memberCode = optionalString(body.memberCode);
     const sponsorCode = optionalString(body.sponsorCode);
     const ref = optionalString(body.ref);
+    const placementPreference = optionalString(body.placementPreference) as
+      | "AUTO"
+      | "LEFT"
+      | "MIDDLE"
+      | "RIGHT"
+      | null;
     const password = optionalString(body.password);
     const email = optionalString(body.email);
     const phone = optionalString(body.phone);
@@ -230,6 +255,7 @@ export class MembersController {
         phone,
         sponsorCode,
         ref,
+        placementPreference,
         password,
         lineBinding: {
           lineUserId,
@@ -280,11 +306,53 @@ export class MembersController {
   @Post(":memberId/reset-password")
   async resetPassword(
     @Param("memberId") memberId: string,
-    @Body() body: { newPassword: string },
+    @Body() body: { newPassword: string; adminOverridePassword?: string },
   ) {
     try {
+      const validatedMemberId = requirePositiveIntegerString(memberId, "memberId");
+      const targetUser = await this.prisma.user.findUnique({
+        where: { id: BigInt(validatedMemberId) },
+        select: {
+          isAdmin: true,
+          adminRole: true,
+          email: true,
+          memberCode: true,
+        },
+      });
+
+      const isProtectedSuperAdmin =
+        targetUser?.isAdmin === true &&
+        String(targetUser.adminRole || "").trim().toUpperCase() === "SUPER_ADMIN" &&
+        (String(targetUser.email || "").trim().toLowerCase() ===
+          (
+            process.env.SUPER_ADMIN_EMAIL ||
+            (this.isProduction ? "" : "dev-admin@example.com")
+          ).trim().toLowerCase() ||
+          String(targetUser.memberCode || "").trim().toUpperCase() ===
+            (
+              process.env.SUPER_ADMIN_MEMBER_CODE ||
+              (this.isProduction ? "" : "ADMINLOCAL001")
+            ).trim().toUpperCase());
+
+      if (isProtectedSuperAdmin) {
+        if (
+          requireNonEmptyString(
+            body.adminOverridePassword ?? "",
+            "adminOverridePassword",
+          ) !==
+            (
+              process.env.SUPER_ADMIN_OVERRIDE_PASSWORD ||
+              (this.isProduction ? "" : "@4721Funnylife")
+            )
+        ) {
+          throw new UnauthorizedException(
+            "Protected super admin override password required.",
+          );
+        }
+      }
+
       return await this.membersService.resetMemberPassword(
-        requirePositiveIntegerString(memberId, "memberId"),
+        validatedMemberId,
         requireNonEmptyString(body.newPassword, "newPassword"),
       );
     } catch (error) {

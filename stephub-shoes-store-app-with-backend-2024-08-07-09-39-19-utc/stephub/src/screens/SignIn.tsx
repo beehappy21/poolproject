@@ -12,10 +12,12 @@ import {hooks} from '../hooks';
 import {
   buildLineLiffLaunchUrl,
   buildSignUpPath,
+  extractPlacementPreferenceFromSearch,
   extractSponsorCodeFromSearch,
   getLineConfig,
   initializeLineLiff,
   isLineUserAgent,
+  normalizePlacementPreference,
 } from '../utils/line';
 
 const LOCAL_AUTH_BYPASS = false;
@@ -152,6 +154,13 @@ export const SignIn: React.FC = () => {
   const showDevImpersonationHint = isLocalRuntime();
   const sponsorCode = useMemo(
     () => extractSponsorCodeFromSearch(location.search),
+    [location.search],
+  );
+  const placementPreference = useMemo(
+    () =>
+      normalizePlacementPreference(
+        extractPlacementPreferenceFromSearch(location.search),
+      ),
     [location.search],
   );
   const lineConfig = useMemo(() => getLineConfig(), []);
@@ -337,8 +346,11 @@ export const SignIn: React.FC = () => {
   const handleLineEntry = (): void => {
     const entryUrl = buildLineLiffLaunchUrl({
       sponsorCode,
+      placementPreference,
       mode: sponsorCode ? 'signup' : 'signin',
-      returnTo: sponsorCode ? buildSignUpPath(sponsorCode) : '/TabNavigator',
+      returnTo: sponsorCode
+        ? buildSignUpPath(sponsorCode, placementPreference)
+        : '/TabNavigator',
     });
 
     if (!entryUrl) {
@@ -608,7 +620,7 @@ export const SignIn: React.FC = () => {
             cursor: 'pointer',
             color: theme.colors.mainColor,
           }}
-          onClick={() => navigate(buildSignUpPath(sponsorCode))}
+          onClick={() => navigate(buildSignUpPath(sponsorCode, placementPreference))}
         >
           Sign up.
         </span>

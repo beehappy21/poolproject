@@ -14,8 +14,8 @@ const prisma = new PrismaClient();
 const API_BASE_URL = process.env.API_BASE_URL || "http://127.0.0.1:3000";
 const WORKBOOK_PATH = process.env.ALLSALE_WORKBOOK || "allsaletest02042026.xlsx";
 const ADMIN_IDENTIFIER =
-  process.env.ALLSALE_ADMIN_IDENTIFIER || "TH0000013";
-const ADMIN_PASSWORD = process.env.ALLSALE_ADMIN_PASSWORD || "a1a1a1";
+  process.env.ALLSALE_ADMIN_IDENTIFIER || "dev-admin@example.com";
+const ADMIN_PASSWORD = process.env.ALLSALE_ADMIN_PASSWORD || "472121";
 const SOURCE_TAG = process.env.ALLSALE_SOURCE_TAG || "allsaletest02042026";
 const LIMIT = Number.parseInt(process.env.ALLSALE_LIMIT || "0", 10) || 0;
 const START_SEQUENCE =

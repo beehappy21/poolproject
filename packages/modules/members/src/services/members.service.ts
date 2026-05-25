@@ -19,7 +19,7 @@ export interface MembersServiceContract {
         sponsorId: string | null;
         nationalId?: string | null;
         uplineUserId?: string | null;
-        placementSide?: "LEFT" | "RIGHT" | null;
+        placementSide?: "LEFT" | "MIDDLE" | "RIGHT" | null;
         rankCode?: string | null;
         honorTitle?: string | null;
         mobileCenterCode?: string | null;
@@ -34,7 +34,7 @@ export interface MembersServiceContract {
           sponsorId: string | null;
           nationalId?: string | null;
           uplineUserId?: string | null;
-          placementSide?: "LEFT" | "RIGHT" | null;
+          placementSide?: "LEFT" | "MIDDLE" | "RIGHT" | null;
           rankCode?: string | null;
           honorTitle?: string | null;
           mobileCenterCode?: string | null;
@@ -79,6 +79,20 @@ export interface MembersServiceContract {
     uplineLevelCount: number;
   } | null>;
 
+  getTopLeaderboard(
+    memberId: string,
+    limit?: number,
+  ): Promise<
+    Array<{
+      memberId: string;
+      memberCode: string;
+      name: string;
+      sponsorMemberCode: string | null;
+      sponsorName: string | null;
+      totalCommission: string;
+    }>
+  >;
+
   getMemberCycles(
     memberId: string,
     evaluationAt: string,
@@ -104,7 +118,7 @@ export interface MembersServiceContract {
     sponsorId: string | null;
     nationalId?: string | null;
     uplineUserId?: string | null;
-    placementSide?: "LEFT" | "RIGHT" | null;
+    placementSide?: "LEFT" | "MIDDLE" | "RIGHT" | null;
     rankCode?: string | null;
     honorTitle?: string | null;
     mobileCenterCode?: string | null;
@@ -119,7 +133,7 @@ export interface MembersServiceContract {
     sponsorId: string | null;
     nationalId?: string | null;
     uplineUserId?: string | null;
-    placementSide?: "LEFT" | "RIGHT" | null;
+    placementSide?: "LEFT" | "MIDDLE" | "RIGHT" | null;
     rankCode?: string | null;
     honorTitle?: string | null;
     mobileCenterCode?: string | null;
@@ -140,8 +154,15 @@ export interface MembersServiceContract {
       referralCode: string;
       name: string;
       sponsorId: string | null;
+      placementSide?: "LEFT" | "MIDDLE" | "RIGHT" | null;
       childCount: number;
     }>;
+    legTotals: {
+      DIRECT: number;
+      LEFT: number;
+      MIDDLE: number;
+      RIGHT: number;
+    };
   } | null>;
 
   getReferralLink(memberCode: string, baseUrl?: string): Promise<{
@@ -160,6 +181,7 @@ export interface MembersServiceContract {
     sponsorId?: string | null;
     sponsorCode?: string | null;
     ref?: string | null;
+    placementPreference?: "AUTO" | "LEFT" | "MIDDLE" | "RIGHT" | null;
     password?: string | null;
     lineBinding?: {
       lineUserId: string;
@@ -289,6 +311,62 @@ export interface MembersServiceContract {
     activeUntil: string;
   }>;
 
+  allocateApprovedOrderPvToCycles(input: {
+    memberId: string;
+    totalPv: string;
+    sourceOrderId: string;
+    productDetailId?: string;
+    packageId?: string;
+    activatedAt?: string;
+  }): Promise<{
+    affectedCycleIds: string[];
+    openedCycleIds: string[];
+    totalAllocatedPv: string;
+    overflowCycleCount: number;
+  }>;
+
+  grantSpecialCommissionCycle(input: {
+    memberId: string;
+    grantCode: "SPECIAL_100_PV" | "SPECIAL_200_PV";
+    reason: string;
+    note?: string | null;
+    grantedByAdminName?: string | null;
+    grantedByAdminEmail?: string | null;
+    activatedAt?: string;
+  }): Promise<{
+    grantId: string;
+    cycleId: string;
+    memberId: string;
+    cycleNo: number;
+    memberCode: string;
+    grantCode: "SPECIAL_100_PV" | "SPECIAL_200_PV";
+    grantedPv: string;
+    purchaseBase: string;
+    earningCap: string;
+    cycleCapTier: "BELOW_200_PV" | "AT_LEAST_200_PV";
+    isReceivable: boolean;
+    activatedAt: string;
+    reason: string;
+    note: string | null;
+  }>;
+
+  closeLatestSpecialCommissionCycle(input: {
+    memberId: string;
+    closedByAdminName?: string | null;
+    closedByAdminEmail?: string | null;
+    closedAt?: string;
+  }): Promise<{
+    grantId: string;
+    cycleId: string;
+    memberId: string;
+    memberCode: string;
+    cycleNo: number;
+    grantCode: "SPECIAL_100_PV" | "SPECIAL_200_PV";
+    closedAt: string;
+    nextReceivableCycleId: string | null;
+    nextReceivableCycleNo: number | null;
+  }>;
+
   resetMemberPassword(
     memberId: string,
     newPassword: string,
@@ -313,6 +391,10 @@ export class MembersService implements MembersServiceContract {
 
   async getMemberNetwork(memberId: string) {
     return this.membersRepository.findMemberNetwork(memberId);
+  }
+
+  async getTopLeaderboard(memberId: string, limit = 10) {
+    return this.membersRepository.findTopLeaderboardBySponsor(memberId, limit);
   }
 
   async getMemberCycles(
@@ -351,7 +433,29 @@ export class MembersService implements MembersServiceContract {
     return this.membersRepository.findMemberByCode(memberCode);
   }
 
-  async getDirectReferralsByMemberCode(memberCode: string) {
+  async getDirectReferralsByMemberCode(
+    memberCode: string,
+    options?: { viewerMemberCode?: string | null },
+  ) {
+    if (options?.viewerMemberCode) {
+      const viewer = await this.membersRepository.findMemberByCode(
+        options.viewerMemberCode,
+      );
+      if (!viewer) {
+        return null;
+      }
+
+      const allowedIds = new Set(
+        await this.membersRepository.findSubtreeMemberIdsBySponsorId(viewer.memberId),
+      );
+      allowedIds.add(viewer.memberId);
+
+      const target = await this.membersRepository.findMemberByCode(memberCode);
+      if (!target || !allowedIds.has(target.memberId)) {
+        return null;
+      }
+    }
+
     return this.membersRepository.findDirectReferralsByMemberCode(memberCode);
   }
 
@@ -368,8 +472,8 @@ export class MembersService implements MembersServiceContract {
       memberCode: member.memberCode,
       sponsorCode: member.memberCode,
       referralCode: member.referralCode,
-      referralLink: `${normalizedBaseUrl}/SignUp?sponsorCode=${encodeURIComponent(member.memberCode)}`,
-      lineReferralLink: `${normalizedBaseUrl}/line/liff/signin?mode=signup&sponsorCode=${encodeURIComponent(member.memberCode)}`,
+      referralLink: `${normalizedBaseUrl}/SignUp?ref=${encodeURIComponent(member.referralCode)}`,
+      lineReferralLink: `${normalizedBaseUrl}/line/liff/signin?mode=signup&ref=${encodeURIComponent(member.referralCode)}`,
     };
   }
 
@@ -381,6 +485,7 @@ export class MembersService implements MembersServiceContract {
     sponsorId?: string | null;
     sponsorCode?: string | null;
     ref?: string | null;
+    placementPreference?: "AUTO" | "LEFT" | "MIDDLE" | "RIGHT" | null;
     password?: string | null;
     lineBinding?: {
       lineUserId: string;
@@ -454,6 +559,38 @@ export class MembersService implements MembersServiceContract {
     activatedAt?: string;
   }) {
     return this.membersRepository.activateProductCycle(input);
+  }
+
+  async allocateApprovedOrderPvToCycles(input: {
+    memberId: string;
+    totalPv: string;
+    sourceOrderId: string;
+    productDetailId?: string;
+    packageId?: string;
+    activatedAt?: string;
+  }) {
+    return this.membersRepository.allocateApprovedOrderPvToCycles(input);
+  }
+
+  async grantSpecialCommissionCycle(input: {
+    memberId: string;
+    grantCode: "SPECIAL_100_PV" | "SPECIAL_200_PV";
+    reason: string;
+    note?: string | null;
+    grantedByAdminName?: string | null;
+    grantedByAdminEmail?: string | null;
+    activatedAt?: string;
+  }) {
+    return this.membersRepository.grantSpecialCommissionCycle(input);
+  }
+
+  async closeLatestSpecialCommissionCycle(input: {
+    memberId: string;
+    closedByAdminName?: string | null;
+    closedByAdminEmail?: string | null;
+    closedAt?: string;
+  }) {
+    return this.membersRepository.closeLatestSpecialCommissionCycle(input);
   }
 
   async resetMemberPassword(memberId: string, newPassword: string) {

@@ -2,6 +2,7 @@
 
 namespace App\Orchid\Screens\ProductFamily;
 
+use App\Models\Category;
 use App\Models\ProductDetailRecord;
 use App\Models\ProductRecord;
 use Orchid\Screen\Actions\Button;
@@ -20,6 +21,9 @@ class ProductFamilyListScreen extends Screen
         return [
             'families' => ProductRecord::query()
                 ->with(['supplier', 'category'])
+                ->whereHas('category', function ($query) {
+                    $query->where('code', '!=', Category::PERMANENT_FIRM_CATEGORY_CODE);
+                })
                 ->orderByDesc('updatedAt')
                 ->paginate(10),
         ];

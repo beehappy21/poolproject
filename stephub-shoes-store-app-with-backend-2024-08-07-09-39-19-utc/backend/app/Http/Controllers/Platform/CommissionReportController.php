@@ -2,11 +2,16 @@
 
 namespace App\Http\Controllers\Platform;
 
+use App\Support\BaoAdminApiClient;
+use App\Support\CommissionBaselineDayRunner;
+use App\Support\CommissionBaselineRuntimeResetter;
 use App\Support\CommissionReportBuilder;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\File;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Orchid\Support\Facades\Alert;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
@@ -17,6 +22,157 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class CommissionReportController extends Controller
 {
     private const PDF_EXPORT_ROW_LIMIT = 500;
+
+    public function processNextMember(Request $request, BaoAdminApiClient $apiClient): RedirectResponse
+    {
+        $validated = $this->validateActionRequest($request);
+        $mode = CommissionReportBuilder::normalizeMode((string) ($validated['report_mode'] ?? 'overview'));
+        $status = CommissionBaselineDayRunner::currentDayStatus();
+
+        if ($status === null) {
+            Alert::warning('ไม่พบสมาชิกที่รอสร้าง order baseline แล้ว');
+
+            return $this->redirectToReport($mode, $validated);
+        }
+
+        if (empty($status['canSeedNextMember'])) {
+            Alert::warning('สมาชิกของวันที่ ' . $status['workingDate'] . ' ครบแล้ว กรุณากดคำนวณเมื่อหมดวัน');
+
+            return $this->redirectToReport($mode, $validated);
+        }
+
+        try {
+            $result = CommissionBaselineDayRunner::processNextMember($apiClient);
+        } catch (\Throwable $exception) {
+            Alert::error($exception->getMessage());
+
+            return $this->redirectToReport($mode, $validated);
+        }
+
+        $message = 'สั่งสินค้าและประมวลผลตามระบบให้สมาชิก ' . $result['memberCode'] . ' ของวันที่ ' . $result['settlementDate'] . ' เรียบร้อยแล้ว';
+        if (!empty($result['orderNo'])) {
+            $message .= ' (' . $result['orderNo'] . ')';
+        }
+
+        Alert::info($message);
+
+        return $this->redirectToReport($mode, $validated);
+    }
+
+    public function finalizeCurrentDay(Request $request, BaoAdminApiClient $apiClient): RedirectResponse
+    {
+        $validated = $this->validateActionRequest($request);
+        $mode = CommissionReportBuilder::normalizeMode((string) ($validated['report_mode'] ?? 'overview'));
+        $status = CommissionBaselineDayRunner::currentDayStatus();
+
+        if ($status === null) {
+            Alert::warning('ไม่พบวันที่รอคำนวณ end-of-day แล้ว');
+
+            return $this->redirectToReport($mode, $validated);
+        }
+
+        if (empty($status['canFinalizeDay'])) {
+            Alert::warning(
+                !empty($status['canSeedNextMember'])
+                    ? 'วันที่ ' . $status['workingDate'] . ' ยังมีสมาชิกค้างสร้างรายการอีก ' . $status['remainingMemberCount'] . ' รายการ'
+                    : 'วันที่ ' . $status['workingDate'] . ' ยังไม่พร้อมคำนวณ end-of-day'
+            );
+
+            return $this->redirectToReport($mode, $validated);
+        }
+
+        try {
+            $result = CommissionBaselineDayRunner::finalizeCurrentDay($apiClient);
+        } catch (\Throwable $exception) {
+            Alert::error($exception->getMessage());
+
+            return $this->redirectToReport($mode, $validated);
+        }
+
+        Alert::info('คำนวณเมื่อหมดวันสำหรับวันที่ ' . $result['settlementDate'] . ' เรียบร้อยแล้ว');
+
+        return $this->redirectToReport($mode, $validated);
+    }
+
+    public function resetBaselineRuntime(Request $request): RedirectResponse
+    {
+        $validated = $this->validateActionRequest($request);
+        $mode = CommissionReportBuilder::normalizeMode((string) ($validated['report_mode'] ?? 'overview'));
+
+        try {
+            $result = CommissionBaselineRuntimeResetter::reset();
+        } catch (\Throwable $exception) {
+            Alert::error($exception->getMessage());
+
+            return $this->redirectToReport($mode, $validated);
+        }
+
+        Alert::info(
+            'เริ่มรอบคอมมิชชั่นใหม่เรียบร้อยแล้ว'
+            . ' คงสมาชิก ' . (int) ($result['preservedUserCount'] ?? 0) . ' รหัส'
+            . ' / member profile ' . (int) ($result['preservedMemberProfileCount'] ?? 0) . ' รายการ'
+            . ' ลบ order ' . (int) ($result['deletedBaselineOrderCount'] ?? 0) . ' รายการ'
+            . ' ลบ commission ' . (int) ($result['deletedCommissionLedgerCount'] ?? 0) . ' รายการ'
+            . ' ลบ wallet tx ' . (int) ($result['deletedWalletTransactionCount'] ?? 0) . ' รายการ'
+            . ' ล้าง team batch ' . (int) ($result['deletedTeamSettlementBatchCount'] ?? 0) . ' รายการ'
+            . ' ล้าง pool cycle ' . (int) ($result['deletedPoolCycleCount'] ?? 0) . ' รายการ'
+            . ' รีเซ็ต wallet ' . (int) ($result['resetWalletCount'] ?? 0) . ' กระเป๋า'
+            . ' และลบ PV สะสม ' . (int) ($result['resetMatrixPvUserCount'] ?? 0) . ' รหัส'
+        );
+
+        return $this->redirectToReport($mode, $validated);
+    }
+
+    public function processSingleDay(Request $request, BaoAdminApiClient $apiClient): RedirectResponse
+    {
+        $validated = $this->validateActionRequest($request);
+
+        if (CommissionBaselineDayRunner::nextActionDate() === null) {
+            Alert::warning('ไม่พบวันที่รอคำนวณเพิ่มเติมแล้ว');
+
+            return $this->redirectToReport(
+                CommissionReportBuilder::normalizeMode((string) ($validated['report_mode'] ?? 'overview')),
+                $validated
+            );
+        }
+
+        try {
+            $run = CommissionBaselineDayRunner::runNextDay($apiClient);
+        } catch (\Throwable $exception) {
+            Alert::error($exception->getMessage());
+
+            return $this->redirectToReport(
+                CommissionReportBuilder::normalizeMode((string) ($validated['report_mode'] ?? 'overview')),
+                $validated
+            );
+        }
+
+        $message = 'คำนวณคอมมิชชั่นรายวันสำหรับวันที่ ' . $run['settlementDate'] . ' เรียบร้อยแล้ว';
+        if (!empty($run['seeded'])) {
+            $message .= sprintf(
+                ' พร้อมสร้าง order baseline %d รายการ',
+                (int) ($run['createdOrderCount'] ?? 0)
+            );
+        }
+        if (!empty($run['processedExistingOrderCount'])) {
+            $message .= sprintf(
+                ' และประมวลผล order ค้างเดิมต่อ %d รายการ',
+                (int) ($run['processedExistingOrderCount'] ?? 0)
+            );
+        }
+        if (!empty($run['reusedOrderCount'])) {
+            $message .= sprintf(
+                ' (reuse order เดิม %d รายการ)',
+                (int) ($run['reusedOrderCount'] ?? 0)
+            );
+        }
+        Alert::info($message);
+
+        return $this->redirectToReport(
+            CommissionReportBuilder::normalizeMode((string) ($validated['report_mode'] ?? 'overview')),
+            $validated
+        );
+    }
 
     public function export(Request $request, ?string $reportMode = 'overview'): StreamedResponse
     {
@@ -127,8 +283,7 @@ class CommissionReportController extends Controller
     private function headersForMode(string $mode): array
     {
         return match ($mode) {
-            'overview' => ['วันที่', 'รหัสสมาชิก', 'ชื่อสมาชิก', 'โบนัสแนะนำ', 'Cash Back', 'พูลโบนัส', 'ยูนิลีเวล', 'เมทริกซ์', 'จำนวนรวม'],
-            'matrix' => ['วันที่', 'รหัสสมาชิก', 'ชื่อสมาชิก', 'จาก', 'ชื่อ', 'Board', 'ลำดับชั้น', 'พีวี', 'เปอร์เซ็นต์', 'จำนวน'],
+            'overview' => ['วันที่', 'รหัสสมาชิก', 'ชื่อสมาชิก', 'โบนัสแนะนำ', 'โบนัสทีม', 'โบนัส Matching', 'พูลโบนัส', 'จำนวนรวม'],
             'pool' => ['วันที่', 'รหัสสมาชิก', 'ชื่อสมาชิก', 'พีวี', 'เปอร์เซ็นต์', 'จำนวน'],
             default => ['วันที่', 'รหัสสมาชิก', 'ชื่อสมาชิก', 'จาก', 'ชื่อ', 'ลำดับชั้น', 'พีวี', 'เปอร์เซ็นต์', 'จำนวน'],
         };
@@ -142,26 +297,10 @@ class CommissionReportController extends Controller
                 $row['beneficiaryMemberCode'],
                 $row['beneficiaryName'],
                 number_format((float) $row['directAmount'], 2, '.', ''),
-                number_format((float) $row['cashbackAmount'], 2, '.', ''),
+                number_format((float) $row['teamAmount'], 2, '.', ''),
+                number_format((float) $row['matchingAmount'], 2, '.', ''),
                 number_format((float) $row['poolAmount'], 2, '.', ''),
-                number_format((float) $row['uniAmount'], 2, '.', ''),
-                number_format((float) $row['matrixAmount'], 2, '.', ''),
                 number_format((float) $row['totalAmount'], 2, '.', ''),
-            ];
-        }
-
-        if ($mode === 'matrix') {
-            return [
-                $row['reportDate'],
-                $row['beneficiaryMemberCode'],
-                $row['beneficiaryName'],
-                $row['sourceMemberCode'],
-                $row['sourceName'],
-                $row['boardLabel'] ?? ($row['boardNo'] ?? '-'),
-                $row['levelNo'],
-                number_format((float) $row['basePv'], 2, '.', ''),
-                number_format((float) $row['rate'], 2, '.', ''),
-                number_format((float) $row['amount'], 2, '.', ''),
             ];
         }
 
@@ -189,6 +328,49 @@ class CommissionReportController extends Controller
         ];
     }
 
+    private function routeNameForMode(string $mode): string
+    {
+        return match ($mode) {
+            'direct' => 'platform.commission.report.direct',
+            'team' => 'platform.commission.report.team',
+            'matching' => 'platform.commission.report.matching',
+            'pool' => 'platform.commission.report.pool',
+            default => 'platform.commission.report',
+        };
+    }
+
+    private function validateActionRequest(Request $request): array
+    {
+        return $request->validate([
+            'settlement_date' => ['nullable', 'date_format:Y-m-d'],
+            'report_mode' => ['nullable', 'string'],
+            'member_from' => ['nullable', 'string'],
+            'member_to' => ['nullable', 'string'],
+            'date_from' => ['nullable', 'string'],
+            'date_to' => ['nullable', 'string'],
+            'page_size' => ['nullable', 'string'],
+            'format' => ['nullable', 'string'],
+        ]);
+    }
+
+    private function redirectToReport(string $mode, array $validated): RedirectResponse
+    {
+        return redirect()
+            ->route($this->routeNameForMode($mode), $this->queryParamsForRedirect($validated));
+    }
+
+    private function queryParamsForRedirect(array $validated): array
+    {
+        return array_filter([
+            'member_from' => $validated['member_from'] ?? null,
+            'member_to' => $validated['member_to'] ?? null,
+            'date_from' => $validated['date_from'] ?? null,
+            'date_to' => $validated['date_to'] ?? null,
+            'page_size' => $validated['page_size'] ?? null,
+            'format' => $validated['format'] ?? null,
+        ], static fn ($value) => $value !== null && $value !== '');
+    }
+
     private function tabularData(string $mode, $rows): array
     {
         return [
@@ -209,10 +391,9 @@ class CommissionReportController extends Controller
                 '',
                 '',
                 $this->formatDecimal((float) ($totals['directAmount'] ?? 0)),
-                $this->formatDecimal((float) ($totals['cashbackAmount'] ?? 0)),
+                $this->formatDecimal((float) ($totals['teamAmount'] ?? 0)),
+                $this->formatDecimal((float) ($totals['matchingAmount'] ?? 0)),
                 $this->formatDecimal((float) ($totals['poolAmount'] ?? 0)),
-                $this->formatDecimal((float) ($totals['uniAmount'] ?? 0)),
-                $this->formatDecimal((float) ($totals['matrixAmount'] ?? 0)),
                 $this->formatDecimal((float) ($totals['totalAmount'] ?? 0)),
             ];
         }
@@ -224,21 +405,6 @@ class CommissionReportController extends Controller
                 '',
                 $this->formatDecimal((float) ($totals['basePv'] ?? 0)),
                 $this->formatDecimal((float) ($totals['avgRate'] ?? 0)),
-                $this->formatDecimal((float) ($totals['amount'] ?? 0)),
-            ];
-        }
-
-        if ($mode === 'matrix') {
-            return [
-                'รวมทั้งหมด',
-                '',
-                '',
-                '',
-                '',
-                (string) ((int) ($totals['boardCount'] ?? 0)),
-                '',
-                $this->formatDecimal((float) ($totals['basePv'] ?? 0)),
-                '',
                 $this->formatDecimal((float) ($totals['amount'] ?? 0)),
             ];
         }

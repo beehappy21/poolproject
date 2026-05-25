@@ -118,6 +118,22 @@ const resizeTransferSlipImage = async (file: File): Promise<string> => {
   return canvas.toDataURL('image/jpeg', TRANSFER_SLIP_OUTPUT_QUALITY);
 };
 
+const writeReceiptWindowMessage = (
+  receiptWindow: Window | null,
+  title: string,
+  body: string,
+): void => {
+  if (!receiptWindow) {
+    return;
+  }
+
+  receiptWindow.document.open();
+  receiptWindow.document.write(
+    `<!DOCTYPE html><html><head><meta charset="utf-8" /><title>${title}</title></head><body style="font-family: Arial, sans-serif; padding: 24px; line-height: 1.6;">${body}</body></html>`,
+  );
+  receiptWindow.document.close();
+};
+
 export const OrderHistory: FC = () => {
   const navigate = hooks.useAppNavigate();
   const user = hooks.useAppSelector((state: RootState) => state.userSlice.user);
@@ -143,16 +159,24 @@ export const OrderHistory: FC = () => {
     {},
   );
 
+  const normalizeApprovalStatus = (approvalStatus?: string | null): string => {
+    return String(approvalStatus || '').trim().toLowerCase();
+  };
+
+  const isOrderApproved = (order: LiveOrder): boolean => {
+    return normalizeApprovalStatus(order.approvalStatus) === 'approved';
+  };
+
   const getOrderState = (order: LiveOrder): string => {
     if (order.fulfillmentMethod === 'branch_pickup') {
       if (order.deliveredAt) return 'รับสินค้าแล้ว';
       if (order.shippedAt) return 'พร้อมรับที่สาขา';
-      if (order.approvalStatus === 'approved') return 'รอรับที่สาขา';
+      if (isOrderApproved(order)) return 'รอรับที่สาขา';
     }
 
     if (order.deliveredAt) return 'ส่งถึงแล้ว';
     if (order.shippedAt) return 'จัดส่งแล้ว';
-    if (order.approvalStatus === 'approved') return 'รอจัดส่ง';
+    if (isOrderApproved(order)) return 'รอจัดส่ง';
     if (order.transferSubmittedAt) return 'รอตรวจสอบการโอน';
     return 'รอชำระ';
   };
@@ -161,12 +185,12 @@ export const OrderHistory: FC = () => {
     if (order.fulfillmentMethod === 'branch_pickup') {
       if (order.deliveredAt) return '#51BA74';
       if (order.shippedAt) return '#F5C102';
-      if (order.approvalStatus === 'approved') return theme.colors.mainColor;
+      if (isOrderApproved(order)) return theme.colors.mainColor;
     }
 
     if (order.deliveredAt) return '#51BA74';
     if (order.shippedAt) return '#F5C102';
-    if (order.approvalStatus === 'approved') return theme.colors.mainColor;
+    if (isOrderApproved(order)) return theme.colors.mainColor;
     if (order.transferSubmittedAt) return '#F97316';
     return '#FF4343';
   };
@@ -191,7 +215,7 @@ export const OrderHistory: FC = () => {
         return 'สร้างคำสั่งซื้อ -> ส่งสลิป -> อนุมัติ -> พร้อมรับที่สาขา';
       }
 
-      if (order.approvalStatus === 'approved') {
+      if (isOrderApproved(order)) {
         return 'สร้างคำสั่งซื้อ -> ส่งสลิป -> อนุมัติ -> รอรับที่สาขา';
       }
     }
@@ -204,7 +228,7 @@ export const OrderHistory: FC = () => {
       return 'สร้างคำสั่งซื้อ -> ส่งสลิป -> อนุมัติ -> จัดส่ง';
     }
 
-    if (order.approvalStatus === 'approved') {
+    if (isOrderApproved(order)) {
       return 'สร้างคำสั่งซื้อ -> ส่งสลิป -> อนุมัติ -> รอจัดส่ง';
     }
 
@@ -216,7 +240,7 @@ export const OrderHistory: FC = () => {
   };
 
   const getApprovalStatusLabel = (approvalStatus: string): string => {
-    if (approvalStatus === 'approved') {
+    if (normalizeApprovalStatus(approvalStatus) === 'approved') {
       return 'อนุมัติแล้ว';
     }
 
@@ -224,11 +248,91 @@ export const OrderHistory: FC = () => {
   };
 
   const canSubmitTransferSlip = (order: LiveOrder): boolean => {
-    return !order.transferSubmittedAt && order.approvalStatus !== 'approved';
+    return !order.transferSubmittedAt && !isOrderApproved(order);
   };
 
   const shouldShowPaymentInstructions = (order: LiveOrder): boolean => {
-    return order.approvalStatus !== 'approved';
+    return !isOrderApproved(order);
+  };
+
+  const canDownloadReceipt = (order: LiveOrder): boolean => {
+    return isOrderApproved(order) || !!order.shippedAt || !!order.deliveredAt;
+  };
+
+  const handleReceiptDownload = async (order: LiveOrder): Promise<void> => {
+    if (!user?.accessToken) {
+      setSubmitErrorMessage('กรุณาเข้าสู่ระบบก่อนดาวน์โหลดใบเสร็จ');
+      return;
+    }
+
+    const receiptWindow = window.open('', '_blank');
+
+    writeReceiptWindowMessage(
+      receiptWindow,
+      'กำลังโหลดใบเสร็จ',
+      'กำลังโหลดใบเสร็จ...',
+    );
+
+    try {
+      const response = await axios.get(
+        URLS.buildAuthOrderReceiptUrl(order.orderId),
+        {
+          headers: {
+            Authorization: `Bearer ${user.accessToken}`,
+          },
+          withCredentials: true,
+          responseType: 'arraybuffer',
+        },
+      );
+
+      const contentType = String(response.headers['content-type'] || '').toLowerCase();
+      const responseData = response.data as ArrayBuffer;
+
+      if (contentType.includes('text/html')) {
+        const html = new TextDecoder('utf-8').decode(responseData);
+
+        if (receiptWindow) {
+          receiptWindow.document.open();
+          receiptWindow.document.write(html);
+          receiptWindow.document.close();
+        } else {
+          const htmlBlob = new Blob([html], {type: 'text/html; charset=utf-8'});
+          const htmlUrl = window.URL.createObjectURL(htmlBlob);
+          window.open(htmlUrl, '_blank');
+          window.setTimeout(() => {
+            window.URL.revokeObjectURL(htmlUrl);
+          }, 60000);
+        }
+
+        return;
+      }
+
+      const blobType = contentType || 'application/pdf';
+      const blobUrl = window.URL.createObjectURL(
+        new Blob([responseData], {type: blobType}),
+      );
+
+      if (receiptWindow) {
+        receiptWindow.location.replace(blobUrl);
+      } else {
+        const downloadLink = document.createElement('a');
+        downloadLink.href = blobUrl;
+        downloadLink.target = '_blank';
+        downloadLink.click();
+      }
+
+      window.setTimeout(() => {
+        window.URL.revokeObjectURL(blobUrl);
+      }, 60000);
+    } catch (error) {
+      console.error(error);
+      writeReceiptWindowMessage(
+        receiptWindow,
+        'ไม่สามารถโหลดใบเสร็จได้',
+        'ไม่สามารถโหลดใบเสร็จได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง',
+      );
+      setSubmitErrorMessage('ไม่สามารถโหลดใบเสร็จได้ในขณะนี้');
+    }
   };
 
   const getOrders = useCallback(async (): Promise<void> => {
@@ -758,6 +862,26 @@ export const OrderHistory: FC = () => {
                         เปิดสลิปโอนเงิน
                       </a>
                     ) : null}
+                    {canDownloadReceipt(order) ? (
+                      <button
+                        type='button'
+                        onClick={() => void handleReceiptDownload(order)}
+                        style={{
+                          width: 'fit-content',
+                          border: '1px solid #B7D6C2',
+                          borderRadius: 999,
+                          padding: '10px 16px',
+                          backgroundColor: '#EFFAF3',
+                          color: '#20744A',
+                          cursor: 'pointer',
+                          ...theme.fonts.Mulish_700Bold,
+                          fontSize: 13,
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        ดาวน์โหลดใบเสร็จ
+                      </button>
+                    ) : null}
                   </div>
                   <div
                     style={{
@@ -1122,8 +1246,7 @@ export const OrderHistory: FC = () => {
                         detail?.productItems?.find(item => item.productDetailId) ||
                         detail?.items?.find(item => item.productDetailId);
                       const canReview =
-                        order.approvalStatus === 'approved' &&
-                        Boolean(reviewItem?.productDetailId);
+                        isOrderApproved(order) && Boolean(reviewItem?.productDetailId);
 
                       return (
                         <>

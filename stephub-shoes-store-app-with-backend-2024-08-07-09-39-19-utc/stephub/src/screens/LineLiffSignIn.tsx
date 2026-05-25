@@ -13,14 +13,17 @@ import {
   buildLineShareUrl,
   buildLineLoginCallbackUrl,
   buildSignUpPath,
+  extractPlacementPreferenceFromSearch,
   extractSponsorCodeFromSearch,
   getLineConfig,
   initializeLineLiff,
+  normalizePlacementPreference,
   normalizeSponsorCode,
   resolveSignupSponsorCode,
   parseLineCallbackSearch,
   resolveSafeReturnTo,
   type LineEntryMode,
+  type SignupPlacementPreference,
 } from '../utils/line';
 
 type LineLoginResponse = {
@@ -127,9 +130,16 @@ const buildLocalReferralPreviewLink = (code: string) => {
 const buildBaoAlignedReferralLink = (payload?: {
   memberCode?: string;
   sponsorCode?: string;
+  referralCode?: string;
   referralLink?: string;
   lineReferralLink?: string;
 }) => {
+  const referralCode = normalizeMemberCode(payload?.referralCode);
+
+  if (referralCode) {
+    return buildLocalReferralPreviewLink(referralCode);
+  }
+
   const sponsorCode = normalizeMemberCode(payload?.sponsorCode || payload?.memberCode);
 
   if (sponsorCode) {
@@ -145,9 +155,9 @@ const buildBaoAlignedReferralLink = (payload?: {
   try {
     const parsedUrl = new URL(rawLink);
     const rawSponsorCode =
+      parsedUrl.searchParams.get('ref') ||
       parsedUrl.searchParams.get('sponsorCode') ||
-      parsedUrl.searchParams.get('sponsor_code') ||
-      parsedUrl.searchParams.get('ref');
+      parsedUrl.searchParams.get('sponsor_code');
 
     const normalizedSponsorCode = normalizeMemberCode(rawSponsorCode);
 
@@ -183,6 +193,13 @@ export const LineLiffSignIn: React.FC = () => {
     () => query.get('sponsorCode') || extractSponsorCodeFromSearch(location.search),
     [location.search, query],
   );
+  const placementPreference = useMemo<SignupPlacementPreference>(
+    () =>
+      normalizePlacementPreference(
+        query.get('placement') || extractPlacementPreferenceFromSearch(location.search),
+      ),
+    [location.search, query],
+  );
   const mode = useMemo(() => parseMode(query.get('mode')), [query]);
   const sponsorCode = useMemo(
     () =>
@@ -195,9 +212,11 @@ export const LineLiffSignIn: React.FC = () => {
     () =>
       resolveSafeReturnTo(
         query.get('returnTo'),
-        mode === 'signup' || sponsorCode ? buildSignUpPath(sponsorCode) : '/TabNavigator',
+        mode === 'signup' || sponsorCode
+          ? buildSignUpPath(sponsorCode, placementPreference)
+          : '/TabNavigator',
       ),
-    [mode, query, sponsorCode],
+    [mode, placementPreference, query, sponsorCode],
   );
 
   const [loading, setLoading] = useState(true);
@@ -243,9 +262,9 @@ export const LineLiffSignIn: React.FC = () => {
 
       if (!bootstrap.isLoggedIn) {
         if (mode === 'signup' && sponsorCode) {
-          navigate(buildSignUpPath(sponsorCode), {
+          navigate(buildSignUpPath(sponsorCode, placementPreference), {
             replace: true,
-            state: {sponsorCode},
+            state: {sponsorCode, placementPreference},
           });
           return;
         }
@@ -273,6 +292,7 @@ export const LineLiffSignIn: React.FC = () => {
         liff.login({
           redirectUri: buildLineLoginCallbackUrl({
             sponsorCode,
+            placementPreference,
             mode,
             returnTo,
           }),
@@ -293,9 +313,9 @@ export const LineLiffSignIn: React.FC = () => {
       }
 
       if (mode === 'signup' && sponsorCode) {
-        navigate(buildSignUpPath(sponsorCode), {
+        navigate(buildSignUpPath(sponsorCode, placementPreference), {
           replace: true,
-          state: {sponsorCode},
+          state: {sponsorCode, placementPreference},
         });
         return;
       }
@@ -426,9 +446,9 @@ export const LineLiffSignIn: React.FC = () => {
             sponsorCode &&
             error.response?.status === 401
           ) {
-            navigate(buildSignUpPath(sponsorCode), {
+            navigate(buildSignUpPath(sponsorCode, placementPreference), {
               replace: true,
-              state: {sponsorCode},
+              state: {sponsorCode, placementPreference},
             });
             return;
           }
@@ -476,7 +496,16 @@ export const LineLiffSignIn: React.FC = () => {
     return () => {
       mounted = false;
     };
-  }, [dispatch, lineConfig.liffId, mode, navigate, returnTo, sponsorCode, user]);
+  }, [
+    dispatch,
+    lineConfig.liffId,
+    mode,
+    navigate,
+    placementPreference,
+    returnTo,
+    sponsorCode,
+    user,
+  ]);
 
   return (
     <div
@@ -546,7 +575,7 @@ export const LineLiffSignIn: React.FC = () => {
           >
             Mode: {mode}
             <br />
-            Sponsor code: {sponsorCode || '-'}
+            Referral code: {sponsorCode || '-'}
             <br />
             Return to: {returnTo}
             <br />
@@ -592,8 +621,8 @@ export const LineLiffSignIn: React.FC = () => {
               {sponsorCode ? (
                 <button
                   onClick={() =>
-                    navigate(buildSignUpPath(sponsorCode), {
-                      state: {sponsorCode},
+                    navigate(buildSignUpPath(sponsorCode, placementPreference), {
+                      state: {sponsorCode, placementPreference},
                     })
                   }
                   style={{

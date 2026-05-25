@@ -22,6 +22,14 @@ const stack = createBrowserRouter([
         ),
       },
       {
+        path: 'dashboard',
+        element: (
+          <RequireAuth>
+            <TabNavigator />
+          </RequireAuth>
+        ),
+      },
+      {
         path: 'EditProfile',
         element: (
           <RequireAuth>
@@ -74,22 +82,6 @@ const stack = createBrowserRouter([
         element: (
           <RequireAuth>
             <screens.Commission />
-          </RequireAuth>
-        ),
-      },
-      {
-        path: 'CommissionMainPlan',
-        element: (
-          <RequireAuth>
-            <screens.CommissionMainPlan />
-          </RequireAuth>
-        ),
-      },
-      {
-        path: 'Firm',
-        element: (
-          <RequireAuth>
-            <screens.Firm />
           </RequireAuth>
         ),
       },

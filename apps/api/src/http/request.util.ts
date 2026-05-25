@@ -57,11 +57,33 @@ export function optionalImageReferenceString(
     return undefined;
   }
 
-  if (/^data:image\/(?:png|jpeg|jpg|webp);base64,/i.test(normalized)) {
+  const dataUrlMatch = normalized.match(/^data:image\/(png|jpeg|jpg|webp);base64,/i);
+  if (dataUrlMatch) {
+    const encoded = normalized.slice(dataUrlMatch[0].length);
+    if (!encoded || !/^[A-Za-z0-9+/=]+$/.test(encoded)) {
+      throw new BadRequestException(`${fieldName} must contain valid base64 image data.`);
+    }
+
+    const maxBytes = Number(process.env.APP_UPLOAD_MAX_BASE64_BYTES || 5 * 1024 * 1024);
+    const estimatedBytes = Math.floor((encoded.length * 3) / 4);
+    if (estimatedBytes > maxBytes) {
+      throw new BadRequestException(`${fieldName} exceeds the maximum upload size.`);
+    }
+
     return normalized;
   }
 
   return optionalUrlString(normalized, fieldName);
+}
+
+export function requireImageReferenceString(value: unknown, fieldName: string): string {
+  const normalized = optionalImageReferenceString(value, fieldName);
+
+  if (!normalized) {
+    throw new BadRequestException(`${fieldName} is required.`);
+  }
+
+  return normalized;
 }
 
 export function optionalUrlStringArray(

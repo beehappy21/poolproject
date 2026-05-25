@@ -42,6 +42,8 @@ export interface OrdersServiceContract {
         fulfillmentMethod: "delivery" | "branch_pickup";
         pickupBranchName: string | null;
         pickupBranchNote: string | null;
+        shippingAddressLine?: string | null;
+        shippingAddressNote?: string | null;
         createdAt: string;
       }>
     | {
@@ -70,6 +72,8 @@ export interface OrdersServiceContract {
           fulfillmentMethod: "delivery" | "branch_pickup";
           pickupBranchName: string | null;
           pickupBranchNote: string | null;
+          shippingAddressLine?: string | null;
+          shippingAddressNote?: string | null;
           createdAt: string;
         }>;
         total: number;
@@ -103,6 +107,8 @@ export interface OrdersServiceContract {
     fulfillmentMethod: "delivery" | "branch_pickup";
     pickupBranchName: string | null;
     pickupBranchNote: string | null;
+    shippingAddressLine?: string | null;
+    shippingAddressNote?: string | null;
     createdAt: string;
     autoOrderAudit?: {
       matrixEventId: string;
@@ -301,8 +307,8 @@ export interface OrdersServiceContract {
       commissionSettingsSnapshot: string | null;
       items: Array<{
         lineTotalPv: string;
+        lineTotalUsdt: string;
         poolRateMode?: "default_50_percent" | "custom_rate" | "disabled";
-        poolRate?: string;
       }>;
     }>
   >;
@@ -325,6 +331,7 @@ export interface OrdersServiceContract {
 }
 
 import { ApprovedOrderCommissionFlowResult } from "../../../commissions/src/domain/commissions.types";
+import { CapService } from "../../../cap";
 import { CommissionsService } from "../../../commissions/src/services/commissions.service";
 import { CommissionsServiceContract } from "../../../commissions/src/services/commissions.service";
 import { MatrixService } from "../../../matrix/src/services/matrix.service";
@@ -338,6 +345,7 @@ import { RiskService } from "../../../risk/src/services/risk.service";
 import { RiskServiceContract } from "../../../risk/src/services/risk.service";
 import { WalletsService } from "../../../wallets/src/services/wallets.service";
 import { WalletsServiceContract } from "../../../wallets/src/services/wallets.service";
+import { readWalletSettings } from "../../../../shared/utils/src/wallet-settings.util";
 import { ApprovedOrderOrchestrationResult } from "../domain/orders.types";
 import { PrismaOrdersRepository } from "../repositories/orders.repository";
 
@@ -356,6 +364,7 @@ export class OrdersService implements OrdersServiceContract {
     private readonly matrixService: MatrixService,
     private readonly riskService: RiskService,
     private readonly walletsService: WalletsService,
+    private readonly capService: CapService,
   ) {}
 
   async createOrder(input: {
@@ -523,8 +532,8 @@ export class OrdersService implements OrdersServiceContract {
       commissionSettingsSnapshot: string | null;
       items: Array<{
         lineTotalPv: string;
+        lineTotalUsdt: string;
         poolRateMode?: "default_50_percent" | "custom_rate" | "disabled";
-        poolRate?: string;
       }>;
     }>
   > {
@@ -540,6 +549,7 @@ export class OrdersService implements OrdersServiceContract {
     orderId: string;
     sourceUserId: string;
     approvedAt: string;
+    totalUsdt: string;
     totalPv: string;
     orderSourceType: "normal" | "matrix_reentry";
     commissionSettingsSnapshot: string | null;
@@ -569,6 +579,7 @@ export class OrdersService implements OrdersServiceContract {
 
   async handleApprovedOrder(
     orderId: string,
+    options?: { forceRecompute?: boolean },
   ): Promise<ApprovedOrderOrchestrationResult> {
     return this.withApprovedOrderLock(orderId, async () => {
       const approvedOrder = await this.handleApprovedOrderEvent(orderId);
@@ -593,11 +604,27 @@ export class OrdersService implements OrdersServiceContract {
       const commissionSettings = parseCommissionSettingsSnapshot(
         approvedOrder.commissionSettingsSnapshot,
       );
+      await this.refreshInitialPoolQualification({
+        beneficiaryUserId: approvedOrder.sourceUserId,
+        approvedOrderId: approvedOrder.orderId,
+        approvedAt: approvedOrder.approvedAt,
+      });
+      await this.commissionsService.handleQualifyingRepurchase({
+        beneficiaryUserId: approvedOrder.sourceUserId,
+        approvedOrderId: approvedOrder.orderId,
+        approvedAt: approvedOrder.approvedAt,
+        orderTotalPv: approvedOrder.totalPv,
+      });
       const existingCommissionEntries = this.asCommissionEntryArray(
         await this.commissionsService.listCommissions({ orderId }),
       );
 
-      if (existingCommissionEntries.length > 0) {
+      if (options?.forceRecompute) {
+        await this.commissionsService.clearOrderCommissionArtifacts(orderId);
+      }
+
+      if (!options?.forceRecompute && existingCommissionEntries.length > 0) {
+        await this.capService.grantCapForApprovedOrder(orderId);
         const matrixFlow =
           commissionSettings.appVisibility.matrix === false
             ? this.buildSkippedMatrixFlow(approvedOrder)
@@ -622,6 +649,7 @@ export class OrdersService implements OrdersServiceContract {
       }
 
       await this.activateSourceMemberCyclesFromApprovedOrder(approvedOrder);
+      await this.capService.grantCapForApprovedOrder(orderId);
 
       await this.qualificationService.evaluateMemberQualification({
         userId: approvedOrder.sourceUserId,
@@ -723,6 +751,10 @@ export class OrdersService implements OrdersServiceContract {
       reentryPvAmount: string;
     }>;
   }) {
+    if (!readWalletSettings().autoBuybackEnabled) {
+      return;
+    }
+
     const openedAutoOrders =
       matrixFlow.openedAutoOrders ??
       matrixFlow.openedReentries?.map((entry) => ({
@@ -768,6 +800,7 @@ export class OrdersService implements OrdersServiceContract {
       orderId: string;
       sourceUserId: string;
       approvedAt: string;
+      totalUsdt: string;
       commissionSettingsSnapshot: string | null;
       matrixSettingsSnapshot: string | null;
       items: Array<{
@@ -859,7 +892,7 @@ export class OrdersService implements OrdersServiceContract {
     );
     const approvedEntries = commissionEntries.filter(
       (entry) =>
-        entry.status === "approved" &&
+        (entry.status === "approved" || entry.status === "held") &&
         entry.beneficiaryUserId &&
         compareDecimalStrings(entry.amount, "0") > 0,
     );
@@ -917,8 +950,31 @@ export class OrdersService implements OrdersServiceContract {
     return Array.isArray(result) ? result : result.items;
   }
 
+  private async refreshInitialPoolQualification(input: {
+    beneficiaryUserId: string;
+    approvedOrderId: string;
+    approvedAt: string;
+  }): Promise<void> {
+    await this.commissionsService.handleApprovedSelfPurchaseQualification(input);
+
+    const member = await this.membersService.getMember(input.beneficiaryUserId);
+    if (!member?.sponsorId) {
+      return;
+    }
+
+    // A newly approved direct order can complete the sponsor's first
+    // pool-qualification gate, so refresh the sponsor immediately too.
+    await this.commissionsService.handleApprovedSelfPurchaseQualification({
+      beneficiaryUserId: member.sponsorId,
+      approvedOrderId: input.approvedOrderId,
+      approvedAt: input.approvedAt,
+    });
+  }
+
   private async activateSourceMemberCyclesFromApprovedOrder(approvedOrder: {
+    orderId: string;
     sourceUserId: string;
+    totalPv: string;
     approvedAt: string;
     items: Array<{
       productDetailId: string | null;
@@ -926,27 +982,21 @@ export class OrdersService implements OrdersServiceContract {
       quantity: number;
     }>;
   }): Promise<void> {
-    for (const item of approvedOrder.items) {
-      const quantity = Math.max(1, item.quantity || 1);
+    const primaryItem = approvedOrder.items.find(
+      (item) => !!item.productDetailId || !!item.packageId,
+    );
 
-      for (let index = 0; index < quantity; index += 1) {
-        if (item.productDetailId) {
-          await this.membersService.activateProductCycle({
-            memberId: approvedOrder.sourceUserId,
-            productDetailId: item.productDetailId,
-            activatedAt: approvedOrder.approvedAt,
-          });
-          continue;
-        }
-
-        if (item.packageId) {
-          await this.membersService.activateProductCycle({
-            memberId: approvedOrder.sourceUserId,
-            packageId: item.packageId,
-            activatedAt: approvedOrder.approvedAt,
-          });
-        }
-      }
+    if (!primaryItem) {
+      return;
     }
+
+    await this.membersService.allocateApprovedOrderPvToCycles({
+      memberId: approvedOrder.sourceUserId,
+      totalPv: approvedOrder.totalPv,
+      sourceOrderId: approvedOrder.orderId,
+      productDetailId: primaryItem.productDetailId ?? undefined,
+      packageId: primaryItem.packageId ?? undefined,
+      activatedAt: approvedOrder.approvedAt,
+    });
   }
 }

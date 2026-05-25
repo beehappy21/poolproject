@@ -1,5 +1,11 @@
 const MAIN_URL = 'https://george-fx.github.io/stephub/';
 
+const PUBLIC_WAP_HOSTS = new Set([
+  'wap.blifehealthy.com',
+  'www.blifehealthy.com',
+  'blifehealthy.com',
+]);
+
 const getRuntimeHostname = (): string => {
   if (typeof window === 'undefined') {
     return '';
@@ -10,21 +16,44 @@ const getRuntimeHostname = (): string => {
 
 const getDefaultApiBaseUrl = (): string => {
   const hostname = getRuntimeHostname();
-  void hostname;
+  if (PUBLIC_WAP_HOSTS.has(hostname)) {
+    return 'https://api.blifehealthy.com';
+  }
+
   return '/api';
 };
 
 const getDefaultBaoBaseUrl = (): string => {
   const hostname = getRuntimeHostname();
-  void hostname;
+  if (PUBLIC_WAP_HOSTS.has(hostname)) {
+    return 'https://bao.blifehealthy.com';
+  }
+
   return '/bao-api';
 };
 
+const normalizeConfiguredBaseUrl = (value?: string): string => {
+  const normalized = value?.replace(/\/+$/, '') || '';
+  if (!normalized) {
+    return '';
+  }
+
+  const hostname = getRuntimeHostname();
+  if (normalized === '/api' && PUBLIC_WAP_HOSTS.has(hostname)) {
+    return 'https://api.blifehealthy.com';
+  }
+  if (normalized === '/bao-api' && PUBLIC_WAP_HOSTS.has(hostname)) {
+    return 'https://bao.blifehealthy.com';
+  }
+
+  return normalized;
+};
+
 const API_BASE_URL =
-  process.env.REACT_APP_API_BASE_URL?.replace(/\/+$/, '') ||
+  normalizeConfiguredBaseUrl(process.env.REACT_APP_API_BASE_URL) ||
   getDefaultApiBaseUrl();
 const BAO_BASE_URL =
-  process.env.REACT_APP_BAO_BASE_URL?.replace(/\/+$/, '') ||
+  normalizeConfiguredBaseUrl(process.env.REACT_APP_BAO_BASE_URL) ||
   getDefaultBaoBaseUrl();
 const LINE_LIFF_ID = process.env.REACT_APP_LINE_LIFF_ID?.trim() || '';
 const LINE_OA_ID = process.env.REACT_APP_LINE_OA_ID?.trim() || '';
@@ -58,6 +87,7 @@ export const AUTH_MATRIX_REENTRY = `${API_BASE_URL}/auth/matrix/reentry`;
 export const AUTH_MATRIX_REENTRY_PREFERENCE = `${API_BASE_URL}/auth/matrix/reentry-preference`;
 export const AUTH_ORDERS = `${API_BASE_URL}/auth/orders`;
 export const AUTH_COMMISSIONS = `${API_BASE_URL}/auth/commissions`;
+export const AUTH_NETWORK_TOP_LEADERS = `${API_BASE_URL}/auth/network-top-leaders`;
 export const AUTH_MATRIX = `${API_BASE_URL}/auth/matrix`;
 export const AUTH_MATRIX_PAYOUTS = `${API_BASE_URL}/auth/matrix-payouts`;
 export const AUTH_POOL_PAYOUTS = `${API_BASE_URL}/auth/pool-payouts`;
@@ -95,6 +125,9 @@ export const buildAuthProductReviewsUrl = (productDetailId: string | number) =>
 export const buildSubmitTransferSlipUrl = (orderId: string | number) =>
   `${AUTH_ORDERS}/${orderId}/submit-transfer-slip`;
 
+export const buildAuthOrderReceiptUrl = (orderId: string | number) =>
+  `${AUTH_ORDERS}/${orderId}/receipt`;
+
 export const buildSetDefaultShippingAddressUrl = (
   shippingAddressId: string | number,
 ) => `${AUTH_SHIPPING_ADDRESSES}/${shippingAddressId}/default`;
@@ -131,6 +164,7 @@ export const URLS = {
   AUTH_MATRIX_REENTRY_PREFERENCE,
   AUTH_ORDERS,
   AUTH_COMMISSIONS,
+  AUTH_NETWORK_TOP_LEADERS,
   AUTH_MATRIX,
   AUTH_MATRIX_PAYOUTS,
   AUTH_POOL_PAYOUTS,
@@ -154,5 +188,6 @@ export const URLS = {
   buildProductReviewsUrl,
   buildAuthProductReviewsUrl,
   buildSubmitTransferSlipUrl,
+  buildAuthOrderReceiptUrl,
   buildSetDefaultShippingAddressUrl,
 };

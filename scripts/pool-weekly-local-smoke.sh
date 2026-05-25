@@ -70,6 +70,7 @@ curl -s "$API_BASE_URL/health" >/dev/null
 
 DATABASE_URL="$DATABASE_URL" DATE_SUNDAY="$DATE_SUNDAY" DATE_WEDNESDAY="$DATE_WEDNESDAY" DATE_MONDAY="$DATE_MONDAY" RUN_SUFFIX="$RUN_SUFFIX" node <<'JS'
 const { PrismaClient } = require("@prisma/client");
+const { randomBytes, scryptSync } = require("node:crypto");
 const prisma = new PrismaClient();
 
 function atUtc(dateOnly, hh, mm = 0, ss = 0) {
@@ -95,15 +96,18 @@ async function main() {
     select: { cycleNo: true },
   });
 
-  const aliceAuth = await prisma.user.findUnique({
-    where: { memberCode: "ALICE" },
-    select: { passwordHash: true },
-  });
+  function hashPassword(password) {
+    const salt = randomBytes(16).toString("hex");
+    const hash = scryptSync(password, salt, 64).toString("hex");
+    return `scrypt$${salt}$${hash}`;
+  }
 
   await prisma.user.upsert({
-    where: { memberCode: "TH0000013" },
+    where: { email: "dev-admin@example.com" },
     update: {
-      passwordHash: aliceAuth.passwordHash,
+      memberCode: "ADMINLOCAL001",
+      referralCode: "ADMINLOCAL001",
+      passwordHash: hashPassword("472121"),
       name: "Dev Admin",
       email: "dev-admin@example.com",
       sponsorId: null,
@@ -111,11 +115,11 @@ async function main() {
       payoutStatus: "ACTIVE",
     },
     create: {
-      memberCode: "TH0000013",
-      referralCode: "T130000",
+      memberCode: "ADMINLOCAL001",
+      referralCode: "ADMINLOCAL001",
       name: "Dev Admin",
       email: "dev-admin@example.com",
-      passwordHash: aliceAuth.passwordHash,
+      passwordHash: hashPassword("472121"),
       sponsorId: null,
       status: "ACTIVE",
       payoutStatus: "ACTIVE",
@@ -250,7 +254,7 @@ JS
 
 AUTH_JSON="$(curl -s -X POST "$API_BASE_URL/auth/login" \
   -H 'content-type: application/json' \
-  -d '{"identifier":"TH0000013","password":"a1a1a1"}')"
+  -d '{"identifier":"dev-admin@example.com","password":"472121"}')"
 ACCESS_TOKEN="$(node -e 'const data = JSON.parse(process.argv[1]); process.stdout.write(String(data.accessToken || ""));' "$AUTH_JSON")"
 AUTH_HEADER="Authorization: Bearer $ACCESS_TOKEN"
 

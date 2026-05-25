@@ -2,6 +2,8 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 export interface WalletSettings {
+  firmEnabled: boolean;
+  autoBuybackEnabled: boolean;
   commissionToShoppingEnabled: boolean;
   commissionToShoppingFeeRate: string;
   walletTransferEnabled: boolean;
@@ -16,8 +18,10 @@ export interface WalletSettings {
 const SETTINGS_PATH = join(process.cwd(), "runtime", "wallet-settings.json");
 
 const DEFAULT_SETTINGS: WalletSettings = {
+  firmEnabled: false,
+  autoBuybackEnabled: false,
   commissionToShoppingEnabled: true,
-  commissionToShoppingFeeRate: "0",
+  commissionToShoppingFeeRate: "0.05",
   walletTransferEnabled: true,
   walletTransferFeeRate: "0",
   walletTopupEnabled: true,
@@ -75,6 +79,11 @@ export function normalizeWalletSettings(input: unknown): WalletSettings {
     input && typeof input === "object" ? (input as Record<string, unknown>) : {};
 
   return {
+    firmEnabled: false,
+    autoBuybackEnabled: normalizeBoolean(
+      candidate.autoBuybackEnabled ?? candidate.auto_buyback_enabled,
+      DEFAULT_SETTINGS.autoBuybackEnabled,
+    ),
     commissionToShoppingEnabled: normalizeBoolean(
       candidate.commissionToShoppingEnabled,
       DEFAULT_SETTINGS.commissionToShoppingEnabled,

@@ -52,6 +52,12 @@ class ProductDetailRecord extends Model
         'firmDcwRewardAmount',
         'firmRedeemStockLimit',
         'stockQuantity',
+        'promotionId',
+        'promotionName',
+        'promotionStatus',
+        'promotionMinQuantity',
+        'promotionPriceUsdt',
+        'promotionPv',
         'dcwSpendEnabled',
         'dcwUsageAmount',
         'dcwUsageAmountOverridden',
@@ -75,6 +81,10 @@ class ProductDetailRecord extends Model
         'firmDcwRewardAmount' => 'decimal:8',
         'firmRedeemStockLimit' => 'integer',
         'stockQuantity' => 'integer',
+        'promotionId' => 'integer',
+        'promotionMinQuantity' => 'integer',
+        'promotionPriceUsdt' => 'decimal:8',
+        'promotionPv' => 'decimal:8',
         'dcwSpendEnabled' => 'boolean',
         'dcwUsageAmount' => 'decimal:8',
         'dcwUsageAmountOverridden' => 'boolean',
@@ -85,6 +95,11 @@ class ProductDetailRecord extends Model
         'isFeatured' => 'boolean',
         'isBestSeller' => 'boolean',
     ];
+
+    public function product()
+    {
+        return $this->belongsTo(ProductRecord::class, 'productId', 'id');
+    }
 
     public function getImageUrlsAttribute($value): array
     {

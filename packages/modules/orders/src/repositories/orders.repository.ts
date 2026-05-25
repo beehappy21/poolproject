@@ -160,16 +160,13 @@ function toBangkokUtcDate(input: {
   );
 }
 
-function buildBangkokWeeklyRange(poolDate: string) {
+function buildBangkokSingleDayRange(poolDate: string) {
   const { year, month, day } = parseDateOnlyParts(poolDate);
-  const closeDayUtc = Date.UTC(year, month - 1, day);
-  const startDay = new Date(closeDayUtc - 6 * 24 * 60 * 60 * 1000);
-
   return {
     gte: toBangkokUtcDate({
-      year: startDay.getUTCFullYear(),
-      month: startDay.getUTCMonth() + 1,
-      day: startDay.getUTCDate(),
+      year,
+      month,
+      day,
       hour: 0,
       minute: 0,
       second: 0,
@@ -478,6 +475,7 @@ export interface OrdersRepository {
     orderId: string;
     sourceUserId: string;
     approvedAt: string;
+    totalUsdt: string;
     totalPv: string;
     orderSourceType: "normal" | "matrix_reentry";
     commissionSettingsSnapshot: string | null;
@@ -895,20 +893,22 @@ export class PrismaOrdersRepository implements OrdersRepository {
         walletAppliedUsdt: order.walletAppliedUsdt.toString(),
         cashDueUsdt: order.cashDueUsdt.toString(),
         cashPaymentMethod: order.cashPaymentMethod ?? null,
-        transferSubmittedAt: order.transferSubmittedAt?.toISOString() ?? null,
+        transferSubmittedAt: toIsoString(order.transferSubmittedAt) || null,
         transferSlipUrl: order.transferSlipUrl ?? null,
         transferSlipNote: order.transferSlipNote ?? null,
-        approvedAt: order.approvedAt?.toISOString() ?? null,
-        shippedAt: order.shippedAt?.toISOString() ?? null,
-        deliveredAt: order.deliveredAt?.toISOString() ?? null,
+        approvedAt: toIsoString(order.approvedAt) || null,
+        shippedAt: toIsoString(order.shippedAt) || null,
+        deliveredAt: toIsoString(order.deliveredAt) || null,
         shipmentTrackingNo: order.shipmentTrackingNo ?? null,
         shipmentCarrier: order.shipmentCarrier ?? null,
         shipmentNote: order.shipmentNote ?? null,
         orderSourceType: mapOrderSourceType(order),
+        shippingAddressLine: order.shippingAddressLine ?? null,
+        shippingAddressNote: order.shippingAddressNote ?? null,
         firstProductName: firstProductDetail?.name ?? null,
         firstProductImageUrl: firstProductDetail?.imageUrl ?? null,
         productItemCount: order.orderItems.length,
-        createdAt: order.createdAt.toISOString(),
+        createdAt: toIsoString(order.createdAt),
       };
     });
 
@@ -1083,17 +1083,19 @@ export class PrismaOrdersRepository implements OrdersRepository {
           walletAppliedUsdt: order.walletAppliedUsdt.toString(),
           cashDueUsdt: order.cashDueUsdt.toString(),
           cashPaymentMethod: order.cashPaymentMethod ?? null,
-          transferSubmittedAt: order.transferSubmittedAt?.toISOString() ?? null,
+          transferSubmittedAt: toIsoString(order.transferSubmittedAt) || null,
           transferSlipUrl: order.transferSlipUrl ?? null,
           transferSlipNote: order.transferSlipNote ?? null,
-          approvedAt: order.approvedAt?.toISOString() ?? null,
-          shippedAt: order.shippedAt?.toISOString() ?? null,
-          deliveredAt: order.deliveredAt?.toISOString() ?? null,
+          approvedAt: toIsoString(order.approvedAt) || null,
+          shippedAt: toIsoString(order.shippedAt) || null,
+          deliveredAt: toIsoString(order.deliveredAt) || null,
           shipmentTrackingNo: order.shipmentTrackingNo ?? null,
           shipmentCarrier: order.shipmentCarrier ?? null,
           shipmentNote: order.shipmentNote ?? null,
           orderSourceType: mapOrderSourceType(order),
-          createdAt: order.createdAt.toISOString(),
+          shippingAddressLine: order.shippingAddressLine ?? null,
+          shippingAddressNote: order.shippingAddressNote ?? null,
+          createdAt: toIsoString(order.createdAt),
           autoOrderAudit:
             reentryEvent && isMatrixReentryOrder(order)
               ? {
@@ -1107,7 +1109,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
                   sourcePv: reentryEvent.sourcePv.toString(),
                   creditedPv: reentryEvent.creditedPv.toString(),
                   firmCreditAmount: firmCredit?.amount?.toString() ?? null,
-                  eventCreatedAt: reentryEvent.createdAt.toISOString(),
+                  eventCreatedAt: toIsoString(reentryEvent.createdAt),
                 }
               : null,
           reentryAudit:
@@ -1123,7 +1125,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
                   sourcePv: reentryEvent.sourcePv.toString(),
                   creditedPv: reentryEvent.creditedPv.toString(),
                   firmCreditAmount: firmCredit?.amount?.toString() ?? null,
-                  eventCreatedAt: reentryEvent.createdAt.toISOString(),
+                  eventCreatedAt: toIsoString(reentryEvent.createdAt),
                 }
               : null,
           items: productItems,
@@ -1177,6 +1179,11 @@ export class PrismaOrdersRepository implements OrdersRepository {
     }));
     const requestedFirmAmount = input.firmWalletAmount ?? "0";
     const firmOrderRequested = compareDecimalStrings(requestedFirmAmount, "0") > 0;
+    const walletSettings = readWalletSettings();
+
+    if (firmOrderRequested && !walletSettings.firmEnabled) {
+      throw new Error("Firm wallet redemption is disabled.");
+    }
 
     if (normalizedItems.some((item) => !item.productDetailId && !item.packageId)) {
       throw new Error("Order item is missing a product detail.");
@@ -1246,6 +1253,12 @@ export class PrismaOrdersRepository implements OrdersRepository {
             firmDcwRewardAmount: true,
             firmRedeemStockLimit: true,
             stockQuantity: true,
+            promotionId: true,
+            promotionName: true,
+            promotionStatus: true,
+            promotionMinQuantity: true,
+            promotionPriceUsdt: true,
+            promotionPv: true,
             product: {
               select: {
                 category: {
@@ -1261,12 +1274,26 @@ export class PrismaOrdersRepository implements OrdersRepository {
     const productDetailMap = new Map(
       productDetails.map((detail) => [detail.id.toString(), detail]),
     );
+    const requestedQuantityByProductDetail = normalizedItems.reduce(
+      (map, item) => {
+        if (!item.productDetailId) {
+          return map;
+        }
+
+        map.set(
+          item.productDetailId,
+          (map.get(item.productDetailId) ?? 0) + item.quantity,
+        );
+
+        return map;
+      },
+      new Map<string, number>(),
+    );
 
     if (productDetails.length !== productDetailIds.length) {
       throw new Error("Product detail not found.");
     }
 
-    const walletSettings = readWalletSettings();
     const wallet = await this.prisma.wallet.findUnique({
       where: { userId },
       select: { shoppingBalance: true, discountBalance: true },
@@ -1331,6 +1358,58 @@ export class PrismaOrdersRepository implements OrdersRepository {
     if (!isBranchPickup && input.shippingAddressId && !shippingAddress) {
       throw new Error("Shipping address not found.");
     }
+
+    const promotionGroupKeyForDetail = (detail: (typeof productDetails)[number]) => {
+      const promotionActive =
+        String(detail.promotionStatus || "").trim().toUpperCase() === "ACTIVE";
+      const promotionMinQuantity = detail.promotionMinQuantity ?? 0;
+
+      if (
+        !promotionActive ||
+        promotionMinQuantity < 2 ||
+        detail.promotionPriceUsdt === null ||
+        detail.promotionPv === null ||
+        Number(detail.pv) !== 100
+      ) {
+        return null;
+      }
+
+      const promotionIdentity =
+        detail.promotionId !== null
+          ? `id:${detail.promotionId.toString()}`
+          : `snapshot:${promotionMinQuantity}:${detail.promotionPriceUsdt.toString()}:${detail.promotionPv.toString()}`;
+
+      return `100pv:${promotionIdentity}`;
+    };
+
+    const requestedQuantityByPromotionGroup = normalizedItems.reduce(
+      (map, item) => {
+        if (!item.productDetailId) {
+          return map;
+        }
+
+        const detail = productDetailMap.get(item.productDetailId);
+
+        if (!detail) {
+          return map;
+        }
+
+        const promotionGroupKey = promotionGroupKeyForDetail(detail);
+
+        if (!promotionGroupKey) {
+          return map;
+        }
+
+        map.set(
+          promotionGroupKey,
+          (map.get(promotionGroupKey) ?? 0) + item.quantity,
+        );
+
+        return map;
+      },
+      new Map<string, number>(),
+    );
+
     const orderItemCreates = normalizedItems.map((item) => {
       if (!item.productDetailId && item.packageId) {
         const pkg = packageMap.get(item.packageId);
@@ -1383,20 +1462,43 @@ export class PrismaOrdersRepository implements OrdersRepository {
             costPriceUsdt: detail.costPriceUsdt.toString(),
             memberPriceUsdt: detail.memberPriceUsdt.toString(),
           });
+      const promotionActive =
+        String(detail.promotionStatus || "").trim().toUpperCase() === "ACTIVE";
+      const promotionMinQuantity = detail.promotionMinQuantity ?? 0;
+      const requestedQuantityForDetail =
+        requestedQuantityByProductDetail.get(item.productDetailId) ?? item.quantity;
+      const promotionGroupKey = promotionGroupKeyForDetail(detail);
+      const totalRequestedQuantity =
+        promotionGroupKey !== null
+          ? (requestedQuantityByPromotionGroup.get(promotionGroupKey) ??
+            requestedQuantityForDetail)
+          : requestedQuantityForDetail;
+      const usePromotion =
+        promotionActive &&
+        promotionMinQuantity >= 2 &&
+        detail.promotionPriceUsdt !== null &&
+        detail.promotionPv !== null &&
+        totalRequestedQuantity >= promotionMinQuantity;
+      const effectiveUnitPrice = usePromotion
+        ? detail.promotionPriceUsdt!.toString()
+        : detail.memberPriceUsdt.toString();
+      const effectiveUnitPv = usePromotion
+        ? detail.promotionPv!.toString()
+        : detail.pv.toString();
       const lineTotalUsdt = multiplyDecimalStrings(
-        detail.memberPriceUsdt.toString(),
+        effectiveUnitPrice,
         item.quantity.toString(),
       );
       const lineTotalPv = multiplyDecimalStrings(
-        detail.pv.toString(),
+        effectiveUnitPv,
         item.quantity.toString(),
       );
 
       return {
         productId: item.productDetailId,
         qty: item.quantity,
-        unitPriceUsdt: detail.memberPriceUsdt,
-        unitPv: detail.pv,
+        unitPriceUsdt: effectiveUnitPrice,
+        unitPv: effectiveUnitPv,
         poolRateMode: detail.poolRateMode,
         unitPoolRate: detail.poolRate,
         dcwSpendEnabled: firmOrderRequested ? false : detail.dcwSpendEnabled,
@@ -1923,6 +2025,10 @@ export class PrismaOrdersRepository implements OrdersRepository {
     amount: string;
     pv: string;
   }) {
+    if (!readWalletSettings().autoBuybackEnabled) {
+      throw new BadRequestException("Matrix auto order / auto buyback is disabled.");
+    }
+
     const approvalBatchRef = buildMatrixAutoOrderAuditRef(input.matrixEventId);
     const existing = await this.prisma.order.findFirst({
       where: {
@@ -2104,8 +2210,8 @@ export class PrismaOrdersRepository implements OrdersRepository {
           orderId: order.id.toString(),
           status: order.status.toLowerCase(),
           approvalStatus: order.approvalStatus.toLowerCase(),
-          paidAt: order.paidAt?.toISOString() ?? null,
-          transferSubmittedAt: order.transferSubmittedAt?.toISOString() ?? null,
+          paidAt: toIsoString(order.paidAt) || null,
+          transferSubmittedAt: toIsoString(order.transferSubmittedAt) || null,
           transferSlipUrl: order.transferSlipUrl ?? null,
           transferSlipNote: order.transferSlipNote ?? null,
         }
@@ -2143,7 +2249,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
           orderId: order.id.toString(),
           status: order.status.toLowerCase(),
           approvalStatus: order.approvalStatus.toLowerCase(),
-          shippedAt: order.shippedAt?.toISOString() ?? null,
+          shippedAt: toIsoString(order.shippedAt) || null,
           shipmentTrackingNo: order.shipmentTrackingNo ?? null,
           shipmentCarrier: order.shipmentCarrier ?? null,
           shipmentNote: order.shipmentNote ?? null,
@@ -2176,7 +2282,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
           orderId: order.id.toString(),
           status: order.status.toLowerCase(),
           approvalStatus: order.approvalStatus.toLowerCase(),
-          deliveredAt: order.deliveredAt?.toISOString() ?? null,
+          deliveredAt: toIsoString(order.deliveredAt) || null,
           shipmentNote: order.shipmentNote ?? null,
         }
       : null;
@@ -2204,7 +2310,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
       return {
         orderId: existingOrder.id.toString(),
         sourceUserId: existingOrder.userId.toString(),
-        approvedAt: existingOrder.approvedAt?.toISOString() ?? "",
+        approvedAt: toIsoString(existingOrder.approvedAt),
         totalPv: existingOrder.totalPv.toString(),
         commissionSettingsSnapshot: existingOrder.commissionSettingsSnapshot,
         matrixSettingsSnapshot: existingOrder.matrixSettingsSnapshot,
@@ -2240,7 +2346,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
       ? {
           orderId: order.id.toString(),
           sourceUserId: order.userId.toString(),
-          approvedAt: order.approvedAt?.toISOString() ?? "",
+          approvedAt: toIsoString(order.approvedAt),
           totalPv: order.totalPv.toString(),
           commissionSettingsSnapshot: order.commissionSettingsSnapshot,
           matrixSettingsSnapshot: order.matrixSettingsSnapshot,
@@ -2323,6 +2429,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
     orderId: string;
     sourceUserId: string;
     approvedAt: string;
+    totalUsdt: string;
     totalPv: string;
     orderSourceType: "normal" | "matrix_reentry";
     commissionSettingsSnapshot: string | null;
@@ -2344,6 +2451,7 @@ export class PrismaOrdersRepository implements OrdersRepository {
         id: true,
         userId: true,
         approvedAt: true,
+        totalUsdt: true,
         totalPv: true,
         orderSourceType: true,
         commissionSettingsSnapshot: true,
@@ -2362,7 +2470,8 @@ export class PrismaOrdersRepository implements OrdersRepository {
       ? {
           orderId: order.id.toString(),
           sourceUserId: order.userId.toString(),
-          approvedAt: order.approvedAt?.toISOString() ?? "",
+          approvedAt: toIsoString(order.approvedAt),
+          totalUsdt: order.totalUsdt.toString(),
           totalPv: order.totalPv.toString(),
           orderSourceType:
             order.orderSourceType === "MATRIX_REENTRY" ? "matrix_reentry" : "normal",
@@ -2386,16 +2495,16 @@ export class PrismaOrdersRepository implements OrdersRepository {
       commissionSettingsSnapshot: string | null;
       items: Array<{
         lineTotalPv: string;
+        lineTotalUsdt: string;
         poolRateMode?: "default_50_percent" | "custom_rate" | "disabled";
-        poolRate?: string;
       }>;
     }>
   > {
-    const range = buildBangkokWeeklyRange(poolDate);
+    const range = buildBangkokSingleDayRange(poolDate);
     const orderItemSelect = {
       lineTotalPv: true,
+      lineTotalUsdt: true,
       poolRateMode: true,
-      unitPoolRate: true,
     } satisfies Prisma.OrderItemSelect;
     const orders = await this.prisma.order.findMany({
       where: {
@@ -2422,15 +2531,17 @@ export class PrismaOrdersRepository implements OrdersRepository {
       approvedAt: toIsoString(order.approvedAt),
       totalPv: toDecimalString(order.totalPv),
       commissionSettingsSnapshot: order.commissionSettingsSnapshot,
-      items: order.orderItems.map((item) => ({
-        lineTotalPv: toDecimalString(item.lineTotalPv),
-        poolRateMode: item.poolRateMode?.toString().toLowerCase() as
-          | "default_50_percent"
-          | "custom_rate"
-          | "disabled"
-          | undefined,
-        poolRate: toDecimalString(item.unitPoolRate),
-      })),
+      items: order.orderItems
+        .map((item) => ({
+          lineTotalPv: toDecimalString(item.lineTotalPv),
+          lineTotalUsdt: toDecimalString(item.lineTotalUsdt),
+          poolRateMode: item.poolRateMode?.toString().toLowerCase() as
+            | "default_50_percent"
+            | "custom_rate"
+            | "disabled"
+            | undefined,
+        }))
+        .filter((item) => item.poolRateMode !== "disabled"),
     }));
   }
 }

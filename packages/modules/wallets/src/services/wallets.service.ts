@@ -45,6 +45,12 @@ export interface WalletsServiceContract {
 
   postApprovedEarning(input: WalletPostingInput): Promise<WalletPostingResult>;
 
+  releaseHeldCommissionCredit(input: {
+    userId: string;
+    commissionId: string;
+    amount: string;
+  }): Promise<void>;
+
   applyNegativeOffset(
     input: WalletNegativeOffsetInput,
   ): Promise<WalletNegativeOffsetResult>;
@@ -274,6 +280,14 @@ export class WalletsService implements WalletsServiceContract {
     return this.walletsRepository.recordWalletPosting(input, result);
   }
 
+  async releaseHeldCommissionCredit(input: {
+    userId: string;
+    commissionId: string;
+    amount: string;
+  }): Promise<void> {
+    await this.walletsRepository.releaseHeldCommissionCredit(input);
+  }
+
   async applyNegativeOffset(
     input: WalletNegativeOffsetInput,
   ): Promise<WalletNegativeOffsetResult> {
@@ -501,6 +515,10 @@ export class WalletsService implements WalletsServiceContract {
   async creditFirmWalletFromApprovedOrder(input: {
     orderId: string;
   }): Promise<FirmOrderWalletCreditResult | null> {
+    if (!readWalletSettings().firmEnabled) {
+      return null;
+    }
+
     return this.walletsRepository.creditFirmWalletFromApprovedOrder(input);
   }
 
@@ -509,6 +527,17 @@ export class WalletsService implements WalletsServiceContract {
     matrixEventId: string;
     amount: string;
   }): Promise<FirmWalletCreditResult> {
+    if (!readWalletSettings().autoBuybackEnabled) {
+      const wallet = await this.walletsRepository.getWalletState(input.userId);
+
+      return {
+        userId: input.userId,
+        amount: "0",
+        firmBalance: wallet?.firmBalance ?? "0",
+        sourceMatrixEventId: input.matrixEventId,
+      };
+    }
+
     return this.walletsRepository.creditFirmWalletFromMatrixAutoOrder(input);
   }
 
@@ -602,8 +631,8 @@ export class WalletsService implements WalletsServiceContract {
     }
 
     const wallet = await this.walletsRepository.getWalletSummary(input.userId);
-    if (compareDecimalStrings(wallet.shoppingBalance, input.amount) < 0) {
-      throw new Error("Insufficient SW balance.");
+    if (compareDecimalStrings(wallet.withdrawableBalance, input.amount) < 0) {
+      throw new Error("Insufficient CW balance.");
     }
 
     const approvedKyc = await this.walletsRepository.findLatestApprovedKycRequest(
@@ -625,7 +654,7 @@ export class WalletsService implements WalletsServiceContract {
 
     const taxAmount = multiplyDecimalStrings(input.amount, settings.withholdingTaxRate);
     const autoSweepAmount = multiplyDecimalStrings(input.amount, settings.autoSweepRate);
-    const feeAmount = settings.feeFlatAmount;
+    const feeAmount = multiplyDecimalStrings(input.amount, settings.feeRate);
     const netBankAmount = maxDecimalString(
       subtractDecimalStrings(
         subtractDecimalStrings(

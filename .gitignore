@@ -1,16 +1,45 @@
+# Dependencies / build output
 node_modules
+**/node_modules
 dist
-.env
-.env.*
-.DS_Store
 coverage
 .turbo
 .pnpm-store
-prisma/dev.db
+
+# Environment / secrets
+.env
+.env.*
+!.env.production.example
+deploy/compose/*.env
+stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/.env
+stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/.env
+
+# OS / editor
+.DS_Store
+**/.DS_Store
 .vscode
+
+# Local runtime / generated data
 logs
 runtime
 picture/
+.tmp/
+backups/
+preflight-backups/
+tmp-fonts/
+prisma/dev.db
+deploy/releases/*.tar
+deploy/releases/*.zip
+
+# Stephub generated/local artifacts
+stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/vendor/
+stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/storage/
+stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/public/storage
+stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/backend/database/database.sqlite
+stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/node_modules/
+stephub-shoes-store-app-with-backend-2024-08-07-09-39-19-utc/stephub/build/
+
+# Keep runtime TypeScript source tracked
 !apps/
 !apps/api/
 !apps/api/src/

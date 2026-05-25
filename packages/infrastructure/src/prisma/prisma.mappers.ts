@@ -9,7 +9,11 @@ export function toDecimalString(value: { toString(): string } | null | undefined
 }
 
 export function toIsoString(value: Date | null | undefined): string {
-  return value?.toISOString() ?? "";
+  if (!value) {
+    return "";
+  }
+
+  return value.toISOString();
 }
 
 export function toQualificationCycleSnapshot(cycle: {

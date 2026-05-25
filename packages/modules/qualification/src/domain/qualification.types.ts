@@ -46,7 +46,15 @@ export interface CycleSelectionResult {
 export interface CycleCapCheckInput {
   cycle: QualificationCycleSnapshot;
   bonusAmount: string;
-  sourceType?: "direct" | "uni" | "pool" | "cashback";
+  sourceType?:
+    | "direct"
+    | "uni"
+    | "pool"
+    | "cashback"
+    | "team_2leg"
+    | "team_3leg"
+    | "matching_l1"
+    | "matching_l2";
 }
 
 export interface CycleCapCheckResult {

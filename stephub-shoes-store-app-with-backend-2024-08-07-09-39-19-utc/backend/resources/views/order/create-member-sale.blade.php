@@ -154,10 +154,6 @@
                 SW
             </label>
             <label>
-                <input type="radio" name="sale[payment_channel]" value="firm_wallet" @checked(old('sale.payment_channel', $sale['payment_channel'] ?? 'cash') === 'firm_wallet')>
-                FIRM
-            </label>
-            <label>
                 <input type="radio" name="sale[payment_channel]" value="other" @checked(old('sale.payment_channel', $sale['payment_channel'] ?? 'cash') === 'other')>
                 อื่นๆ
             </label>
@@ -342,13 +338,87 @@
         memberResults.classList.remove('member-sale-hidden');
     }
 
+    function promotionGroupKey(product) {
+        const minQty = Math.max(0, Number(product?.promotionMinQuantity || 0) || 0);
+        const promoActive = String(product?.promotionStatus || '').toUpperCase() === 'ACTIVE';
+        const promoPrice = Number(product?.promotionPrice || 0);
+        const promoPv = Number(product?.promotionPv || 0);
+
+        if (!promoActive || minQty < 2 || promoPrice <= 0 || promoPv <= 0 || Number(product?.pv || 0) !== 100) {
+            return null;
+        }
+
+        const promotionIdentity = product?.promotionId
+            ? `id:${product.promotionId}`
+            : `snapshot:${minQty}:${promoPrice.toFixed(2)}:${promoPv.toFixed(2)}`;
+
+        return `100pv:${promotionIdentity}`;
+    }
+
+    function promotionGroupQuantity(product, items = selectedItems, fallbackQuantity = 1) {
+        const key = promotionGroupKey(product);
+        if (!key) {
+            return Math.max(1, Number(fallbackQuantity || 1) || 1);
+        }
+
+        const total = items.reduce((sum, item) => {
+            const entry = productCatalog.find((candidate) => String(candidate.id) === String(item.product_detail_id));
+            if (!entry || promotionGroupKey(entry) !== key) {
+                return sum;
+            }
+
+            return sum + Math.max(1, Number(item.quantity || 1) || 1);
+        }, 0);
+
+        return total > 0 ? total : Math.max(1, Number(fallbackQuantity || 1) || 1);
+    }
+
+    function effectiveProductPricing(product, quantity, items = selectedItems) {
+        const minQty = Math.max(0, Number(product?.promotionMinQuantity || 0) || 0);
+        const promoActive = String(product?.promotionStatus || '').toUpperCase() === 'ACTIVE';
+        const promoPrice = Number(product?.promotionPrice || 0);
+        const promoPv = Number(product?.promotionPv || 0);
+        const eligibleQuantity = promotionGroupQuantity(product, items, quantity);
+
+        if (promoActive && minQty >= 2 && eligibleQuantity >= minQty && promoPrice > 0) {
+            return {
+                unitPrice: promoPrice,
+                unitPv: promoPv,
+                note: `${product.promotionName || 'Promotion'}: ซื้อรวม ${minQty} ชิ้นขึ้นไป (ต่าง SKU ได้) • ${promoPrice.toFixed(2)} บาท • PV ${promoPv.toFixed(2)}`,
+            };
+        }
+
+        return {
+            unitPrice: Number(product?.memberPrice || 0),
+            unitPv: Number(product?.pv || 0),
+            note: '',
+        };
+    }
+
+    function productMetaText(product, quantity = 1, items = selectedItems) {
+        const pricing = effectiveProductPricing(product, quantity, items);
+        const baseText = `${product.code} · ${pricing.unitPrice.toFixed(2)} บาท · PV ${pricing.unitPv.toFixed(2)}`;
+        const minQty = Math.max(0, Number(product?.promotionMinQuantity || 0) || 0);
+        const promoActive = String(product?.promotionStatus || '').toUpperCase() === 'ACTIVE';
+        const hasPromo = promoActive && minQty >= 2 && Number(product?.promotionPrice || 0) > 0;
+        const availableNote = hasPromo
+            ? `${product.promotionName || 'Promotion'}: ซื้อรวม ${minQty} ชิ้นขึ้นไป (ต่าง SKU ได้) • ${Number(product.promotionPrice || 0).toFixed(2)} บาท • PV ${Number(product.promotionPv || 0).toFixed(2)}`
+            : '';
+
+        if (pricing.note) {
+            return `${baseText} · ${pricing.note}`;
+        }
+
+        return availableNote ? `${baseText} · ${availableNote}` : baseText;
+    }
+
     function renderProductCards(items) {
         productStrip.innerHTML = items.map((product) => `
             <div class="member-sale-product-card">
                 <div class="member-sale-product-image" style="background-image:url('${product.imageUrl || ''}')"></div>
                 <div class="member-sale-product-body">
                     <div class="member-sale-product-name">${product.name}</div>
-                    <div class="member-sale-product-meta">${product.code} · ${product.memberPrice} บาท · PV ${product.pv}</div>
+                    <div class="member-sale-product-meta">${productMetaText(product)}</div>
                     <button type="button" class="member-sale-product-action" data-product-id="${product.id}">เลือกสินค้า</button>
                 </div>
             </div>
@@ -365,7 +435,7 @@
         productResults.innerHTML = items.map((product) => `
             <button type="button" class="member-sale-result" data-product-id="${product.id}">
                 <strong>${product.name}</strong><br>
-                <span>${product.code} · ${product.memberPrice} บาท · PV ${product.pv}</span>
+                <span>${productMetaText(product)}</span>
             </button>
         `).join('');
         productResults.classList.remove('member-sale-hidden');
@@ -397,12 +467,17 @@
         selectedItemsWrap.innerHTML = selectedItems.map((item, index) => {
             const product = productCatalog.find((entry) => String(entry.id) === String(item.product_detail_id));
             if (!product) return '';
+            const quantity = Math.max(1, Number(item.quantity || 1) || 1);
+            const pricing = effectiveProductPricing(product, quantity, selectedItems);
+            const lineTotal = (pricing.unitPrice * quantity).toFixed(2);
+            const linePv = (pricing.unitPv * quantity).toFixed(2);
 
             return `
                 <div class="member-sale-selected-item">
                     <div>
                         <strong>${product.name}</strong><br>
-                        <span class="member-sale-note">${product.code} · ${product.memberPrice} บาท · PV ${product.pv}</span>
+                        <span class="member-sale-note">${productMetaText(product, quantity, selectedItems)}</span><br>
+                        <span class="member-sale-note">รวม ${lineTotal} บาท · PV รวม ${linePv}</span>
                     </div>
                     <div>
                         <label class="member-sale-label">จำนวน</label>
@@ -424,9 +499,9 @@
         return selectedItems.reduce((sum, item) => {
             const product = productCatalog.find((entry) => String(entry.id) === String(item.product_detail_id));
             const quantity = Math.max(1, Number(item.quantity || 1) || 1);
-            const unitPrice = Number(product?.memberPrice || 0);
+            const pricing = effectiveProductPricing(product, quantity, selectedItems);
 
-            return sum + (unitPrice * quantity);
+            return sum + (pricing.unitPrice * quantity);
         }, 0);
     }
 
@@ -434,28 +509,32 @@
         const subtotal = orderSubtotal();
         const subtotalText = subtotal.toFixed(2);
         const paymentChannel = selectedPaymentChannel();
+        const totalPv = selectedItems.reduce((sum, item) => {
+            const product = productCatalog.find((entry) => String(entry.id) === String(item.product_detail_id));
+            const quantity = Math.max(1, Number(item.quantity || 1) || 1);
+            const pricing = effectiveProductPricing(product, quantity, selectedItems);
+
+            return sum + (pricing.unitPv * quantity);
+        }, 0).toFixed(2);
 
         discountWalletAmountInput.value = '0';
         shoppingWalletAmountInput.value = '0';
         firmWalletAmountInput.value = '0';
         cashPaymentMethodInput.value = 'cash';
 
-        let summaryText = `ยอดรวมสินค้า ${subtotalText} บาท`;
+        let summaryText = `ยอดรวมสินค้า ${subtotalText} บาท · PV รวม ${totalPv}`;
 
         if (paymentChannel === 'shopping_wallet') {
             shoppingWalletAmountInput.value = subtotalText;
-            summaryText = `ยอดรวมสินค้า ${subtotalText} บาท · ชำระด้วย SW`;
-        } else if (paymentChannel === 'firm_wallet') {
-            firmWalletAmountInput.value = subtotalText;
-            summaryText = `ยอดรวมสินค้า ${subtotalText} บาท · ชำระด้วย FIRM`;
+            summaryText = `ยอดรวมสินค้า ${subtotalText} บาท · PV รวม ${totalPv} · ชำระด้วย SW`;
         } else if (paymentChannel === 'bank_transfer') {
             cashPaymentMethodInput.value = 'bank_transfer';
-            summaryText = `ยอดรวมสินค้า ${subtotalText} บาท · ชำระด้วยเงินโอน`;
+            summaryText = `ยอดรวมสินค้า ${subtotalText} บาท · PV รวม ${totalPv} · ชำระด้วยเงินโอน`;
         } else if (paymentChannel === 'other') {
             cashPaymentMethodInput.value = 'promptpay_qr';
-            summaryText = `ยอดรวมสินค้า ${subtotalText} บาท · ชำระด้วยช่องทางอื่นๆ`;
+            summaryText = `ยอดรวมสินค้า ${subtotalText} บาท · PV รวม ${totalPv} · ชำระด้วยช่องทางอื่นๆ`;
         } else {
-            summaryText = `ยอดรวมสินค้า ${subtotalText} บาท · ชำระด้วยเงินสด`;
+            summaryText = `ยอดรวมสินค้า ${subtotalText} บาท · PV รวม ${totalPv} · ชำระด้วยเงินสด`;
         }
 
         paymentSummary.textContent = summaryText;
@@ -579,6 +658,7 @@
         selectedItems[index].quantity = String(Math.max(1, Number(target.value || 1) || 1));
         const hidden = selectedItemsWrap.querySelector(`[data-hidden-qty-index="${index}"]`);
         if (hidden) hidden.value = selectedItems[index].quantity;
+        renderSelectedItems();
     });
 
     selectedItemsWrap.addEventListener('click', (event) => {

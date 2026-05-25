@@ -22,6 +22,10 @@ type StorefrontProduct = {
   imageUrls?: string[];
   memberPriceUsdt: string;
   pv: string;
+  promotionStatus?: string | null;
+  promotionMinQuantity?: number | null;
+  promotionPriceUsdt?: string | null;
+  promotionPv?: string | null;
   firmRedemptionEligible?: boolean;
   dcwSpendEnabled?: boolean;
   dcwUsageAmount?: string;
@@ -184,6 +188,13 @@ export const mapStorefrontProductToProduct = (
     name: productName,
     price: toProductNumber(item.memberPriceUsdt),
     pv: toProductNumber(item.pv),
+    promotionStatus: safeString(item.promotionStatus),
+    promotionMinQuantity:
+      typeof item.promotionMinQuantity === 'number'
+        ? item.promotionMinQuantity
+        : toProductNumber(item.promotionMinQuantity),
+    promotionPrice: toProductNumber(item.promotionPriceUsdt),
+    promotionPv: toProductNumber(item.promotionPv),
     firmRedemptionEligible: Boolean(item.firmRedemptionEligible),
     salesChannelMode,
     showOnHome: salesChannelMode === 'WAP_CATALOG',
@@ -293,34 +304,68 @@ const getListPayload = <T,>(value: unknown): T[] => {
   return [];
 };
 
+const getPreferredStorefrontUrls = (): string[] => {
+  const urls: string[] = [];
+
+  if (isPublicWapRuntime() && typeof window !== 'undefined') {
+    urls.push(`${window.location.origin}/api/packages/storefront-products`);
+  }
+
+  urls.push(URLS.GET_STOREFRONT_PRODUCTS);
+
+  const alternateStorefrontUrl = `${URLS.API_BASE_URL}/packages/storefront-products`;
+  if (!urls.includes(alternateStorefrontUrl)) {
+    urls.push(alternateStorefrontUrl);
+  }
+
+  return urls;
+};
+
+export const isFirmHiddenProduct = (
+  product?: Pick<ProductType, 'categoryCode' | 'firmRedemptionEligible'> | null,
+): boolean => {
+  const categoryCode = String(product?.categoryCode || '').trim().toLowerCase();
+  return categoryCode === 'firm';
+};
+
 export const fetchLiveProducts = async (): Promise<ProductType[]> => {
   let storefrontError: unknown;
 
-  try {
-    const response = await axios.get(URLS.GET_STOREFRONT_PRODUCTS, {
-      timeout: 15000,
-    });
-    const items = getListPayload<StorefrontProduct>(response.data);
-    const mapped = items.reduce<ProductType[]>((result, item, index) => {
-      try {
-        if (safeString(item?.status, 'active') !== 'active') {
-          return result;
+  for (const storefrontUrl of getPreferredStorefrontUrls()) {
+    try {
+      const response = await axios.get(storefrontUrl, {
+        timeout: 15000,
+      });
+      const items = getListPayload<StorefrontProduct>(response.data);
+      const mapped = items.reduce<ProductType[]>((result, item, index) => {
+        try {
+          if (safeString(item?.status, 'active') !== 'active') {
+            return result;
+          }
+
+          const mappedProduct = mapStorefrontProductToProduct(item, index);
+          if (isFirmHiddenProduct(mappedProduct)) {
+            return result;
+          }
+
+          result.push(mappedProduct);
+        } catch (error) {
+          console.warn('Skipping malformed storefront product', item, error);
         }
 
-        result.push(mapStorefrontProductToProduct(item, index));
-      } catch (error) {
-        console.warn('Skipping malformed storefront product', item, error);
+        return result;
+      }, []);
+
+      if (mapped.length > 0) {
+        return mapped;
       }
-
-      return result;
-    }, []);
-
-    if (mapped.length > 0) {
-      return mapped;
+    } catch (error) {
+      storefrontError = error;
+      console.error(
+        `Unable to load storefront products from ${storefrontUrl}.`,
+        error,
+      );
     }
-  } catch (error) {
-    storefrontError = error;
-    console.error('Unable to load storefront products, falling back to basic catalog.', error);
   }
 
   const fallbackResponse = await axios.get(`${URLS.API_BASE_URL}/products`, {
@@ -329,7 +374,8 @@ export const fetchLiveProducts = async (): Promise<ProductType[]> => {
   const fallbackItems = getListPayload<BasicProduct>(fallbackResponse.data);
   const fallbackMapped = fallbackItems
     .filter(item => safeString(item?.status, 'active') === 'active')
-    .map((item, index) => mapBasicProductToProduct(item, index));
+    .map((item, index) => mapBasicProductToProduct(item, index))
+    .filter(item => !isFirmHiddenProduct(item));
 
   if (fallbackMapped.length > 0) {
     return fallbackMapped;
@@ -364,21 +410,17 @@ export const getProductCollections = (
   products: ProductType[],
   categoryImageMap: Record<string, string> = {},
 ) => {
+  const visibleProducts = products.filter(product => {
+    const categoryCode = String(product.categoryCode || '').trim().toLowerCase();
+    return categoryCode !== 'firm' && !product.firmRedemptionEligible;
+  });
+
   const normalizeCollectionId = (product: ProductType): string => {
     const categoryCode = String(product.categoryCode || '').trim().toLowerCase();
-    if (categoryCode === 'firm' || product.firmRedemptionEligible) {
-      return 'firm';
-    }
-
     return categoryCode || 'uncategorized';
   };
 
   const resolveCollectionName = (product: ProductType): string => {
-    const categoryCode = String(product.categoryCode || '').trim().toLowerCase();
-    if (categoryCode === 'firm' || product.firmRedemptionEligible) {
-      return 'Firm Catalog';
-    }
-
     return product.categoryName || 'Products';
   };
 
@@ -392,7 +434,7 @@ export const getProductCollections = (
     }
   >();
 
-  products.forEach(product => {
+  visibleProducts.forEach(product => {
     const collectionId = normalizeCollectionId(product);
     const existingCollection = groupedCollections.get(collectionId);
 
@@ -424,8 +466,8 @@ export const getProductCollections = (
     {
       id: 'all',
       name: 'All products',
-      image: products[0]?.image || DEFAULT_CATALOG_IMAGE,
-      products,
+      image: visibleProducts[0]?.image || DEFAULT_CATALOG_IMAGE,
+      products: visibleProducts,
     },
   ].filter(collection => collection.products.length > 0);
 };

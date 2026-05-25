@@ -26,6 +26,8 @@ use App\Orchid\Screens\Order\OrderDetailScreen;
 use App\Orchid\Screens\Order\OrderCreateScreen;
 use App\Orchid\Screens\Withdraw\WithdrawRequestListScreen;
 use App\Orchid\Screens\Withdraw\WithdrawRequestDetailScreen;
+use App\Orchid\Screens\Wallet\CwToSwTransactionListScreen;
+use App\Orchid\Screens\Wallet\SwTransferTransactionListScreen;
 use App\Orchid\Screens\Wallet\WalletManualTopupScreen;
 use App\Orchid\Screens\Wallet\WalletTopupRequestDetailScreen;
 use App\Orchid\Screens\Wallet\WalletTopupRequestListScreen;
@@ -51,9 +53,10 @@ use App\Orchid\Screens\Supplier\SupplierListScreen;
 use App\Orchid\Screens\Supplier\SupplierEditScreen;
 use App\Orchid\Screens\Commission\CommissionSettingsScreen;
 use App\Orchid\Screens\Commission\CommissionReportScreen;
-use App\Orchid\Screens\Commission\CommissionMainPlanReportScreen;
+use App\Orchid\Screens\Commission\SpecialCommissionPrivilegeScreen;
 use App\Orchid\Screens\Finance\MemberBankAccountListScreen;
 use App\Http\Controllers\Platform\CommissionReportController;
+use App\Http\Controllers\Platform\OrderDocumentController;
 use App\Http\Controllers\Platform\OrderReportController;
 use App\Http\Controllers\Platform\WithdrawReportController;
 use App\Http\Controllers\Platform\CommissionSettingsController;
@@ -117,34 +120,6 @@ Route::middleware('admin.access:'.AdminPermissions::CATALOG_MANAGE)->group(funct
 });
 
 Route::middleware('admin.access:'.AdminPermissions::COMMISSIONS_MANAGE)->group(function (): void {
-  Route::screen('commission/settings', CommissionSettingsScreen::class)
-    ->defaults('section', 'settings')
-    ->name('platform.commission.settings');
-
-  Route::screen('commission/direct', CommissionSettingsScreen::class)
-    ->defaults('section', 'direct')
-    ->name('platform.commission.direct');
-
-  Route::screen('commission/unilevel', CommissionSettingsScreen::class)
-    ->defaults('section', 'unilevel')
-    ->name('platform.commission.unilevel');
-
-  Route::screen('commission/matrix', CommissionSettingsScreen::class)
-    ->defaults('section', 'matrix')
-    ->name('platform.commission.matrix');
-
-  Route::screen('commission/reentry', CommissionSettingsScreen::class)
-    ->defaults('section', 'reentry')
-    ->name('platform.commission.reentry');
-
-  Route::screen('commission/pool', CommissionSettingsScreen::class)
-    ->defaults('section', 'pool')
-    ->name('platform.commission.pool');
-
-  Route::screen('commission/cashback', CommissionSettingsScreen::class)
-    ->defaults('section', 'cashback')
-    ->name('platform.commission.cashback');
-
   Route::screen('commission/manual-payment', CommissionSettingsScreen::class)
     ->defaults('section', 'manual-payment')
     ->name('platform.commission.manualPayment');
@@ -161,35 +136,39 @@ Route::middleware('admin.access:'.AdminPermissions::COMMISSIONS_MANAGE)->group(f
     ->defaults('section', 'signup-share')
     ->name('platform.commission.signupShare');
 
-  Route::screen('commission/report', CommissionReportScreen::class)
-    ->defaults('reportMode', 'overview')
-    ->name('platform.commission.report');
-
-  Route::screen('commission-main-plan/report', CommissionMainPlanReportScreen::class)
-    ->name('platform.commission-main-plan.report');
-
   Route::screen('commission/report/direct', CommissionReportScreen::class)
     ->defaults('reportMode', 'direct')
     ->name('platform.commission.report.direct');
 
-  Route::screen('commission/report/unilevel', CommissionReportScreen::class)
-    ->defaults('reportMode', 'unilevel')
-    ->name('platform.commission.report.unilevel');
+  Route::screen('commission/report/team', CommissionReportScreen::class)
+    ->defaults('reportMode', 'team')
+    ->name('platform.commission.report.team');
 
-  Route::screen('commission/report/matrix', CommissionReportScreen::class)
-    ->defaults('reportMode', 'matrix')
-    ->name('platform.commission.report.matrix');
+  Route::screen('commission/report/matching', CommissionReportScreen::class)
+    ->defaults('reportMode', 'matching')
+    ->name('platform.commission.report.matching');
 
   Route::screen('commission/report/pool', CommissionReportScreen::class)
     ->defaults('reportMode', 'pool')
     ->name('platform.commission.report.pool');
 
-  Route::screen('commission/report/cashback', CommissionReportScreen::class)
-    ->defaults('reportMode', 'cashback')
-    ->name('platform.commission.report.cashback');
+  Route::screen('commission/report', CommissionReportScreen::class)
+    ->defaults('reportMode', 'overview')
+    ->name('platform.commission.report');
+
+  Route::screen('commission/special-privilege', SpecialCommissionPrivilegeScreen::class)
+    ->name('platform.commission.specialPrivilege');
 
   Route::get('commission/report/export/{reportMode?}', [CommissionReportController::class, 'export'])
     ->name('platform.commission.report.export');
+  Route::post('commission/report/process-next-member', [CommissionReportController::class, 'processNextMember'])
+    ->name('platform.commission.report.processNextMember');
+  Route::post('commission/report/finalize-current-day', [CommissionReportController::class, 'finalizeCurrentDay'])
+    ->name('platform.commission.report.finalizeCurrentDay');
+  Route::post('commission/report/reset-baseline-runtime', [CommissionReportController::class, 'resetBaselineRuntime'])
+    ->name('platform.commission.report.resetBaselineRuntime');
+  Route::post('commission/report/process-single-day', [CommissionReportController::class, 'processSingleDay'])
+    ->name('platform.commission.report.processSingleDay');
 
   Route::post('commission/save', [CommissionSettingsController::class, 'saveCommission'])
     ->name('platform.commission.save');
@@ -262,6 +241,12 @@ Route::middleware('admin.access:'.AdminPermissions::KYC_MANAGE)->group(function 
 });
 
 Route::middleware('admin.access:'.AdminPermissions::WALLETS_MANAGE)->group(function (): void {
+  Route::screen('wallet/transactions/cw-to-sw', CwToSwTransactionListScreen::class)
+    ->name('platform.wallet.transactions.cwToSw');
+
+  Route::screen('wallet/transactions/sw-transfer', SwTransferTransactionListScreen::class)
+    ->name('platform.wallet.transactions.swTransfer');
+
   Route::screen('wallet/topup/list', WalletTopupRequestListScreen::class)
     ->name('platform.wallet.topup.list');
 
@@ -302,6 +287,12 @@ Route::middleware('admin.access:'.AdminPermissions::ORDERS_MANAGE)->group(functi
 
   Route::get('order/export/{bucket?}', [OrderReportController::class, 'export'])
     ->name('platform.order.export');
+
+  Route::get('order/{order}/receipt', [OrderDocumentController::class, 'receipt'])
+    ->name('platform.order.receipt');
+
+  Route::get('order/{order}/delivery-note', [OrderDocumentController::class, 'deliveryNote'])
+    ->name('platform.order.deliveryNote');
 
   Route::screen('order/detail/{order?}', OrderDetailScreen::class)
     ->name('platform.order.detail');

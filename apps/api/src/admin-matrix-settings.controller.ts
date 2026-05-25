@@ -1,4 +1,5 @@
 import { BadRequestException, Body, Controller, Get, Put } from "@nestjs/common";
+import { Roles } from "../../../packages/modules/auth/src/access-control/roles.decorator";
 
 import {
   requireDecimalRateString,
@@ -13,6 +14,7 @@ const FIXED_BOARD_WIDTH = 2;
 const FIXED_BOARD_DEPTH = 3;
 const FIXED_BOARD_COUNT = 3;
 
+@Roles("admin")
 @Controller("settings")
 export class AdminMatrixSettingsController {
   @Get("matrix")
@@ -97,12 +99,7 @@ export class AdminMatrixSettingsController {
         "autoOrderAmount",
       ),
       autoOrderFirmAmount: requireDecimalString(
-        payload.autoOrderFirmAmount ??
-          payload.reentryFirmAmount ??
-          current.autoOrderFirmAmount ??
-          current.reentryFirmAmount ??
-          current.autoOrderAmount ??
-          current.cwReentryAmount,
+        "0",
         "autoOrderFirmAmount",
       ),
       autoOrderPvAmount: requireDecimalString(
@@ -122,12 +119,7 @@ export class AdminMatrixSettingsController {
         "cwReentryAmount",
       ),
       reentryFirmAmount: requireDecimalString(
-        payload.autoOrderFirmAmount ??
-          payload.reentryFirmAmount ??
-          current.autoOrderFirmAmount ??
-          current.reentryFirmAmount ??
-          current.autoOrderAmount ??
-          current.cwReentryAmount,
+        "0",
         "reentryFirmAmount",
       ),
       reentryPvAmount: requireDecimalString(

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Platform\OrderDocumentController;
 use Illuminate\Support\Facades\Route;
 
 $resolveLineBridgeUrl = static function () {
@@ -35,3 +36,5 @@ Route::get('/line/liff/signin', function () use ($resolveLineBridgeUrl) {
 Route::get('/auth/line/callback', function () use ($resolveLineBridgeUrl) {
     return redirect()->away($resolveLineBridgeUrl(), 302);
 });
+
+Route::get('/internal/order-source/{sourceOrderId}/receipt.pdf', [OrderDocumentController::class, 'internalReceiptPdf']);
