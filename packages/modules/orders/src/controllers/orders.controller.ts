@@ -7,9 +7,11 @@ import {
   requireDecimalString,
   optionalPositiveInteger,
   requirePositiveIntegerString,
+  requireImageReferenceString,
   rethrowHttpError,
 } from "../../../../../apps/api/src/http/request.util";
 import { CommissionsService } from "../../../commissions/src/services/commissions.service";
+import { TransferSlipDto } from "../dto";
 import { OrdersService } from "../services/orders.service";
 
 @Roles("admin")
@@ -192,12 +194,12 @@ export class OrdersController {
   @Post(":orderId/submit-transfer-slip")
   async submitTransferSlip(
     @Param("orderId") orderId: string,
-    @Body() body: { transferSlipUrl: string; transferSlipNote?: string },
+    @Body() body: TransferSlipDto,
   ) {
     try {
       const order = await this.ordersService.submitTransferSlip({
         orderId: requirePositiveIntegerString(orderId, "orderId"),
-        transferSlipUrl: requireNonEmptyString(
+        transferSlipUrl: requireImageReferenceString(
           body.transferSlipUrl,
           "transferSlipUrl",
         ),

@@ -16,6 +16,9 @@ function createValidProductionEnv(): Record<string, string> {
     APP_PUBLIC_BASE_URL: "https://api.blifehealthy.com",
     APP_CORS_ORIGINS:
       "https://wap.blifehealthy.com,https://api.blifehealthy.com,https://bao.blifehealthy.com",
+    APP_BODY_LIMIT: "1mb",
+    APP_UPLOAD_BODY_LIMIT: "8mb",
+    APP_ENABLE_HSTS: "true",
     APP_REDIS_URL: "redis://redis.internal.example:6379",
     INTERNAL_BAO_BASE_URL: "http://bao:8001",
     INTERNAL_RECEIPT_TOKEN: "receipt-token-0123456789abcdef0123456789abcd",
@@ -73,6 +76,20 @@ test("production with invalid rate limit numeric value fails", () => {
     (error: unknown) => {
       assert.ok(error instanceof ApiEnvironmentValidationError);
       assert.match(error.message, /AUTH_LOGIN_LOCK_MAX_FAILURES/);
+      return true;
+    },
+  );
+});
+
+test("production with unsafe body limit fails", () => {
+  const env = createValidProductionEnv();
+  env.APP_BODY_LIMIT = "12mb";
+
+  assert.throws(
+    () => assertValidApiEnvironment(env, { sourceName: "test-env" }),
+    (error: unknown) => {
+      assert.ok(error instanceof ApiEnvironmentValidationError);
+      assert.match(error.message, /APP_BODY_LIMIT/);
       return true;
     },
   );

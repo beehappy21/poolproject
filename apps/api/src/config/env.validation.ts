@@ -81,6 +81,10 @@ export function validateApiEnvironment(
 
   validateOptionalPositiveInteger(env, "APP_PORT", issues);
   validateOptionalPositiveInteger(env, "APP_TRUST_PROXY_HOPS", issues);
+  validateOptionalSizeLimit(env, "APP_BODY_LIMIT", issues);
+  validateOptionalSizeLimit(env, "APP_UPLOAD_BODY_LIMIT", issues);
+  validateOptionalPositiveInteger(env, "APP_UPLOAD_MAX_BASE64_BYTES", issues);
+  validateOptionalBoolean(env, "APP_ENABLE_HSTS", issues);
   validateOptionalPositiveInteger(env, "APP_RATE_LIMIT_WINDOW_MS", issues);
   validateOptionalPositiveInteger(env, "APP_RATE_LIMIT_MAX_REQUESTS", issues);
   validateOptionalPositiveInteger(env, "RATE_LIMIT_WINDOW_SECONDS", issues);
@@ -123,6 +127,7 @@ export function validateApiEnvironment(
   requireUrl(env, "INTERNAL_BAO_BASE_URL", issues);
 
   requireCorsOrigins(env, issues);
+  requireSafeProductionBodyLimit(env, issues);
 
   requireSecret(env, "INTERNAL_RECEIPT_TOKEN", issues, MIN_SECRET_LENGTH);
   requireSecret(env, "AUTH_SESSION_HMAC_SECRET", issues, MIN_SECRET_LENGTH);
@@ -270,6 +275,74 @@ function validateOptionalPositiveInteger(
   if (!Number.isFinite(parsed) || parsed <= 0 || !Number.isInteger(parsed)) {
     issues.push(`${key} must be a positive integer.`);
   }
+}
+
+function validateOptionalBoolean(
+  env: NodeJS.ProcessEnv | Record<string, string | undefined>,
+  key: string,
+  issues: string[],
+): void {
+  const value = normalizeOptional(env[key]);
+  if (!value) {
+    return;
+  }
+
+  if (value !== "true" && value !== "false") {
+    issues.push(`${key} must be true or false.`);
+  }
+}
+
+function validateOptionalSizeLimit(
+  env: NodeJS.ProcessEnv | Record<string, string | undefined>,
+  key: string,
+  issues: string[],
+): void {
+  const value = normalizeOptional(env[key]).toLowerCase();
+  if (!value) {
+    return;
+  }
+
+  if (!parseSizeLimitBytes(value)) {
+    issues.push(`${key} must be a positive size such as 512kb, 1mb, or 8mb.`);
+  }
+}
+
+function requireSafeProductionBodyLimit(
+  env: NodeJS.ProcessEnv | Record<string, string | undefined>,
+  issues: string[],
+): void {
+  const bodyLimit = parseSizeLimitBytes(normalizeOptional(env.APP_BODY_LIMIT) || "1mb");
+  const uploadLimit = parseSizeLimitBytes(normalizeOptional(env.APP_UPLOAD_BODY_LIMIT) || "8mb");
+
+  if (!bodyLimit || bodyLimit > 2 * 1024 * 1024) {
+    issues.push("APP_BODY_LIMIT must be 2mb or lower in production.");
+  }
+
+  if (!uploadLimit || uploadLimit > 10 * 1024 * 1024) {
+    issues.push("APP_UPLOAD_BODY_LIMIT must be 10mb or lower in production.");
+  }
+}
+
+function parseSizeLimitBytes(value: string): number | null {
+  const match = value.trim().toLowerCase().match(/^(\d+)(b|kb|mb)?$/);
+  if (!match) {
+    return null;
+  }
+
+  const amount = Number(match[1]);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return null;
+  }
+
+  const unit = match[2] || "b";
+  if (unit === "mb") {
+    return amount * 1024 * 1024;
+  }
+  if (unit === "kb") {
+    return amount * 1024;
+  }
+
+  return amount;
 }
 
 function validateOptionalNonEmptyString(

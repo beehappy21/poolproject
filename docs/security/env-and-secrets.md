@@ -45,6 +45,10 @@ Treat these as secrets and keep them out of source control:
 - production passwords: at least `12` characters
 - `AUTH_SESSION_TTL_SECONDS` must be a positive integer if provided
 - `AUTH_SESSION_KEY_PREFIX` must not be empty if provided
+- `APP_BODY_LIMIT` must be a positive size and must be `2mb` or lower in production
+- `APP_UPLOAD_BODY_LIMIT` must be a positive size and must be `10mb` or lower in production
+- `APP_UPLOAD_MAX_BASE64_BYTES` must be a positive integer if provided
+- `APP_ENABLE_HSTS` must be `true` or `false` if provided
 - rate limit and login lockout numeric values must be positive integers if provided
 - `RATE_LIMIT_KEY_PREFIX` and `AUTH_LOGIN_BRUTE_FORCE_KEY_PREFIX` must not be empty if provided
 

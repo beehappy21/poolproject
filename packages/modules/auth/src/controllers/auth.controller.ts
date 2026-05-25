@@ -22,6 +22,7 @@ import {
   optionalString,
   optionalImageReferenceString,
   optionalUrlString,
+  requireImageReferenceString,
 } from "../../../../../apps/api/src/http/request.util";
 import { readCommissionSettings } from "../../../../shared/utils/src/commission-settings.util";
 import { readManualPaymentSettings } from "../../../../shared/utils/src/manual-payment-settings.util";
@@ -35,6 +36,15 @@ import { WalletsService } from "../../../wallets";
 import { AuthService } from "../services/auth.service";
 import { Public } from "../access-control/public.decorator";
 import { Roles } from "../access-control/roles.decorator";
+import {
+  ChangePasswordDto,
+  ForgotPasswordResetDto,
+  LineBindingDto,
+  LineLoginDto,
+  LoginDto,
+  TransferSlipDto,
+  UpdateProfileDto,
+} from "../dto";
 
 @Roles("member")
 @Controller("auth")
@@ -54,11 +64,7 @@ export class AuthController {
   @Post("login")
   async login(
     @Req() request: any,
-    @Body()
-    body: {
-      identifier: string;
-      password: string;
-    },
+    @Body() body: LoginDto,
     @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void },
   ) {
     const session = await this.authService.login({
@@ -74,11 +80,7 @@ export class AuthController {
   @Public()
   @Post("forgot-password-reset")
   async forgotPasswordReset(
-    @Body()
-    body: {
-      identifier: string;
-      adminOverridePassword?: string;
-    },
+    @Body() body: ForgotPasswordResetDto,
   ) {
     return this.authService.resetPasswordFromIdentifier({
       identifier: requireNonEmptyString(body.identifier, "identifier"),
@@ -89,11 +91,7 @@ export class AuthController {
   @Public()
   @Post("line-login")
   async lineLogin(
-    @Body()
-    body: {
-      lineUserId?: string;
-      lineIdToken?: string;
-    },
+    @Body() body: LineLoginDto,
     @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void },
   ) {
     await this.authService.verifyLineIdentity({
@@ -121,11 +119,7 @@ export class AuthController {
   @Public()
   @Post("line-binding/check")
   async checkLineBinding(
-    @Body()
-    body: {
-      lineUserId?: string;
-      lineIdToken?: string;
-    },
+    @Body() body: LineLoginDto,
   ) {
     await this.authService.verifyLineIdentity({
       lineUserId: requireNonEmptyString(body?.lineUserId, "lineUserId"),
@@ -238,17 +232,9 @@ export class AuthController {
 
   @Post("line-binding")
   async bindOwnLineProfile(
+    @Body() body: LineBindingDto,
     @Headers("authorization") authorization?: string,
     @Headers("cookie") cookieHeader?: string,
-    @Body()
-    body?: {
-      lineUserId?: string;
-      lineIdToken?: string;
-      displayName?: string;
-      pictureUrl?: string;
-      statusMessage?: string;
-      source?: string;
-    },
   ) {
     const user = await this.requireSessionUser(authorization, cookieHeader);
 
@@ -816,9 +802,9 @@ export class AuthController {
   @Post("orders/:orderId/submit-transfer-slip")
   async submitOwnTransferSlip(
     @Param("orderId") orderId: string,
+    @Body() body: TransferSlipDto,
     @Headers("authorization") authorization?: string,
     @Headers("cookie") cookieHeader?: string,
-    @Body() body?: { transferSlipUrl?: string; transferSlipNote?: string },
   ) {
     const user = await this.requireSessionUser(authorization, cookieHeader);
     const validatedOrderId = requirePositiveIntegerString(orderId, "orderId");
@@ -830,7 +816,7 @@ export class AuthController {
 
     return this.ordersService.submitTransferSlip({
       orderId: validatedOrderId,
-      transferSlipUrl: requireNonEmptyString(body?.transferSlipUrl, "transferSlipUrl"),
+      transferSlipUrl: requireImageReferenceString(body?.transferSlipUrl, "transferSlipUrl"),
       transferSlipNote: body?.transferSlipNote
         ? requireNonEmptyString(body.transferSlipNote, "transferSlipNote")
         : undefined,
@@ -1035,14 +1021,9 @@ export class AuthController {
 
   @Post("change-password")
   async changePassword(
+    @Body() body: ChangePasswordDto,
     @Headers("authorization") authorization?: string,
     @Headers("cookie") cookieHeader?: string,
-    @Body()
-    body?: {
-      currentPassword?: string;
-      newPassword?: string;
-      adminOverridePassword?: string;
-    },
   ) {
     const user = await this.requireSessionUser(authorization, cookieHeader);
     const newPassword = requireNonEmptyString(body?.newPassword, "newPassword");
@@ -1061,15 +1042,9 @@ export class AuthController {
 
   @Post("profile")
   async updateProfile(
+    @Body() body: UpdateProfileDto,
     @Headers("authorization") authorization?: string,
     @Headers("cookie") cookieHeader?: string,
-    @Body()
-    body?: {
-      name?: string;
-      email?: string;
-      phone?: string;
-      adminOverridePassword?: string;
-    },
   ) {
     const user = await this.requireSessionUser(authorization, cookieHeader);
     const name = body?.name?.trim() || undefined;

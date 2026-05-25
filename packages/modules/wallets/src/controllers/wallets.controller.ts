@@ -21,6 +21,7 @@ import {
 } from "../../../../../apps/api/src/http/request.util";
 import { AuthService } from "../../../auth";
 import { Roles } from "../../../auth/src/access-control/roles.decorator";
+import { WalletTopupDto } from "../dto";
 import { WalletsService } from "../services/wallets.service";
 
 @Roles("admin")
@@ -85,12 +86,7 @@ export class WalletsController {
   @Post(":userId/topups")
   async topupShoppingWallet(
     @Param("userId") userId: string,
-    @Body()
-    body: {
-      amount: string;
-      paymentMethod: string;
-      note?: string;
-    },
+    @Body() body: WalletTopupDto,
     @Headers("authorization") authorization?: string,
     @Headers("cookie") cookieHeader?: string,
   ) {
