@@ -53,6 +53,9 @@ Treat these as secrets and keep them out of source control:
 - `AUDIT_LOG_ENABLED` and `AUDIT_LOG_CONSOLE` must be `true` or `false` if provided
 - `AUDIT_LOG_DIR` and `AUDIT_LOG_FILE` must not be empty if provided
 - `AUDIT_LOG_MAX_BYTES` and `AUDIT_LOG_MAX_FILES` must be positive integers if provided
+- `HEALTH_READINESS_TIMEOUT_MS` must be a positive integer if provided
+- `METRICS_ENABLED` must be `true` or `false` if provided
+- `METRICS_PATH` must be a safe relative HTTP path if provided
 - rate limit and login lockout numeric values must be positive integers if provided
 - `RATE_LIMIT_KEY_PREFIX` and `AUTH_LOGIN_BRUTE_FORCE_KEY_PREFIX` must not be empty if provided
 

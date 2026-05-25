@@ -91,6 +91,9 @@ export function validateApiEnvironment(
   validateOptionalNonEmptyString(env, "AUDIT_LOG_FILE", issues);
   validateOptionalPositiveInteger(env, "AUDIT_LOG_MAX_BYTES", issues);
   validateOptionalPositiveInteger(env, "AUDIT_LOG_MAX_FILES", issues);
+  validateOptionalPositiveInteger(env, "HEALTH_READINESS_TIMEOUT_MS", issues);
+  validateOptionalBoolean(env, "METRICS_ENABLED", issues);
+  validateOptionalMetricsPath(env, issues);
   validateOptionalPositiveInteger(env, "APP_RATE_LIMIT_WINDOW_MS", issues);
   validateOptionalPositiveInteger(env, "APP_RATE_LIMIT_MAX_REQUESTS", issues);
   validateOptionalPositiveInteger(env, "RATE_LIMIT_WINDOW_SECONDS", issues);
@@ -384,6 +387,20 @@ function validateOptionalNonEmptyString(
 
   if (!normalizeOptional(env[key])) {
     issues.push(`${key} must not be empty when provided.`);
+  }
+}
+
+function validateOptionalMetricsPath(
+  env: NodeJS.ProcessEnv | Record<string, string | undefined>,
+  issues: string[],
+): void {
+  const value = normalizeOptional(env.METRICS_PATH);
+  if (!value) {
+    return;
+  }
+
+  if (!/^[a-z0-9][a-z0-9/_-]*$/i.test(value) || value.includes("..")) {
+    issues.push("METRICS_PATH must be a safe relative HTTP path.");
   }
 }
 

@@ -13,7 +13,12 @@ import { PoolModule } from "../../../packages/modules/pool";
 import { WalletsModule } from "../../../packages/modules/wallets";
 import { AdminSettingsController } from "./admin-settings.controller";
 import { ContentController } from "./content.controller";
-import { HealthController } from "./health.controller";
+import {
+  defaultHealthChecks,
+  HEALTH_CHECKS,
+  HealthController,
+  MetricsController,
+} from "./health.controller";
 import { NotificationsController } from "./notifications.controller";
 import { ShippingController } from "./shipping.controller";
 import { AuthGuard } from "./auth/guards/auth.guard";
@@ -33,6 +38,7 @@ import { RolesGuard } from "./auth/guards/roles.guard";
   ],
   controllers: [
     HealthController,
+    MetricsController,
     AdminSettingsController,
     AdminMatrixSettingsController,
     InternalBaoController,
@@ -41,6 +47,10 @@ import { RolesGuard } from "./auth/guards/roles.guard";
     ShippingController,
   ],
   providers: [
+    {
+      provide: HEALTH_CHECKS,
+      useValue: defaultHealthChecks,
+    },
     {
       provide: APP_GUARD,
       useClass: AuthGuard,

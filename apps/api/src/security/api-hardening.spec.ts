@@ -8,6 +8,7 @@ import { LoginDto, TransferSlipDto } from "../../../../packages/modules/auth/src
 import {
   createApiValidationPipe,
   createHelmetMiddleware,
+  createRequestIdMiddleware,
   isCorsOriginAllowed,
   isUploadPayloadRequest,
 } from "./api-hardening";
@@ -19,7 +20,7 @@ const expressBodyParsers = require("express") as {
 test("Helmet middleware sets key security headers", async () => {
   const headers = new Map<string, string | string[]>();
   const middleware = createHelmetMiddleware();
-  const request = {
+  const request: any = {
     method: "GET",
     headers: {},
   };
@@ -153,6 +154,29 @@ test("upload route detection and CORS origin policy are restricted", () => {
   assert.equal(isUploadPayloadRequest({ path: "/auth/login" }), false);
   assert.equal(isCorsOriginAllowed("http://localhost:3001"), true);
   assert.equal(isCorsOriginAllowed("https://not-allowed.example"), false);
+});
+
+test("request id middleware preserves incoming id and returns response header", () => {
+  const middleware = createRequestIdMiddleware();
+  const request: any = {
+    headers: {
+      "x-request-id": "req-health-smoke",
+    },
+  };
+  const headers: Record<string, string> = {};
+
+  middleware(
+    request,
+    {
+      setHeader(name: string, value: string) {
+        headers[name.toLowerCase()] = value;
+      },
+    },
+    () => undefined,
+  );
+
+  assert.equal(request.requestId, "req-health-smoke");
+  assert.equal(headers["x-request-id"], "req-health-smoke");
 });
 
 async function parseJsonBody(input: {

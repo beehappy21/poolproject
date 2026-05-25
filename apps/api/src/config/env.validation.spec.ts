@@ -25,6 +25,9 @@ function createValidProductionEnv(): Record<string, string> {
     AUDIT_LOG_FILE: "audit.jsonl",
     AUDIT_LOG_MAX_BYTES: "10485760",
     AUDIT_LOG_MAX_FILES: "5",
+    HEALTH_READINESS_TIMEOUT_MS: "1500",
+    METRICS_ENABLED: "true",
+    METRICS_PATH: "metrics",
     APP_REDIS_URL: "redis://redis.internal.example:6379",
     INTERNAL_BAO_BASE_URL: "http://bao:8001",
     INTERNAL_RECEIPT_TOKEN: "receipt-token-0123456789abcdef0123456789abcd",
@@ -126,6 +129,24 @@ test("production cannot disable audit logs", () => {
     (error: unknown) => {
       assert.ok(error instanceof ApiEnvironmentValidationError);
       assert.match(error.message, /AUDIT_LOG_ENABLED/);
+      return true;
+    },
+  );
+});
+
+test("production with invalid monitoring env values fails", () => {
+  const env = createValidProductionEnv();
+  env.HEALTH_READINESS_TIMEOUT_MS = "0";
+  env.METRICS_ENABLED = "maybe";
+  env.METRICS_PATH = "../metrics";
+
+  assert.throws(
+    () => assertValidApiEnvironment(env, { sourceName: "test-env" }),
+    (error: unknown) => {
+      assert.ok(error instanceof ApiEnvironmentValidationError);
+      assert.match(error.message, /HEALTH_READINESS_TIMEOUT_MS/);
+      assert.match(error.message, /METRICS_ENABLED/);
+      assert.match(error.message, /METRICS_PATH/);
       return true;
     },
   );

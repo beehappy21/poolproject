@@ -92,8 +92,16 @@ export function selectRateLimitProfile(
 ): RateLimitProfile | null {
   const method = String(request.method || "").toUpperCase();
   const path = getNormalizedPath(request);
+  const metricsPath = `/${process.env.METRICS_PATH?.trim() || "metrics"}`;
 
-  if (method === "OPTIONS" || path === "/health" || path === "/" || path.startsWith("/internal/bao/")) {
+  if (
+    method === "OPTIONS" ||
+    path === "/health" ||
+    path.startsWith("/health/") ||
+    path === metricsPath ||
+    path === "/" ||
+    path.startsWith("/internal/bao/")
+  ) {
     return null;
   }
 

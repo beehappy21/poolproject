@@ -5,6 +5,7 @@ import helmet from "helmet";
 
 import { apiConfig } from "../config/api.config";
 import { shouldAuditRequest, writeAuditEntry } from "../http/audit.util";
+import { recordHttpRequest } from "../monitoring/metrics.util";
 import { createRateLimitMiddleware } from "./rate-limit/rate-limit.middleware";
 
 const expressBodyParsers = require("express") as {
@@ -24,16 +25,7 @@ export async function configureApiApp(app: NestExpressApplication): Promise<void
 
   app.use(createHelmetMiddleware());
 
-  app.use((request: any, response: any, next: () => void) => {
-    const incomingRequestId = request.headers?.["x-request-id"];
-    const requestId = String(
-      Array.isArray(incomingRequestId) ? incomingRequestId[0] : incomingRequestId || randomUUID(),
-    ).slice(0, 128);
-
-    request.requestId = requestId;
-    response.setHeader("x-request-id", requestId);
-    next();
-  });
+  app.use(createRequestIdMiddleware());
 
   app.use(expressBodyParsers.json({
     limit: apiConfig.uploadBodyLimit,
@@ -75,6 +67,8 @@ export async function configureApiApp(app: NestExpressApplication): Promise<void
     const shouldAudit = shouldAuditRequest(request.method, request.path);
 
     response.on("finish", () => {
+      recordHttpRequest(response.statusCode);
+
       if (!shouldAudit) {
         return;
       }
@@ -102,6 +96,19 @@ export async function configureApiApp(app: NestExpressApplication): Promise<void
 
     next();
   });
+}
+
+export function createRequestIdMiddleware(): (request: any, response: any, next: () => void) => void {
+  return (request: any, response: any, next: () => void) => {
+    const incomingRequestId = request.headers?.["x-request-id"];
+    const requestId = String(
+      Array.isArray(incomingRequestId) ? incomingRequestId[0] : incomingRequestId || randomUUID(),
+    ).slice(0, 128);
+
+    request.requestId = requestId;
+    response.setHeader("x-request-id", requestId);
+    next();
+  };
 }
 
 export function createApiValidationPipe(): ValidationPipe {

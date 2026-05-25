@@ -21,6 +21,7 @@ import { OrdersService } from "../../../../packages/modules/orders/src/services/
 import { PackagesService } from "../../../../packages/modules/packages/src/services/packages.service";
 import { PoolService } from "../../../../packages/modules/pool/src/services/pool.service";
 import { WalletsService } from "../../../../packages/modules/wallets/src/services/wallets.service";
+import { PrismaService } from "../../../../packages/infrastructure/src/prisma/prisma.service";
 
 function createAuthServiceMock() {
   return {
@@ -112,6 +113,10 @@ async function createTestContext() {
         useValue: createNoopProvider<PoolService>(),
       },
       {
+        provide: PrismaService,
+        useValue: createNoopProvider<PrismaService>(),
+      },
+      {
         provide: APP_GUARD,
         useClass: AuthGuard,
       },
@@ -158,7 +163,7 @@ test("GET /health is public under global guards using the real HealthController 
 
     assert.equal(await authGuard.canActivate(context), true);
     assert.equal(rolesGuard.canActivate(context), true);
-    assert.deepEqual(healthController.getHealth(), { status: "ok" });
+    assert.equal(healthController.getHealth().status, "ok");
   } finally {
     await closeApp(app);
   }
