@@ -39,6 +39,7 @@ Treat these as secrets and keep them out of source control:
 - `SUPER_ADMIN_PASSWORD`
 - `SUPER_ADMIN_OVERRIDE_PASSWORD`
 - database passwords embedded inside `DATABASE_URL`
+- database passwords embedded inside `BACKUP_DATABASE_URL`, `RESTORE_DATABASE_URL`, or `DRILL_DATABASE_URL`
 
 ## Minimum Length Guidance
 
@@ -56,6 +57,7 @@ Treat these as secrets and keep them out of source control:
 - `HEALTH_READINESS_TIMEOUT_MS` must be a positive integer if provided
 - `METRICS_ENABLED` must be `true` or `false` if provided
 - `METRICS_PATH` must be a safe relative HTTP path if provided
+- backup scripts use `BACKUP_DATABASE_URL`, `RESTORE_DATABASE_URL`, or `DRILL_DATABASE_URL` when provided; treat them as secrets like `DATABASE_URL`
 - rate limit and login lockout numeric values must be positive integers if provided
 - `RATE_LIMIT_KEY_PREFIX` and `AUTH_LOGIN_BRUTE_FORCE_KEY_PREFIX` must not be empty if provided
 

@@ -35,7 +35,7 @@ Health responses must never include `DATABASE_URL`, Redis URLs, tokens, secrets,
 - Rate-limit events spike above baseline.
 - Audit log write failures appear in logs.
 - Disk usage exceeds 80%, especially the log volume.
-- Backup failure alert, dependent on the future backup/restore PR.
+- Backup failure alert from the database backup job.
 
 ## Suggested Notification Channels
 
@@ -99,4 +99,4 @@ API_BASE_URL=https://api.blifehealthy.com npm run smoke:health
 - Add centralized log shipping and alert routing.
 - Share a single Redis provider across health, sessions, brute-force, and rate limiting.
 - Add worker-specific health checks if/when the worker exposes an HTTP endpoint.
-- Add backup/restore alerts in the backup PR.
+- Add backup storage replication alerts after an off-host storage provider is selected.
