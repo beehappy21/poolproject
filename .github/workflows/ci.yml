@@ -15,6 +15,8 @@ jobs:
     name: Build, Lint, Test, Env
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/poolproject?schema=public
 
     steps:
       - name: Checkout
@@ -86,4 +88,4 @@ jobs:
       - name: Run gitleaks
         uses: docker://zricethezav/gitleaks:v8.24.3
         with:
-          args: detect --source . --redact --config .gitleaks.toml --verbose
+          args: detect --no-git --source . --redact --config .gitleaks.toml --verbose
