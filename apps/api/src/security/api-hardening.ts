@@ -1,5 +1,6 @@
 import { ValidationPipe } from "@nestjs/common";
 import type { NestExpressApplication } from "@nestjs/platform-express";
+import { randomUUID } from "node:crypto";
 import helmet from "helmet";
 
 import { apiConfig } from "../config/api.config";
@@ -22,6 +23,17 @@ export async function configureApiApp(app: NestExpressApplication): Promise<void
   expressApp.set("trust proxy", apiConfig.trustProxyHops);
 
   app.use(createHelmetMiddleware());
+
+  app.use((request: any, response: any, next: () => void) => {
+    const incomingRequestId = request.headers?.["x-request-id"];
+    const requestId = String(
+      Array.isArray(incomingRequestId) ? incomingRequestId[0] : incomingRequestId || randomUUID(),
+    ).slice(0, 128);
+
+    request.requestId = requestId;
+    response.setHeader("x-request-id", requestId);
+    next();
+  });
 
   app.use(expressBodyParsers.json({
     limit: apiConfig.uploadBodyLimit,
@@ -84,6 +96,7 @@ export async function configureApiApp(app: NestExpressApplication): Promise<void
               ? "member"
               : "public",
         ip: request.ip ?? request.socket?.remoteAddress ?? null,
+        requestId: request.requestId ?? null,
       });
     });
 

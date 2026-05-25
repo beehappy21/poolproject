@@ -11,6 +11,7 @@ import { createSessionToken } from "../session/session-token.util";
 import { SESSION_STORE, type SessionStore } from "../session/session-store";
 import { getSessionStoreConfig } from "../session/session-env.util";
 import { AuthBruteForceService } from "../brute-force/auth-brute-force.service";
+import { writeSecurityAuditEntry } from "../../../../../apps/api/src/http/audit.util";
 
 export interface AuthServiceContract {
   login(input: {
@@ -111,6 +112,16 @@ export class AuthService implements AuthServiceContract {
       ttlSeconds: this.sessionTtlSeconds,
     });
     await this.bruteForceService.recordSuccessfulLogin(attemptContext);
+    writeSecurityAuditEntry({
+      event: "auth.login.success",
+      at: new Date().toISOString(),
+      ip: input.ip || null,
+      metadata: {
+        userId: user.userId,
+        memberCode: user.memberCode,
+        role: user.adminRole || (user.isAdmin ? "admin" : "member"),
+      },
+    });
 
     return {
       accessToken,

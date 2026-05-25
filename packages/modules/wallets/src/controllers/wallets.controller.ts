@@ -19,6 +19,7 @@ import {
   requireNonEmptyString,
   requirePositiveIntegerString,
 } from "../../../../../apps/api/src/http/request.util";
+import { writeBusinessAuditEntry } from "../../../../../apps/api/src/http/audit.util";
 import { AuthService } from "../../../auth";
 import { Roles } from "../../../auth/src/access-control/roles.decorator";
 import { WalletTopupDto } from "../dto";
@@ -91,15 +92,21 @@ export class WalletsController {
     @Headers("cookie") cookieHeader?: string,
   ) {
     const adminUser = await this.requireAdminSessionUser(authorization, cookieHeader);
+    const normalizedUserId = requirePositiveIntegerString(userId, "userId");
 
-    return this.walletsService.topupShoppingWallet({
-      userId: requirePositiveIntegerString(userId, "userId"),
+    const result = await this.walletsService.topupShoppingWallet({
+      userId: normalizedUserId,
       amount: requireDecimalString(body.amount, "amount"),
       paymentMethod: requireNonEmptyString(body.paymentMethod, "paymentMethod")
         .toLowerCase(),
       note: optionalString(body.note),
       actorUserId: adminUser.userId,
     });
+    this.writeWalletAudit("wallet.topup.created", adminUser.userId, "member", normalizedUserId, {
+      amount: body.amount,
+      paymentMethod: body.paymentMethod,
+    });
+    return result;
   }
 
   @Post("topup-requests/:requestId/approve")
@@ -109,11 +116,14 @@ export class WalletsController {
     @Headers("cookie") cookieHeader?: string,
   ) {
     const adminUser = await this.requireAdminSessionUser(authorization, cookieHeader);
+    const normalizedRequestId = requirePositiveIntegerString(requestId, "requestId");
 
-    return this.walletsService.approveWalletTopupRequest({
-      requestId: requirePositiveIntegerString(requestId, "requestId"),
+    const result = await this.walletsService.approveWalletTopupRequest({
+      requestId: normalizedRequestId,
       actorUserId: adminUser.userId,
     });
+    this.writeWalletAudit("wallet.topup_request.approved", adminUser.userId, "topup_request", normalizedRequestId);
+    return result;
   }
 
   @Post("topup-requests/:requestId/reject")
@@ -124,12 +134,17 @@ export class WalletsController {
     @Headers("cookie") cookieHeader?: string,
   ) {
     const adminUser = await this.requireAdminSessionUser(authorization, cookieHeader);
+    const normalizedRequestId = requirePositiveIntegerString(requestId, "requestId");
 
-    return this.walletsService.rejectWalletTopupRequest({
-      requestId: requirePositiveIntegerString(requestId, "requestId"),
+    const result = await this.walletsService.rejectWalletTopupRequest({
+      requestId: normalizedRequestId,
       actorUserId: adminUser.userId,
       rejectionReason: requireNonEmptyString(body.rejectionReason, "rejectionReason"),
     });
+    this.writeWalletAudit("wallet.topup_request.rejected", adminUser.userId, "topup_request", normalizedRequestId, {
+      reason: body.rejectionReason,
+    });
+    return result;
   }
 
   @Get("withdraw-requests")
@@ -164,11 +179,14 @@ export class WalletsController {
     @Headers("cookie") cookieHeader?: string,
   ) {
     const adminUser = await this.requireAdminSessionUser(authorization, cookieHeader);
+    const normalizedRequestId = requirePositiveIntegerString(requestId, "requestId");
 
-    return this.walletsService.approveWithdrawRequest({
-      requestId: requirePositiveIntegerString(requestId, "requestId"),
+    const result = await this.walletsService.approveWithdrawRequest({
+      requestId: normalizedRequestId,
       actorUserId: adminUser.userId,
     });
+    this.writeWalletAudit("wallet.withdraw_request.approved", adminUser.userId, "withdraw_request", normalizedRequestId);
+    return result;
   }
 
   @Post("withdraw-requests/:requestId/reject")
@@ -179,12 +197,17 @@ export class WalletsController {
     @Headers("cookie") cookieHeader?: string,
   ) {
     const adminUser = await this.requireAdminSessionUser(authorization, cookieHeader);
+    const normalizedRequestId = requirePositiveIntegerString(requestId, "requestId");
 
-    return this.walletsService.rejectWithdrawRequest({
-      requestId: requirePositiveIntegerString(requestId, "requestId"),
+    const result = await this.walletsService.rejectWithdrawRequest({
+      requestId: normalizedRequestId,
       actorUserId: adminUser.userId,
       rejectionReason: requireNonEmptyString(body.rejectionReason, "rejectionReason"),
     });
+    this.writeWalletAudit("wallet.withdraw_request.rejected", adminUser.userId, "withdraw_request", normalizedRequestId, {
+      reason: body.rejectionReason,
+    });
+    return result;
   }
 
   @Post("withdraw-requests/:requestId/cancel")
@@ -263,11 +286,14 @@ export class WalletsController {
     @Headers("cookie") cookieHeader?: string,
   ) {
     const adminUser = await this.requireAdminSessionUser(authorization, cookieHeader);
+    const normalizedRequestId = requirePositiveIntegerString(requestId, "requestId");
 
-    return this.walletsService.approveKycRequest({
-      requestId: requirePositiveIntegerString(requestId, "requestId"),
+    const result = await this.walletsService.approveKycRequest({
+      requestId: normalizedRequestId,
       actorUserId: adminUser.userId,
     });
+    this.writeWalletAudit("wallet.kyc_request.approved", adminUser.userId, "kyc_request", normalizedRequestId);
+    return result;
   }
 
   @Post("kyc-requests/:requestId/reject")
@@ -278,12 +304,17 @@ export class WalletsController {
     @Headers("cookie") cookieHeader?: string,
   ) {
     const adminUser = await this.requireAdminSessionUser(authorization, cookieHeader);
+    const normalizedRequestId = requirePositiveIntegerString(requestId, "requestId");
 
-    return this.walletsService.rejectKycRequest({
-      requestId: requirePositiveIntegerString(requestId, "requestId"),
+    const result = await this.walletsService.rejectKycRequest({
+      requestId: normalizedRequestId,
       actorUserId: adminUser.userId,
       rejectionReason: requireNonEmptyString(body.rejectionReason, "rejectionReason"),
     });
+    this.writeWalletAudit("wallet.kyc_request.rejected", adminUser.userId, "kyc_request", normalizedRequestId, {
+      reason: body.rejectionReason,
+    });
+    return result;
   }
 
   @Post(":userId/topup-requests")
@@ -330,6 +361,25 @@ export class WalletsController {
     }
 
     return cookieToken;
+  }
+
+  private writeWalletAudit(
+    event: string,
+    actorUserId: string,
+    targetType: string,
+    targetId: string,
+    metadata: Record<string, unknown> = {},
+  ): void {
+    writeBusinessAuditEntry({
+      event,
+      at: new Date().toISOString(),
+      actorUserId,
+      actorRole: "admin",
+      targetType,
+      targetId,
+      outcome: "success",
+      metadata,
+    });
   }
 
   private async requireAdminSessionUser(

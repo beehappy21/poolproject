@@ -85,6 +85,12 @@ export function validateApiEnvironment(
   validateOptionalSizeLimit(env, "APP_UPLOAD_BODY_LIMIT", issues);
   validateOptionalPositiveInteger(env, "APP_UPLOAD_MAX_BASE64_BYTES", issues);
   validateOptionalBoolean(env, "APP_ENABLE_HSTS", issues);
+  validateOptionalBoolean(env, "AUDIT_LOG_ENABLED", issues);
+  validateOptionalBoolean(env, "AUDIT_LOG_CONSOLE", issues);
+  validateOptionalNonEmptyString(env, "AUDIT_LOG_DIR", issues);
+  validateOptionalNonEmptyString(env, "AUDIT_LOG_FILE", issues);
+  validateOptionalPositiveInteger(env, "AUDIT_LOG_MAX_BYTES", issues);
+  validateOptionalPositiveInteger(env, "AUDIT_LOG_MAX_FILES", issues);
   validateOptionalPositiveInteger(env, "APP_RATE_LIMIT_WINDOW_MS", issues);
   validateOptionalPositiveInteger(env, "APP_RATE_LIMIT_MAX_REQUESTS", issues);
   validateOptionalPositiveInteger(env, "RATE_LIMIT_WINDOW_SECONDS", issues);
@@ -128,6 +134,7 @@ export function validateApiEnvironment(
 
   requireCorsOrigins(env, issues);
   requireSafeProductionBodyLimit(env, issues);
+  requireSafeProductionAuditLogConfig(env, issues);
 
   requireSecret(env, "INTERNAL_RECEIPT_TOKEN", issues, MIN_SECRET_LENGTH);
   requireSecret(env, "AUTH_SESSION_HMAC_SECRET", issues, MIN_SECRET_LENGTH);
@@ -320,6 +327,27 @@ function requireSafeProductionBodyLimit(
 
   if (!uploadLimit || uploadLimit > 10 * 1024 * 1024) {
     issues.push("APP_UPLOAD_BODY_LIMIT must be 10mb or lower in production.");
+  }
+}
+
+function requireSafeProductionAuditLogConfig(
+  env: NodeJS.ProcessEnv | Record<string, string | undefined>,
+  issues: string[],
+): void {
+  const enabled = normalizeOptional(env.AUDIT_LOG_ENABLED) || "true";
+  if (enabled !== "true") {
+    issues.push("AUDIT_LOG_ENABLED must be true in production.");
+  }
+
+  const maxBytes = Number(normalizeOptional(env.AUDIT_LOG_MAX_BYTES) || 10 * 1024 * 1024);
+  const maxFiles = Number(normalizeOptional(env.AUDIT_LOG_MAX_FILES) || 5);
+
+  if (!Number.isFinite(maxBytes) || maxBytes <= 0 || maxBytes > 100 * 1024 * 1024) {
+    issues.push("AUDIT_LOG_MAX_BYTES must be positive and 100mb or lower in production.");
+  }
+
+  if (!Number.isFinite(maxFiles) || maxFiles <= 0 || maxFiles > 50) {
+    issues.push("AUDIT_LOG_MAX_FILES must be positive and 50 or lower in production.");
   }
 }
 

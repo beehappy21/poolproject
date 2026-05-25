@@ -7,6 +7,7 @@ import {
 } from "./rate-limit.config";
 import { InMemoryRateLimitStore } from "./in-memory-rate-limit-store";
 import { RedisRateLimitStore } from "./redis-rate-limit-store";
+import { writeSecurityAuditEntry } from "../../http/audit.util";
 import type {
   RateLimitRequestLike,
   RateLimitResponseLike,
@@ -54,6 +55,19 @@ export async function createRateLimitMiddleware(): Promise<(
       response.setHeader("RateLimit-Reset", String(Math.ceil(hit.resetAt / 1000)));
 
       if (!hit.allowed) {
+        writeSecurityAuditEntry({
+          event: "rate.limit.exceeded",
+          at: new Date().toISOString(),
+          ip: request.ip ?? request.socket?.remoteAddress ?? null,
+          requestId: (request as any).requestId ?? null,
+          method: request.method ?? null,
+          route: String(request.path || request.originalUrl || "").split("?")[0],
+          retryAfterSeconds: hit.retryAfterSeconds,
+          metadata: {
+            profile: profile.name,
+            limit: hit.limit,
+          },
+        });
         response.setHeader("Retry-After", String(hit.retryAfterSeconds));
         response.status(429).json({ message: "Too many requests." });
         return;
@@ -62,6 +76,17 @@ export async function createRateLimitMiddleware(): Promise<(
       next();
     } catch {
       if (profile.sensitive) {
+        writeSecurityAuditEntry({
+          event: "rate.limit.store.failure",
+          at: new Date().toISOString(),
+          ip: request.ip ?? request.socket?.remoteAddress ?? null,
+          requestId: (request as any).requestId ?? null,
+          method: request.method ?? null,
+          route: String(request.path || request.originalUrl || "").split("?")[0],
+          metadata: {
+            profile: profile.name,
+          },
+        });
         response.status(429).json({ message: "Too many requests." });
         return;
       }

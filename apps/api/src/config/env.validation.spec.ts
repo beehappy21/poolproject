@@ -19,6 +19,12 @@ function createValidProductionEnv(): Record<string, string> {
     APP_BODY_LIMIT: "1mb",
     APP_UPLOAD_BODY_LIMIT: "8mb",
     APP_ENABLE_HSTS: "true",
+    AUDIT_LOG_ENABLED: "true",
+    AUDIT_LOG_CONSOLE: "false",
+    AUDIT_LOG_DIR: "logs",
+    AUDIT_LOG_FILE: "audit.jsonl",
+    AUDIT_LOG_MAX_BYTES: "10485760",
+    AUDIT_LOG_MAX_FILES: "5",
     APP_REDIS_URL: "redis://redis.internal.example:6379",
     INTERNAL_BAO_BASE_URL: "http://bao:8001",
     INTERNAL_RECEIPT_TOKEN: "receipt-token-0123456789abcdef0123456789abcd",
@@ -90,6 +96,36 @@ test("production with unsafe body limit fails", () => {
     (error: unknown) => {
       assert.ok(error instanceof ApiEnvironmentValidationError);
       assert.match(error.message, /APP_BODY_LIMIT/);
+      return true;
+    },
+  );
+});
+
+test("production with invalid audit log values fails", () => {
+  const env = createValidProductionEnv();
+  env.AUDIT_LOG_ENABLED = "maybe";
+  env.AUDIT_LOG_MAX_FILES = "0";
+
+  assert.throws(
+    () => assertValidApiEnvironment(env, { sourceName: "test-env" }),
+    (error: unknown) => {
+      assert.ok(error instanceof ApiEnvironmentValidationError);
+      assert.match(error.message, /AUDIT_LOG_ENABLED/);
+      assert.match(error.message, /AUDIT_LOG_MAX_FILES/);
+      return true;
+    },
+  );
+});
+
+test("production cannot disable audit logs", () => {
+  const env = createValidProductionEnv();
+  env.AUDIT_LOG_ENABLED = "false";
+
+  assert.throws(
+    () => assertValidApiEnvironment(env, { sourceName: "test-env" }),
+    (error: unknown) => {
+      assert.ok(error instanceof ApiEnvironmentValidationError);
+      assert.match(error.message, /AUDIT_LOG_ENABLED/);
       return true;
     },
   );

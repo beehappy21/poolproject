@@ -10,6 +10,7 @@ Production startup now validates API environment configuration before Nest boots
 - `APP_PUBLIC_BASE_URL` or `APP_BASE_URL`
 - `APP_CORS_ORIGINS`
 - `APP_REDIS_URL` or `REDIS_URL`
+- `AUDIT_LOG_ENABLED=true`
 - `AUTH_SESSION_HMAC_SECRET`
 - `INTERNAL_BAO_BASE_URL`
 - `INTERNAL_RECEIPT_TOKEN`
@@ -49,6 +50,9 @@ Treat these as secrets and keep them out of source control:
 - `APP_UPLOAD_BODY_LIMIT` must be a positive size and must be `10mb` or lower in production
 - `APP_UPLOAD_MAX_BASE64_BYTES` must be a positive integer if provided
 - `APP_ENABLE_HSTS` must be `true` or `false` if provided
+- `AUDIT_LOG_ENABLED` and `AUDIT_LOG_CONSOLE` must be `true` or `false` if provided
+- `AUDIT_LOG_DIR` and `AUDIT_LOG_FILE` must not be empty if provided
+- `AUDIT_LOG_MAX_BYTES` and `AUDIT_LOG_MAX_FILES` must be positive integers if provided
 - rate limit and login lockout numeric values must be positive integers if provided
 - `RATE_LIMIT_KEY_PREFIX` and `AUTH_LOGIN_BRUTE_FORCE_KEY_PREFIX` must not be empty if provided
 
@@ -69,6 +73,7 @@ openssl rand -hex 32
 - Secret values must never appear in validation error output
 - Production session storage must use Redis-backed shared state rather than local memory/file persistence
 - Production rate limiting and login brute-force protection must use Redis-backed shared state
+- Production audit logging must remain enabled and use bounded file rotation or external log shipping
 
 ## Validation
 

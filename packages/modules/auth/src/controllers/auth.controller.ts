@@ -24,6 +24,7 @@ import {
   optionalUrlString,
   requireImageReferenceString,
 } from "../../../../../apps/api/src/http/request.util";
+import { writeSecurityAuditEntry } from "../../../../../apps/api/src/http/audit.util";
 import { readCommissionSettings } from "../../../../shared/utils/src/commission-settings.util";
 import { readManualPaymentSettings } from "../../../../shared/utils/src/manual-payment-settings.util";
 import { CommissionsService } from "../../../commissions";
@@ -994,24 +995,43 @@ export class AuthController {
 
   @Post("logout")
   async logout(
+    @Req() request: any,
     @Headers("authorization") authorization?: string,
     @Headers("cookie") cookieHeader?: string,
     @Res({ passthrough: true }) response?: { setHeader(name: string, value: string): void },
   ) {
     const token = this.extractToken(authorization, cookieHeader);
     await this.authService.logout(token);
+    writeSecurityAuditEntry({
+      event: "auth.logout.success",
+      at: new Date().toISOString(),
+      ip: this.getRequestIp(request),
+      requestId: request?.requestId ?? null,
+    });
     response?.setHeader("Set-Cookie", this.clearSessionCookie());
     return { success: true };
   }
 
   @Post("logout-all")
   async logoutAll(
+    @Req() request: any,
     @Headers("authorization") authorization?: string,
     @Headers("cookie") cookieHeader?: string,
     @Res({ passthrough: true }) response?: { setHeader(name: string, value: string): void },
   ) {
     const user = await this.requireSessionUser(authorization, cookieHeader);
     const revokedCount = await this.authService.logoutAllForUser(user.userId);
+    writeSecurityAuditEntry({
+      event: "auth.logout_all.success",
+      at: new Date().toISOString(),
+      ip: this.getRequestIp(request),
+      requestId: request?.requestId ?? null,
+      metadata: {
+        userId: user.userId,
+        memberCode: user.memberCode,
+        revokedCount,
+      },
+    });
     response?.setHeader("Set-Cookie", this.clearSessionCookie());
     return {
       success: true,
