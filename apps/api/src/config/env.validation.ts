@@ -83,6 +83,8 @@ export function validateApiEnvironment(
   validateOptionalPositiveInteger(env, "APP_TRUST_PROXY_HOPS", issues);
   validateOptionalPositiveInteger(env, "APP_RATE_LIMIT_WINDOW_MS", issues);
   validateOptionalPositiveInteger(env, "APP_RATE_LIMIT_MAX_REQUESTS", issues);
+  validateOptionalPositiveInteger(env, "AUTH_SESSION_TTL_SECONDS", issues);
+  validateOptionalNonEmptyString(env, "AUTH_SESSION_KEY_PREFIX", issues);
 
   if (!isProduction) {
     return issues;
@@ -96,11 +98,15 @@ export function validateApiEnvironment(
   requireOneOf(env, ["APP_PUBLIC_BASE_URL", "APP_BASE_URL"], issues);
   validateUrlIfPresent(env, "APP_PUBLIC_BASE_URL", issues);
   validateUrlIfPresent(env, "APP_BASE_URL", issues);
+  requireOneOf(env, ["APP_REDIS_URL", "REDIS_URL"], issues);
+  validateUrlIfPresent(env, "APP_REDIS_URL", issues, { allowNonHttp: true });
+  validateUrlIfPresent(env, "REDIS_URL", issues, { allowNonHttp: true });
   requireUrl(env, "INTERNAL_BAO_BASE_URL", issues);
 
   requireCorsOrigins(env, issues);
 
   requireSecret(env, "INTERNAL_RECEIPT_TOKEN", issues, MIN_SECRET_LENGTH);
+  requireSecret(env, "AUTH_SESSION_HMAC_SECRET", issues, MIN_SECRET_LENGTH);
   requirePassword(env, "SUPER_ADMIN_PASSWORD", issues, MIN_PASSWORD_LENGTH);
   requirePassword(
     env,
@@ -244,6 +250,20 @@ function validateOptionalPositiveInteger(
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0 || !Number.isInteger(parsed)) {
     issues.push(`${key} must be a positive integer.`);
+  }
+}
+
+function validateOptionalNonEmptyString(
+  env: NodeJS.ProcessEnv | Record<string, string | undefined>,
+  key: string,
+  issues: string[],
+): void {
+  if (!(key in env)) {
+    return;
+  }
+
+  if (!normalizeOptional(env[key])) {
+    issues.push(`${key} must not be empty when provided.`);
   }
 }
 

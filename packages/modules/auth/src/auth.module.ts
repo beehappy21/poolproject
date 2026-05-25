@@ -8,13 +8,13 @@ import { OrdersModule } from "../../orders";
 import { PackagesModule } from "../../packages";
 import { PoolModule } from "../../pool";
 import { WalletsModule } from "../../wallets/src/wallets.module";
+import { AuthCoreModule } from "./auth-core.module";
 import { AuthController } from "./controllers/auth.controller";
-import { PrismaAuthRepository } from "./repositories/auth.repository";
-import { AuthService } from "./services/auth.service";
 
 @Module({
   imports: [
     PrismaModule,
+    AuthCoreModule,
     forwardRef(() => MembersModule),
     OrdersModule,
     PackagesModule,
@@ -24,7 +24,6 @@ import { AuthService } from "./services/auth.service";
     PoolModule,
   ],
   controllers: [AuthController],
-  providers: [PrismaAuthRepository, AuthService],
-  exports: [AuthService, PrismaAuthRepository],
+  exports: [AuthCoreModule],
 })
 export class AuthModule {}

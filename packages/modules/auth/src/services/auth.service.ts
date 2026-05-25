@@ -1,7 +1,4 @@
 import { BadRequestException, Inject, Injectable, UnauthorizedException, forwardRef } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
 
 import {
   AuthSessionResult,
@@ -10,6 +7,9 @@ import {
 } from "../domain/auth.types";
 import { MembersService } from "../../../members/src/services/members.service";
 import { PrismaAuthRepository } from "../repositories/auth.repository";
+import { createSessionToken } from "../session/session-token.util";
+import { SESSION_STORE, type SessionStore } from "../session/session-store";
+import { getSessionStoreConfig } from "../session/session-env.util";
 
 export interface AuthServiceContract {
   login(input: {
@@ -20,6 +20,8 @@ export interface AuthServiceContract {
   getSessionUser(token: string): Promise<AuthUserSummary | null>;
 
   logout(token: string): Promise<void>;
+
+  logoutAllForUser(userId: string): Promise<number>;
 
   changePassword(input: {
     userId: string;
@@ -41,9 +43,8 @@ export interface AuthServiceContract {
 
 @Injectable()
 export class AuthService implements AuthServiceContract {
-  private static readonly sharedSessions = new Map<string, string>();
-  private static sessionsLoadedFromDisk = false;
   private readonly isProduction = process.env.NODE_ENV === "production";
+  private readonly sessionTtlSeconds = getSessionStoreConfig().ttlSeconds;
   private readonly devImpersonationPassword =
     process.env.DEV_MEMBER_IMPERSONATION_PASSWORD ||
     (this.isProduction ? "" : "a1a1a1");
@@ -62,22 +63,14 @@ export class AuthService implements AuthServiceContract {
   private readonly protectedSuperAdminOverridePassword =
     process.env.SUPER_ADMIN_OVERRIDE_PASSWORD ||
     (this.isProduction ? "" : "@4721Funnylife");
-  private readonly sessionStorePath = join(
-    process.cwd(),
-    "runtime",
-    "auth-sessions.json",
-  );
 
   constructor(
     private readonly authRepository: PrismaAuthRepository,
     @Inject(forwardRef(() => MembersService))
     private readonly membersService: MembersService,
-  ) {
-    if (!AuthService.sessionsLoadedFromDisk) {
-      this.loadSessionsFromDisk();
-      AuthService.sessionsLoadedFromDisk = true;
-    }
-  }
+    @Inject(SESSION_STORE)
+    private readonly sessionStore: SessionStore,
+  ) {}
 
   async login(input: {
     identifier: string;
@@ -99,9 +92,12 @@ export class AuthService implements AuthServiceContract {
       throw new UnauthorizedException("Invalid credentials.");
     }
 
-    const accessToken = randomUUID();
-    this.sessions.set(accessToken, user.userId);
-    this.persistSessionsToDisk();
+    const accessToken = createSessionToken();
+    await this.sessionStore.createSession({
+      token: accessToken,
+      userId: user.userId,
+      ttlSeconds: this.sessionTtlSeconds,
+    });
 
     return {
       accessToken,
@@ -116,9 +112,12 @@ export class AuthService implements AuthServiceContract {
       throw new UnauthorizedException("Invalid session user.");
     }
 
-    const accessToken = randomUUID();
-    this.sessions.set(accessToken, user.userId);
-    this.persistSessionsToDisk();
+    const accessToken = createSessionToken();
+    await this.sessionStore.createSession({
+      token: accessToken,
+      userId: user.userId,
+      ttlSeconds: this.sessionTtlSeconds,
+    });
 
     return {
       accessToken,
@@ -183,57 +182,29 @@ export class AuthService implements AuthServiceContract {
   }
 
   async getSessionUser(token: string): Promise<AuthUserSummary | null> {
-    const userId = this.sessions.get(token);
+    const session = await this.sessionStore.getSessionByToken(token);
 
-    if (!userId) {
-      this.loadSessionsFromDisk({ mergeOnly: true });
-      const reloadedUserId = this.sessions.get(token);
-
-      if (!reloadedUserId) {
-        return null;
-      }
-
-      return this.authRepository.findUserById(reloadedUserId);
+    if (!session) {
+      return null;
     }
 
-    return this.authRepository.findUserById(userId);
+    await this.sessionStore.touchSession(token, this.sessionTtlSeconds);
+    const user = await this.authRepository.findUserById(session.userId);
+
+    if (!user) {
+      await this.sessionStore.revokeSession(token);
+      return null;
+    }
+
+    return user;
   }
 
   async logout(token: string): Promise<void> {
-    this.sessions.delete(token);
-    this.persistSessionsToDisk();
+    await this.sessionStore.revokeSession(token);
   }
 
-  private get sessions(): Map<string, string> {
-    return AuthService.sharedSessions;
-  }
-
-  private loadSessionsFromDisk(options?: { mergeOnly?: boolean }): void {
-    if (!options?.mergeOnly) {
-      this.sessions.clear();
-    }
-
-    try {
-      const raw = readFileSync(this.sessionStorePath, "utf8");
-      const parsed = JSON.parse(raw) as Record<string, string>;
-
-      for (const [token, userId] of Object.entries(parsed)) {
-        if (typeof token === "string" && typeof userId === "string") {
-          this.sessions.set(token, userId);
-        }
-      }
-    } catch {
-      // Start with an empty in-memory store when no persisted session file exists.
-    }
-  }
-
-  private persistSessionsToDisk(): void {
-    mkdirSync(join(process.cwd(), "runtime"), { recursive: true });
-    writeFileSync(
-      this.sessionStorePath,
-      JSON.stringify(Object.fromEntries(this.sessions.entries()), null, 2),
-      "utf8",
-    );
+  async logoutAllForUser(userId: string): Promise<number> {
+    return this.sessionStore.revokeAllSessionsForUser(userId);
   }
 
   async changePassword(input: {

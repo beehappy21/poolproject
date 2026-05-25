@@ -16,8 +16,11 @@ function createValidProductionEnv(): Record<string, string> {
     APP_PUBLIC_BASE_URL: "https://api.blifehealthy.com",
     APP_CORS_ORIGINS:
       "https://wap.blifehealthy.com,https://api.blifehealthy.com,https://bao.blifehealthy.com",
+    APP_REDIS_URL: "redis://redis.internal.example:6379",
     INTERNAL_BAO_BASE_URL: "http://bao:8001",
     INTERNAL_RECEIPT_TOKEN: "receipt-token-0123456789abcdef0123456789abcd",
+    AUTH_SESSION_HMAC_SECRET:
+      "auth-session-hmac-secret-0123456789abcdef0123456789abcd",
     SUPER_ADMIN_EMAIL: "ops-admin@blifehealthy.com",
     SUPER_ADMIN_MEMBER_CODE: "BLSUPER0001",
     SUPER_ADMIN_PASSWORD: "Sup3rAdminProdPass!",
@@ -42,6 +45,20 @@ test("production with missing required secret fails", () => {
     (error: unknown) => {
       assert.ok(error instanceof ApiEnvironmentValidationError);
       assert.match(error.message, /INTERNAL_RECEIPT_TOKEN/);
+      return true;
+    },
+  );
+});
+
+test("production with missing Redis URL fails", () => {
+  const env = createValidProductionEnv();
+  delete env.APP_REDIS_URL;
+
+  assert.throws(
+    () => assertValidApiEnvironment(env, { sourceName: "test-env" }),
+    (error: unknown) => {
+      assert.ok(error instanceof ApiEnvironmentValidationError);
+      assert.match(error.message, /APP_REDIS_URL or REDIS_URL/);
       return true;
     },
   );

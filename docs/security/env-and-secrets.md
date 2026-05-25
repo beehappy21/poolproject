@@ -9,6 +9,8 @@ Production startup now validates API environment configuration before Nest boots
 - `APP_WAP_URL`
 - `APP_PUBLIC_BASE_URL` or `APP_BASE_URL`
 - `APP_CORS_ORIGINS`
+- `APP_REDIS_URL` or `REDIS_URL`
+- `AUTH_SESSION_HMAC_SECRET`
 - `INTERNAL_BAO_BASE_URL`
 - `INTERNAL_RECEIPT_TOKEN`
 - `SUPER_ADMIN_EMAIL`
@@ -30,6 +32,7 @@ If LINE login is enabled, production must also provide:
 Treat these as secrets and keep them out of source control:
 
 - `INTERNAL_RECEIPT_TOKEN`
+- `AUTH_SESSION_HMAC_SECRET`
 - `LINE_CHANNEL_SECRET`
 - `LINE_LOGIN_CHANNEL_SECRET`
 - `SUPER_ADMIN_PASSWORD`
@@ -40,6 +43,8 @@ Treat these as secrets and keep them out of source control:
 
 - secret/token values: at least `32` characters
 - production passwords: at least `12` characters
+- `AUTH_SESSION_TTL_SECONDS` must be a positive integer if provided
+- `AUTH_SESSION_KEY_PREFIX` must not be empty if provided
 
 ## Strong Secret Generation
 
@@ -56,6 +61,7 @@ openssl rand -hex 32
 - Production must not use default/dev secrets
 - Production must not use placeholder values
 - Secret values must never appear in validation error output
+- Production session storage must use Redis-backed shared state rather than local memory/file persistence
 
 ## Validation
 

@@ -1016,6 +1016,21 @@ export class AuthController {
     return { success: true };
   }
 
+  @Post("logout-all")
+  async logoutAll(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+    @Res({ passthrough: true }) response?: { setHeader(name: string, value: string): void },
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+    const revokedCount = await this.authService.logoutAllForUser(user.userId);
+    response?.setHeader("Set-Cookie", this.clearSessionCookie());
+    return {
+      success: true,
+      revokedCount,
+    };
+  }
+
   @Post("change-password")
   async changePassword(
     @Headers("authorization") authorization?: string,
