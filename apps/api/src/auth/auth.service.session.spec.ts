@@ -71,6 +71,11 @@ function createAuthService() {
     authRepository as any,
     membersService as any,
     new InMemorySessionStore(),
+    {
+      assertCanAttemptLogin: async () => undefined,
+      recordFailedLogin: async () => undefined,
+      recordSuccessfulLogin: async () => undefined,
+    } as any,
   );
 }
 

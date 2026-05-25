@@ -1,8 +1,8 @@
 import {
   NotFoundException,
   BadRequestException,
-  Body,
-  Controller,
+    Body,
+    Controller,
   ForbiddenException,
   Get,
   Headers,
@@ -10,8 +10,8 @@ import {
   Post,
   Query,
   Res,
-  UnauthorizedException,
-  Req,
+    UnauthorizedException,
+    Req,
 } from "@nestjs/common";
 
 import {
@@ -53,6 +53,7 @@ export class AuthController {
   @Public()
   @Post("login")
   async login(
+    @Req() request: any,
     @Body()
     body: {
       identifier: string;
@@ -63,6 +64,7 @@ export class AuthController {
     const session = await this.authService.login({
       identifier: requireNonEmptyString(body.identifier, "identifier"),
       password: requireNonEmptyString(body.password, "password"),
+      ip: this.getRequestIp(request),
     });
 
     response.setHeader("Set-Cookie", this.buildSessionCookie(session.accessToken));
@@ -1147,6 +1149,16 @@ export class AuthController {
 
   private clearSessionCookie(): string {
     return "adminAccessToken=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0";
+  }
+
+  private getRequestIp(request: any): string | null {
+    const forwardedFor = request?.headers?.["x-forwarded-for"];
+    const firstForwarded = Array.isArray(forwardedFor)
+      ? forwardedFor[0]
+      : forwardedFor;
+    return String(firstForwarded || request?.ip || request?.socket?.remoteAddress || "")
+      .split(",")[0]
+      .trim() || null;
   }
 }
 

@@ -45,6 +45,8 @@ Treat these as secrets and keep them out of source control:
 - production passwords: at least `12` characters
 - `AUTH_SESSION_TTL_SECONDS` must be a positive integer if provided
 - `AUTH_SESSION_KEY_PREFIX` must not be empty if provided
+- rate limit and login lockout numeric values must be positive integers if provided
+- `RATE_LIMIT_KEY_PREFIX` and `AUTH_LOGIN_BRUTE_FORCE_KEY_PREFIX` must not be empty if provided
 
 ## Strong Secret Generation
 
@@ -62,6 +64,7 @@ openssl rand -hex 32
 - Production must not use placeholder values
 - Secret values must never appear in validation error output
 - Production session storage must use Redis-backed shared state rather than local memory/file persistence
+- Production rate limiting and login brute-force protection must use Redis-backed shared state
 
 ## Validation
 

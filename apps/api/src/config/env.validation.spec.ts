@@ -64,6 +64,20 @@ test("production with missing Redis URL fails", () => {
   );
 });
 
+test("production with invalid rate limit numeric value fails", () => {
+  const env = createValidProductionEnv();
+  env.AUTH_LOGIN_LOCK_MAX_FAILURES = "0";
+
+  assert.throws(
+    () => assertValidApiEnvironment(env, { sourceName: "test-env" }),
+    (error: unknown) => {
+      assert.ok(error instanceof ApiEnvironmentValidationError);
+      assert.match(error.message, /AUTH_LOGIN_LOCK_MAX_FAILURES/);
+      return true;
+    },
+  );
+});
+
 test("production with default secret fails", () => {
   const env = createValidProductionEnv();
   env.SUPER_ADMIN_OVERRIDE_PASSWORD = "@4721Funnylife";

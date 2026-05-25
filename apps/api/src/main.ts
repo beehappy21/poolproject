@@ -5,18 +5,12 @@ import { ApiAppModule } from "./app.module";
 import { apiConfig } from "./config/api.config";
 import { assertValidApiEnvironment } from "./config/env.validation";
 import { shouldAuditRequest, writeAuditEntry } from "./http/audit.util";
+import { createRateLimitMiddleware } from "./security/rate-limit/rate-limit.middleware";
 
 const expressBodyParsers = require("express") as {
   json: (options?: Record<string, unknown>) => any;
   urlencoded: (options?: Record<string, unknown>) => any;
 };
-
-interface RateLimitEntry {
-  count: number;
-  resetAt: number;
-}
-
-const rateLimitState = new Map<string, RateLimitEntry>();
 
 async function bootstrap(): Promise<void> {
   assertValidApiEnvironment(process.env, { sourceName: "process.env" });
@@ -42,42 +36,7 @@ async function bootstrap(): Promise<void> {
     next();
   });
 
-  app.use((request: any, response: any, next: () => void) => {
-    if (shouldSkipRateLimit(request.method, request.path)) {
-      next();
-      return;
-    }
-
-    const now = Date.now();
-    const key = request.ip || request.socket?.remoteAddress || "unknown";
-    const current = rateLimitState.get(key);
-
-    if (!current || current.resetAt <= now) {
-      const resetAt = now + apiConfig.rateLimitWindowMs;
-      rateLimitState.set(key, { count: 1, resetAt });
-      response.setHeader("RateLimit-Limit", String(apiConfig.rateLimitMaxRequests));
-      response.setHeader("RateLimit-Remaining", String(apiConfig.rateLimitMaxRequests - 1));
-      response.setHeader("RateLimit-Reset", String(Math.ceil(resetAt / 1000)));
-      next();
-      return;
-    }
-
-    current.count += 1;
-    response.setHeader("RateLimit-Limit", String(apiConfig.rateLimitMaxRequests));
-    response.setHeader(
-      "RateLimit-Remaining",
-      String(Math.max(apiConfig.rateLimitMaxRequests - current.count, 0)),
-    );
-    response.setHeader("RateLimit-Reset", String(Math.ceil(current.resetAt / 1000)));
-
-    if (current.count > apiConfig.rateLimitMaxRequests) {
-      response.setHeader("Retry-After", String(Math.max(Math.ceil((current.resetAt - now) / 1000), 1)));
-      response.status(429).json({ message: "Too many requests." });
-      return;
-    }
-
-    next();
-  });
+  app.use(await createRateLimitMiddleware());
 
   app.enableCors({
     origin: (origin, callback) => {
@@ -129,19 +88,6 @@ async function bootstrap(): Promise<void> {
   });
 
   await app.listen(apiConfig.port);
-}
-
-function shouldSkipRateLimit(method: string, path: string): boolean {
-  if (
-    method === "OPTIONS" ||
-    path === "/health" ||
-    path === "/" ||
-    path.startsWith("/internal/bao/")
-  ) {
-    return true;
-  }
-
-  return false;
 }
 
 void bootstrap().catch((error) => {

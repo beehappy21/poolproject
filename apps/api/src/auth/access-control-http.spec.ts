@@ -187,6 +187,10 @@ test("POST /auth/login reaches the real handler under global guards", async () =
       () =>
         authController.login(
           {
+            ip: "127.0.0.1",
+            headers: {},
+          },
+          {
             identifier: "invalid-user",
             password: "wrong-password",
           },
@@ -207,6 +211,7 @@ test("POST /auth/login reaches the real handler under global guards", async () =
     assert.deepEqual(authServiceMock.loginCalls[0], {
       identifier: "invalid-user",
       password: "wrong-password",
+      ip: "127.0.0.1",
     });
     assert.deepEqual(responseHeaders, {});
   } finally {

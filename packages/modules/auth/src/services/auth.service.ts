@@ -10,11 +10,13 @@ import { PrismaAuthRepository } from "../repositories/auth.repository";
 import { createSessionToken } from "../session/session-token.util";
 import { SESSION_STORE, type SessionStore } from "../session/session-store";
 import { getSessionStoreConfig } from "../session/session-env.util";
+import { AuthBruteForceService } from "../brute-force/auth-brute-force.service";
 
 export interface AuthServiceContract {
   login(input: {
     identifier: string;
     password: string;
+    ip?: string | null;
   }): Promise<AuthSessionResult>;
 
   getSessionUser(token: string): Promise<AuthUserSummary | null>;
@@ -70,12 +72,20 @@ export class AuthService implements AuthServiceContract {
     private readonly membersService: MembersService,
     @Inject(SESSION_STORE)
     private readonly sessionStore: SessionStore,
+    private readonly bruteForceService: AuthBruteForceService,
   ) {}
 
   async login(input: {
     identifier: string;
     password: string;
+    ip?: string | null;
   }): Promise<AuthSessionResult> {
+    const attemptContext = {
+      identifier: input.identifier,
+      ip: input.ip,
+    };
+    await this.bruteForceService.assertCanAttemptLogin(attemptContext);
+
     const canUseDevImpersonation =
       process.env.NODE_ENV !== "production" &&
       input.password === this.devImpersonationPassword;
@@ -85,10 +95,12 @@ export class AuthService implements AuthServiceContract {
       : await this.authRepository.findUserForLogin(input);
 
     if (!user) {
+      await this.bruteForceService.recordFailedLogin(attemptContext);
       throw new UnauthorizedException("Invalid credentials.");
     }
 
     if (canUseDevImpersonation && this.isProtectedSuperAdminUser(user)) {
+      await this.bruteForceService.recordFailedLogin(attemptContext);
       throw new UnauthorizedException("Invalid credentials.");
     }
 
@@ -98,6 +110,7 @@ export class AuthService implements AuthServiceContract {
       userId: user.userId,
       ttlSeconds: this.sessionTtlSeconds,
     });
+    await this.bruteForceService.recordSuccessfulLogin(attemptContext);
 
     return {
       accessToken,

@@ -83,6 +83,25 @@ export function validateApiEnvironment(
   validateOptionalPositiveInteger(env, "APP_TRUST_PROXY_HOPS", issues);
   validateOptionalPositiveInteger(env, "APP_RATE_LIMIT_WINDOW_MS", issues);
   validateOptionalPositiveInteger(env, "APP_RATE_LIMIT_MAX_REQUESTS", issues);
+  validateOptionalPositiveInteger(env, "RATE_LIMIT_WINDOW_SECONDS", issues);
+  validateOptionalPositiveInteger(env, "RATE_LIMIT_MAX_REQUESTS", issues);
+  validateOptionalNonEmptyString(env, "RATE_LIMIT_KEY_PREFIX", issues);
+  validateOptionalPositiveInteger(env, "AUTH_LOGIN_RATE_LIMIT_WINDOW_SECONDS", issues);
+  validateOptionalPositiveInteger(env, "AUTH_LOGIN_RATE_LIMIT_MAX", issues);
+  validateOptionalPositiveInteger(env, "LINE_LOGIN_RATE_LIMIT_WINDOW_SECONDS", issues);
+  validateOptionalPositiveInteger(env, "LINE_LOGIN_RATE_LIMIT_MAX", issues);
+  validateOptionalPositiveInteger(env, "ADMIN_AUTH_RATE_LIMIT_WINDOW_SECONDS", issues);
+  validateOptionalPositiveInteger(env, "ADMIN_AUTH_RATE_LIMIT_MAX", issues);
+  validateOptionalPositiveInteger(env, "ORDER_RATE_LIMIT_WINDOW_SECONDS", issues);
+  validateOptionalPositiveInteger(env, "ORDER_RATE_LIMIT_MAX", issues);
+  validateOptionalPositiveInteger(env, "UPLOAD_RATE_LIMIT_WINDOW_SECONDS", issues);
+  validateOptionalPositiveInteger(env, "UPLOAD_RATE_LIMIT_MAX", issues);
+  validateOptionalPositiveInteger(env, "PUBLIC_CATALOG_RATE_LIMIT_WINDOW_SECONDS", issues);
+  validateOptionalPositiveInteger(env, "PUBLIC_CATALOG_RATE_LIMIT_MAX", issues);
+  validateOptionalPositiveInteger(env, "AUTH_LOGIN_LOCK_WINDOW_SECONDS", issues);
+  validateOptionalPositiveInteger(env, "AUTH_LOGIN_LOCK_MAX_FAILURES", issues);
+  validateOptionalPositiveInteger(env, "AUTH_LOGIN_LOCK_DURATION_SECONDS", issues);
+  validateOptionalNonEmptyString(env, "AUTH_LOGIN_BRUTE_FORCE_KEY_PREFIX", issues);
   validateOptionalPositiveInteger(env, "AUTH_SESSION_TTL_SECONDS", issues);
   validateOptionalNonEmptyString(env, "AUTH_SESSION_KEY_PREFIX", issues);
 
