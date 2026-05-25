@@ -30,3 +30,16 @@ Operations docs:
 - [CI/CD security checks](docs/operations/ci-cd-security.md)
 - [Monitoring and alerting](docs/operations/monitoring-and-alerting.md)
 - [Backup and restore](docs/operations/backup-and-restore.md)
+- [Production readiness checklist](docs/operations/production-readiness-checklist.md)
+- [Production deploy runbook](docs/operations/production-deploy-runbook.md)
+- [Rollback runbook](docs/operations/rollback-runbook.md)
+- [Incident response](docs/operations/incident-response.md)
+- [Production handoff summary](docs/operations/production-handoff-summary.md)
+
+Security docs:
+- [Access control](docs/security/access-control.md)
+- [Environment and secrets](docs/security/env-and-secrets.md)
+- [Session store](docs/security/session-store.md)
+- [Rate limiting and brute-force protection](docs/security/rate-limit-and-bruteforce.md)
+- [API hardening](docs/security/api-hardening.md)
+- [Audit logging](docs/security/audit-logging.md)

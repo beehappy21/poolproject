@@ -25,6 +25,10 @@ Smoke helpers:
   Destructively restores a PostgreSQL backup into an explicitly confirmed staging or production target. Production restores require `CONFIRM_PRODUCTION_RESTORE=true`.
 - `npm run ops:restore:drill`
   Restores the latest matching backup into a staging/test drill database using `DRILL_DATABASE_URL` and runs a simple validation query.
+- `npm run smoke:health`
+  Checks `/health`, `/health/live`, `/health/ready`, and `/metrics` when enabled. Use it for lightweight uptime and readiness verification.
+- `npm run smoke:production`
+  Runs the production go-live smoke checks without real credentials: health, readiness, optional metrics, optional storefront routes, login surface reachability, security headers, and optional CORS validation through `SMOKE_ALLOWED_ORIGIN`.
 - `npm run ops:reset:transactions:keep-members-catalog`
   Dry-runs a local/server transaction wipe that keeps members, placement tree, line bindings, and catalog/package masters while clearing orders, commissions, wallet runtime, CAP, pool, team, buyback, payout, and matrix rows.
   Apply with `npm run ops:reset:transactions:keep-members-catalog:apply` after taking a backup and confirming the preflight counts.
