@@ -4,10 +4,11 @@ import React, {useEffect, useState} from 'react';
 import {hooks} from '../hooks';
 import {URLS} from '../config';
 import {theme} from '../constants';
-import {formatTHB} from '../utils/currency';
+import {formatDecimalMax2, formatTHB} from '../utils/currency';
 import {actions} from '../store/actions';
 import {components} from '../components';
 import {RootState} from '../hooks';
+import {calculateCartPricing} from '../store/slices/cartSlice';
 
 export const Checkout: React.FC = () => {
   const navigate = hooks.useAppNavigate();
@@ -17,11 +18,9 @@ export const Checkout: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState('');
 
   const cart = hooks.useAppSelector(state => state.cartSlice.list);
-  const total = hooks.useAppSelector(state => state.cartSlice.total);
   const discountAmount = hooks.useAppSelector(
     state => state.cartSlice.discountAmount,
   );
-  const subtotal = hooks.useAppSelector(state => state.cartSlice.subtotal);
   const discountWalletAmount = hooks.useAppSelector(
     state => state.cartSlice.discountWalletAmount,
   );
@@ -32,6 +31,14 @@ export const Checkout: React.FC = () => {
     payment.addresses.find(
       address => address.shippingAddressId === payment.selectedAddressId,
     ) || null;
+  const pricingSummary = calculateCartPricing(cart);
+  const linePricingByProductId = new Map(
+    pricingSummary.lines.map(line => [line.productId, line]),
+  );
+  const payableTotal = Math.max(
+    0,
+    pricingSummary.promotionSubtotal - discountAmount + delivery,
+  );
 
   useEffect(() => {
     dispatch(actions.setDiscountWalletAmount(discountWalletAmount));
@@ -88,7 +95,7 @@ export const Checkout: React.FC = () => {
               fontSize: 18,
             }}
           >
-            {formatTHB(subtotal)}
+            {formatTHB(payableTotal)}
           </h4>
         </div>
         <div
@@ -104,49 +111,130 @@ export const Checkout: React.FC = () => {
         >
           {/* PRODUCTS */}
           {cart.map((item, index) => {
+            const linePricing = linePricingByProductId.get(item.id);
+            const quantity = Math.max(1, Number(item.quantity || 1));
+            const originalUnitPrice = linePricing?.originalUnitPrice ?? item.price;
+            const effectiveUnitPrice =
+              linePricing?.effectiveUnitPrice ?? originalUnitPrice;
+            const lineTotal = effectiveUnitPrice * quantity;
+            const lineHasPromotion =
+              Boolean(linePricing) && effectiveUnitPrice < originalUnitPrice;
+
             return (
               <div
                 key={index}
                 style={{
                   ...theme.flex.rowCenterSpaceBetween,
-                  marginBottom: 10,
+                  marginBottom: lineHasPromotion ? 14 : 10,
                   display: 'flex',
-                  alignItems: 'center',
+                  alignItems: 'flex-start',
                   flexDirection: 'row',
+                  gap: 12,
                 }}
               >
-                <h6
-                  style={{
-                    textTransform: 'capitalize',
-                    margin: 0,
-                    color: theme.colors.textColor,
-                    fontSize: 14,
-                    ...theme.fonts.Mulish_400Regular,
-                    fontWeight: 400,
-                    lineHeight: 1.5,
-                  }}
-                >
-                  {item.name}
-                  {item.productCode && ` • ${item.productCode}`}
-                  {item.pv ? ` • PV ${item.pv}` : ''}
-                </h6>
-                <span
-                  style={{
-                    textTransform: 'capitalize',
-                    margin: 0,
-                    color: theme.colors.textColor,
-                    fontSize: 14,
-                    ...theme.fonts.Mulish_400Regular,
-                    fontWeight: 400,
-                    lineHeight: 1.5,
-                  }}
-                >
-                  {item.quantity} x {formatTHB(item.price)}
-                </span>
+                <div style={{minWidth: 0}}>
+                  <h6
+                    style={{
+                      textTransform: 'capitalize',
+                      margin: 0,
+                      color: theme.colors.textColor,
+                      fontSize: 14,
+                      ...theme.fonts.Mulish_400Regular,
+                      fontWeight: 400,
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {item.name}
+                    {item.productCode && ` • ${item.productCode}`}
+                    {item.pv ? ` • PV ${formatDecimalMax2(item.pv)}` : ''}
+                  </h6>
+                  {lineHasPromotion ? (
+                    <span
+                      style={{
+                        display: 'block',
+                        marginTop: 2,
+                        color: '#51BA74',
+                        fontSize: 13,
+                        ...theme.fonts.Mulish_600SemiBold,
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      โปรโมชั่น {quantity} ชิ้น: {formatTHB(effectiveUnitPrice)} / ชิ้น
+                    </span>
+                  ) : null}
+                </div>
+                <div style={{textAlign: 'right', whiteSpace: 'nowrap'}}>
+                  <span
+                    style={{
+                      display: 'block',
+                      margin: 0,
+                      color: theme.colors.textColor,
+                      fontSize: 14,
+                      ...theme.fonts.Mulish_400Regular,
+                      fontWeight: 400,
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {quantity} x {formatTHB(effectiveUnitPrice)}
+                  </span>
+                  {lineHasPromotion ? (
+                    <span
+                      style={{
+                        display: 'block',
+                        color: theme.colors.textColor,
+                        opacity: 0.72,
+                        fontSize: 12,
+                        textDecoration: 'line-through',
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      {formatTHB(originalUnitPrice * quantity)}
+                    </span>
+                  ) : null}
+                  <span
+                    style={{
+                      display: 'block',
+                      color: theme.colors.mainColor,
+                      fontSize: 14,
+                      ...theme.fonts.Mulish_600SemiBold,
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {formatTHB(lineTotal)}
+                  </span>
+                </div>
               </div>
             );
           })}
           {/* TOTAL */}
+          {pricingSummary.promotionDiscountAmount > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                ...theme.flex.rowCenterSpaceBetween,
+                marginBottom: 10,
+              }}
+            >
+              <div style={{textTransform: 'capitalize'}}>มูลค่าสินค้าก่อนโปร</div>
+              <div style={{textTransform: 'capitalize'}}>
+                {formatTHB(pricingSummary.originalSubtotal)}
+              </div>
+            </div>
+          )}
+          {pricingSummary.promotionDiscountAmount > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                ...theme.flex.rowCenterSpaceBetween,
+                marginBottom: 10,
+              }}
+            >
+              <div style={{textTransform: 'capitalize'}}>ส่วนลดโปรโมชั่น</div>
+              <div style={{textTransform: 'capitalize', color: '#51BA74'}}>
+                - {formatTHB(pricingSummary.promotionDiscountAmount)}
+              </div>
+            </div>
+          )}
           {discountAmount > 0 && (
             <div
               style={{
@@ -161,20 +249,14 @@ export const Checkout: React.FC = () => {
               </div>
             </div>
           )}
+          {/* DELIVERY */}
           <div
             style={{
-              display: 'flex',
               ...theme.flex.rowCenterSpaceBetween,
+              display: 'flex',
               marginBottom: 10,
             }}
           >
-            <div style={{textTransform: 'capitalize'}}>ยอดจ่ายจริง</div>
-            <div style={{textTransform: 'capitalize'}}>
-              {formatTHB(total)}
-            </div>
-          </div>
-          {/* DELIVERY */}
-          <div style={{...theme.flex.rowCenterSpaceBetween, display: 'flex'}}>
             <h6
               style={{
                 textTransform: 'capitalize',
@@ -201,6 +283,33 @@ export const Checkout: React.FC = () => {
             >
               {delivery === 0 ? 'ฟรี' : formatTHB(delivery)}
             </span>
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              ...theme.flex.rowCenterSpaceBetween,
+              borderTop: `1px solid ${theme.colors.lavenderMist}`,
+              paddingTop: 10,
+            }}
+          >
+            <div
+              style={{
+                textTransform: 'capitalize',
+                color: theme.colors.mainColor,
+                ...theme.fonts.Mulish_700Bold,
+              }}
+            >
+              ยอดที่ต้องชำระ
+            </div>
+            <div
+              style={{
+                textTransform: 'capitalize',
+                color: theme.colors.mainColor,
+                ...theme.fonts.Mulish_700Bold,
+              }}
+            >
+              {formatTHB(payableTotal)}
+            </div>
           </div>
         </div>
       </div>

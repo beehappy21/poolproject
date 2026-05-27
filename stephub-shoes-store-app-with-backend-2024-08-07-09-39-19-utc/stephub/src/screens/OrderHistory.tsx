@@ -6,7 +6,7 @@ import * as Accordion from '@radix-ui/react-accordion';
 import {URLS} from '../config';
 import {svg} from '../assets/svg';
 import {theme} from '../constants';
-import {formatTHBText} from '../utils/currency';
+import {formatDecimalMax2, formatTHBText} from '../utils/currency';
 import {components} from '../components';
 import {hooks, RootState} from '../hooks';
 
@@ -762,7 +762,7 @@ export const OrderHistory: FC = () => {
                         color: theme.colors.textColor,
                       }}
                     >
-                      PV: {order.totalPv}
+                      PV: {formatDecimalMax2(order.totalPv)}
                     </span>
                     {order.transferSubmittedAt ? (
                       <span
@@ -968,7 +968,7 @@ export const OrderHistory: FC = () => {
                         >
                           จำนวน: {productItem.quantity} • ราคา: $
                           {formatTHBText(productItem.unitPriceUsdt || 0)} • PV:{' '}
-                          {productItem.unitPv}
+                          {formatDecimalMax2(productItem.unitPv)}
                         </span>
                         <span
                           style={{

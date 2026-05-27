@@ -639,19 +639,19 @@ class OrderCreateScreen extends Screen
         $promotionStatus = strtoupper(trim((string) ($detail->promotionStatus ?? '')));
         $promotionMinQuantity = (int) ($detail->promotionMinQuantity ?? 0);
         $promotionPrice = $detail->promotionPriceUsdt !== null
-            ? number_format((float) $detail->promotionPriceUsdt, 8, '.', '')
+            ? number_format((float) $detail->promotionPriceUsdt, 2, '.', '')
             : null;
         $promotionPv = $detail->promotionPv !== null
-            ? number_format((float) $detail->promotionPv, 8, '.', '')
+            ? number_format((float) $detail->promotionPv, 2, '.', '')
             : null;
-        $basePv = number_format((float) ($detail->pv ?? 0), 8, '.', '');
+        $basePv = number_format((float) ($detail->pv ?? 0), 2, '.', '');
 
         if (
             $promotionStatus !== 'ACTIVE'
             || $promotionMinQuantity < 2
             || $promotionPrice === null
             || $promotionPv === null
-            || $basePv !== number_format(100, 8, '.', '')
+            || $basePv !== number_format(100, 2, '.', '')
         ) {
             return null;
         }

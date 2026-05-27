@@ -25,11 +25,108 @@ const initialState: CartType = {
 
 type StateType = typeof initialState;
 
+export type CartPromotionLine = {
+  productId: number;
+  originalUnitPrice: number;
+  effectiveUnitPrice: number;
+  quantity: number;
+  discountAmount: number;
+};
+
+export type CartPricingSummary = {
+  originalSubtotal: number;
+  promotionSubtotal: number;
+  promotionDiscountAmount: number;
+  lines: CartPromotionLine[];
+};
+
+const normalizeNumber = (value: unknown): number => {
+  const parsed = Number(value || 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const promotionGroupKeyForItem = (item: ProductType): string | null => {
+  const promotionStatus = String(item.promotionStatus || '').toUpperCase();
+  const promotionMinQuantity = normalizeNumber(item.promotionMinQuantity);
+  const promotionPrice = normalizeNumber(item.promotionPrice);
+  const promotionPv = normalizeNumber(item.promotionPv);
+  const pv = normalizeNumber(item.pv);
+
+  if (
+    promotionStatus !== 'ACTIVE' ||
+    promotionMinQuantity < 2 ||
+    promotionPrice <= 0 ||
+    promotionPv <= 0
+  ) {
+    return null;
+  }
+
+  if (pv === 100) {
+    return `100pv:${promotionMinQuantity}:${promotionPrice}:${promotionPv}`;
+  }
+
+  return `detail:${item.productDetailId || item.id}:${promotionMinQuantity}:${promotionPrice}:${promotionPv}`;
+};
+
+export const calculateCartPricing = (
+  list: ProductType[],
+): CartPricingSummary => {
+  const groupQuantities = new Map<string, number>();
+
+  list.forEach(item => {
+    const groupKey = promotionGroupKeyForItem(item);
+
+    if (!groupKey) {
+      return;
+    }
+
+    const quantity = Math.max(1, normalizeNumber(item.quantity || 1));
+    groupQuantities.set(groupKey, (groupQuantities.get(groupKey) || 0) + quantity);
+  });
+
+  const lines = list.map(item => {
+    const quantity = Math.max(1, normalizeNumber(item.quantity || 1));
+    const originalUnitPrice = normalizeNumber(item.price);
+    const promotionMinQuantity = normalizeNumber(item.promotionMinQuantity);
+    const promotionPrice = normalizeNumber(item.promotionPrice);
+    const groupKey = promotionGroupKeyForItem(item);
+    const promotionApplies =
+      groupKey !== null &&
+      promotionMinQuantity >= 2 &&
+      (groupQuantities.get(groupKey) || 0) >= promotionMinQuantity;
+    const effectiveUnitPrice = promotionApplies
+      ? promotionPrice
+      : originalUnitPrice;
+
+    return {
+      productId: item.id,
+      originalUnitPrice,
+      effectiveUnitPrice,
+      quantity,
+      discountAmount: Math.max(0, originalUnitPrice - effectiveUnitPrice) * quantity,
+    };
+  });
+
+  const originalSubtotal = lines.reduce(
+    (sum, line) => sum + line.originalUnitPrice * line.quantity,
+    0,
+  );
+  const promotionSubtotal = lines.reduce(
+    (sum, line) => sum + line.effectiveUnitPrice * line.quantity,
+    0,
+  );
+
+  return {
+    originalSubtotal,
+    promotionSubtotal,
+    promotionDiscountAmount: Math.max(0, originalSubtotal - promotionSubtotal),
+    lines,
+  };
+};
+
 const recalculateCartTotals = (state: StateType) => {
-  const subtotal = state.list.reduce((sum, item) => {
-    const quantity = Math.max(1, Number(item.quantity || 1));
-    return sum + Number(item.price || 0) * quantity;
-  }, 0);
+  const pricing = calculateCartPricing(state.list);
+  const subtotal = pricing.promotionSubtotal;
 
   state.subtotal = subtotal;
   state.discountAmount = Math.max(

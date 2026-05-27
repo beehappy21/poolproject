@@ -490,6 +490,10 @@ export class CommissionsService implements CommissionsServiceContract {
     await this.commissionsRepository.clearOrderCommissionArtifacts(orderId);
   }
 
+  async reverseOrderCommissionArtifacts(orderId: string): Promise<void> {
+    await this.commissionsRepository.reverseOrderCommissionArtifacts(orderId);
+  }
+
   async listCommissions(filters?: {
     orderId?: string;
     beneficiaryUserId?: string;

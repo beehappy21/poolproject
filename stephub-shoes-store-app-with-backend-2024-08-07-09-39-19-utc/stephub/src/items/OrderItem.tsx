@@ -5,6 +5,7 @@ import {custom} from '../custom';
 import {product} from '../product';
 import {theme} from '../constants';
 import {ProductType} from '../types';
+import {formatDecimalMax2} from '../utils/currency';
 
 type Props = {item: ProductType; isLast: boolean};
 
@@ -93,7 +94,7 @@ export const OrderItem: React.FC<Props> = ({item, isLast}) => {
             }}
           >
             {item.pv !== undefined
-              ? `PV: ${item.pv || 0}`
+              ? `PV: ${formatDecimalMax2(item.pv || 0)}`
               : `สี: ${item.color ? item.color : 'ไม่ระบุ'}`}
           </span>
         </div>

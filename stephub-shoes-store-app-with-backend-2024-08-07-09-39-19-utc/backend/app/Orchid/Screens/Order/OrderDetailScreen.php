@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\OrderLine;
 use App\Models\OrderSource;
 use App\Support\BaoAdminApiClient;
+use App\Support\AdminPermissions;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Orchid\Screen\Actions\Button;
@@ -80,9 +81,14 @@ class OrderDetailScreen extends Screen {
         ->canSee($this->canMarkDelivered()),
       Button::make('ยกเลิกคำสั่งซื้อ')
         ->icon('bs.x-circle')
-        ->confirm('ยืนยันการยกเลิกคำสั่งซื้อนี้? ระบบจะคืน stock และยอด wallet ที่ตัดจากออเดอร์กลับให้สมาชิกถ้ายังคืนได้')
+        ->confirm('กรุณากรอกเหตุผลในช่อง Cancellation Reason ก่อนดำเนินการ หากเป็น Admin ธรรมดาจะเป็นการส่งคำขอให้ Super Admin ยืนยัน')
         ->method('cancelOrder')
         ->canSee($this->canCancelOrder()),
+      Button::make('Super Admin ยืนยันยกเลิก')
+        ->icon('bs.shield-check')
+        ->confirm('ยืนยันยกเลิกคำสั่งซื้อนี้จริงหรือไม่? ขั้นตอนนี้จะมีผลกับค่าคอมและสร้างรายการกลับบัญชี')
+        ->method('confirmCancelOrder')
+        ->canSee($this->canConfirmCancellation()),
     ];
   }
 
@@ -149,11 +155,64 @@ class OrderDetailScreen extends Screen {
       abort(404);
     }
 
-    $reason = trim((string) ($request->input('order.cancel_reason') ?? 'Cancelled by admin'));
+    if (!$this->sourceOrder instanceof OrderSource) {
+      abort(422, 'Source order not found.');
+    }
+
+    $reason = trim((string) ($request->input('order.cancel_reason') ?? ''));
+
+    if ($reason === '') {
+      return back()->withErrors([
+        'order.cancel_reason' => 'กรุณากรอกเหตุผลในการยกเลิกคำสั่งซื้อ',
+      ]);
+    }
+
+    if (!$this->isCurrentUserSuperAdmin()) {
+      $this->sourceOrder->forceFill([
+        'exceptionalReversalStatus' => 'REQUESTED',
+        'shipmentNote' => $this->buildCancellationAuditNote($reason, 'requested'),
+      ])->save();
+
+      Alert::warning('บันทึกคำขอยกเลิกแล้ว รอ Super Admin ยืนยันก่อนจึงจะกระทบค่าคอม');
+
+      return redirect()->route('platform.order.detail', $this->order->id);
+    }
+
+    return $this->performCancelOrder($reason, 'super_admin_cancelled');
+  }
+
+  public function confirmCancelOrder(Request $request): RedirectResponse
+  {
+    if (!$this->order instanceof Order) {
+      abort(404);
+    }
+
+    if (!$this->isCurrentUserSuperAdmin()) {
+      abort(403, 'Super Admin confirmation required.');
+    }
+
+    $reason = trim((string) ($request->input('order.cancel_reason') ?? ''));
+
+    if ($reason === '') {
+      $reason = $this->pendingCancellationReason() ?: 'Confirmed cancellation by Super Admin';
+    }
+
+    return $this->performCancelOrder($reason, 'super_admin_confirmed');
+  }
+
+  private function performCancelOrder(string $reason, string $auditAction): RedirectResponse
+  {
+    if (!$this->order instanceof Order) {
+      abort(404);
+    }
+
+    if (!$this->sourceOrder instanceof OrderSource) {
+      abort(422, 'Source order not found.');
+    }
 
     try {
       $this->apiClient->request('POST', '/orders/' . $this->order->source_order_id . '/cancel', [
-        'reason' => $reason,
+        'reason' => $this->formatCancellationReasonForApi($reason, $auditAction),
       ]);
     } catch (\Throwable $exception) {
       return back()->withErrors([
@@ -161,15 +220,14 @@ class OrderDetailScreen extends Screen {
       ]);
     }
 
-    if ($this->sourceOrder instanceof OrderSource) {
-      $this->sourceOrder->forceFill([
-        'status' => 'CANCELLED',
-        'approvalStatus' => 'VOIDED',
-        'shipmentNote' => $reason,
-      ])->save();
-    }
+    $this->sourceOrder->forceFill([
+      'status' => 'CANCELLED',
+      'approvalStatus' => 'VOIDED',
+      'exceptionalReversalStatus' => 'APPLIED',
+      'shipmentNote' => $this->buildCancellationAuditNote($reason, $auditAction),
+    ])->save();
 
-    Alert::info('Order has been cancelled and stock was restored.');
+    Alert::info('Order has been cancelled. Commission impact was recorded as reversal audit entries.');
 
     return redirect()->route('platform.order.detail', $this->order->id);
   }
@@ -332,6 +390,14 @@ class OrderDetailScreen extends Screen {
         }),
       ])->title($this->isBranchPickup() ? 'Pickup Status' : 'Shipment Status');
 
+    $cancellationLayout = Layout::rows([
+        TextArea::make('order.cancel_reason')
+          ->title('Cancellation Reason')
+          ->rows(3)
+          ->placeholder('ระบุเหตุผลในการยกเลิกคำสั่งซื้อ')
+          ->value($this->pendingCancellationReason()),
+      ])->title($this->cancellationTitle());
+
     $layouts = [
       $orderSummaryLayout,
       $productsLayout,
@@ -340,6 +406,7 @@ class OrderDetailScreen extends Screen {
       $transferReviewLayout,
       $shipmentUpdateLayout,
       $shipmentStatusLayout,
+      $cancellationLayout,
     ];
 
     if ($this->hasTransferSlip()) {
@@ -351,6 +418,7 @@ class OrderDetailScreen extends Screen {
         $datesLayout,
         $shipmentUpdateLayout,
         $shipmentStatusLayout,
+        $cancellationLayout,
       ];
     }
 
@@ -413,6 +481,101 @@ class OrderDetailScreen extends Screen {
       return false;
     }
 
+    if (strtoupper((string) ($this->sourceOrder->exceptionalReversalStatus ?? '')) === 'REQUESTED') {
+      return false;
+    }
+
     return in_array($status, ['PENDING', 'PAID', 'APPROVED'], true);
+  }
+
+  private function canConfirmCancellation(): bool
+  {
+    return $this->isCurrentUserSuperAdmin()
+      && $this->canCancelPendingOrder()
+      && strtoupper((string) ($this->sourceOrder?->exceptionalReversalStatus ?? '')) === 'REQUESTED';
+  }
+
+  private function canCancelPendingOrder(): bool
+  {
+    if (!$this->sourceOrder instanceof OrderSource) {
+      return false;
+    }
+
+    $status = strtoupper((string) ($this->sourceOrder->status ?? ''));
+    $approvalStatus = strtoupper((string) ($this->sourceOrder->approvalStatus ?? ''));
+
+    return empty($this->sourceOrder->deliveredAt)
+      && empty($this->sourceOrder->shippedAt)
+      && !in_array($status, ['CANCELLED', 'VOIDED'], true)
+      && $approvalStatus !== 'VOIDED'
+      && in_array($status, ['PENDING', 'PAID', 'APPROVED'], true);
+  }
+
+  private function isCurrentUserSuperAdmin(): bool
+  {
+    $user = auth()->user();
+
+    return $user !== null && method_exists($user, 'inRole') && $user->inRole(AdminPermissions::SUPERADMIN_ROLE);
+  }
+
+  private function currentAdminLabel(): string
+  {
+    $user = auth()->user();
+
+    if (!$user) {
+      return 'unknown admin';
+    }
+
+    return trim((string) ($user->name ?: $user->email ?: ('admin#' . $user->id)));
+  }
+
+  private function buildCancellationAuditNote(string $reason, string $action): string
+  {
+    $timestamp = now()->format('Y-m-d H:i:s');
+    $actor = $this->currentAdminLabel();
+    $existingNote = trim((string) ($this->sourceOrder?->shipmentNote ?? ''));
+    $baseNote = preg_replace('/\n?\[Cancellation Audit\].*$/s', '', $existingNote) ?: '';
+
+    $audit = implode("\n", [
+      '[Cancellation Audit]',
+      'Action: ' . $action,
+      'Reason: ' . $reason,
+      'Actor: ' . $actor,
+      'Actor role: ' . ($this->isCurrentUserSuperAdmin() ? 'superadmin' : 'admin'),
+      'Recorded at: ' . $timestamp,
+    ]);
+
+    return trim($baseNote . "\n\n" . $audit);
+  }
+
+  private function formatCancellationReasonForApi(string $reason, string $action): string
+  {
+    return sprintf(
+      '%s | %s by %s at %s',
+      $reason,
+      $action,
+      $this->currentAdminLabel(),
+      now()->format('Y-m-d H:i:s')
+    );
+  }
+
+  private function pendingCancellationReason(): string
+  {
+    $note = (string) ($this->sourceOrder?->shipmentNote ?? '');
+
+    if (preg_match('/^Reason:\s*(.+)$/m', $note, $matches)) {
+      return trim((string) $matches[1]);
+    }
+
+    return '';
+  }
+
+  private function cancellationTitle(): string
+  {
+    if (strtoupper((string) ($this->sourceOrder?->exceptionalReversalStatus ?? '')) === 'REQUESTED') {
+      return 'Cancellation Request - รอ Super Admin ยืนยัน';
+    }
+
+    return 'Cancellation';
   }
 }

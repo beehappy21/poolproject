@@ -185,8 +185,8 @@ class ProductEditScreen extends Screen
                     'name' => (string) $promotion->name,
                     'status' => (string) $promotion->status,
                     'min_quantity' => (int) ($promotion->min_quantity ?? 0),
-                    'promo_price' => number_format((float) ($promotion->promo_price ?? 0), 8, '.', ''),
-                    'promo_pv' => number_format((float) ($promotion->promo_pv ?? 0), 8, '.', ''),
+                    'promo_price' => number_format((float) ($promotion->promo_price ?? 0), 2, '.', ''),
+                    'promo_pv' => number_format((float) ($promotion->promo_pv ?? 0), 2, '.', ''),
                 ],
             ])
             ->all();
@@ -530,10 +530,10 @@ class ProductEditScreen extends Screen
             'promotionStatus' => $promotion?->status,
             'promotionMinQuantity' => $promotion?->min_quantity,
             'promotionPriceUsdt' => $promotion?->promo_price !== null
-                ? number_format((float) $promotion->promo_price, 8, '.', '')
+                ? number_format((float) $promotion->promo_price, 2, '.', '')
                 : null,
             'promotionPv' => $promotion?->promo_pv !== null
-                ? number_format((float) $promotion->promo_pv, 8, '.', '')
+                ? number_format((float) $promotion->promo_pv, 2, '.', '')
                 : null,
             'dcwSpendEnabled' => $this->truthy($product['dcw_spend_enabled'] ?? false),
             'dcwUsageAmount' => $this->wholeNumberString(

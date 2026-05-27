@@ -1,5 +1,268 @@
 Handoff Next
 
+Updated: 2026-05-27 14:45 +07
+Branch: `integrate/uat-promotion-on-hardened-main`
+
+Latest Session Update (2026-05-27)
+
+- UAT admin access was repaired and simplified.
+  - created/kept a single agreed super admin account in API and BAO without documenting live credentials in the repo.
+  - removed old admin/superadmin records from the active UAT admin sets, preserving backups on the server.
+  - added BAO admin login reset support with protected override flow:
+    - API password reset accepts an optional custom `newPassword` for protected super admin reset.
+    - BAO login page posts to `/admin/password-reset`.
+    - reset verifies the API login after update and updates the matching BAO admin password.
+  - updated BAO/API env for the new admin identifier and confirmed API/BAO public health after restarts.
+
+- WAP cart and checkout promotion display was fixed.
+  - cart totals now calculate active product promotions before checkout.
+  - checkout now shows:
+    - original subtotal before promotion
+    - promotion discount
+    - DCW discount if present
+    - shipping
+    - final payable total before order confirmation
+  - 100 PV promotions can group eligible items using promotion settings, matching the backend promotion grouping behavior.
+  - WAP build passed and was deployed to `https://wap.blifehealthy.com`.
+
+- WAP React hook warnings were fixed.
+  - `Product.tsx` now wraps `getReviews` with `useCallback`.
+  - `Home.tsx` now wraps `getData` with `useCallback`.
+  - `npm run build` completed with `Compiled successfully`.
+
+- BAO order approval was repaired.
+  - root cause:
+    - BAO was calling the API approve endpoint without a bearer token because BAO admin API env variables were missing.
+  - fix:
+    - added `BAO_API_ADMIN_IDENTIFIER` / `APP_BAO_API_ADMIN_IDENTIFIER`.
+    - added corresponding BAO admin API password env values without printing secrets in the handoff.
+    - restarted BAO and confirmed login from the BAO container.
+  - order `2` was approved successfully during verification, then later used to validate cancellation/commission behavior.
+
+- Order cancellation and commission handling was changed to preserve audit evidence.
+  - previous issue:
+    - an order that had been approved and later cancelled could leave original commission rows visible without a compensating audit record.
+  - new behavior:
+    - cancellation no longer deletes commission rows.
+    - API creates `CommissionLedger` reversal rows with negative amounts and status `REVERSED`.
+    - reversal rows reference the original commission row through `sourceCommissionLedgerId`.
+    - related wallet credits are reversed with `REVERSAL_DEBIT` transactions where applicable.
+    - company fallback rows receive a `REVERSAL` company bonus ledger entry instead of deleting the original.
+  - BAO cancellation UX was changed:
+    - admin must enter a cancellation reason.
+    - regular admin cancellation requests are recorded as `REQUESTED` and do not affect commission yet.
+    - Super Admin must confirm the cancellation for the real API cancel and commission reversal to run.
+    - Super Admin can cancel directly with a reason.
+    - BAO records cancellation audit details in the order note, including action, reason, actor label, role, and timestamp.
+
+- Decimal display was capped to two decimal places.
+  - WAP now formats PV, commission, wallet, topup, and withdraw amounts with at most two decimals.
+  - WAP currency display remains capped at two decimals.
+  - BAO promotion display/snapshot payloads now expose promotion price/PV with two decimals instead of eight.
+  - BAO member sale promotion grouping display was adjusted to two-decimal comparisons/labels.
+  - internal database precision was intentionally preserved for calculation/storage paths.
+
+- Validation and deploys completed.
+  - API:
+    - `npm run lint`: passed
+    - `npm run build`: passed
+    - `https://api.blifehealthy.com/health/ready`: `200`
+  - WAP:
+    - `npm run build`: passed
+    - deployed bundle: `main.7fecf071.js`
+    - `https://wap.blifehealthy.com/Checkout`: `200`
+  - BAO:
+    - edited PHP files passed `php -l`.
+    - `https://bao.blifehealthy.com/admin/login`: `200`
+  - Server-side file backups were created before hotfix copies under `/home/nc-user/backups/`.
+
+Immediate Next Steps
+
+1. Business-test cancellation with two roles.
+   - regular admin requests cancellation with reason and confirms no commission reversal is created yet.
+   - Super Admin confirms request and verifies reversal audit rows are created.
+
+2. Review order `2` historical commission state.
+   - order `2` still has old commission rows from before the reversal-audit change.
+   - do not mutate historical financial rows without explicit approval.
+   - if business wants a compensating audit row for order `2`, apply it through an approved reversal action rather than deleting the original rows.
+
+3. Re-run a WAP checkout smoke with the 2-item promotion.
+   - confirm promotion discount and payable total display before confirmation.
+   - confirm successful order creation still posts the expected API payload.
+
+Historical Updates
+
+Updated: 2026-05-25 21:30 +07
+Branch: `main`
+
+Latest Session Update (2026-05-25)
+
+- Production hardening PR1-PR10 has been completed, pushed to `main`, and CI hotfix was applied.
+  - latest hardened commit on `main`:
+    - `cc1602b9ad249b89e595eeb37f54175099bae99d`
+    - `ci: fix prisma env and gitleaks scan mode`
+  - major completed areas:
+    - deny-by-default access control
+    - production env/secret validation
+    - Redis-backed session store
+    - Redis-backed rate limiting and brute-force protection
+    - Helmet, ValidationPipe, body/upload hardening
+    - production audit logging and log rotation
+    - health/readiness/metrics and monitoring runbook
+    - database backup/restore scripts and restore drill docs
+    - CI security workflow with audit and gitleaks
+    - production go-live runbooks/checklists
+
+- UAT server was synced to latest hardened `main`.
+  - server path:
+    - `/home/nc-user/poolproject`
+  - branch:
+    - `main`
+  - commit:
+    - `cc1602b9ad249b89e595eeb37f54175099bae99d`
+  - UAT local promotion/PV changes were preserved before sync:
+    - branch: `preserve/uat-promotion-local-20260525`
+    - commit: `5512030a preserve: capture UAT promotion local changes`
+    - bundle backup: `/home/nc-user/poolproject-uat-preserve/uat-promotion-local-20260525.bundle`
+  - local integration review confirmed the promotion/PV changes already exist in latest hardened `main`, so no extra integration commit was needed.
+
+- UAT env was updated for the hardened runtime.
+  - env file:
+    - `/home/nc-user/poolproject/deploy/compose/api.env`
+  - env backup:
+    - `/home/nc-user/poolproject-uat-preserve/env-backups/api.env.20260525-201913.bak`
+  - real env validation passed with:
+    - `node dist/apps/api/apps/api/src/config/env.validation.run.js deploy/compose/api.env`
+  - secrets were not printed in reports.
+
+- UAT backups were created before env/migration work.
+  - pre-env-change backup:
+    - `/home/nc-user/poolproject/backups/uat-pre-env-change/poolproject-uat-pre-env-change-20260525-201748.sql.gz`
+  - pre-migration backup:
+    - `/home/nc-user/poolproject/backups/uat-pre-migration/poolproject-uat-pre-migration-20260525-204337.sql.gz`
+  - pre-migration backup gzip integrity passed.
+
+- UAT Prisma baseline/migration was completed safely.
+  - initial `migrate deploy` hit expected `P3005` because the UAT database was non-empty and `_prisma_migrations` was missing.
+  - read-only baseline inspection found:
+    - 25 migrations fully represented in the existing schema
+    - `20260323_allow_duplicate_member_phone_and_national_id` partially represented and missing `User_phone_idx`
+  - approved baseline action:
+    - marked the 25 fully represented migrations as applied
+    - intentionally left `20260323_allow_duplicate_member_phone_and_national_id` unapplied
+    - ran `prisma migrate deploy` so Prisma created the missing index
+  - final migration status:
+    - `Database schema is up to date!`
+  - `User_phone_idx` verified present.
+
+- UAT services were rebuilt/recreated after migration approval.
+  - command used:
+    - `docker compose -f deploy/compose/docker-compose.yml up -d --build api bao wap`
+  - app service status after recreate:
+    - `api`: healthy
+    - `bao`: healthy
+    - `wap`: healthy
+  - infrastructure status:
+    - `postgres`: healthy
+    - `redis`: healthy
+    - `nginx`: running
+    - `worker`: still running
+  - no additional migrations were run during restart.
+
+- UAT technical readiness passed after restart.
+  - `/health`: `200 OK`
+  - `/health/live`: `200 OK`
+  - `/health/ready`: `200 OK`
+  - readiness dependencies:
+    - database: `ok`
+    - redis: `ok`
+    - auditLog: `ok`
+    - config: `ok`
+  - public health endpoints through the configured public API base URL also returned `200`.
+  - `npm run smoke:health`: passed
+  - `npm run smoke:production`: passed
+    - health/live/ready
+    - metrics
+    - packages
+    - storefront products
+    - products
+    - auth login reaches auth surface with expected `401`
+    - security headers
+    - CORS check skipped because `SMOKE_ALLOWED_ORIGIN` was not set
+
+- Read-only UAT data sanity was checked without printing PII.
+  - users: `212`
+  - admins: `2`
+  - products: `6`
+  - product details: `7`
+  - packages: `1`
+  - product details with promotion snapshot fields populated: `3`
+  - orders: `0`
+  - wallets: `210`
+  - topups: `0`
+  - withdraws: `0`
+  - commission ledger rows: `0`
+  - pool cycles: `0`
+  - audit log exists and contains sanitized login success/failure/lock events.
+  - API logs showed no obvious `error`, `exception`, `fatal`, or `failed` entries in the checked tail.
+
+- Current go-live recommendation from technical + read-only business evidence:
+  - technical runtime: `PASS`
+  - production hardening: `PASS`
+  - database migration readiness: `PASS`
+  - final business UAT: `NEEDS REVIEW`
+  - recommendation remains `NO-GO` until manual business-critical UAT flows are executed and signed off, because current UAT data has no orders/topups/withdraws/commissions/pool cycles to prove money/order/commission/wallet/pool behavior.
+
+- Final manual Business UAT evidence template was created on UAT server only.
+  - file:
+    - `/home/nc-user/poolproject/docs/operations/final-business-uat-evidence-20260525.md`
+  - current status on UAT:
+    - untracked, not committed
+  - purpose:
+    - record masked evidence for production sign-off
+  - required coverage:
+    - member login
+    - admin login
+    - LINE login if enabled
+    - referral/member tree
+    - product/package listing
+    - 100 PV promotion display
+    - promotion price/PV calculation
+    - member order creation
+    - BAO member-sale order creation
+    - slip upload
+    - admin approve/reject order
+    - wallet topup/withdraw
+    - commission calculation
+    - pool calculation
+    - receipt generation
+    - audit log verification
+    - security role access
+    - rate limit/brute-force sanity
+
+Immediate Next Steps
+
+1. Run manual Business UAT on UAT with test accounts only.
+   - Do not use real customer data.
+   - Do not print passwords/secrets.
+   - Record only masked IDs/counts/statuses/screenshots.
+   - Fill `/home/nc-user/poolproject/docs/operations/final-business-uat-evidence-20260525.md`.
+
+2. Business owner must decide final status.
+   - `GO`: all money/order/member-tree/commission/wallet/pool/receipt/security-role tests pass.
+   - `CONDITIONAL GO`: only minor UI/report display issues remain and owner accepts risk.
+   - `NO-GO`: any financial/order/commission/wallet/member-tree/pool/receipt issue remains.
+
+3. If UAT evidence passes, prepare production deploy using the existing go-live runbooks.
+   - checklist: `docs/operations/production-readiness-checklist.md`
+   - deploy: `docs/operations/production-deploy-runbook.md`
+   - rollback: `docs/operations/rollback-runbook.md`
+   - incident response: `docs/operations/incident-response.md`
+   - backup/restore: `docs/operations/backup-and-restore.md`
+
+4. Before production deploy, create a fresh production backup and confirm rollback owner/watch window.
+
 Updated: 2026-05-19 16:53 +07
 Branch: `main`
 

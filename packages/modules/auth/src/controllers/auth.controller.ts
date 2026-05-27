@@ -85,6 +85,7 @@ export class AuthController {
   ) {
     return this.authService.resetPasswordFromIdentifier({
       identifier: requireNonEmptyString(body.identifier, "identifier"),
+      newPassword: optionalString(body.newPassword),
       adminOverridePassword: optionalString(body.adminOverridePassword),
     });
   }

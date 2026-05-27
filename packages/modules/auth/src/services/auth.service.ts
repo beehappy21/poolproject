@@ -35,12 +35,13 @@ export interface AuthServiceContract {
 
   resetPasswordFromIdentifier(input: {
     identifier: string;
+    newPassword?: string | null;
     adminOverridePassword?: string | null;
   }): Promise<{
     userId: string;
     memberCode: string;
     passwordUpdated: true;
-    passwordRule: "national_id_last_6_digits" | "protected_super_admin_fixed";
+    passwordRule: "national_id_last_6_digits" | "protected_super_admin_custom" | "protected_super_admin_fixed";
   }>;
 }
 
@@ -261,12 +262,13 @@ export class AuthService implements AuthServiceContract {
 
   async resetPasswordFromIdentifier(input: {
     identifier: string;
+    newPassword?: string | null;
     adminOverridePassword?: string | null;
   }): Promise<{
     userId: string;
     memberCode: string;
     passwordUpdated: true;
-    passwordRule: "national_id_last_6_digits" | "protected_super_admin_fixed";
+    passwordRule: "national_id_last_6_digits" | "protected_super_admin_custom" | "protected_super_admin_fixed";
   }> {
     const user = await this.authRepository.findUserByIdentifier(input.identifier);
 
@@ -276,15 +278,23 @@ export class AuthService implements AuthServiceContract {
 
     if (this.isProtectedSuperAdminUser(user)) {
       this.assertProtectedSuperAdminOverride(input.adminOverridePassword);
+      const requestedPassword = (input.newPassword || "").trim();
+
+      if (requestedPassword !== "" && requestedPassword.length < 6) {
+        throw new BadRequestException("New password must be at least 6 characters.");
+      }
+
       const result = await this.membersService.resetMemberPassword(
         user.userId,
-        this.protectedSuperAdminPassword,
+        requestedPassword || this.protectedSuperAdminPassword,
       );
       return {
         userId: result.memberId,
         memberCode: user.memberCode,
         passwordUpdated: true,
-        passwordRule: "protected_super_admin_fixed",
+        passwordRule: requestedPassword !== ""
+          ? "protected_super_admin_custom"
+          : "protected_super_admin_fixed",
       };
     }
 

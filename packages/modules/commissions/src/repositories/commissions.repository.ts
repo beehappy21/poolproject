@@ -131,6 +131,8 @@ export interface CommissionsRepository {
 
   clearOrderCommissionArtifacts(orderId: string): Promise<void>;
 
+  reverseOrderCommissionArtifacts(orderId: string): Promise<void>;
+
   getDailyCommissionCapSnapshot(input: {
     beneficiaryUserId: string;
     capDate: string;
@@ -1763,6 +1765,333 @@ export class PrismaCommissionsRepository implements CommissionsRepository {
             },
           },
         });
+      }
+    });
+  }
+
+  async reverseOrderCommissionArtifacts(orderId: string): Promise<void> {
+    const normalizedOrderId = BigInt(orderId);
+    const reversedAt = new Date();
+    const reversalReason = "ORDER_CANCELLED";
+
+    await this.prisma.$transaction(async (tx) => {
+      const commissions = await tx.commissionLedger.findMany({
+        where: {
+          orderId: normalizedOrderId,
+          status: { not: "REVERSED" },
+        },
+        select: {
+          id: true,
+          beneficiaryUserId: true,
+          beneficiaryCycleId: true,
+          sourceUserId: true,
+          commissionType: true,
+          tierNo: true,
+          levelNo: true,
+          rate: true,
+          basePv: true,
+          commissionAmount: true,
+          grossAmount: true,
+          finalPayableAmount: true,
+          discardedAmount: true,
+          releaseStatus: true,
+          commissionDate: true,
+          originalTargetUserId: true,
+          rollupFromUserId: true,
+          rollupDepth: true,
+          cycleRefId: true,
+          fallbackToCompany: true,
+          companyFallbackReason: true,
+          holdStatus: true,
+          holdReason: true,
+          status: true,
+        },
+      });
+
+      const originalCommissionIds = commissions.map((entry) => entry.id);
+      const existingReversalSourceIds =
+        originalCommissionIds.length > 0
+          ? await tx.commissionLedger.findMany({
+              where: {
+                sourceCommissionLedgerId: { in: originalCommissionIds },
+                status: "REVERSED",
+              },
+              select: { sourceCommissionLedgerId: true },
+            })
+          : [];
+      const alreadyReversed = new Set(
+        existingReversalSourceIds
+          .map((entry) => entry.sourceCommissionLedgerId?.toString())
+          .filter((value): value is string => Boolean(value)),
+      );
+      const reversalCommissionIds: bigint[] = [];
+
+      for (const commission of commissions) {
+        if (alreadyReversed.has(commission.id.toString())) {
+          continue;
+        }
+
+        const reversal = await tx.commissionLedger.create({
+          data: {
+            beneficiaryUserId: commission.beneficiaryUserId,
+            beneficiaryCycleId: commission.beneficiaryCycleId,
+            sourceUserId: commission.sourceUserId,
+            orderId: normalizedOrderId,
+            sourceCommissionLedgerId: commission.id,
+            commissionType: commission.commissionType,
+            tierNo: commission.tierNo,
+            levelNo: commission.levelNo,
+            rate: commission.rate,
+            basePv: commission.basePv,
+            commissionAmount: subtractDecimalStrings(
+              "0",
+              commission.commissionAmount.toString(),
+            ),
+            grossAmount: subtractDecimalStrings("0", commission.grossAmount.toString()),
+            finalPayableAmount: subtractDecimalStrings(
+              "0",
+              commission.finalPayableAmount.toString(),
+            ),
+            discardedAmount: subtractDecimalStrings(
+              "0",
+              commission.discardedAmount.toString(),
+            ),
+            releaseStatus: commission.releaseStatus,
+            commissionDate: reversedAt,
+            originalTargetUserId: commission.originalTargetUserId,
+            rollupFromUserId: commission.rollupFromUserId,
+            rollupDepth: commission.rollupDepth,
+            cycleRefId: commission.cycleRefId,
+            evaluationAt: reversedAt,
+            finalizedAt: reversedAt,
+            status: "REVERSED",
+            fallbackToCompany: commission.fallbackToCompany,
+            blockReason: reversalReason,
+            companyFallbackReason: commission.companyFallbackReason,
+            holdStatus: commission.holdStatus,
+            holdReason: commission.holdReason,
+            metadata: {
+              reason: reversalReason,
+              originalCommissionLedgerId: commission.id.toString(),
+              originalStatus: commission.status,
+            },
+          },
+          select: { id: true },
+        });
+
+        reversalCommissionIds.push(reversal.id);
+
+        if (
+          commission.beneficiaryCycleId &&
+          (commission.status === "APPROVED" ||
+            commission.status === "HELD" ||
+            commission.status === "WITHDRAWABLE")
+        ) {
+          const cycle = await tx.memberPackageCycle.findUnique({
+            where: { id: commission.beneficiaryCycleId },
+            select: { earnedTotalInCycle: true },
+          });
+
+          if (cycle) {
+            await tx.memberPackageCycle.update({
+              where: { id: commission.beneficiaryCycleId },
+              data: {
+                earnedTotalInCycle: maxDecimalString(
+                  subtractDecimalStrings(
+                    cycle.earnedTotalInCycle.toString(),
+                    commission.commissionAmount.toString(),
+                  ),
+                  "0",
+                ),
+              },
+            });
+          }
+        }
+      }
+
+      const walletTransactions =
+        originalCommissionIds.length > 0
+          ? await tx.walletTransaction.findMany({
+              where: {
+                refType: "COMMISSION",
+                refId: { in: originalCommissionIds },
+                status: "POSTED",
+              },
+              orderBy: [{ id: "asc" }],
+              select: {
+                id: true,
+                userId: true,
+                txType: true,
+                direction: true,
+                balanceBucket: true,
+                refId: true,
+                amount: true,
+              },
+            })
+          : [];
+      const reversalByOriginalId = new Map<string, bigint>();
+      if (reversalCommissionIds.length > 0) {
+        const reversals = await tx.commissionLedger.findMany({
+          where: { id: { in: reversalCommissionIds } },
+          select: { id: true, sourceCommissionLedgerId: true },
+        });
+        reversals.forEach((reversal) => {
+          if (reversal.sourceCommissionLedgerId) {
+            reversalByOriginalId.set(
+              reversal.sourceCommissionLedgerId.toString(),
+              reversal.id,
+            );
+          }
+        });
+      }
+
+      for (const transaction of walletTransactions) {
+        const reversalCommissionId = reversalByOriginalId.get(
+          transaction.refId.toString(),
+        );
+
+        if (!reversalCommissionId) {
+          continue;
+        }
+
+        const existingWalletReversal = await tx.walletTransaction.findFirst({
+          where: {
+            refType: "COMMISSION",
+            refId: reversalCommissionId,
+            txType: "REVERSAL_DEBIT",
+            status: "POSTED",
+          },
+          select: { id: true },
+        });
+
+        if (existingWalletReversal) {
+          continue;
+        }
+
+        const wallet = await tx.wallet.findUnique({
+          where: { userId: transaction.userId },
+          select: {
+            approvedBalance: true,
+            heldBalance: true,
+            withdrawableBalance: true,
+            shoppingBalance: true,
+            discountBalance: true,
+            negativeOffsetBalance: true,
+          },
+        });
+
+        if (!wallet) {
+          continue;
+        }
+
+        const amount = transaction.amount.toString();
+        const reverseBucket = (current: string) =>
+          transaction.direction === "CREDIT"
+            ? maxDecimalString(subtractDecimalStrings(current, amount), "0")
+            : addDecimalStrings(current, amount);
+
+        await tx.wallet.update({
+          where: { userId: transaction.userId },
+          data: {
+            approvedBalance:
+              transaction.txType === "DIRECT_CREDIT" ||
+              transaction.txType === "UNI_CREDIT" ||
+              transaction.txType === "CASHBACK_CREDIT" ||
+              transaction.txType === "POOL_CREDIT" ||
+              transaction.txType === "MATRIX_CREDIT"
+                ? maxDecimalString(
+                    subtractDecimalStrings(
+                      wallet.approvedBalance.toString(),
+                      amount,
+                    ),
+                    "0",
+                  )
+                : wallet.approvedBalance.toString(),
+            heldBalance:
+              transaction.balanceBucket === "HELD"
+                ? reverseBucket(wallet.heldBalance.toString())
+                : wallet.heldBalance.toString(),
+            withdrawableBalance:
+              transaction.balanceBucket === "WITHDRAWABLE"
+                ? reverseBucket(wallet.withdrawableBalance.toString())
+                : wallet.withdrawableBalance.toString(),
+            shoppingBalance: wallet.shoppingBalance.toString(),
+            discountBalance: wallet.discountBalance.toString(),
+            negativeOffsetBalance:
+              transaction.balanceBucket === "NEGATIVE_OFFSET"
+                ? reverseBucket(wallet.negativeOffsetBalance.toString())
+                : wallet.negativeOffsetBalance.toString(),
+          },
+        });
+
+        await tx.walletTransaction.create({
+          data: {
+            userId: transaction.userId,
+            txType: "REVERSAL_DEBIT",
+            direction: "DEBIT",
+            balanceBucket: transaction.balanceBucket,
+            refType: "COMMISSION",
+            refId: reversalCommissionId,
+            amount,
+            status: "POSTED",
+            note: `Order ${orderId} cancellation commission reversal`,
+          },
+        });
+      }
+
+      const affectedCycleOwners = new Set<string>();
+      for (const commission of commissions) {
+        if (!commission.beneficiaryCycleId) {
+          continue;
+        }
+
+        const cycle = await tx.memberPackageCycle.findUnique({
+          where: { id: commission.beneficiaryCycleId },
+          select: { userId: true },
+        });
+
+        if (cycle) {
+          affectedCycleOwners.add(cycle.userId.toString());
+        }
+      }
+
+      for (const userId of affectedCycleOwners) {
+        await this.normalizeMemberCycleReceivability(tx, BigInt(userId));
+      }
+
+      const companyFallbacks = await tx.companyBonusLedger.findMany({
+        where: {
+          sourceRefId: normalizedOrderId,
+          sourceType: { in: ["DIRECT", "UNI", "CASHBACK"] },
+        },
+        select: {
+          sourceType: true,
+          bonusType: true,
+          amount: true,
+          reason: true,
+        },
+      });
+      const existingCompanyReversal = await tx.companyBonusLedger.findFirst({
+        where: {
+          sourceRefId: normalizedOrderId,
+          sourceType: "REVERSAL",
+          reason: reversalReason,
+        },
+        select: { id: true },
+      });
+
+      if (!existingCompanyReversal) {
+        for (const fallback of companyFallbacks) {
+          await tx.companyBonusLedger.create({
+            data: {
+              sourceType: "REVERSAL",
+              sourceRefId: normalizedOrderId,
+              bonusType: fallback.bonusType,
+              amount: subtractDecimalStrings("0", fallback.amount.toString()),
+              reason: reversalReason,
+            },
+          });
+        }
       }
     });
   }

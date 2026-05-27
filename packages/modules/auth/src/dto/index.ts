@@ -29,6 +29,12 @@ export class ForgotPasswordResetDto {
 
   @IsOptional()
   @IsString()
+  @MinLength(6)
+  @MaxLength(256)
+  newPassword?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(256)
   adminOverridePassword?: string;
 }

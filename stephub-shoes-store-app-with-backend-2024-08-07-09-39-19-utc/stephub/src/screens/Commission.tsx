@@ -178,7 +178,7 @@ const defaultMetrics: DashboardMetrics = {
 };
 
 const decimalFormatter = new Intl.NumberFormat('en-US', {
-  minimumFractionDigits: 2,
+  minimumFractionDigits: 0,
   maximumFractionDigits: 2,
 });
 

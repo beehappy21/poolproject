@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Platform\OrderDocumentController;
+use App\Http\Controllers\Platform\AdminPasswordResetController;
 use Illuminate\Support\Facades\Route;
 
 $resolveLineBridgeUrl = static function () {
@@ -28,6 +29,10 @@ $resolveLineBridgeUrl = static function () {
 
 
 Route::redirect('/', '/admin/login');
+
+Route::middleware('throttle:10,1')
+    ->post('/admin/password-reset', [AdminPasswordResetController::class, 'reset'])
+    ->name('bao.admin.password-reset');
 
 Route::get('/line/liff/signin', function () use ($resolveLineBridgeUrl) {
     return redirect()->away($resolveLineBridgeUrl(), 302);

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import React, {useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
 
 import {items} from '../items';
@@ -7,7 +7,7 @@ import {URLS} from '../config';
 import {hooks} from '../hooks';
 import {svg} from '../assets/svg';
 import {theme} from '../constants';
-import {formatTHB, formatTHBText} from '../utils/currency';
+import {formatDecimalMax2, formatTHB, formatTHBText} from '../utils/currency';
 import {
   toPlainTextProductDescription,
   toRenderableProductRichTextHtml,
@@ -121,7 +121,7 @@ const buildPromotionLabel = (item: any): string => {
     ? `${promotionPrice} บาท`
     : formatTHBText(promotionPrice);
 
-  return `โปรโมชั่นซื้อ ${minQuantity} ชิ้นขึ้นไป เหลือชิ้นละ ${promotionPriceLabel} ${promotionPv} PV`;
+  return `โปรโมชั่นซื้อ ${minQuantity} ชิ้นขึ้นไป เหลือชิ้นละ ${promotionPriceLabel} ${formatDecimalMax2(promotionPv)} PV`;
 };
 
 export const Product: React.FC = () => {
@@ -176,7 +176,7 @@ export const Product: React.FC = () => {
     item.colors.length > 0 &&
     !(item.colors.length === 1 && item.colors[0]?.name === 'default');
 
-  const getReviews = async () => {
+  const getReviews = useCallback(async () => {
     const targetProductDetailId = item?.productDetailId || item?.id;
 
     if (!targetProductDetailId) {
@@ -198,7 +198,7 @@ export const Product: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [item?.productDetailId, item?.id]);
 
   useEffect(() => {
     if (isFirmHiddenProduct(routeItem)) {
@@ -254,7 +254,7 @@ export const Product: React.FC = () => {
   useEffect(() => {
     window.scrollTo(0, 0);
     getReviews();
-  }, []);
+  }, [getReviews]);
 
   useEffect(() => {
     setActiveMediaIndex(0);
@@ -571,7 +571,7 @@ export const Product: React.FC = () => {
                     fontSize: 12,
                   }}
                 >
-                  PV {item.pv}
+                  PV {formatDecimalMax2(item.pv)}
                 </div>
               ) : null}
 

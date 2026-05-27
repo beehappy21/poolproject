@@ -454,7 +454,13 @@ export class OrdersService implements OrdersServiceContract {
   }
 
   async cancelOrder(input: { orderId: string; reason?: string }) {
-    return this.ordersRepository.cancelOrder(input);
+    const cancelledOrder = await this.ordersRepository.cancelOrder(input);
+
+    if (cancelledOrder) {
+      await this.commissionsService.reverseOrderCommissionArtifacts(input.orderId);
+    }
+
+    return cancelledOrder;
   }
 
   async createMatrixAutoOrderAuditArtifacts(input: {

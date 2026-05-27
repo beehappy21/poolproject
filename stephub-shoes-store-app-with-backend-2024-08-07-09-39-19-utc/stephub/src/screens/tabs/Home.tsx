@@ -1,5 +1,5 @@
 import axios from 'axios';
-import {FC, useEffect, useMemo, useState} from 'react';
+import {FC, useCallback, useEffect, useMemo, useState} from 'react';
 
 import {URLS} from '../../config';
 import {hooks} from '../../hooks';
@@ -252,7 +252,7 @@ export const Home: FC = () => {
     ? TOUCH_PUBLIC_LOAD_MORE_COUNT
     : PRODUCT_BATCH_SIZE;
 
-  const getData = async () => {
+  const getData = useCallback(async () => {
     setLoading(true);
     setLoadError('');
     setBannersData(current => (current.length ? current : BANNER_PLACEHOLDERS));
@@ -343,13 +343,13 @@ export const Home: FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [initialVisibleProductCount]);
 
   useEffect(() => {
     clearLegacyHomeCache();
     getData();
     window.scrollTo(0, 0);
-  }, [initialVisibleProductCount]);
+  }, [getData]);
 
   useEffect(() => {
     if (!loading) {
