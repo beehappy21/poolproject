@@ -42,8 +42,17 @@
     .member-sale-payment-grid { display:grid; gap:.75rem; grid-template-columns:repeat(5,minmax(0,1fr)); }
     .member-sale-payment-grid label { display:flex; align-items:center; gap:.55rem; padding:.9rem 1rem; border:1px solid #cbd5e1; border-radius:14px; cursor:pointer; background:#fff; font-weight:600; }
     .member-sale-summary-box { border:1px solid #dbeafe; background:#eff6ff; color:#1e3a8a; border-radius:14px; padding:1rem; }
+    .member-sale-wallet-mix { margin-top:.9rem; border:1px solid #dbeafe; background:#f8fbff; border-radius:14px; padding:1rem; display:grid; gap:.85rem; }
+    .member-sale-wallet-mix-row { display:grid; gap:.75rem; grid-template-columns:minmax(0,1fr) 180px 120px; align-items:end; }
+    .member-sale-wallet-mix-toggle { display:flex; align-items:center; gap:.55rem; font-weight:600; color:#0f172a; }
+    .member-sale-wallet-balance { color:#1d4ed8; font-weight:700; }
+    .member-sale-submit-bar { display:flex; justify-content:flex-end; }
+    .member-sale-submit-button { min-width:220px; border:0; border-radius:14px; padding:.95rem 1.25rem; background:#1d4ed8; color:#fff; font-weight:700; font-size:1rem; cursor:pointer; box-shadow:0 12px 24px rgba(29,78,216,.18); }
+    .member-sale-submit-button:hover { background:#1e40af; }
     @media (max-width: 960px) {
-        .member-sale-grid.two, .member-sale-grid.three, .member-sale-meta, .member-sale-selected-item, .member-sale-payment-grid { grid-template-columns:1fr; }
+        .member-sale-grid.two, .member-sale-grid.three, .member-sale-meta, .member-sale-selected-item, .member-sale-payment-grid, .member-sale-wallet-mix-row { grid-template-columns:1fr; }
+        .member-sale-submit-bar { justify-content:stretch; }
+        .member-sale-submit-button { width:100%; min-width:0; }
     }
 </style>
 
@@ -57,6 +66,7 @@
     <input type="hidden" name="sale[shopping_wallet_amount]" id="sale_shopping_wallet_amount" value="{{ old('sale.shopping_wallet_amount', $sale['shopping_wallet_amount'] ?? '0') }}">
     <input type="hidden" name="sale[firm_wallet_amount]" id="sale_firm_wallet_amount" value="{{ old('sale.firm_wallet_amount', $sale['firm_wallet_amount'] ?? '0') }}">
     <input type="hidden" name="sale[cash_payment_method]" id="sale_cash_payment_method" value="{{ old('sale.cash_payment_method', $sale['cash_payment_method'] ?? 'cash') }}">
+    <input type="hidden" name="sale[use_shopping_wallet]" id="sale_use_shopping_wallet" value="{{ old('sale.use_shopping_wallet', $sale['use_shopping_wallet'] ?? false) ? '1' : '0' }}">
     <input type="hidden" name="sale[save_as_default]" value="{{ old('sale.save_as_default', $sale['save_as_default'] ?? false) ? '1' : '0' }}">
     <input type="hidden" name="sale[existing_shipping_address_id]" id="sale_existing_shipping_address_id" value="{{ old('sale.existing_shipping_address_id', $sale['existing_shipping_address_id'] ?? '') }}">
     <input type="hidden" name="sale[change_shipping_address]" id="sale_change_shipping_address" value="{{ old('sale.change_shipping_address', $sale['change_shipping_address'] ?? false) ? '1' : '0' }}">
@@ -162,6 +172,33 @@
         @error('sale.payment_channel')
             <div class="text-danger mt-2">{{ $message }}</div>
         @enderror
+        <div class="member-sale-wallet-mix" id="memberSaleWalletMixBox">
+            <label class="member-sale-wallet-mix-toggle">
+                <input type="checkbox" id="memberSaleUseShoppingWallet" @checked(old('sale.use_shopping_wallet', $sale['use_shopping_wallet'] ?? false))>
+                ใช้ SW ร่วมกับช่องทางที่เลือก
+            </label>
+            <div class="member-sale-wallet-mix-row">
+                <div class="member-sale-note">
+                    <span id="memberSaleShoppingWalletBalance" class="member-sale-wallet-balance">ยอด SW คงเหลือ 0.00 บาท</span><br>
+                    ใส่ยอด SW ที่ต้องการใช้ ระบบจะให้ยอดคงเหลือไปชำระด้วยช่องทางหลักที่เลือกไว้
+                </div>
+                <div>
+                    <label class="member-sale-label" for="memberSaleShoppingWalletAmountDisplay">ยอดที่ใช้จาก SW</label>
+                    <input
+                        id="memberSaleShoppingWalletAmountDisplay"
+                        class="member-sale-input"
+                        type="text"
+                        inputmode="decimal"
+                        autocomplete="off"
+                        value="{{ old('sale.shopping_wallet_amount', $sale['shopping_wallet_amount'] ?? '0') }}"
+                    >
+                </div>
+                <div>
+                    <label class="member-sale-label">&nbsp;</label>
+                    <button class="btn btn-default w-100" type="button" id="memberSaleShoppingWalletMax">ใช้สูงสุด</button>
+                </div>
+            </div>
+        </div>
         <div class="member-sale-summary-box mt-3" id="memberSalePaymentSummary">
             ยอดรวมสินค้า 0.00 บาท
         </div>
@@ -252,6 +289,19 @@
             <textarea id="sale_note" class="member-sale-textarea" name="sale[note]">{{ old('sale.note', $sale['note'] ?? '') }}</textarea>
         </div>
     </div>
+
+    <div class="member-sale-submit-bar">
+        <button
+            type="submit"
+            class="member-sale-submit-button"
+            data-controller="button"
+            data-turbo="true"
+            formaction="{{ rtrim(url()->current(), '/') }}/createSale"
+            formmethod="POST"
+        >
+            Create sale
+        </button>
+    </div>
 </div>
 
 <script>
@@ -288,6 +338,12 @@
     const shoppingWalletAmountInput = document.getElementById('sale_shopping_wallet_amount');
     const firmWalletAmountInput = document.getElementById('sale_firm_wallet_amount');
     const cashPaymentMethodInput = document.getElementById('sale_cash_payment_method');
+    const useShoppingWalletInput = document.getElementById('sale_use_shopping_wallet');
+    const walletMixBox = document.getElementById('memberSaleWalletMixBox');
+    const walletMixToggle = document.getElementById('memberSaleUseShoppingWallet');
+    const walletMixAmountDisplay = document.getElementById('memberSaleShoppingWalletAmountDisplay');
+    const walletMixMaxButton = document.getElementById('memberSaleShoppingWalletMax');
+    const walletBalanceLabel = document.getElementById('memberSaleShoppingWalletBalance');
 
     const fields = {
         recipientName: document.getElementById('sale_recipient_name'),
@@ -321,6 +377,40 @@
     function selectedPaymentChannel() {
         const checked = paymentInputs.find((input) => input.checked);
         return checked ? checked.value : 'cash';
+    }
+
+    function roundMoney(value) {
+        return Math.max(0, Number(value || 0) || 0);
+    }
+
+    function selectedMemberShoppingWalletBalance() {
+        return roundMoney(selectedMember()?.shoppingWalletBalance || 0);
+    }
+
+    function selectedShoppingWalletAmount(subtotal) {
+        return Math.min(roundMoney(walletMixAmountDisplay?.value), subtotal, selectedMemberShoppingWalletBalance());
+    }
+
+    function shoppingWalletInputMax() {
+        return Math.min(orderSubtotal(), selectedMemberShoppingWalletBalance());
+    }
+
+    function clampShoppingWalletInputValue(format = false) {
+        if (!walletMixAmountDisplay) {
+            return 0;
+        }
+
+        const sanitized = String(walletMixAmountDisplay.value || '')
+            .replace(/[^0-9.]/g, '')
+            .replace(/(\..*)\./g, '$1');
+        const requested = roundMoney(sanitized);
+        const clamped = Math.min(requested, shoppingWalletInputMax());
+
+        walletMixAmountDisplay.value = format
+            ? clamped.toFixed(2)
+            : (sanitized === '' ? '' : String(clamped));
+
+        return clamped;
     }
 
     function renderMemberResults(items) {
@@ -411,6 +501,94 @@
         }
 
         return availableNote ? `${baseText} · ${availableNote}` : baseText;
+    }
+
+    function normalizeSearchText(value) {
+        return String(value || '')
+            .toLowerCase()
+            .replace(/[\s\-_./]+/g, '')
+            .trim();
+    }
+
+    function isSubsequenceMatch(keyword, target) {
+        if (!keyword || !target) return false;
+
+        let pointer = 0;
+        for (const char of target) {
+            if (char === keyword[pointer]) {
+                pointer += 1;
+                if (pointer >= keyword.length) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    function productSearchRank(product, keyword) {
+        const normalizedKeyword = normalizeSearchText(keyword);
+        if (!normalizedKeyword) {
+            return Number.NEGATIVE_INFINITY;
+        }
+
+        const fields = [
+            String(product?.name || ''),
+            String(product?.code || ''),
+            String(product?.promotionName || ''),
+        ];
+        const normalizedFields = fields
+            .map((field) => normalizeSearchText(field))
+            .filter(Boolean);
+
+        let bestScore = Number.NEGATIVE_INFINITY;
+        normalizedFields.forEach((field) => {
+            if (field === normalizedKeyword) {
+                bestScore = Math.max(bestScore, 200);
+                return;
+            }
+            if (field.startsWith(normalizedKeyword)) {
+                bestScore = Math.max(bestScore, 140);
+                return;
+            }
+            if (field.includes(normalizedKeyword)) {
+                bestScore = Math.max(bestScore, 100);
+                return;
+            }
+            if (normalizedKeyword.length >= 2 && isSubsequenceMatch(normalizedKeyword, field)) {
+                bestScore = Math.max(bestScore, 60);
+            }
+        });
+
+        return bestScore;
+    }
+
+    function searchProducts(keyword) {
+        const normalizedKeyword = normalizeSearchText(keyword);
+        if (normalizedKeyword.length < 2) {
+            return [];
+        }
+
+        return productCatalog
+            .map((product, index) => ({
+                product,
+                index,
+                score: productSearchRank(product, normalizedKeyword),
+            }))
+            .filter((entry) => entry.score > Number.NEGATIVE_INFINITY)
+            .sort((left, right) => {
+                if (right.score !== left.score) {
+                    return right.score - left.score;
+                }
+
+                const soldQtyDiff = Number(right.product?.soldQty || 0) - Number(left.product?.soldQty || 0);
+                if (soldQtyDiff !== 0) {
+                    return soldQtyDiff;
+                }
+
+                return left.index - right.index;
+            })
+            .map((entry) => entry.product);
     }
 
     function renderProductCards(items, emptyMessage = 'ไม่พบสินค้าที่พร้อมแสดง') {
@@ -515,6 +693,8 @@
         const subtotal = orderSubtotal();
         const subtotalText = subtotal.toFixed(2);
         const paymentChannel = selectedPaymentChannel();
+        const allowsWalletMix = paymentChannel !== 'shopping_wallet';
+        const useWalletMix = allowsWalletMix && !!walletMixToggle?.checked;
         const totalPv = selectedItems.reduce((sum, item) => {
             const product = productCatalog.find((entry) => String(entry.id) === String(item.product_detail_id));
             const quantity = Math.max(1, Number(item.quantity || 1) || 1);
@@ -522,11 +702,38 @@
 
             return sum + (pricing.unitPv * quantity);
         }, 0).toFixed(2);
+        const requestedShoppingWallet = useWalletMix
+            ? selectedShoppingWalletAmount(subtotal)
+            : 0;
+        const remainingCashDue = Math.max(0, subtotal - requestedShoppingWallet);
+        const availableShoppingWallet = selectedMemberShoppingWalletBalance();
 
         discountWalletAmountInput.value = '0';
         shoppingWalletAmountInput.value = '0';
         firmWalletAmountInput.value = '0';
         cashPaymentMethodInput.value = 'cash';
+        useShoppingWalletInput.value = useWalletMix ? '1' : '0';
+
+        if (walletMixBox) {
+            walletMixBox.classList.toggle('member-sale-hidden', !allowsWalletMix);
+        }
+        if (walletMixAmountDisplay) {
+            walletMixAmountDisplay.disabled = !allowsWalletMix || !walletMixToggle?.checked;
+            walletMixAmountDisplay.setAttribute('max', shoppingWalletInputMax().toFixed(2));
+            if (useWalletMix) {
+                if (document.activeElement !== walletMixAmountDisplay) {
+                    walletMixAmountDisplay.value = requestedShoppingWallet.toFixed(2);
+                }
+            } else if (document.activeElement !== walletMixAmountDisplay) {
+                walletMixAmountDisplay.value = '0.00';
+            }
+        }
+        if (walletMixMaxButton) {
+            walletMixMaxButton.disabled = !allowsWalletMix || !walletMixToggle?.checked;
+        }
+        if (walletBalanceLabel) {
+            walletBalanceLabel.textContent = `ยอด SW คงเหลือ ${availableShoppingWallet.toFixed(2)} บาท`;
+        }
 
         let summaryText = `ยอดรวมสินค้า ${subtotalText} บาท · PV รวม ${totalPv}`;
 
@@ -535,12 +742,21 @@
             summaryText = `ยอดรวมสินค้า ${subtotalText} บาท · PV รวม ${totalPv} · ชำระด้วย SW`;
         } else if (paymentChannel === 'bank_transfer') {
             cashPaymentMethodInput.value = 'bank_transfer';
-            summaryText = `ยอดรวมสินค้า ${subtotalText} บาท · PV รวม ${totalPv} · ชำระด้วยเงินโอน`;
+            shoppingWalletAmountInput.value = useWalletMix ? requestedShoppingWallet.toFixed(2) : '0';
+            summaryText = useWalletMix
+                ? `ยอดรวมสินค้า ${subtotalText} บาท · PV รวม ${totalPv} · SW ${requestedShoppingWallet.toFixed(2)} บาท · เงินโอน ${remainingCashDue.toFixed(2)} บาท`
+                : `ยอดรวมสินค้า ${subtotalText} บาท · PV รวม ${totalPv} · ชำระด้วยเงินโอน`;
         } else if (paymentChannel === 'other') {
             cashPaymentMethodInput.value = 'promptpay_qr';
-            summaryText = `ยอดรวมสินค้า ${subtotalText} บาท · PV รวม ${totalPv} · ชำระด้วยช่องทางอื่นๆ`;
+            shoppingWalletAmountInput.value = useWalletMix ? requestedShoppingWallet.toFixed(2) : '0';
+            summaryText = useWalletMix
+                ? `ยอดรวมสินค้า ${subtotalText} บาท · PV รวม ${totalPv} · SW ${requestedShoppingWallet.toFixed(2)} บาท · ช่องทางอื่น ${remainingCashDue.toFixed(2)} บาท`
+                : `ยอดรวมสินค้า ${subtotalText} บาท · PV รวม ${totalPv} · ชำระด้วยช่องทางอื่นๆ`;
         } else {
-            summaryText = `ยอดรวมสินค้า ${subtotalText} บาท · PV รวม ${totalPv} · ชำระด้วยเงินสด`;
+            shoppingWalletAmountInput.value = useWalletMix ? requestedShoppingWallet.toFixed(2) : '0';
+            summaryText = useWalletMix
+                ? `ยอดรวมสินค้า ${subtotalText} บาท · PV รวม ${totalPv} · SW ${requestedShoppingWallet.toFixed(2)} บาท · เงินสด ${remainingCashDue.toFixed(2)} บาท`
+                : `ยอดรวมสินค้า ${subtotalText} บาท · PV รวม ${totalPv} · ชำระด้วยเงินสด`;
         }
 
         paymentSummary.textContent = summaryText;
@@ -620,10 +836,11 @@
         memberSearch.value = `${member.memberCode} · ${member.name}`;
         renderMemberResults([]);
         fillDeliveryAddress(member);
+        syncPaymentFields();
     });
 
     productSearch.addEventListener('input', () => {
-        const keyword = productSearch.value.trim().toLowerCase();
+        const keyword = productSearch.value.trim();
         if (!keyword) {
             productStripTitle.textContent = 'สินค้าขายล่าสุด';
             renderProductResults([]);
@@ -631,12 +848,16 @@
             return;
         }
 
-        const filtered = productCatalog.filter((product) =>
-            String(product.name).toLowerCase().includes(keyword)
-            || String(product.code).toLowerCase().includes(keyword)
-        );
+        if (normalizeSearchText(keyword).length < 2) {
+            productStripTitle.textContent = 'พิมพ์อย่างน้อย 2 ตัวอักษร';
+            renderProductResults([]);
+            renderProductCards(recentProducts, 'พิมพ์อย่างน้อย 2 ตัวอักษรเพื่อค้นหาสินค้า');
+            return;
+        }
+
+        const filtered = searchProducts(keyword);
         productStripTitle.textContent = 'ผลการค้นหาสินค้า';
-        renderProductCards(filtered, 'ไม่พบสินค้าในคำค้นนี้');
+        renderProductCards(filtered.slice(0, 12), 'ไม่พบสินค้าในคำค้นนี้');
         renderProductResults(filtered.slice(0, 12));
     });
 
@@ -680,6 +901,25 @@
 
     paymentInputs.forEach((input) => {
         input.addEventListener('change', syncPaymentFields);
+    });
+
+    walletMixToggle?.addEventListener('change', () => {
+        clampShoppingWalletInputValue();
+        syncPaymentFields();
+    });
+    walletMixAmountDisplay?.addEventListener('input', () => {
+        clampShoppingWalletInputValue();
+        syncPaymentFields();
+    });
+    walletMixAmountDisplay?.addEventListener('blur', () => {
+        clampShoppingWalletInputValue(true);
+        syncPaymentFields();
+    });
+    walletMixMaxButton?.addEventListener('click', () => {
+        const maxUsableAmount = Math.floor(Math.min(orderSubtotal(), selectedMemberShoppingWalletBalance()));
+        walletMixToggle.checked = true;
+        walletMixAmountDisplay.value = maxUsableAmount.toFixed(0);
+        syncPaymentFields();
     });
 
     changeAddressButton.addEventListener('click', () => {

@@ -6,6 +6,7 @@ use App\Models\Member;
 use App\Models\MemberShippingAddressRecord;
 use App\Models\OrderLine;
 use App\Models\ProductDetailRecord;
+use App\Models\WalletRecord;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Request;
@@ -43,9 +44,14 @@ class OrderCreateScreen extends Screen
             ->orderByDesc('id')
             ->get();
 
+        $walletsByUserId = WalletRecord::query()
+            ->whereIn('userId', $members->pluck('id'))
+            ->get(['userId', 'shoppingBalance'])
+            ->keyBy('userId');
+
         $productDetails = ProductDetailRecord::query()
             ->where('status', 'ACTIVE')
-            ->where('salesChannelMode', 'BAO_ONLY')
+            ->whereIn('salesChannelMode', ['BAO_ONLY', 'WAP_CATALOG', 'CATALOG_ONLY'])
             ->whereDoesntHave('product.category', function ($query) {
                 $query->where('code', 'FIRM');
             })
@@ -96,8 +102,9 @@ class OrderCreateScreen extends Screen
             ->all();
 
         $memberDirectory = $members
-            ->map(function (Member $member) use ($defaultAddresses): array {
+            ->map(function (Member $member) use ($defaultAddresses, $walletsByUserId): array {
                 $defaultAddress = $defaultAddresses->firstWhere('userId', (int) $member->id);
+                $wallet = $walletsByUserId->get((int) $member->id);
 
                 return [
                     'id' => (int) $member->id,
@@ -105,6 +112,7 @@ class OrderCreateScreen extends Screen
                     'name' => (string) $member->full_name,
                     'email' => (string) ($member->email ?? ''),
                     'phone' => (string) ($member->phone ?? ''),
+                    'shoppingWalletBalance' => number_format((float) ($wallet?->shoppingBalance ?? 0), 2, '.', ''),
                     'defaultAddress' => $defaultAddress ? [
                         'id' => (int) $defaultAddress->id,
                         'label' => (string) ($defaultAddress->label ?? ''),
@@ -177,6 +185,7 @@ class OrderCreateScreen extends Screen
             'workflow_mode' => 'approve_and_process',
             'member_id' => '',
             'payment_channel' => 'cash',
+            'use_shopping_wallet' => false,
             'fulfillment_method' => 'branch_pickup',
             'existing_shipping_address_id' => '',
             'change_shipping_address' => false,
@@ -252,6 +261,7 @@ class OrderCreateScreen extends Screen
             'sale.member_id' => ['nullable', 'integer'],
             'sale.workflow_mode' => ['required', 'in:create_only,approve_and_process'],
             'sale.payment_channel' => ['required', 'in:cash,bank_transfer,shopping_wallet,other'],
+            'sale.use_shopping_wallet' => ['nullable', 'boolean'],
             'sale.fulfillment_method' => ['required', 'in:delivery,branch_pickup'],
             'sale.existing_shipping_address_id' => ['nullable', 'integer'],
             'sale.change_shipping_address' => ['nullable', 'boolean'],
@@ -368,7 +378,11 @@ class OrderCreateScreen extends Screen
 
                 $paymentSelection = $this->buildPaymentSelection(
                     (string) ($payload['payment_channel'] ?? 'cash'),
-                    $group['items']
+                    $group['items'],
+                    (bool) ($payload['use_shopping_wallet'] ?? false),
+                    isset($payload['shopping_wallet_amount'])
+                        ? (string) $payload['shopping_wallet_amount']
+                        : null,
                 );
 
                 $createPayload = [
@@ -550,9 +564,18 @@ class OrderCreateScreen extends Screen
      *     cashPaymentMethod:string
      * }
      */
-    private function buildPaymentSelection(string $paymentChannel, array $items): array
+    private function buildPaymentSelection(
+        string $paymentChannel,
+        array $items,
+        bool $useShoppingWallet = false,
+        ?string $requestedShoppingWalletAmount = null,
+    ): array
     {
         $subtotal = $this->groupSubtotal($items);
+        $normalizedRequestedShoppingWalletAmount = $this->normalizeMoneyAmount(
+            $requestedShoppingWalletAmount,
+            $subtotal,
+        );
 
         return match ($paymentChannel) {
             'shopping_wallet' => [
@@ -569,23 +592,40 @@ class OrderCreateScreen extends Screen
             ],
             'bank_transfer' => [
                 'discountWalletAmount' => '0',
-                'shoppingWalletAmount' => '0',
+                'shoppingWalletAmount' => $useShoppingWallet ? $normalizedRequestedShoppingWalletAmount : '0',
                 'firmWalletAmount' => '0',
                 'cashPaymentMethod' => 'bank_transfer',
             ],
             'other' => [
                 'discountWalletAmount' => '0',
-                'shoppingWalletAmount' => '0',
+                'shoppingWalletAmount' => $useShoppingWallet ? $normalizedRequestedShoppingWalletAmount : '0',
                 'firmWalletAmount' => '0',
                 'cashPaymentMethod' => 'promptpay_qr',
             ],
             default => [
                 'discountWalletAmount' => '0',
-                'shoppingWalletAmount' => '0',
+                'shoppingWalletAmount' => $useShoppingWallet ? $normalizedRequestedShoppingWalletAmount : '0',
                 'firmWalletAmount' => '0',
                 'cashPaymentMethod' => 'cash',
             ],
         };
+    }
+
+    private function normalizeMoneyAmount(?string $value, string $maxAmount): string
+    {
+        if ($value === null) {
+            return '0';
+        }
+
+        $normalized = preg_replace('/[^0-9.]/', '', trim($value)) ?? '';
+        if ($normalized === '' || !is_numeric($normalized)) {
+            return '0';
+        }
+
+        $amount = max(0, (float) $normalized);
+        $max = max(0, (float) $maxAmount);
+
+        return number_format(min($amount, $max), 2, '.', '');
     }
 
     /**
