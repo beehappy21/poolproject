@@ -3,7 +3,7 @@
     $sale = $sale ?? [];
     $memberDirectory = collect($memberDirectory ?? []);
     $productCatalog = collect($productCatalog ?? []);
-    $topProducts = collect($topProducts ?? []);
+    $recentProducts = collect($recentProducts ?? []);
 @endphp
 
 <style>
@@ -22,13 +22,14 @@
     .member-sale-result { width:100%; text-align:left; border:0; border-bottom:1px solid #e2e8f0; background:#fff; padding:.85rem 1rem; cursor:pointer; }
     .member-sale-result:last-child { border-bottom:0; }
     .member-sale-result:hover { background:#f8fafc; }
-    .member-sale-products-strip { display:flex; gap:1rem; overflow-x:auto; padding-bottom:.25rem; }
-    .member-sale-product-card { min-width:220px; max-width:220px; border:1px solid #e2e8f0; border-radius:16px; background:#fff; overflow:hidden; }
+    .member-sale-products-strip { display:grid; gap:1rem; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); }
+    .member-sale-product-card { border:1px solid #e2e8f0; border-radius:16px; background:#fff; overflow:hidden; min-height:100%; }
     .member-sale-product-image { aspect-ratio:1 / 1; background:#f8fafc center / contain no-repeat; border-bottom:1px solid #e2e8f0; }
     .member-sale-product-body { padding:.9rem; display:grid; gap:.5rem; }
     .member-sale-product-name { font-weight:700; color:#0f172a; line-height:1.35; min-height:2.8em; }
     .member-sale-product-meta { font-size:.86rem; color:#475569; }
     .member-sale-product-action { border:0; border-radius:10px; padding:.7rem .9rem; background:#1d4ed8; color:#fff; font-weight:700; cursor:pointer; }
+    .member-sale-product-empty { border:1px dashed #cbd5e1; border-radius:16px; padding:1rem; color:#64748b; background:#f8fafc; }
     .member-sale-selected-list { display:grid; gap:.75rem; }
     .member-sale-selected-item { display:grid; grid-template-columns:minmax(0,1fr) 110px 110px; gap:.75rem; align-items:center; border:1px solid #e2e8f0; border-radius:14px; padding:.85rem 1rem; background:#fff; }
     .member-sale-selected-item button { border:0; border-radius:10px; padding:.65rem .8rem; background:#fee2e2; color:#b91c1c; font-weight:700; cursor:pointer; }
@@ -49,7 +50,7 @@
 <div class="member-sale-page"
      data-member-directory='@json($memberDirectory, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)'
      data-product-catalog='@json($productCatalog, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)'
-     data-top-products='@json($topProducts, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)'>
+     data-recent-products='@json($recentProducts, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)'>
 
     <input type="hidden" name="sale[workflow_mode]" value="{{ old('sale.workflow_mode', $sale['workflow_mode'] ?? 'approve_and_process') }}">
     <input type="hidden" name="sale[discount_wallet_amount]" id="sale_discount_wallet_amount" value="{{ old('sale.discount_wallet_amount', $sale['discount_wallet_amount'] ?? '0') }}">
@@ -111,7 +112,7 @@
         </div>
 
         <div class="mt-3">
-            <div class="member-sale-section-title" id="memberSaleProductStripTitle">สินค้าขายดี</div>
+            <div class="member-sale-section-title" id="memberSaleProductStripTitle">สินค้าขายล่าสุด</div>
             <div class="member-sale-products-strip" id="memberSaleProductStrip"></div>
         </div>
 
@@ -260,7 +261,7 @@
 
     const memberDirectory = JSON.parse(root.dataset.memberDirectory || '[]');
     const productCatalog = JSON.parse(root.dataset.productCatalog || '[]');
-    const topProducts = JSON.parse(root.dataset.topProducts || '[]');
+    const recentProducts = JSON.parse(root.dataset.recentProducts || '[]');
 
     const memberSearch = document.getElementById('member_sale_member_search');
     const memberIdInput = document.getElementById('member_sale_member_id');
@@ -412,7 +413,12 @@
         return availableNote ? `${baseText} · ${availableNote}` : baseText;
     }
 
-    function renderProductCards(items) {
+    function renderProductCards(items, emptyMessage = 'ไม่พบสินค้าที่พร้อมแสดง') {
+        if (!items.length) {
+            productStrip.innerHTML = `<div class="member-sale-product-empty">${emptyMessage}</div>`;
+            return;
+        }
+
         productStrip.innerHTML = items.map((product) => `
             <div class="member-sale-product-card">
                 <div class="member-sale-product-image" style="background-image:url('${product.imageUrl || ''}')"></div>
@@ -619,9 +625,9 @@
     productSearch.addEventListener('input', () => {
         const keyword = productSearch.value.trim().toLowerCase();
         if (!keyword) {
-            productStripTitle.textContent = 'สินค้าขายดี';
+            productStripTitle.textContent = 'สินค้าขายล่าสุด';
             renderProductResults([]);
-            renderProductCards(topProducts);
+            renderProductCards(recentProducts, 'ยังไม่มีประวัติสินค้าขายล่าสุด');
             return;
         }
 
@@ -630,7 +636,7 @@
             || String(product.code).toLowerCase().includes(keyword)
         );
         productStripTitle.textContent = 'ผลการค้นหาสินค้า';
-        renderProductCards(filtered);
+        renderProductCards(filtered, 'ไม่พบสินค้าในคำค้นนี้');
         renderProductResults(filtered.slice(0, 12));
     });
 
@@ -645,9 +651,9 @@
         if (!button) return;
         addProduct(button.dataset.productId);
         productSearch.value = '';
-        productStripTitle.textContent = 'สินค้าขายดี';
+        productStripTitle.textContent = 'สินค้าขายล่าสุด';
         renderProductResults([]);
-        renderProductCards(topProducts);
+        renderProductCards(recentProducts, 'ยังไม่มีประวัติสินค้าขายล่าสุด');
     });
 
     selectedItemsWrap.addEventListener('input', (event) => {
@@ -683,7 +689,7 @@
         fillDeliveryAddress(selectedMember());
     });
 
-    renderProductCards(topProducts);
+    renderProductCards(recentProducts, 'ยังไม่มีประวัติสินค้าขายล่าสุด');
     renderSelectedItems();
     syncFulfillmentSections();
     syncPaymentFields();

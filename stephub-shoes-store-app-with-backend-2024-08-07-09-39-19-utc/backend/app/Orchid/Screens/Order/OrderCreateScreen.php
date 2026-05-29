@@ -71,6 +71,20 @@ class OrderCreateScreen extends Screen
             ->groupBy('product_id')
             ->pluck('sold_qty', 'product_id');
 
+        $recentlySoldProductIds = OrderLine::query()
+            ->selectRaw('product_id, MAX(COALESCE(updated_at, created_at)) as last_sold_at')
+            ->whereNotNull('product_id')
+            ->groupBy('product_id')
+            ->orderByDesc('last_sold_at')
+            ->limit(30)
+            ->pluck('last_sold_at', 'product_id')
+            ->keys()
+            ->map(static function ($productId): ?int {
+                return ctype_digit((string) $productId) ? (int) $productId : null;
+            })
+            ->filter()
+            ->values();
+
         $this->memberOptions = $members
             ->mapWithKeys(fn (Member $member) => [
                 $member->id => sprintf(
@@ -135,7 +149,17 @@ class OrderCreateScreen extends Screen
             ->sortByDesc('soldQty')
             ->values();
 
-        $topProducts = $productCatalog->take(5)->values();
+        $recentProducts = $recentlySoldProductIds
+            ->map(function (int $productId) use ($productCatalog): ?array {
+                return $productCatalog->firstWhere('id', $productId);
+            })
+            ->filter()
+            ->take(5)
+            ->values();
+
+        if ($recentProducts->isEmpty()) {
+            $recentProducts = $productCatalog->take(5)->values();
+        }
 
         $this->productOptions = $productDetails
             ->mapWithKeys(fn (ProductDetailRecord $detail) => [
@@ -190,7 +214,7 @@ class OrderCreateScreen extends Screen
             'sale' => $sale,
             'memberDirectory' => $memberDirectory,
             'productCatalog' => $productCatalog,
-            'topProducts' => $topProducts,
+            'recentProducts' => $recentProducts,
             'todayLabel' => now()->format('d/m/Y H:i'),
             'orderPreviewNo' => 'AUTO-' . now()->format('Ymd-His'),
         ];
