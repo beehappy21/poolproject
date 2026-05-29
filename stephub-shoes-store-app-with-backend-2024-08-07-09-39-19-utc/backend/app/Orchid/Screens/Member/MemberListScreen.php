@@ -3,6 +3,7 @@
 namespace App\Orchid\Screens\Member;
 
 use App\Models\Member;
+use App\Models\MemberUserRecord;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Orchid\Screen\Actions\Link;
@@ -15,7 +16,11 @@ class MemberListScreen extends Screen
 {
     public function query(Request $request): iterable
     {
-        $search = trim((string) $request->query('search', ''));
+        $memberCodeSearch = trim((string) $request->query('member_code_search', ''));
+        $nameSearch = trim((string) $request->query('name_search', ''));
+        $hasMemberCodeSearch = mb_strlen($memberCodeSearch) >= 2;
+        $hasNameSearch = mb_strlen($nameSearch) >= 2;
+        $hasSearch = $hasMemberCodeSearch || $hasNameSearch;
         $members = Member::member003()
             ->select('User.*')
             ->selectSub(
@@ -30,30 +35,55 @@ class MemberListScreen extends Screen
             ->with(['memberProfile', 'sponsor'])
             ->orderBy('id');
 
-        if ($search !== '') {
-            $members->where(function ($query) use ($search) {
-                $like = '%' . $search . '%';
+        if ($hasMemberCodeSearch) {
+            $prefixLike = $memberCodeSearch . '%';
+            $matchedUplineUserIds = MemberUserRecord::query()
+                ->where('memberCode', 'ilike', $prefixLike)
+                ->pluck('id');
+
+            $members->where(function ($query) use ($prefixLike, $matchedUplineUserIds) {
                 $query
-                    ->where('memberCode', 'ilike', $like)
-                    ->orWhere('name', 'ilike', $like)
-                    ->orWhere('email', 'ilike', $like)
-                    ->orWhere('phone', 'ilike', $like)
-                    ->orWhereHas('sponsor', function ($sponsorQuery) use ($like) {
-                        $sponsorQuery->where('memberCode', 'ilike', $like);
+                    ->where('memberCode', 'ilike', $prefixLike)
+                    ->orWhere('email', 'ilike', $prefixLike)
+                    ->orWhere('phone', 'ilike', $prefixLike)
+                    ->orWhereHas('sponsor', function ($sponsorQuery) use ($prefixLike) {
+                        $sponsorQuery->where('memberCode', 'ilike', $prefixLike);
                     })
-                    ->orWhereHas('memberProfile', function ($profileQuery) use ($like) {
+                    ->orWhereHas('memberProfile', function ($profileQuery) use ($prefixLike) {
                         $profileQuery
-                            ->where('nationalId', 'ilike', $like)
-                            ->orWhere('rankCode', 'ilike', $like)
-                            ->orWhere('honorTitle', 'ilike', $like)
-                            ->orWhere('mobileCenterCode', 'ilike', $like);
+                            ->where('nationalId', 'ilike', $prefixLike)
+                            ->orWhere('rankCode', 'ilike', $prefixLike)
+                            ->orWhere('mobileCenterCode', 'ilike', $prefixLike);
+                    });
+
+                if ($matchedUplineUserIds->isNotEmpty()) {
+                    $query->orWhereHas('memberProfile', function ($profileQuery) use ($matchedUplineUserIds) {
+                        $profileQuery->whereIn('uplineUserId', $matchedUplineUserIds);
+                    });
+                }
+            });
+        }
+
+        if ($hasNameSearch) {
+            $containsLike = '%' . $nameSearch . '%';
+
+            $members->where(function ($query) use ($containsLike) {
+                $query
+                    ->where('name', 'ilike', $containsLike)
+                    ->orWhereHas('memberProfile', function ($profileQuery) use ($containsLike) {
+                        $profileQuery->where('honorTitle', 'ilike', $containsLike);
                     });
             });
         }
 
         return [
-            'search' => $search,
-            'members' => $members->paginate(20)->appends(['search' => $search]),
+            'memberCodeSearch' => $memberCodeSearch,
+            'nameSearch' => $nameSearch,
+            'members' => ($hasSearch ? $members->simplePaginate(20) : $members->paginate(20))
+                ->appends([
+                    'member_code_search' => $memberCodeSearch,
+                    'name_search' => $nameSearch,
+                ]),
         ];
     }
 
