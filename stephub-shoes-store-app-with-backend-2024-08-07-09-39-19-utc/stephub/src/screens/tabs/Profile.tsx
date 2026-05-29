@@ -343,14 +343,20 @@ export const Profile: React.FC = () => {
     const loadDirectReferrals = async () => {
       const currentMemberCode = normalizeMemberCode(user?.memberCode);
 
-      if (!currentMemberCode) {
+      if (!currentMemberCode || !user?.accessToken) {
         setDirectReferralCount(0);
+        setDirectReferralPlacementSides([]);
         return;
       }
 
       try {
         const response = await axios.get<DirectReferralsResponse>(
           URLS.buildMemberDirectReferralsUrl(currentMemberCode),
+          {
+            headers: {
+              Authorization: `Bearer ${user.accessToken}`,
+            },
+          },
         );
 
         setDirectReferralCount(response.data.directReferrals?.length || 0);
@@ -374,7 +380,7 @@ export const Profile: React.FC = () => {
     };
 
     loadDirectReferrals();
-  }, [user?.memberCode]);
+  }, [user?.accessToken, user?.memberCode]);
 
   useEffect(() => {
     const loadLineBinding = async () => {

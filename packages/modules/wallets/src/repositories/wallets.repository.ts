@@ -122,6 +122,18 @@ export interface WalletsRepository {
 
   findUserIdByMemberCode(memberCode: string): Promise<string | null>;
 
+  searchDownlineTransferRecipients(input: {
+    sponsorUserId: string;
+    query: string;
+    limit?: number;
+  }): Promise<
+    Array<{
+      userId: string;
+      memberCode: string;
+      name: string;
+    }>
+  >;
+
   isDownlineOfSponsor(
     sponsorUserId: string,
     memberUserId: string,
@@ -1430,6 +1442,76 @@ export class PrismaWalletsRepository implements WalletsRepository {
     });
 
     return user?.id.toString() ?? null;
+  }
+
+  async searchDownlineTransferRecipients(input: {
+    sponsorUserId: string;
+    query: string;
+    limit?: number;
+  }): Promise<
+    Array<{
+      userId: string;
+      memberCode: string;
+      name: string;
+    }>
+  > {
+    const normalizedQuery = input.query.trim();
+    if (normalizedQuery.length < 2) {
+      return [];
+    }
+
+    const limit = Math.max(1, Math.min(input.limit ?? 10, 20));
+    const like = `%${normalizedQuery}%`;
+
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        userId: bigint;
+        memberCode: string;
+        name: string;
+      }>
+    >(Prisma.sql`
+      with recursive downline as (
+        select
+          u.id,
+          u."memberCode",
+          u.name,
+          u."sponsorId"
+        from "User" u
+        where u."sponsorId" = ${BigInt(input.sponsorUserId)}
+
+        union all
+
+        select
+          child.id,
+          child."memberCode",
+          child.name,
+          child."sponsorId"
+        from "User" child
+        inner join downline parent on child."sponsorId" = parent.id
+      )
+      select
+        d.id as "userId",
+        d."memberCode",
+        d.name
+      from downline d
+      where
+        d."memberCode" ilike ${like}
+        or d.name ilike ${like}
+      order by
+        case
+          when d."memberCode" ilike ${normalizedQuery + `%`} then 0
+          when d.name ilike ${normalizedQuery + `%`} then 1
+          else 2
+        end,
+        d."memberCode" asc
+      limit ${limit}
+    `);
+
+    return rows.map((row) => ({
+      userId: row.userId.toString(),
+      memberCode: row.memberCode,
+      name: row.name,
+    }));
   }
 
   async isDownlineOfSponsor(

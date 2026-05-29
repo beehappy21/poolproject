@@ -94,6 +94,7 @@ export const AUTH_POOL_PAYOUTS = `${API_BASE_URL}/auth/pool-payouts`;
 export const AUTH_TRANSACTIONS = `${API_BASE_URL}/auth/transactions`;
 export const AUTH_WALLETS_CONVERT = `${API_BASE_URL}/auth/wallets/convert`;
 export const AUTH_WALLETS_TRANSFER = `${API_BASE_URL}/auth/wallets/transfer`;
+export const AUTH_WALLETS_TRANSFER_RECIPIENTS = `${API_BASE_URL}/auth/wallets/transfer-recipients`;
 export const AUTH_WALLET_TOPUP_REQUESTS = `${API_BASE_URL}/auth/wallets/topup-requests`;
 export const AUTH_WITHDRAW_REQUESTS = `${API_BASE_URL}/auth/withdraw-requests`;
 export const AUTH_KYC_REQUESTS = `${API_BASE_URL}/auth/kyc-requests`;
@@ -171,6 +172,7 @@ export const URLS = {
   AUTH_TRANSACTIONS,
   AUTH_WALLETS_CONVERT,
   AUTH_WALLETS_TRANSFER,
+  AUTH_WALLETS_TRANSFER_RECIPIENTS,
   AUTH_WALLET_TOPUP_REQUESTS,
   AUTH_WITHDRAW_REQUESTS,
   AUTH_KYC_REQUESTS,

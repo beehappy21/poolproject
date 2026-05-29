@@ -78,6 +78,18 @@ export interface WalletsServiceContract {
     amount: string;
   }): Promise<ShoppingWalletTransferResult>;
 
+  searchTransferRecipients(input: {
+    senderUserId: string;
+    query: string;
+    limit?: number;
+  }): Promise<
+    Array<{
+      userId: string;
+      memberCode: string;
+      name: string;
+    }>
+  >;
+
   topupShoppingWallet(input: {
     userId: string;
     amount: string;
@@ -481,6 +493,29 @@ export class WalletsService implements WalletsServiceContract {
       grossAmount: input.amount,
       feeAmount,
       netAmount,
+    });
+  }
+
+  async searchTransferRecipients(input: {
+    senderUserId: string;
+    query: string;
+    limit?: number;
+  }): Promise<
+    Array<{
+      userId: string;
+      memberCode: string;
+      name: string;
+    }>
+  > {
+    const normalizedQuery = input.query.trim();
+    if (normalizedQuery.length < 2) {
+      return [];
+    }
+
+    return this.walletsRepository.searchDownlineTransferRecipients({
+      sponsorUserId: input.senderUserId,
+      query: normalizedQuery,
+      limit: input.limit,
     });
   }
 

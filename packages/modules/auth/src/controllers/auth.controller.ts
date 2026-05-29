@@ -680,6 +680,22 @@ export class AuthController {
     });
   }
 
+  @Get("wallets/transfer-recipients")
+  async searchTransferRecipients(
+    @Headers("authorization") authorization?: string,
+    @Headers("cookie") cookieHeader?: string,
+    @Query("query") query?: string,
+    @Query("limit") limit?: string,
+  ) {
+    const user = await this.requireSessionUser(authorization, cookieHeader);
+
+    return this.walletsService.searchTransferRecipients({
+      senderUserId: user.userId,
+      query: optionalString(query) ?? "",
+      limit: limit ? Number.parseInt(limit, 10) : undefined,
+    });
+  }
+
   @Get("wallets/topup-requests")
   async listOwnWalletTopupRequests(
     @Headers("authorization") authorization?: string,
