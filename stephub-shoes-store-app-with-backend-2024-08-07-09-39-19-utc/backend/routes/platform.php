@@ -56,6 +56,8 @@ use App\Orchid\Screens\Commission\CommissionReportScreen;
 use App\Orchid\Screens\Commission\SpecialCommissionPrivilegeScreen;
 use App\Orchid\Screens\Finance\MemberBankAccountListScreen;
 use App\Http\Controllers\Platform\CommissionReportController;
+use App\Http\Controllers\Platform\MemberSearchRedirectController;
+use App\Http\Controllers\Platform\MemberSearchSuggestionController;
 use App\Http\Controllers\Platform\OrderDocumentController;
 use App\Http\Controllers\Platform\OrderReportController;
 use App\Http\Controllers\Platform\WithdrawReportController;
@@ -222,6 +224,12 @@ Route::middleware('admin.access:'.AdminPermissions::MARKETING_MANAGE)->group(fun
 });
 
 Route::middleware('admin.access:'.AdminPermissions::MEMBERS_MANAGE)->group(function (): void {
+  Route::get('member/search', MemberSearchRedirectController::class)
+    ->name('platform.member.search');
+
+  Route::get('member/search-suggestions', MemberSearchSuggestionController::class)
+    ->name('platform.member.searchSuggestions');
+
   Route::screen('member/list', MemberListScreen::class)
     ->name('platform.member.list');
 

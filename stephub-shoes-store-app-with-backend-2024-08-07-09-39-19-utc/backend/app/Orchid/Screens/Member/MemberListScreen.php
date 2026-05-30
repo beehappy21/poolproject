@@ -16,8 +16,14 @@ class MemberListScreen extends Screen
 {
     public function query(Request $request): iterable
     {
+        $selectedMemberCode = strtoupper(trim((string) $request->query('selected_member_code', '')));
         $memberCodeSearch = trim((string) $request->query('member_code_search', ''));
         $nameSearch = trim((string) $request->query('name_search', ''));
+        preg_match('/TH\d+/i', $memberCodeSearch, $memberCodeMatch);
+        $exactMemberCode = strtoupper($memberCodeMatch[0] ?? '');
+        if ($selectedMemberCode !== '' && preg_match('/^TH\d+$/i', $selectedMemberCode) === 1) {
+            $exactMemberCode = $selectedMemberCode;
+        }
         $hasMemberCodeSearch = mb_strlen($memberCodeSearch) >= 2;
         $hasNameSearch = mb_strlen($nameSearch) >= 2;
         $hasSearch = $hasMemberCodeSearch || $hasNameSearch;
@@ -35,33 +41,56 @@ class MemberListScreen extends Screen
             ->with(['memberProfile', 'sponsor'])
             ->orderBy('id');
 
-        if ($hasMemberCodeSearch) {
+        if ($selectedMemberCode !== '' && preg_match('/^TH\d+$/i', $selectedMemberCode) === 1) {
+            $members->where('memberCode', $selectedMemberCode);
+        } elseif ($hasMemberCodeSearch) {
             $prefixLike = $memberCodeSearch . '%';
-            $matchedUplineUserIds = MemberUserRecord::query()
-                ->where('memberCode', 'ilike', $prefixLike)
-                ->pluck('id');
+            $containsLike = '%' . $memberCodeSearch . '%';
+            if ($exactMemberCode !== '') {
+                $matchedUplineUserIds = MemberUserRecord::query()
+                    ->where('memberCode', $exactMemberCode)
+                    ->pluck('id');
 
-            $members->where(function ($query) use ($prefixLike, $matchedUplineUserIds) {
-                $query
-                    ->where('memberCode', 'ilike', $prefixLike)
-                    ->orWhere('email', 'ilike', $prefixLike)
-                    ->orWhere('phone', 'ilike', $prefixLike)
-                    ->orWhereHas('sponsor', function ($sponsorQuery) use ($prefixLike) {
-                        $sponsorQuery->where('memberCode', 'ilike', $prefixLike);
-                    })
-                    ->orWhereHas('memberProfile', function ($profileQuery) use ($prefixLike) {
-                        $profileQuery
-                            ->where('nationalId', 'ilike', $prefixLike)
-                            ->orWhere('rankCode', 'ilike', $prefixLike)
-                            ->orWhere('mobileCenterCode', 'ilike', $prefixLike);
-                    });
+                $members->where(function ($query) use ($exactMemberCode, $matchedUplineUserIds) {
+                    $query
+                        ->where('memberCode', $exactMemberCode)
+                        ->orWhereHas('sponsor', function ($sponsorQuery) use ($exactMemberCode) {
+                            $sponsorQuery->where('memberCode', $exactMemberCode);
+                        });
 
-                if ($matchedUplineUserIds->isNotEmpty()) {
-                    $query->orWhereHas('memberProfile', function ($profileQuery) use ($matchedUplineUserIds) {
-                        $profileQuery->whereIn('uplineUserId', $matchedUplineUserIds);
-                    });
-                }
-            });
+                    if ($matchedUplineUserIds->isNotEmpty()) {
+                        $query->orWhereHas('memberProfile', function ($profileQuery) use ($matchedUplineUserIds) {
+                            $profileQuery->whereIn('uplineUserId', $matchedUplineUserIds);
+                        });
+                    }
+                });
+            } else {
+                $matchedUplineUserIds = MemberUserRecord::query()
+                    ->where('memberCode', 'ilike', $containsLike)
+                    ->pluck('id');
+
+                $members->where(function ($query) use ($prefixLike, $containsLike, $matchedUplineUserIds) {
+                    $query
+                        ->where('memberCode', 'ilike', $containsLike)
+                        ->orWhere('email', 'ilike', $containsLike)
+                        ->orWhere('phone', 'ilike', $containsLike)
+                        ->orWhereHas('sponsor', function ($sponsorQuery) use ($containsLike) {
+                            $sponsorQuery->where('memberCode', 'ilike', $containsLike);
+                        })
+                        ->orWhereHas('memberProfile', function ($profileQuery) use ($prefixLike, $containsLike) {
+                            $profileQuery
+                                ->where('nationalId', 'ilike', $containsLike)
+                                ->orWhere('rankCode', 'ilike', $prefixLike)
+                                ->orWhere('mobileCenterCode', 'ilike', $prefixLike);
+                        });
+
+                    if ($matchedUplineUserIds->isNotEmpty()) {
+                        $query->orWhereHas('memberProfile', function ($profileQuery) use ($matchedUplineUserIds) {
+                            $profileQuery->whereIn('uplineUserId', $matchedUplineUserIds);
+                        });
+                    }
+                });
+            }
         }
 
         if ($hasNameSearch) {
@@ -76,11 +105,38 @@ class MemberListScreen extends Screen
             });
         }
 
+        $memberSearchSuggestions = collect();
+
+        if ($hasMemberCodeSearch) {
+            $prefixLike = $memberCodeSearch . '%';
+            $containsLike = '%' . $memberCodeSearch . '%';
+            $memberSearchSuggestions = Member::member003()
+                ->select('User.*')
+                ->where(function ($query) use ($prefixLike, $containsLike) {
+                    $query
+                        ->where('memberCode', 'ilike', $containsLike)
+                        ->orWhere('name', 'ilike', $containsLike)
+                        ->orWhere('email', 'ilike', $containsLike)
+                        ->orWhere('phone', 'ilike', $containsLike);
+                })
+                ->orderByRaw('CASE WHEN "User"."memberCode" ILIKE ? THEN 0 ELSE 1 END', [$prefixLike])
+                ->orderBy('memberCode')
+                ->limit(8)
+                ->get();
+        }
+
         return [
             'memberCodeSearch' => $memberCodeSearch,
             'nameSearch' => $nameSearch,
+            'selectedMemberCode' => $selectedMemberCode,
+            'memberSearchOptions' => Member::member003()
+                ->select('id', 'memberCode', 'name')
+                ->orderBy('memberCode')
+                ->get(),
+            'memberSearchSuggestions' => $memberSearchSuggestions,
             'members' => ($hasSearch ? $members->simplePaginate(20) : $members->paginate(20))
                 ->appends([
+                    'selected_member_code' => $selectedMemberCode,
                     'member_code_search' => $memberCodeSearch,
                     'name_search' => $nameSearch,
                 ]),
